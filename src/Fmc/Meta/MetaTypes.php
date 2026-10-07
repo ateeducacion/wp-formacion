@@ -74,7 +74,7 @@ final class MetaTypes {
 			case self::BOOL:
 				return (bool) filter_var( $value, FILTER_VALIDATE_BOOLEAN );
 			case self::DATE:
-				return self::date( (string) $value );
+				return self::ymd( (string) $value );
 			case self::URL:
 				return esc_url_raw( (string) $value, array( 'http', 'https' ) );
 			case self::EMAIL:
@@ -94,7 +94,7 @@ final class MetaTypes {
 	 * @param string $value Raw date.
 	 * @return string
 	 */
-	private static function date( string $value ): string {
+	private static function ymd( string $value ): string {
 		$value = trim( $value );
 		if ( ! preg_match( '/^(\d{4})-(\d{2})-(\d{2})$/', $value, $m ) ) {
 			return '';

@@ -6,7 +6,7 @@
  * Priority: 15
  *
  * @package Fmc
- * @version 0.0.1
+ * @version 0.0.2
  */
 
 // phpcs:disable
@@ -101,7 +101,7 @@ final class MetaTypes {
 			case self::BOOL:
 				return (bool) filter_var( $value, FILTER_VALIDATE_BOOLEAN );
 			case self::DATE:
-				return self::date( (string) $value );
+				return self::ymd( (string) $value );
 			case self::URL:
 				return esc_url_raw( (string) $value, array( 'http', 'https' ) );
 			case self::EMAIL:
@@ -121,7 +121,7 @@ final class MetaTypes {
 
 
 
-	private static function date( string $value ): string {
+	private static function ymd( string $value ): string {
 		$value = trim( $value );
 		if ( ! preg_match( '/^(\d{4})-(\d{2})-(\d{2})$/', $value, $m ) ) {
 			return '';
@@ -2284,7 +2284,7 @@ final class Lists {
 
 
 
-	private static function count( array $args ): int {
+	private static function total( array $args ): int {
 		$args['posts_per_page'] = 1;
 		$args['fields']         = 'ids';
 		$q                      = new \WP_Query( $args );
@@ -2302,7 +2302,7 @@ final class Lists {
 		$out  = array(
 			array(
 				'label' => 'En total',
-				'n'     => self::count( $base ),
+				'n'     => self::total( $base ),
 				'arg'   => '',
 				'value' => '',
 			),
@@ -2358,7 +2358,7 @@ final class Lists {
 		foreach ( $by as list( $label, $arg, $value, $extra ) ) {
 			$out[] = array(
 				'label' => $label,
-				'n'     => self::count( array_merge( $base, $extra ) ),
+				'n'     => self::total( array_merge( $base, $extra ) ),
 				'arg'   => $arg,
 				'value' => $value,
 			);

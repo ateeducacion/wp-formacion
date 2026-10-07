@@ -8,6 +8,12 @@ lee de la cabecera superior y la escribe en el `@version` del bundle.
 `make release` crea el tag y la release en GitHub; el despliegue de los snippets
 en el sitio de destino se hace después.
 
+## [0.0.2] — 2026-10-07
+
+### Corregido
+
+- El snippet del aplicativo se desactivaba al guardarlo en Code Snippets: su validador tomaba el método `count()` de los listados por una redeclaración de la función de PHP. Se renombra, y un test impide que un método vuelva a llamarse como una función nativa.
+
 ## [0.0.1] — 2026-10-07
 
 Primera versión publicada: la que se lleva al sitio de destino.

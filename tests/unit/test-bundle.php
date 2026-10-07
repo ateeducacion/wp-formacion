@@ -127,4 +127,19 @@ class Test_Bundle extends WP_UnitTestCase {
 		// acceso directo: cualquier otra cosa sería código que corre dos veces.
 		$this->assertStringContainsString( "defined( 'ABSPATH' )", $entre[1] );
 	}
+
+	/**
+	 * Ningún método se llama como una función nativa de PHP.
+	 *
+	 * El validador de Code Snippets busca `function nombre` sin mirar si está
+	 * dentro de una clase: un método `count()` le parece una redeclaración de
+	 * `count()` y desactiva el snippet al guardarlo.
+	 */
+	public function test_no_method_shares_a_name_with_a_php_function() {
+		preg_match_all( '/\bfunction\s+(\w+)\s*\(/', $this->bundle(), $nombres );
+		$nativas = array_flip( get_defined_functions()['internal'] );
+		$choques = array_filter( $nombres[1], static fn( $n ) => isset( $nativas[ strtolower( $n ) ] ) );
+
+		$this->assertSame( array(), array_values( $choques ) );
+	}
 }

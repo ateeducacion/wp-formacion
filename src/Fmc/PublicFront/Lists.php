@@ -252,7 +252,7 @@ final class Lists {
 	 * @param array<string, mixed> $args Query args.
 	 * @return int
 	 */
-	private static function count( array $args ): int {
+	private static function total( array $args ): int {
 		$args['posts_per_page'] = 1;
 		$args['fields']         = 'ids';
 		$q                      = new \WP_Query( $args );
@@ -270,7 +270,7 @@ final class Lists {
 		$out  = array(
 			array(
 				'label' => 'En total',
-				'n'     => self::count( $base ),
+				'n'     => self::total( $base ),
 				'arg'   => '',
 				'value' => '',
 			),
@@ -326,7 +326,7 @@ final class Lists {
 		foreach ( $by as list( $label, $arg, $value, $extra ) ) {
 			$out[] = array(
 				'label' => $label,
-				'n'     => self::count( array_merge( $base, $extra ) ),
+				'n'     => self::total( array_merge( $base, $extra ) ),
 				'arg'   => $arg,
 				'value' => $value,
 			);
