@@ -432,12 +432,15 @@ JS;
 }
 add_action( 'login_enqueue_scripts', 'fmc_dev_login_assets' );
 
-// Bootstrap y sus iconos se cargan desde jsDelivr (`snippets/bootstrap5.php`), y
-// en desarrollo eso mete la red en mitad de cada prueba: si el CDN tarda o el DNS
-// parpadea, la página se dibuja sin Bootstrap y la comprobación se cae midiendo
-// una geometría que nunca se aplicó, señalando a un sitio que no tiene nada que
-// ver. Aquí se sirven de la copia que `npm install` deja en node_modules, con la
-// versión clavada: la misma que pide el aplicativo, o no se toca nada (ADR-0002).
+// Lo que se encola desde jsDelivr mete la red en mitad de cada prueba: si el CDN
+// tarda o el DNS parpadea, la página se dibuja sin estilos y la comprobación se
+// cae señalando a un sitio que no tiene nada que ver. Aquí se sirve de la copia
+// que `npm install` deja en node_modules, con la versión clavada: la misma que
+// pide la URL, o no se toca nada (ADR-0002).
+//
+// Solo alcanza a lo encolado con `wp_enqueue_*`. El documento propio del
+// aplicativo (`Screen::document()`) escribe sus etiquetas a mano, así que en
+// desarrollo esas siguen viniendo del CDN.
 //
 // Solo desarrollo: este mu-plugin no se despliega. En producción siguen viniendo
 // del CDN, con su SRI, que se añade mirando el `src` y por tanto deja de ponerse

@@ -16,8 +16,10 @@ las **incidencias** que se abren sobre una acción. Es hermano del aplicativo de
 eventos (`wp-eventos`) y **hereda entera su plataforma**: el mismo entorno, el
 mismo empaquetado en Code Snippets, la misma CI y las mismas reglas
 ([ADR-0002](docs/adr/ADR-0002-se-hereda-la-plataforma-del-aplicativo-de-eventos.md)).
-En producción se activa con **Code Snippets**, **Members** y **WPFront User
-Role Editor**; dónde, lo dice el `.env` y **no el repositorio**.
+En producción se activa con **Code Snippets** y **WPFront User Role Editor**
+—este, solo para suplantar a alguien y probar el aplicativo con su perfil; los
+roles y sus capacidades salen del código, no de su editor—; dónde, lo dice el
+`.env` y **no el repositorio**.
 
 El dominio son cuatro CPT —`fmc_design`, `fmc_action`, `fmc_speaker`,
 `fmc_incident`— y cuatro taxonomías —`fmc_programme`, `fmc_topic`,
@@ -399,7 +401,7 @@ que buscan. Sin ese fichero solo se aplican las genéricas, y el script lo avisa
 ## Referencia de herramientas
 
 - `make help` y el `Makefile` son la referencia de targets.
-- wp-env: **Code Snippets + Members + WPFront User Role Editor + SQL Buddy**
+- wp-env: **Code Snippets + WPFront User Role Editor + SQL Buddy**
   (ningún gestor de formularios). Puertos `8858` / `8859`.
 - El destino en producción **puede ser un subsitio de un multisitio**, a
   diferencia del entorno local, que es un sitio único. Cualquier cosa que

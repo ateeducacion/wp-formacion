@@ -1,12 +1,11 @@
 # Codecov: el porcentaje y su variación, en un comentario de cada PR.
 #
-# **El suelo es el 90 %, en los dos ejes**: el del proyecto y el del parche.
-# Arrancó en el 10 % a propósito, porque en un repositorio vacío las primeras
-# entregas son andamiaje que se prueba con pocos tests grandes y un listón alto
-# solo enseña a escribir tests de adorno para pasar al guardia. Ya no es ese
-# repositorio: el aplicativo tiene sus pantallas, su formulario de inscripción y
-# su aforo, la cobertura se ha estabilizado por encima del 90 % y el listón sube
-# —ADR-0002, adenda del 2026-09-15—.
+# **El suelo es el 90 %, en los dos ejes**: el del proyecto y el del parche,
+# y los dos tumban el PR, no avisan. Es el mismo listón que el aplicativo de
+# eventos, del que este hereda la plataforma (ADR-0002, que hereda su política
+# de pruebas). Los tests que lo sostienen prueban comportamiento —qué ve y qué
+# puede guardar cada perfil, qué filtra cada filtro—, no líneas sueltas: un
+# test que solo pasa por el código para subir el número no protege nada.
 #
 # Lo que eso significa en un PR: lo que se toca va con sus tests (el parche), y
 # no se puede compensar tocando poco (el proyecto). Un PR que baje el total

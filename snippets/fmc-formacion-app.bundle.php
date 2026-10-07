@@ -6,7 +6,7 @@
  * Priority: 15
  *
  * @package Fmc
- * @version 0.0.2
+ * @version 0.0.3
  */
 
 // phpcs:disable
@@ -2988,7 +2988,9 @@ final class Calendar {
 		);
 
 		$out = array();
-		foreach ( get_posts( $args ) as $post ) {
+
+
+		foreach ( get_posts( $args + array( 'suppress_filters' => false ) ) as $post ) {
 			$out[ (string) get_post_meta( $post->ID, A::START, true ) ][] = $post;
 		}
 		return $out;
@@ -4044,6 +4046,14 @@ final class Screen {
 
 
 
+	public const BOOTSTRAP = array(
+		'css'     => 'https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css',
+		'css_sri' => 'sha384-sRIl4kxILFvY47J16cr9ZwB07vP4J8+LH7qKQnuqkuIAvNWLzeN8tE5YBujZqJLB',
+	);
+
+
+
+
 	public const SWEETALERT = array(
 		'js'     => 'https://cdn.jsdelivr.net/npm/sweetalert2@11.26.25/dist/sweetalert2.all.min.js',
 		'js_sri' => 'sha384-nLoOnA/BDh8A/jxqtckg4DumuCGOBYUnNJLZdQz/zfYNp3wcjGSoWTAzgko06G/2',
@@ -4220,19 +4230,44 @@ final class Screen {
 
 
 
+
+
+
+
+	public static function deployment_chrome(): array {
+		$chrome = (array) apply_filters(
+			'fmc_chrome',
+			array(
+				'head'   => '',
+				'footer' => '',
+			)
+		);
+		return array(
+			'head'   => (string) ( $chrome['head'] ?? '' ),
+			'footer' => (string) ( $chrome['footer'] ?? '' ),
+		);
+	}
+
+
+
+
+
+
+
 	public static function document( array $screen ): string {
 		if ( self::framed() ) {
 			return self::fragment( $screen );
 		}
-		$out  = '<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">';
-		$out .= '<title>' . esc_html( $screen['title'] . ' · Formación' ) . '</title>';
+		$chrome = self::deployment_chrome();
+		$out    = '<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">';
+		$out   .= '<title>' . esc_html( $screen['title'] . ' · Formación' ) . '</title>';
 
 
-		$out .= '<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" integrity="sha384-sRIl4kxILFvY47J16cr9ZwB07vP4J8+LH7qKQnuqkuIAvNWLzeN8tE5YBujZqJLB" crossorigin="anonymous">';
+		$out .= '<link rel="stylesheet" href="' . esc_url( self::BOOTSTRAP['css'] ) . '" integrity="' . esc_attr( self::BOOTSTRAP['css_sri'] ) . '" crossorigin="anonymous">';
 
 
 		$out .= '<link rel="stylesheet" href="' . esc_url( self::TOM_SELECT['css'] ) . '" integrity="' . esc_attr( self::TOM_SELECT['css_sri'] ) . '" crossorigin="anonymous">';
-		$out .= '<style>' . Assets::css() . '</style></head><body class="fmc">';
+		$out .= '<style>' . Assets::css() . '</style>' . $chrome['head'] . '</head><body class="fmc">';
 		$out .= self::chrome( $screen['tab'] );
 
 		$out .= '<div class="fmc-head"><div class="container d-flex flex-wrap align-items-start gap-3">';
@@ -4243,7 +4278,7 @@ final class Screen {
 		$out .= '</div>' . ( $screen['actions'] ?? '' ) . '</div></div>';
 
 		$out .= '<main class="container py-4">' . self::notice() . $screen['body'] . '</main>';
-		$out .= '<footer class="fmc-foot"><div class="container">Aplicativo de formación</div></footer>';
+		$out .= '<footer class="fmc-foot"><div class="container">Aplicativo de formación' . $chrome['footer'] . '</div></footer>';
 
 		$out .= '<script src="' . esc_url( self::TOM_SELECT['js'] ) . '" integrity="' . esc_attr( self::TOM_SELECT['js_sri'] ) . '" crossorigin="anonymous"></script>';
 

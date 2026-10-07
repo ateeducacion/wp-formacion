@@ -98,7 +98,7 @@ pruebas en navegador, que vuelven aquí):
    fecha.
 3. **Congelación:** el sitio actual pasa a solo lectura; última exportación.
 4. **Corte:** el actual se mueve a su dirección de archivo; en la de siempre se
-   monta el sitio limpio con Code Snippets, Members y WPFront, los snippets de
+   monta el sitio limpio con Code Snippets y WPFront, los snippets de
    este repositorio y la importación final.
 5. **Comprobación:** recuentos contra la exportación, enlaces antiguos más
    usados y una semana de convivencia con el archivo accesible.
