@@ -31,6 +31,14 @@ final class Screen {
 	public const ARG_FRAME = 'fmc_marco';
 
 	/**
+	 * Bootstrap from jsDelivr, pinned with SRI, same version as `package.json`.
+	 */
+	public const BOOTSTRAP = array(
+		'css'     => 'https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css',
+		'css_sri' => 'sha384-sRIl4kxILFvY47J16cr9ZwB07vP4J8+LH7qKQnuqkuIAvNWLzeN8tE5YBujZqJLB',
+	);
+
+	/**
 	 * SweetAlert2 from jsDelivr, pinned with SRI, same version as eventos and `package.json`.
 	 */
 	public const SWEETALERT = array(
@@ -204,6 +212,30 @@ final class Screen {
 	}
 
 	/**
+	 * What the deployment adds around the app: `head` (analytics, cookie
+	 * notice) and `footer` (legal links, the organisation's name).
+	 *
+	 * Lo que dice de quién es el despliegue no se versiona (ADR-0002): llega por
+	 * el filtro `fmc_chrome`, vacío por defecto, desde un snippet de quien
+	 * despliega. Es HTML de quien administra el código, así que no se escapa.
+	 *
+	 * @return array{head:string, footer:string}
+	 */
+	public static function deployment_chrome(): array {
+		$chrome = (array) apply_filters(
+			'fmc_chrome',
+			array(
+				'head'   => '',
+				'footer' => '',
+			)
+		);
+		return array(
+			'head'   => (string) ( $chrome['head'] ?? '' ),
+			'footer' => (string) ( $chrome['footer'] ?? '' ),
+		);
+	}
+
+	/**
 	 * The whole HTML document around a screen.
 	 *
 	 * @param array{tab:string, title:string, subtitle?:string, actions?:string, body:string} $screen Screen.
@@ -213,15 +245,16 @@ final class Screen {
 		if ( self::framed() ) {
 			return self::fragment( $screen );
 		}
-		$out  = '<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">';
-		$out .= '<title>' . esc_html( $screen['title'] . ' · Formación' ) . '</title>';
+		$chrome = self::deployment_chrome();
+		$out    = '<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">';
+		$out   .= '<title>' . esc_html( $screen['title'] . ' · Formación' ) . '</title>';
 		// Bootstrap desde jsDelivr con SRI (ADR-0002).
 		// phpcs:ignore WordPress.WP.EnqueuedResources.NonEnqueuedStylesheet -- documento propio, fuera del tema.
-		$out .= '<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" integrity="sha384-sRIl4kxILFvY47J16cr9ZwB07vP4J8+LH7qKQnuqkuIAvNWLzeN8tE5YBujZqJLB" crossorigin="anonymous">';
+		$out .= '<link rel="stylesheet" href="' . esc_url( self::BOOTSTRAP['css'] ) . '" integrity="' . esc_attr( self::BOOTSTRAP['css_sri'] ) . '" crossorigin="anonymous">';
 		// Tom Select para las listas con buscador y las de varios elegidos, como en eventos.
 		// phpcs:ignore WordPress.WP.EnqueuedResources.NonEnqueuedStylesheet -- documento propio, fuera del tema.
 		$out .= '<link rel="stylesheet" href="' . esc_url( self::TOM_SELECT['css'] ) . '" integrity="' . esc_attr( self::TOM_SELECT['css_sri'] ) . '" crossorigin="anonymous">';
-		$out .= '<style>' . Assets::css() . '</style></head><body class="fmc">';
+		$out .= '<style>' . Assets::css() . '</style>' . $chrome['head'] . '</head><body class="fmc">';
 		$out .= self::chrome( $screen['tab'] );
 
 		$out .= '<div class="fmc-head"><div class="container d-flex flex-wrap align-items-start gap-3">';
@@ -232,7 +265,7 @@ final class Screen {
 		$out .= '</div>' . ( $screen['actions'] ?? '' ) . '</div></div>';
 
 		$out .= '<main class="container py-4">' . self::notice() . $screen['body'] . '</main>';
-		$out .= '<footer class="fmc-foot"><div class="container">Aplicativo de formación</div></footer>';
+		$out .= '<footer class="fmc-foot"><div class="container">Aplicativo de formación' . $chrome['footer'] . '</div></footer>';
 		// phpcs:ignore WordPress.WP.EnqueuedResources.NonEnqueuedScript -- documento propio, fuera del tema.
 		$out .= '<script src="' . esc_url( self::TOM_SELECT['js'] ) . '" integrity="' . esc_attr( self::TOM_SELECT['js_sri'] ) . '" crossorigin="anonymous"></script>';
 		// phpcs:ignore WordPress.WP.EnqueuedResources.NonEnqueuedScript -- documento propio, fuera del tema.

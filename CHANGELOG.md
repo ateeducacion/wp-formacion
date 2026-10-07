@@ -16,7 +16,13 @@ en el sitio de destino se hace después.
 
 ### Añadido
 
+- **El filtro `fmc_chrome`**, vacío por defecto: lo que quien despliega añade a la cabecera (analítica, aviso de cookies) y al pie (enlaces legales) del aplicativo, sin versionarlo.
 - Tests de las pantallas del aplicativo —listados, calendario, ficha de edición, documentos, enrutado y permisos por perfil—: la cobertura pasa del 56 % al 97 %, y Codecov exige el 90 % al proyecto y a cada PR.
+
+### Cambiado
+
+- Bootstrap entra en `package.json` con la misma versión que se carga de jsDelivr, como Tom Select y SweetAlert2; un test comprueba que cada librería del CDN coincide.
+- Members deja de formar parte del entorno: los roles y sus capacidades salen del código. WPFront User Role Editor se queda, para suplantar a alguien y probar el aplicativo con su perfil.
 
 ## [0.0.2] — 2026-10-07
 

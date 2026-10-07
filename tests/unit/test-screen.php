@@ -446,15 +446,49 @@ class Test_Screen extends WP_UnitTestCase {
 			$this->assertMatchesRegularExpression( '/ integrity="sha384-[A-Za-z0-9+\/]{64}"/', $tag );
 			$this->assertStringContainsString( ' crossorigin="anonymous"', $tag );
 		}
-		$this->assertStringContainsString( 'cdn.jsdelivr.net/npm/bootstrap@', $html );
-
+		// Cada librería del CDN está en `package.json` con la misma versión exacta:
+		// es la que se instala en desarrollo y la que se prueba (ADR-0002).
 		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- fichero del repositorio.
 		$package  = json_decode( (string) file_get_contents( dirname( __DIR__, 2 ) . '/package.json' ), true );
 		$versions = ( $package['dependencies'] ?? array() ) + ( $package['devDependencies'] ?? array() );
-		foreach ( array( 'tom-select', 'sweetalert2' ) as $library ) {
-			$this->assertArrayHasKey( $library, $versions );
-			$this->assertStringContainsString( 'cdn.jsdelivr.net/npm/' . $library . '@' . $versions[ $library ] . '/', $html, $library );
+		preg_match_all( '~cdn\.jsdelivr\.net/npm/([^@/]+)@([^/]+)/~', $html, $libraries, PREG_SET_ORDER );
+		$this->assertSame( array( 'bootstrap', 'tom-select', 'sweetalert2' ), array_values( array_unique( array_column( $libraries, 1 ) ) ) );
+		foreach ( $libraries as list( , $library, $version ) ) {
+			$this->assertSame( $version, $versions[ $library ] ?? null, $library . ' no tiene en package.json la versión del CDN' );
 		}
+	}
+
+	/**
+	 * Lo que añade quien despliega llega por `fmc_chrome`, que de serie no añade nada.
+	 */
+	public function test_the_deployment_chrome_is_empty_unless_filtered() {
+		$this->as_role( 'fmc_curator' );
+		$plain = Screen::document( $this->screen() );
+		$this->assertStringContainsString( '</style></head>', $plain );
+		$this->assertStringContainsString( '<div class="container">Aplicativo de formación</div></footer>', $plain );
+
+		$chrome = static fn() => array(
+			'head'   => '<meta name="fmc-analitica" content="ejemplo">',
+			'footer' => ' · <a href="https://example.org/aviso-legal">Aviso legal</a>',
+		);
+		add_filter( 'fmc_chrome', $chrome );
+		$html   = Screen::document( $this->screen() );
+		remove_filter( 'fmc_chrome', $chrome );
+
+		$this->assertStringContainsString( '<meta name="fmc-analitica" content="ejemplo"></head>', $html );
+		$this->assertStringContainsString( 'Aplicativo de formación · <a href="https://example.org/aviso-legal">Aviso legal</a></div></footer>', $html );
+
+		// Un filtro que devuelve solo una de las dos piezas no rompe la otra.
+		$partial = static fn() => array( 'footer' => 'Pie' );
+		add_filter( 'fmc_chrome', $partial );
+		$this->assertSame(
+			array(
+				'head'   => '',
+				'footer' => 'Pie',
+			),
+			Screen::deployment_chrome()
+		);
+		remove_filter( 'fmc_chrome', $partial );
 	}
 
 	/**
