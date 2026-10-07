@@ -17,3 +17,16 @@ updates:
     directory: "/" # Location of package manifests
     schedule:
       interval: "weekly"
+    groups:
+      # vite, vitest y sus plugins van juntos: un PR por cada uno deja el
+      # árbol con versiones que no se esperan entre sí.
+      vite:
+        patterns:
+          - "vite"
+          - "vitest"
+          - "@vitest/*"
+    ignore:
+      # Se sirven desde jsDelivr con SRI: su versión está también en la URL, el
+      # `integrity` y el `$ver` del encolado, y se suben a mano los tres juntos.
+      - dependency-name: "sweetalert2"
+      - dependency-name: "tom-select"
