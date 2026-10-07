@@ -6,7 +6,7 @@
  * Priority: 15
  *
  * @package Fmc
- * @version 0.0.2
+ * @version 0.0.3
  */
 
 // phpcs:disable
@@ -2988,7 +2988,9 @@ final class Calendar {
 		);
 
 		$out = array();
-		foreach ( get_posts( $args ) as $post ) {
+
+
+		foreach ( get_posts( $args + array( 'suppress_filters' => false ) ) as $post ) {
 			$out[ (string) get_post_meta( $post->ID, A::START, true ) ][] = $post;
 		}
 		return $out;

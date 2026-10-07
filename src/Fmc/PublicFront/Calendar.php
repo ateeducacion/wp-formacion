@@ -66,7 +66,9 @@ final class Calendar {
 		);
 
 		$out = array();
-		foreach ( get_posts( $args ) as $post ) {
+		// Sin `suppress_filters`, get_posts() se salta `fmc_visible` y la asesoría
+		// vería en el calendario los borradores ajenos que el listado le esconde.
+		foreach ( get_posts( $args + array( 'suppress_filters' => false ) ) as $post ) {
 			$out[ (string) get_post_meta( $post->ID, A::START, true ) ][] = $post;
 		}
 		return $out;
