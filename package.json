@@ -1,7 +1,7 @@
 {
   "devDependencies": {
     "@erseco/code-snippets-client": "0.1.7",
-    "@vitest/coverage-v8": "^5.0.2",
+    "@vitest/coverage-v8": "^5.0.3",
     "@wordpress/env": "^11.16.0",
     "jsdom": "^26.1.0",
     "sweetalert2": "11.26.25",
