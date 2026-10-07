@@ -1,0 +1,20 @@
+{
+  "devDependencies": {
+    "@erseco/code-snippets-client": "0.1.7",
+    "@vitest/coverage-v8": "^5.0.2",
+    "@wordpress/env": "^11.16.0",
+    "jsdom": "^26.1.0",
+    "sweetalert2": "11.26.25",
+    "tom-select": "2.6.2",
+    "vite": "^8.3.1",
+    "vitest": "^5.0.2"
+  },
+  "scripts": {
+    "wp-env": "wp-env",
+    "test:js": "vitest run",
+    "snippets": "wp-code-snippets --env-file .env"
+  },
+  "engines": {
+    "node": ">=22.14.0"
+  }
+}

@@ -1,0 +1,113 @@
+/* Aplicativo de formación: el armazón del aplicativo de eventos, en pequeño. */
+
+.fmc {
+	--fmc-brand: #1a4f8b;
+	--fmc-line: #dee2e6;
+	--fmc-soft: #f3f5f8;
+	background: var(--fmc-soft);
+	color: #212529;
+}
+
+/* Cabecera y pestañas */
+.fmc-top { background: #fff; border-bottom: 1px solid var(--fmc-line); }
+.fmc-top-in { display: flex; align-items: center; justify-content: space-between; min-height: 72px; gap: 1rem; }
+.fmc-brand { color: var(--fmc-brand); font-weight: 700; font-size: 1.35rem; text-decoration: none; }
+.fmc-user { display: flex; align-items: center; gap: .6rem; font-size: .875rem; line-height: 1.25; }
+.fmc-user a { color: var(--fmc-brand); }
+.fmc-avatar { display: inline-grid; place-items: center; width: 2.25rem; height: 2.25rem; border-radius: 50%; background: var(--fmc-soft); font-weight: 700; }
+.fmc-nav { background: #fff; border-bottom: 1px solid var(--fmc-line); }
+.fmc-nav .nav-link { color: #495057; padding: .9rem 1rem; border-bottom: 3px solid transparent; }
+.fmc-nav .nav-link:hover { color: var(--fmc-brand); }
+.fmc-nav .nav-link.active { color: var(--fmc-brand); font-weight: 600; border-bottom-color: var(--fmc-brand); }
+.fmc-head { background: var(--fmc-soft); padding: 1.75rem 0 .25rem; }
+.fmc-head h1 .badge { font-size: .75rem; vertical-align: middle; margin-left: .35rem; }
+.fmc-foot { color: #6c757d; font-size: .8rem; padding: 2rem 0; }
+
+/* Contadores: cada uno filtra el listado */
+.fmc-counters { display: grid; grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr)); gap: .75rem; }
+.fmc-counter { display: block; background: #fff; border: 1px solid var(--fmc-line); border-radius: .6rem; padding: .85rem 1rem; color: inherit; text-decoration: none; }
+.fmc-counter strong { display: block; font-size: 1.6rem; line-height: 1.1; }
+.fmc-counter span { color: #6c757d; font-size: .875rem; }
+a.fmc-counter:hover, .fmc-counter.is-active { border-color: var(--fmc-brand); box-shadow: inset 0 0 0 1px var(--fmc-brand); }
+
+.fmc-filters { border-radius: .6rem; }
+.fmc-table { border-radius: .6rem; overflow: hidden; }
+.fmc-table th { font-size: .8rem; text-transform: uppercase; letter-spacing: .02em; color: #6c757d; white-space: nowrap; }
+.fmc-table td { font-size: .9rem; }
+
+/* Fichas de edición: una tarjeta por sección */
+.fmc-section { border-radius: .6rem; padding-top: .25rem; }
+.fmc-section-title { float: none; width: auto; margin: 0 0 -.75rem 1rem; padding: 0 .4rem; background: var(--fmc-soft); font-size: 1rem; font-weight: 700; position: relative; top: -.85rem; }
+.fmc-checks.is-long { max-height: 14rem; overflow: auto; border: 1px solid var(--fmc-line); border-radius: .4rem; padding: .5rem .75rem; background: #fff; }
+.fmc-savebar { position: sticky; bottom: 0; background: var(--fmc-soft); padding: .75rem 0; border-top: 1px solid var(--fmc-line); z-index: 2; }
+.fmc-form :disabled { background-color: #f8f9fa; }
+
+/* Leyenda y colores de la situación */
+.fmc-legend { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem; }
+.fmc-chip { display: inline-flex; align-items: center; gap: .3rem; font-size: .78rem; padding: .15rem .55rem; border-radius: 1rem; background: #fff; border: 2px solid var(--fmc-line); }
+.fmc-sit-managing { --sit: #adb5bd; }
+.fmc-sit-running { --sit: #0d6efd; }
+.fmc-sit-done { --sit: #198754; }
+.fmc-sit-postponed { --sit: #e0a800; }
+.fmc-sit-cancelled { --sit: #dc3545; }
+.fmc-sit-none { --sit: #ced4da; }
+.fmc-chip[class*="fmc-sit-"] { border-color: var(--sit); }
+
+/* Calendario */
+.fmc-cal { border-radius: .6rem; overflow: hidden; }
+.fmc-cal-head, .fmc-cal-week { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)) repeat(2, minmax(0, .55fr)); }
+.fmc-cal-head div { padding: .5rem; font-size: .78rem; font-weight: 600; text-transform: uppercase; color: #6c757d; border-bottom: 1px solid var(--fmc-line); background: #fff; }
+.fmc-cal-day { min-height: 7rem; padding: .35rem; border-right: 1px solid var(--fmc-line); border-bottom: 1px solid var(--fmc-line); background: #fff; display: flex; flex-direction: column; gap: .3rem; min-width: 0; }
+.fmc-cal-day.is-weekend { background: #fafbfc; }
+.fmc-cal-day.is-out { background: var(--fmc-soft); }
+.fmc-cal-day.is-today .fmc-cal-num { background: var(--fmc-brand); color: #fff; }
+.fmc-cal-num { align-self: flex-end; font-size: .78rem; font-weight: 600; min-width: 1.5rem; text-align: center; border-radius: 1rem; }
+.fmc-ev { position: relative; display: block; text-decoration: none; color: inherit; background: #fff; border: 1px solid var(--fmc-line); border-left: 4px solid var(--sit); border-radius: .35rem; padding: .25rem .4rem; font-size: .75rem; line-height: 1.25; }
+.fmc-ev:hover { box-shadow: 0 1px 4px rgba(0, 0, 0, .15); }
+.fmc-dot { display: inline-block; width: .55rem; height: .55rem; border-radius: 50%; margin-right: .3rem; }
+.fmc-ev.fmc-sit-running { background: #eef5ff; }
+.fmc-ev.fmc-sit-cancelled .fmc-ev-title { text-decoration: line-through; }
+.fmc-ev-title { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; font-weight: 600; }
+.fmc-ev-meta { display: block; color: #6c757d; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fmc-ribbon { float: right; margin-left: .2rem; font-size: .65rem; font-weight: 700; padding: 0 .3rem; border-radius: .3rem; background: #ffe69c; color: #664d03; }
+.fmc-ribbon.is-warn { background: #f8d7da; color: #842029; }
+
+@media (max-width: 767px) {
+	.fmc-cal-head { display: none; }
+	.fmc-cal-week { grid-template-columns: 1fr; }
+	.fmc-cal-day.is-out, .fmc-cal-day:not(:has(.fmc-ev)) { display: none; }
+	.fmc-cal-day { min-height: 0; }
+	.fmc-cal-num { align-self: flex-start; }
+}
+
+/* Tom Select dentro de las fichas */
+.fmc-form .ts-wrapper.multi .ts-control > .item { background: #e7f0fb; border: 1px solid #b6cff0; border-radius: .3rem; color: #1a4f8b; }
+.fmc-form .ts-wrapper.disabled .ts-control { background-color: #f8f9fa; }
+
+/* Panel lateral: el offcanvas de Bootstrap con la ficha dentro */
+body.has-panel { overflow: hidden; }
+.fmc-panel.offcanvas { --bs-offcanvas-width: min(880px, 100vw); background: var(--fmc-soft); }
+.fmc-panel .offcanvas-header { background: #fff; }
+.fmc-panel .offcanvas-body { padding: 1.25rem; }
+.fmc-panel .offcanvas-body[aria-busy="true"] { opacity: .5; pointer-events: none; }
+.fmc-panel .fmc-section { margin-bottom: 1rem !important; }
+.fmc-panel .fmc-savebar { bottom: -1.25rem; margin: 0 -1.25rem -1.25rem; padding: .75rem 1.25rem; }
+.fmc-panel .fmc-counters { grid-template-columns: repeat(auto-fit, minmax(7.5rem, 1fr)); }
+.fmc-panel .fmc-counter strong { font-size: 1.25rem; }
+
+/* Documentos del diseño */
+.fmc-doc-kind + .fmc-doc-kind { border-top: 1px dashed var(--fmc-line); padding-top: .75rem; }
+.fmc-docs .btn-check:checked + .btn-outline-danger { color: #fff; }
+.fmc-docs .list-group-item:has(.btn-check:checked) a { text-decoration: line-through; opacity: .6; }
+
+/* Calendario de lunes a viernes cuando el fin de semana está vacío */
+.fmc-cal.no-weekend .fmc-cal-head, .fmc-cal.no-weekend .fmc-cal-week { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+.fmc-cal.no-weekend .is-weekend { display: none; }
+
+/* Listados: miniatura del diseño y detalle bajo cada dato */
+.fmc-thumb { width: 40px; height: 40px; object-fit: cover; border-radius: .3rem; margin-right: .5rem; float: left; }
+.fmc-col-title { min-width: 16rem; }
+.fmc-table td .small { line-height: 1.25; }
+
+/* Filtros: que quepan todos sin cortar el texto de los desplegables */
+.fmc-filters .row > [class*="col-md"]:not(.col-md-2):not(.col-md-3) { flex: 1 0 9rem; max-width: 100%; }

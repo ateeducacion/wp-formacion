@@ -1,0 +1,116 @@
+{
+  "$schema": "https://playground.wordpress.net/blueprint-schema.json",
+  "landingPage": "/wp-admin/edit.php?post_type=fmc_design",
+  "preferredVersions": {
+    "php": "8.3",
+    "wp": "latest"
+  },
+  "features": {
+    "networking": true
+  },
+  "login": true,
+  "siteOptions": {
+    "blogname": "Formación: diseños y acciones formativas"
+  },
+  "steps": [
+    {
+      "step": "setSiteLanguage",
+      "language": "es_ES"
+    },
+    {
+      "step": "installPlugin",
+      "pluginData": {
+        "resource": "wordpress.org/plugins",
+        "slug": "code-snippets"
+      },
+      "options": {
+        "activate": true
+      }
+    },
+    {
+      "step": "installPlugin",
+      "pluginData": {
+        "resource": "wordpress.org/plugins",
+        "slug": "members"
+      },
+      "options": {
+        "activate": true
+      }
+    },
+    {
+      "step": "installPlugin",
+      "pluginData": {
+        "resource": "wordpress.org/plugins",
+        "slug": "wpfront-user-role-editor"
+      },
+      "options": {
+        "activate": true
+      }
+    },
+    {
+      "step": "writeFiles",
+      "writeToPath": "/wordpress/wp-content/fmc-dev/snippets",
+      "filesTree": {
+        "resource": "git:directory",
+        "url": "https://github.com/ateeducacion/wp-formacion.git",
+        "ref": "main",
+        "path": "snippets",
+        "refType": "branch"
+      }
+    },
+    {
+      "step": "writeFiles",
+      "writeToPath": "/wordpress/wp-content/fmc-dev/scripts",
+      "filesTree": {
+        "resource": "git:directory",
+        "url": "https://github.com/ateeducacion/wp-formacion.git",
+        "ref": "main",
+        "path": "scripts",
+        "refType": "branch"
+      }
+    },
+    {
+      "step": "writeFiles",
+      "writeToPath": "/wordpress/wp-content/fmc-dev/src",
+      "filesTree": {
+        "resource": "git:directory",
+        "url": "https://github.com/ateeducacion/wp-formacion.git",
+        "ref": "main",
+        "path": "src",
+        "refType": "branch"
+      }
+    },
+    {
+      "step": "writeFiles",
+      "writeToPath": "/wordpress/wp-content/mu-plugins",
+      "filesTree": {
+        "resource": "git:directory",
+        "url": "https://github.com/ateeducacion/wp-formacion.git",
+        "ref": "main",
+        "refType": "branch",
+        "path": "scripts/mu-plugins"
+      }
+    },
+    {
+      "step": "runPHP",
+      "code": "<?php require_once '/wordpress/wp-load.php'; require '/wordpress/wp-content/fmc-dev/scripts/sync-snippets.php';"
+    },
+    {
+      "step": "runPHP",
+      "code": "<?php require_once '/wordpress/wp-load.php'; require '/wordpress/wp-content/fmc-dev/scripts/provision-roles.php';"
+    },
+    {
+      "step": "runPHP",
+      "code": "<?php require_once '/wordpress/wp-load.php'; require '/wordpress/wp-content/fmc-dev/scripts/setup-vocabulary.php';"
+    },
+    {
+      "step": "runPHP",
+      "code": "<?php require_once '/wordpress/wp-load.php'; require '/wordpress/wp-content/fmc-dev/scripts/seed-demo.php';"
+    }
+  ],
+  "meta": {
+    "title": "Formación — aplicativo de diseños de curso y acciones formativas",
+    "author": "ateeducacion",
+    "description": "Prueba el esqueleto del aplicativo: tipos de contenido, roles y datos de demostración."
+  }
+}
