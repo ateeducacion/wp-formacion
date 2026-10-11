@@ -132,6 +132,9 @@ jobs:
       - name: Comprobar errores de provisión
         run: make check-provision
 
+      - name: Comprobar que las dos copias de las skills coinciden
+        run: make check-skills
+
       - name: Check PHP syntax
         run: find . -path ./vendor -prune -o -name '*.php' -print0 | xargs -0 -n1 php -l > /dev/null
 
