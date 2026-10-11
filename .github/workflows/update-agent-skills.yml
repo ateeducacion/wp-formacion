@@ -33,6 +33,12 @@ jobs:
         with:
           dir: .agents/skills
 
+      # La acción solo toca las canónicas; sin esto .claude/skills/ se queda
+      # atrás y `make check` falla en cuanto alguien lo ejecuta.
+      - name: Sincronizar la copia de .claude/skills
+        if: steps.update.outputs.changed == 'true'
+        run: make skills-sync
+
       - name: Open pull request
         if: steps.update.outputs.changed == 'true'
         uses: peter-evans/create-pull-request@v8
