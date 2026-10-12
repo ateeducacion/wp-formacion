@@ -81,6 +81,27 @@ const EXTENSIONS = new Set( [ '.php', '.md', '.js', '.mjs', '.css', '.html', '.j
 const NO_EXTENSION = new Set( [ 'Makefile', 'Dockerfile' ] );
 
 /**
+ * Skills de terceros: van tal cual las trae `gh skill`, que les deja
+ * `github-repo:` en el frontmatter. No se pueden corregir sin divergir de
+ * upstream, y sus rutas de ejemplo (`/home/…`) no son de nadie. Las propias no
+ * llevan esa marca y se siguen revisando.
+ *
+ * @param {string} f Ruta relativa a la raíz.
+ * @return {boolean} Si cae dentro de una skill de terceros.
+ */
+function isThirdPartySkill( f ) {
+	const m = f.match( /^\.(?:agents|claude)\/skills\/[^/]+\// );
+	if ( ! m ) {
+		return false;
+	}
+	try {
+		return /^\s*github-repo:/m.test( readFileSync( join( ROOT, m[ 0 ], 'SKILL.md' ), 'utf8' ) );
+	} catch {
+		return false;
+	}
+}
+
+/**
  * Lo que git incluiría: se le pregunta a él, que ya conoce el `.gitignore`.
  *
  * @return {string[]} Rutas relativas a la raíz del repositorio.
@@ -103,6 +124,7 @@ function tracked() {
 	return out
 		.split( '\n' )
 		.filter( ( f ) => f && ! SKIP.some( ( x ) => f.includes( x ) ) )
+		.filter( ( f ) => ! isThirdPartySkill( f ) )
 		.filter( ( f ) => {
 			const name = f.split( '/' ).pop();
 			if ( ! EXTENSIONS.has( extname( f ) ) && ! NO_EXTENSION.has( name ) ) {
