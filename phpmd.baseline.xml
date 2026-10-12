@@ -1,0 +1,42 @@
+<?xml version="1.0"?>
+<phpmd-baseline>
+  <violation rule="PHPMD\Rule\Design\NPathComplexity" file="scripts/lib/snippet-sync.php"/>
+  <violation rule="PHPMD\Rule\Design\ExcessiveMethodLength" file="scripts/lib/snippet-sync.php"/>
+  <violation rule="PHPMD\Rule\Design\ExcessiveMethodLength" file="snippets/fmc-formacion-app.bundle.php" method="action"/>
+  <violation rule="PHPMD\Rule\CyclomaticComplexity" file="snippets/fmc-formacion-app.bundle.php" method="apply"/>
+  <violation rule="PHPMD\Rule\Design\NPathComplexity" file="snippets/fmc-formacion-app.bundle.php" method="apply"/>
+  <violation rule="PHPMD\Rule\Design\ExcessiveClassComplexity" file="snippets/fmc-formacion-app.bundle.php"/>
+  <violation rule="PHPMD\Rule\CyclomaticComplexity" file="snippets/fmc-formacion-app.bundle.php" method="query_args"/>
+  <violation rule="PHPMD\Rule\Design\NPathComplexity" file="snippets/fmc-formacion-app.bundle.php" method="query_args"/>
+  <violation rule="PHPMD\Rule\CyclomaticComplexity" file="snippets/fmc-formacion-app.bundle.php" method="plain"/>
+  <violation rule="PHPMD\Rule\CyclomaticComplexity" file="snippets/fmc-formacion-app.bundle.php" method="render"/>
+  <violation rule="PHPMD\Rule\Design\NPathComplexity" file="snippets/fmc-formacion-app.bundle.php" method="render"/>
+  <violation rule="PHPMD\Rule\CyclomaticComplexity" file="snippets/fmc-formacion-app.bundle.php" method="field"/>
+  <violation rule="PHPMD\Rule\Design\NPathComplexity" file="snippets/fmc-formacion-app.bundle.php" method="field"/>
+  <violation rule="PHPMD\Rule\CyclomaticComplexity" file="snippets/fmc-formacion-app.bundle.php" method="docs"/>
+  <violation rule="PHPMD\Rule\Design\NPathComplexity" file="snippets/fmc-formacion-app.bundle.php" method="docs"/>
+  <violation rule="PHPMD\Rule\Design\NPathComplexity" file="snippets/fmc-formacion-app.bundle.php" method="choices"/>
+  <violation rule="PHPMD\Rule\Design\NPathComplexity" file="snippets/fmc-formacion-app.bundle.php" method="save"/>
+  <violation rule="PHPMD\Rule\Design\ExcessiveMethodLength" file="snippets/fmc-formacion-app.bundle.php" method="apply"/>
+  <violation rule="PHPMD\Rule\Design\NPathComplexity" file="snippets/fmc-formacion-app.bundle.php" method="route"/>
+  <violation rule="PHPMD\Rule\CyclomaticComplexity" file="src/Fmc/PublicFront/Documents.php" method="apply"/>
+  <violation rule="PHPMD\Rule\Design\NPathComplexity" file="src/Fmc/PublicFront/Documents.php" method="apply"/>
+  <violation rule="PHPMD\Rule\Design\ExcessiveClassComplexity" file="src/Fmc/PublicFront/Editor.php"/>
+  <violation rule="PHPMD\Rule\CyclomaticComplexity" file="src/Fmc/PublicFront/Editor.php" method="render"/>
+  <violation rule="PHPMD\Rule\Design\NPathComplexity" file="src/Fmc/PublicFront/Editor.php" method="render"/>
+  <violation rule="PHPMD\Rule\CyclomaticComplexity" file="src/Fmc/PublicFront/Editor.php" method="field"/>
+  <violation rule="PHPMD\Rule\Design\NPathComplexity" file="src/Fmc/PublicFront/Editor.php" method="field"/>
+  <violation rule="PHPMD\Rule\CyclomaticComplexity" file="src/Fmc/PublicFront/Editor.php" method="docs"/>
+  <violation rule="PHPMD\Rule\Design\NPathComplexity" file="src/Fmc/PublicFront/Editor.php" method="docs"/>
+  <violation rule="PHPMD\Rule\Design\NPathComplexity" file="src/Fmc/PublicFront/Editor.php" method="choices"/>
+  <violation rule="PHPMD\Rule\Design\NPathComplexity" file="src/Fmc/PublicFront/Editor.php" method="save"/>
+  <violation rule="PHPMD\Rule\CyclomaticComplexity" file="src/Fmc/PublicFront/Editor.php" method="apply"/>
+  <violation rule="PHPMD\Rule\Design\NPathComplexity" file="src/Fmc/PublicFront/Editor.php" method="apply"/>
+  <violation rule="PHPMD\Rule\Design\ExcessiveMethodLength" file="src/Fmc/PublicFront/Editor.php" method="apply"/>
+  <violation rule="PHPMD\Rule\Design\ExcessiveMethodLength" file="src/Fmc/PublicFront/Fields.php" method="action"/>
+  <violation rule="PHPMD\Rule\Design\ExcessiveClassComplexity" file="src/Fmc/PublicFront/Lists.php"/>
+  <violation rule="PHPMD\Rule\CyclomaticComplexity" file="src/Fmc/PublicFront/Lists.php" method="query_args"/>
+  <violation rule="PHPMD\Rule\Design\NPathComplexity" file="src/Fmc/PublicFront/Lists.php" method="query_args"/>
+  <violation rule="PHPMD\Rule\CyclomaticComplexity" file="src/Fmc/PublicFront/Lists.php" method="plain"/>
+  <violation rule="PHPMD\Rule\Design\NPathComplexity" file="src/Fmc/PublicFront/Screen.php" method="route"/>
+</phpmd-baseline>

@@ -257,7 +257,7 @@ try {
 		rendered
 	);
 	expect(
-		rendered.includes( '--reportfile phpmd-results.sarif' ),
+		rendered.includes( '--reportfile-sarif phpmd-results.sarif' ),
 		'`make phpmd` no reenvía el fichero de informe que pide el workflow',
 		rendered
 	);
