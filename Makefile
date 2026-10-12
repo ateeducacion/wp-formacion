@@ -178,16 +178,21 @@ fix: ## Corrige automáticamente el estilo del código con PHPCBF
 
 # El workflow de PHPMD llama a este mismo target pidiendo SARIF; si el formato
 # y los extras no fueran variables, `make phpmd PHPMD_FORMAT=sarif
-# PHPMD_EXTRA=--reportfile ...` seguiría escupiendo texto y el fichero de
+# PHPMD_EXTRA=--reportfile-sarif ...` seguiría escupiendo texto y el fichero de
 # informe no llegaría a existir.
 PHPMD_FORMAT = text
 PHPMD_EXTRA =
 
 # error_reporting hides phpmd's own deprecation notices on PHP >= 8.4 hosts.
 # `.local` queda fuera como vendor: es el cajón de exportaciones y capturas del
-# entorno local, no código nuestro.
+# entorno local, no código nuestro. Un `--exclude` por patrón y anclado entre
+# barras: PHPMD compara con la ruta absoluta, así que `wp` a secas excluye el
+# repo entero, que vive en `.../wp-*/` (con PHPMD 2 no se analizaba nada), y la
+# lista separada por comas de PHPMD 2 ya no vale. Los avisos que ya había están
+# en phpmd.baseline.xml, que PHPMD aplica solo: falla con los avisos nuevos.
+# Para rehacerla: `make phpmd PHPMD_EXTRA=--update-baseline`.
 phpmd: ## Ejecuta PHP Mess Detector con las reglas de phpmd.xml
-	@php -d error_reporting='E_ALL & ~E_DEPRECATED' ./vendor/bin/phpmd . $(PHPMD_FORMAT) phpmd.xml --exclude vendor,node_modules,wp,.local $(PHPMD_EXTRA)
+	@php -d error_reporting='E_ALL & ~E_DEPRECATED' ./vendor/bin/phpmd analyze . --format $(PHPMD_FORMAT) --ruleset phpmd.xml --exclude "*/vendor/*" --exclude "*/node_modules/*" --exclude "*/wp/*" --exclude "*/.local/*" $(PHPMD_EXTRA)
 
 check-provision: ## Comprueba que la provisión propaga los fallos obligatorios
 	node scripts/check-provision.mjs

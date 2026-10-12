@@ -23,6 +23,7 @@ node_modules/             export-ignore
 package-lock.json         export-ignore
 package.json              export-ignore
 phpmd.xml                 export-ignore
+phpmd.baseline.xml        export-ignore
 phpunit.xml.dist          export-ignore
 renovate.json             export-ignore
 scripts/                  export-ignore

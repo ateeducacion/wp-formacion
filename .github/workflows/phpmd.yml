@@ -91,7 +91,7 @@ jobs:
       # exclusiones y el mismo error_reporting. Aquí solo cambian el formato de
       # salida y el fichero de informe, que es lo único propio de CI.
       - name: Run PHPMD
-        run: make phpmd PHPMD_FORMAT=sarif PHPMD_EXTRA="--reportfile phpmd-results.sarif --ignore-violations-on-exit"
+        run: make phpmd PHPMD_FORMAT=sarif PHPMD_EXTRA="--reportfile-sarif phpmd-results.sarif --ignore-violations-on-exit"
         continue-on-error: true
 
       # Code scanning requires GitHub Advanced Security on private repos, so
