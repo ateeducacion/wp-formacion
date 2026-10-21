@@ -120,7 +120,7 @@ pruebas en navegador, que vuelven aquí):
   y la bandeja de incidencias, según el protocolo que salga de la fase 1;
 - asesorías como lista, y el centro donde se imparte rellenado por su código,
   sobre el catálogo de centros que se hereda de eventos (ADR-0002);
-- catálogo público con búsqueda y filtros;
+- catálogo público con búsqueda y filtros —adelantado: ya está, ADR-0013—;
 - listados de control y exportación a CSV;
 - `make capturas` y su workflow, que se copian de eventos con la primera
   pantalla.

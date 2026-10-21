@@ -88,7 +88,7 @@ confirmado. Queda como pregunta abierta (§8).
 - **RF-5.** El diseño puede enlazar su perfil de competencia digital, generado
   con una herramienta externa, y mostrarlo integrado en su ficha (ver §9).
 - **RF-6.** Catálogo público de diseños finalizados, con búsqueda y filtros por
-  modalidad y tipo.
+  modalidad y tipo. Adelantado de la fase 3 (ADR-0013, ver §9).
 
 ### 4.2 Acciones formativas
 
@@ -249,6 +249,12 @@ referencia aquí.
   del panel lateral.
 - **Aspecto.** Cabecera, pestañas, menú de usuario, pie y paleta se igualan a
   los de los aplicativos hermanos.
+- **Catálogo público (RF-4, RF-6).** Se preguntó cómo verlo y no había forma.
+  Es una pantalla del aplicativo que se ve sin sesión, con los diseños
+  finalizados que están en el catálogo, y de cada uno solo una parte: la
+  descripción, los destinatarios, los objetivos, los contenidos y el perfil de
+  competencia digital ([ADR-0013](../adr/ADR-0013-el-catalogo-publico-es-una-pantalla-del-aplicativo.md)).
+  Qué campos son públicos hay que confirmarlo con la curaduría.
 
 ### 9.3 Lo que se confirma
 

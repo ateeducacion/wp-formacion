@@ -117,10 +117,13 @@ src/Fmc/
     ├── Editor.php                Ficha de edición y guardado campo a campo (`apply()`), con las reglas de Fields::rules()
     ├── Documents.php             Documentos del diseño: adjuntos colgados de él, por clase y formato
     ├── Speakers.php              Lo que ha impartido cada ponente y la cadena de diseños que se sustituyen
+    ├── Catalogue.php             El catálogo público, sin sesión: lista y ficha de los cursos (ADR-0013)
     └── Assets.php                El CSS de assets/, inlineado en el bundle
 ```
 
-**La portada del sitio es el aplicativo**: sin sesión manda al acceso; con
+**La portada del sitio es el aplicativo**: sin sesión manda al acceso, salvo
+el catálogo público (`?fmc_catalogo=1`, `?fmc_curso=ID`, ADR-0013), que es la
+única pantalla que se ve sin entrar y solo enseña lo que está en él; con
 sesión pinta su propio documento (Bootstrap 5, Tom Select y SweetAlert2 desde
 jsDelivr con SRI), no el del tema, con la piel de los aplicativos hermanos. La
 barra de WordPress sale solo para la administración y para quien la

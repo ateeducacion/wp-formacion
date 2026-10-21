@@ -148,6 +148,15 @@ a.fmc-counter:hover, .fmc-counter.is-active { border-color: var(--fmc-brand); bo
 .fmc-icon { display: inline-flex; align-items: center; justify-content: center; width: 2rem; height: 2rem; padding: 0; border-radius: .5rem; }
 .fmc-table .fmc-col-title { min-width: 16rem; }
 
+/* Catálogo público: tarjetas de curso y los datos de la ficha */
+.fmc-courses { display: grid; grid-template-columns: repeat(auto-fill, minmax(18rem, 1fr)); gap: 1rem; }
+.fmc-course { border-radius: var(--fmc-r); box-shadow: var(--fmc-e1); }
+.fmc-course h2 a { text-decoration: none; }
+.fmc-course h2 a:hover { text-decoration: underline; }
+.fmc-about { display: grid; grid-template-columns: max-content 1fr; gap: .25rem 1rem; }
+.fmc-about dt { font-weight: 600; }
+.fmc-about dd { margin: 0; }
+
 /* Cuántos ponentes salen, en una línea encima de la tabla */
 .fmc-found { margin: 0 0 .5rem; color: var(--fmc-text-2); font-size: .9rem; }
 

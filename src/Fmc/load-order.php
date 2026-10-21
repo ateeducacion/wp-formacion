@@ -34,5 +34,6 @@ return array(
 	'PublicFront/Calendar.php',
 	'PublicFront/Editor.php',
 	'PublicFront/Screen.php',
+	'PublicFront/Catalogue.php',
 	'App.php',
 );

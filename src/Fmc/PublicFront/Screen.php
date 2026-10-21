@@ -212,6 +212,13 @@ final class Screen {
 		if ( ! is_front_page() ) {
 			return;
 		}
+		// El catálogo es público: se ve sin sesión.
+		if ( Catalogue::asked() ) {
+			nocache_headers();
+			// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- document() escapes, and the catalogue body is built escaped.
+			echo self::document( Catalogue::screen() );
+			exit;
+		}
 		if ( ! is_user_logged_in() ) {
 			wp_safe_redirect( wp_login_url( home_url( '/' ) ) );
 			exit;
@@ -307,7 +314,7 @@ final class Screen {
 		$out .= '<link rel="stylesheet" href="' . esc_url( self::TOM_SELECT['css'] ) . '" integrity="' . esc_attr( self::TOM_SELECT['css_sri'] ) . '" crossorigin="anonymous">';
 		$bar  = self::admin_bar();
 		$out .= '<style>' . Assets::css() . '</style>' . $bar['head'] . $chrome['head'] . '</head><body class="fmc' . ( '' !== $bar['body'] ? ' admin-bar' : '' ) . '">' . $bar['body'];
-		$out .= self::chrome( $screen['tab'], $chrome['brand'] );
+		$out .= empty( $screen['public'] ) ? self::chrome( $screen['tab'], $chrome['brand'] ) : self::public_chrome( $chrome['brand'] );
 
 		$out .= '<div class="fmc-head"><div class="container d-flex flex-wrap align-items-start gap-3">';
 		$out .= '<div class="me-auto">' . ( $screen['back'] ?? '' ) . '<h1 class="fmc-h1">' . esc_html( $screen['title'] ) . ( $screen['badges'] ?? '' ) . '</h1>';
@@ -419,6 +426,19 @@ final class Screen {
 		}
 		$out .= '</ul></div></nav>';
 		return $out;
+	}
+
+	/**
+	 * The header of the public pages: the app's name and the way in.
+	 *
+	 * @param string $brand The deployment's logo and name.
+	 * @return string
+	 */
+	private static function public_chrome( string $brand ): string {
+		$in = is_user_logged_in()
+			? '<a class="btn btn-outline-primary btn-sm" href="' . esc_url( home_url( '/' ) ) . '">Ir al aplicativo</a>'
+			: '<a class="btn btn-outline-primary btn-sm" href="' . esc_url( wp_login_url( home_url( '/' ) ) ) . '">Entrar</a>';
+		return '<header class="fmc-top"><div class="container fmc-top-in">' . $brand . '<a class="fmc-brand" href="' . esc_url( Catalogue::url() ) . '">Formación</a><span class="ms-auto">' . $in . '</span></div></header>';
 	}
 
 	/**

@@ -8,6 +8,7 @@
 use Fmc\Meta\SpeakerMetaKeys;
 use Fmc\PostType\PostTypes;
 use Fmc\PublicFront\Assets;
+use Fmc\PublicFront\Catalogue;
 use Fmc\PublicFront\Screen;
 
 /**
@@ -181,6 +182,26 @@ class Test_Screen extends WP_UnitTestCase {
 		$this->visit();
 
 		$this->assertSame( 'document:Acciones formativas', $this->route() );
+	}
+
+	/**
+	 * El catálogo se ve sin sesión, con su propia cabecera: sin pestañas ni
+	 * cuenta, y con la puerta de entrada.
+	 */
+	public function test_the_catalogue_is_public() {
+		$this->visit( array( Catalogue::ARG_LIST => '1' ) );
+		$this->assertSame( 'document:Catálogo de formación', $this->route() );
+		$this->visit( array( Catalogue::ARG_SHEET => '999999' ) );
+		$this->assertSame( 'document:Este curso no está en el catálogo', $this->route() );
+
+		$_GET = array( Catalogue::ARG_LIST => '1' );
+		$html = Screen::document( Catalogue::screen() );
+		$this->assertStringContainsString( '>Entrar</a>', $html );
+		$this->assertStringNotContainsString( '<nav class="fmc-nav"', $html );
+		$this->assertStringNotContainsString( '<details class="fmc-yo"', $html );
+
+		$this->as_role( 'fmc_adviser' );
+		$this->assertStringContainsString( '>Ir al aplicativo</a>', Screen::document( Catalogue::screen() ) );
 	}
 
 	/**

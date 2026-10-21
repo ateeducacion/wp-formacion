@@ -317,7 +317,10 @@ final class Editor {
 					)
 				) . '">Crear una acción con este diseño</a> ';
 			}
-			$out .= '<a class="btn btn-outline-primary btn-sm" href="' . esc_url( get_permalink( $post ) ) . '" target="_blank" rel="noopener">Ver la ficha pública</a> ';
+			// Solo lo que está en el catálogo tiene ficha pública.
+			if ( Catalogue::is_listed( $post ) ) {
+				$out .= '<a class="btn btn-outline-primary btn-sm" href="' . esc_url( Catalogue::url( $post->ID ) ) . '" target="_blank" rel="noopener">Ver en el catálogo</a> ';
+			}
 		}
 		// El ponente se da de baja abajo, con su motivo.
 		if ( PostTypes::SPEAKER !== $type && Screen::can_delete( $post ) ) {
@@ -659,7 +662,7 @@ final class Editor {
 	 * @param string $url Profile URL.
 	 * @return string
 	 */
-	private static function digcomp( string $url ): string {
+	public static function digcomp( string $url ): string {
 		$summary = DigComp::summary( $url );
 		if ( array() === $summary ) {
 			return '<div class="form-text text-warning">La dirección no trae ninguna competencia que se pueda leer.</div>';

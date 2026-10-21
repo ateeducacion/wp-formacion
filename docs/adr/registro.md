@@ -6,7 +6,7 @@ date: 2026-09-30
 related:
   issues: []
   prs: []
-  adrs: [ADR-0001, ADR-0002, ADR-0003, ADR-0004, ADR-0005, ADR-0006, ADR-0007, ADR-0008, ADR-0009, ADR-0010, ADR-0011, ADR-0012]
+  adrs: [ADR-0001, ADR-0002, ADR-0003, ADR-0004, ADR-0005, ADR-0006, ADR-0007, ADR-0008, ADR-0009, ADR-0010, ADR-0011, ADR-0012, ADR-0013]
   sdds: []
 supersedes: []
 superseded_by: []
@@ -25,7 +25,7 @@ la foto del sistema actual tomadas ese día, que son material de investigación 
 viven en `.local/`. Las decisiones transversales que se heredan del aplicativo
 de eventos no se copian aquí: las enumera la [ADR-0002](ADR-0002-se-hereda-la-plataforma-del-aplicativo-de-eventos.md).
 
-De la ADR-0009 a la ADR-0012 salen de la primera revisión del aplicativo con
+De la ADR-0009 a la ADR-0013 salen de la primera revisión del aplicativo con
 la curaduría, el 2026-10-21; su material también está en `.local/`.
 
 | ID | Título | Estado |
@@ -42,3 +42,4 @@ la curaduría, el 2026-10-21; su material también está en `.local/`.
 | [ADR-0010](ADR-0010-las-cifras-de-cierre-salen-de-la-ficha-de-la-accion.md) | Las cifras de cierre salen de la ficha de la acción | Propuesta |
 | [ADR-0011](ADR-0011-los-ponentes-son-un-directorio-compartido-con-baja-motivada.md) | Los ponentes son un directorio compartido con baja motivada | Propuesta |
 | [ADR-0012](ADR-0012-un-diseno-puede-sustituir-a-otro-y-los-ponentes-se-buscan-por-lo-impartido.md) | Un diseño puede sustituir a otro, y los ponentes se buscan por lo que han impartido | Propuesta |
+| [ADR-0013](ADR-0013-el-catalogo-publico-es-una-pantalla-del-aplicativo.md) | El catálogo público es una pantalla del aplicativo y publica solo parte del diseño | Propuesta |

@@ -227,7 +227,7 @@ final class Fields {
 			),
 			array(
 				'title'  => 'Contenido del diseño',
-				'help'   => 'Lo que se publica en la ficha del curso.',
+				'help'   => 'Descripción, destinatarios, objetivos y contenidos se publican en la ficha del catálogo; lo demás es de trabajo.',
 				'fields' => array(
 					'post_content' => array(
 						'label' => 'Descripción',

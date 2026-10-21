@@ -220,7 +220,10 @@ class Test_Editor_Render extends WP_UnitTestCase {
 		$this->assertStringContainsString( 'Finalizado', $screen['badges'] );
 		$this->assertStringContainsString( 'Crear una acción con este diseño', $screen['actions'] );
 		$this->assertStringContainsString( 'fmc_design=' . $done, $screen['actions'] );
-		$this->assertStringContainsString( 'Ver la ficha pública', $screen['actions'] );
+		// Finalizado pero fuera del catálogo: no tiene ficha pública que ver.
+		$this->assertStringNotContainsString( 'Ver en el catálogo', $screen['actions'] );
+		update_post_meta( $done, D::IN_CATALOGUE, '1' );
+		$this->assertStringContainsString( 'fmc_curso=' . $done . '" target="_blank" rel="noopener">Ver en el catálogo</a>', $this->screen_of( $done )['actions'] );
 		$this->assertStringNotContainsString( 'fmc_delete', $screen['actions'], 'la curaduría no borra' );
 
 		$this->as_role( 'administrator' );

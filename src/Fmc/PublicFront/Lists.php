@@ -625,6 +625,9 @@ final class Lists {
 				)
 			) . '">Exportar CSV</a>';
 		}
+		if ( PostTypes::DESIGN === $type ) {
+			$actions .= ' <a class="btn btn-outline-secondary" href="' . esc_url( Catalogue::url() ) . '" target="_blank" rel="noopener">Ver el catálogo público</a>';
+		}
 		// La lista es una vista más de las acciones, junto al calendario.
 		if ( PostTypes::ACTION === $type ) {
 			$actions = Calendar::views_html( 'list' ) . ' ' . $actions;
