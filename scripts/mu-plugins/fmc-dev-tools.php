@@ -159,14 +159,14 @@ if ( ! function_exists( 'fmc_dev_front_url' ) ) {
 	/**
 	 * Where a switch lands when there is nowhere to go back to.
 	 *
-	 * El aplicativo tiene sus propias pantallas, así que el destino es «Mis
-	 * eventos» y no el escritorio de WordPress: cambiar de perfil es para ver
-	 * el aplicativo con otros ojos, y el escritorio no es el aplicativo.
+	 * El aplicativo es la portada del sitio, así que el destino es la portada
+	 * y no el escritorio de WordPress: cambiar de perfil es para ver el
+	 * aplicativo con otros ojos, y el escritorio no es el aplicativo.
 	 *
 	 * @return string
 	 */
 	function fmc_dev_front_url(): string {
-		return admin_url( 'edit.php?post_type=fmc_design' );
+		return home_url( '/' );
 	}
 }
 
@@ -175,8 +175,8 @@ if ( ! function_exists( 'fmc_dev_switch_destination' ) ) {
 	 * Where this switch has to land.
 	 *
 	 * **La pantalla en la que se estaba**, que es lo que se quiere al cambiar
-	 * de perfil: se mira un evento, se cambia a organización y se sigue
-	 * mirando el mismo evento con sus permisos. Rebotar a la lista obliga a
+	 * de perfil: se mira una acción, se cambia a asesoría y se sigue
+	 * mirando la misma acción con sus permisos. Rebotar a la lista obliga a
 	 * volver a buscarlo, y es justo cuando se pierde lo que se iba a comprobar.
 	 *
 	 * La dirección se valida contra este sitio: viene de la petición, y un

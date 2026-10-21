@@ -328,4 +328,58 @@ class Test_Calendar extends WP_UnitTestCase {
 		$this->assertStringContainsString( 'title="&lt;img src=x onerror=alert(1)&gt;"', $card );
 		$this->assertStringContainsString( '<span class="fmc-ev-title">&lt;img src=x onerror=alert(1)&gt;</span>', $card );
 	}
+
+
+	/**
+	 * La semana: de lunes a domingo, lo que empieza cada día y lo que sigue en curso.
+	 */
+	public function test_the_week_view_shows_its_days_and_what_is_running() {
+		$this->as_role( 'fmc_curator' );
+		$this->action( 'Empieza el martes', '2026-10-20' );
+		$this->action( 'Empezó antes', '2026-10-05', array( A::END => '2026-11-30' ) );
+		$this->action( 'Ya acabó', '2026-10-01', array( A::END => '2026-10-10' ) );
+		$this->action( 'La semana siguiente', '2026-10-27' );
+
+		$_GET['fmc_view'] = 'week';
+		$_GET['fmc_day']  = '2026-10-21';
+		$screen           = Calendar::screen();
+
+		$this->assertSame( 'Calendario de la semana del 19 de octubre de 2026', $screen['title'] );
+		$this->assertSame( 7, substr_count( $screen['body'], '<section class="fmc-days-col' ) );
+		$this->assertStringContainsString( 'Empieza el martes', $screen['body'] );
+		$this->assertStringContainsString( 'Empezó antes', $screen['body'] );
+		$this->assertStringNotContainsString( 'Ya acabó', $screen['body'] );
+		$this->assertStringNotContainsString( 'La semana siguiente', $screen['body'] );
+		$this->assertMatchesRegularExpression( '/fmc_view=week[^"]*fmc_day=2026-10-14">‹</', $screen['actions'] );
+		$this->assertMatchesRegularExpression( '/fmc_view=week[^"]*fmc_day=2026-10-28">›</', $screen['actions'] );
+	}
+
+	/**
+	 * El día y la lista del mes.
+	 */
+	public function test_the_day_and_list_views() {
+		$this->as_role( 'fmc_curator' );
+		$this->action( 'Hoy', '2026-10-21' );
+		$this->action( 'Mañana', '2026-10-22' );
+
+		$_GET['fmc_view'] = 'day';
+		$_GET['fmc_day']  = '2026-10-21';
+		$screen           = Calendar::screen();
+		$this->assertSame( 'Calendario del miércoles 21 de octubre de 2026', $screen['title'] );
+		$this->assertStringContainsString( '>Hoy</span>', $screen['body'] );
+		$this->assertStringNotContainsString( 'Mañana', $screen['body'] );
+
+		$_GET   = array(
+			'fmc_view'  => 'list',
+			'fmc_month' => '2026-10',
+		);
+		$screen = Calendar::screen();
+		$this->assertStringContainsString( '<table', $screen['body'] );
+		$this->assertStringContainsString( '>Mañana</a>', $screen['body'] );
+		$this->assertMatchesRegularExpression( '/fmc_view=list[^"]*fmc_month=2026-11">›</', $screen['actions'] );
+		$this->assertStringContainsString( 'btn btn-secondary', $screen['actions'], 'la vista activa, marcada' );
+
+		$_GET = array( 'fmc_view' => 'inventada' );
+		$this->assertSame( 'month', Calendar::view() );
+	}
 }

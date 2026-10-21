@@ -22,6 +22,7 @@ use Fmc\PostType\PostTypes;
  * solo lectura lo que no te toca (ADR-0006).
  *
  * Claves especiales: `post_title`, `post_content`, `tax:<taxonomía>`, `docs`.
+ * Un campo con `auto` lo rellena el aplicativo: sale de solo lectura para todos.
  * Widgets: text, textarea, number, date, url, email, checkbox, select, radio,
  * checks (varios de una lista), terms, term, design, speakers, adviser, docs.
  *
@@ -65,7 +66,6 @@ final class Fields {
 	public static function rules(): array {
 		$onsite = array( 'onsite', 'blended' );
 		$online = array( 'online', 'blended' );
-		$people = array( 'max' => 1000 );
 		// Los textos con formato del formulario anterior (listas, negritas):
 		// editor enriquecido, no un cuadro de texto que enseña las etiquetas.
 		$rich = array( 'w' => 'rich' );
@@ -90,39 +90,35 @@ final class Fields {
 				),
 			),
 			PostTypes::ACTION   => array(
-				A::FILE_NUMBER     => array( 'unique' => true ),
-				A::PLACES          => array(
+				A::FILE_NUMBER   => array( 'unique' => true ),
+				A::PLACES        => array(
 					'min' => 1,
 					'max' => 10000,
 				),
-				A::HOURS_ONSITE    => array(
+				A::HOURS_ONSITE  => array(
 					'max'  => 500,
 					'show' => array( A::MODALITY => $onsite ),
 				),
-				A::HOURS_ONLINE    => array(
+				A::HOURS_ONLINE  => array(
 					'max'  => 500,
 					'show' => array( A::MODALITY => $online ),
 				),
-				A::REPLICAS        => array(
+				A::REPLICAS      => array(
 					'min' => 1,
 					'max' => 10,
 				),
-				A::TRAINING_FILE   => array( 'show' => array( A::TRAINING_PLANS => array( 'plan', 'seminar' ) ) ),
-				A::CERTIFICATION   => array(
+				A::TRAINING_FILE => array( 'show' => array( A::TRAINING_PLANS => array( 'plan', 'seminar' ) ) ),
+				A::CERTIFICATION => array(
 					'w'    => 'rich',
 					'show' => array( A::MODALITY => $online ),
 				),
-				A::NOTES           => $rich,
-				A::SPEAKERS        => array( 'add' => PostTypes::SPEAKER ),
-				A::ENROLLED_WOMEN  => $people,
-				A::ENROLLED_MEN    => $people,
-				A::ATTENDED_WOMEN  => $people,
-				A::ATTENDED_MEN    => $people,
-				A::CERTIFIED_WOMEN => $people,
-				A::CERTIFIED_MEN   => $people,
+				A::NOTES         => $rich,
+				A::SPEAKERS      => array( 'add' => PostTypes::SPEAKER ),
 			),
 			PostTypes::SPEAKER  => array(
-				S::ID_NUMBER => array( 'unique' => true ),
+				S::ID_NUMBER   => array( 'unique' => true ),
+				// Solo los diseños del catálogo: los históricos ya no se imparten.
+				S::RECOMMENDED => array( 'catalogue' => true ),
 			),
 			PostTypes::INCIDENT => array(
 				I::RESOLUTION_NOTES => array( 'show' => array( I::RESOLUTION => array( 'approved', 'denied' ) ) ),
@@ -153,7 +149,7 @@ final class Fields {
 		return array(
 			array(
 				'title'  => 'Identidad',
-				'help'   => 'Cómo se llama el diseño y de qué tipo es. El código lo pone la curaduría y no cambia.',
+				'help'   => 'Cómo se llama el diseño y de qué tipo es. El código lo asigna el aplicativo y no cambia.',
 				'fields' => array(
 					'post_title'    => array(
 						'label' => 'Título del curso',
@@ -164,8 +160,9 @@ final class Fields {
 					D::CODE         => array(
 						'label' => 'Código',
 						'w'     => 'text',
+						'auto'  => true,
 						'col'   => 4,
-						'help'  => 'Por ejemplo, A247.',
+						'help'  => 'El siguiente libre; se asigna al guardar por primera vez.',
 					),
 					D::TYPE         => array(
 						'label'   => 'Tipo de formación',
@@ -195,7 +192,7 @@ final class Fields {
 						'label' => 'Sale en el catálogo público',
 						'w'     => 'checkbox',
 						'col'   => 4,
-						'help'  => 'Aparte de estar finalizado: un diseño finalizado puede no ofrecerse en el catálogo.',
+						'help'  => 'Aparte de estar finalizado. Fuera del catálogo, es histórico: ya no se recomienda a ponentes.',
 					),
 				),
 			),
@@ -203,25 +200,28 @@ final class Fields {
 				'title'  => 'Clasificación',
 				'help'   => 'Con qué se busca y se agrupa el diseño.',
 				'fields' => array(
-					'tax:fmc_programme'  => array(
+					'tax:fmc_programme' => array(
 						'label' => 'Programas',
 						'w'     => 'terms',
 						'help'  => 'El programa o proyecto para el que se crea. Puede ser más de uno.',
 					),
-					'tax:fmc_topic'      => array(
+					'tax:fmc_topic'     => array(
 						'label' => 'Temática',
 						'w'     => 'term',
 						'col'   => 6,
 					),
-					'tax:fmc_competence' => array(
-						'label' => 'Áreas de competencia digital',
-						'w'     => 'terms',
+					D::REPLACES         => array(
+						'label' => 'Sustituye a',
+						'w'     => 'designs',
 						'col'   => 6,
+						'help'  => 'Los diseños que este deja en histórico: sus ponentes recomendados pasan a serlo de este.',
 					),
-					D::DIGCOMP_URL       => array(
+					// Las áreas antiguas ya no se rellenan: manda el perfil del marco
+					// de referencia, y de él sale el resumen (ver Editor).
+					D::DIGCOMP_URL      => array(
 						'label' => 'Perfil de competencia digital',
 						'w'     => 'url',
-						'help'  => 'La dirección de la configuración generada con la herramienta de competencia digital.',
+						'help'  => 'Elija las competencias en la herramienta de competencia digital, copie la dirección que genera al compartir y péguela aquí. Al guardar se ve el resumen.',
 					),
 				),
 			),
@@ -290,22 +290,18 @@ final class Fields {
 		return array(
 			array(
 				'title'  => 'La acción',
-				'help'   => 'De qué diseño sale y quién la gestiona. El título, el tipo y las horas se toman del diseño si se dejan en blanco.',
+				'help'   => 'De qué diseño sale y quién la gestiona. El título es siempre el del diseño; la modalidad y las horas se toman de él si se dejan en blanco.',
 				'fields' => array(
 					A::DESIGN_ID       => array(
 						'label' => 'Diseño',
 						'w'     => 'design',
 						'req'   => true,
-					),
-					'post_title'       => array(
-						'label' => 'Título',
-						'w'     => 'text',
-						'help'  => 'En blanco, el del diseño.',
+						'help'  => 'La acción lleva el título del diseño, y no se cambia.',
 					),
 					A::SUBTITLE        => array(
 						'label' => 'Subtítulo',
 						'w'     => 'text',
-						'help'  => 'Solo si la acción lleva un título propio además del del diseño.',
+						'help'  => 'Un añadido que sale debajo del título, por ejemplo la edición o el lugar. No sustituye al título.',
 					),
 					'tax:fmc_scope'    => array(
 						'label' => 'Ámbito que la gestiona',
@@ -331,13 +327,13 @@ final class Fields {
 					A::SPEAKERS        => array(
 						'label' => 'Ponentes',
 						'w'     => 'speakers',
-						'help'  => 'Escriba para buscar y añadir; la «×» de cada uno lo quita.',
+						'help'  => 'Escriba para buscar y añadir; la «×» de cada uno lo quita. Al lado de cada nombre, su isla y las acciones que ha impartido; «★» si se le recomienda para este diseño.',
 					),
 				),
 			),
 			array(
 				'title'  => 'Financiación',
-				'help'   => 'Quién la paga y con cargo a qué programa.',
+				'help'   => 'Quién la paga y con cargo a qué programa. Si la paga el servicio de formación con fondos de un programa, elija el servicio y el programa: es lo que le dice qué expediente ponerle.',
 				'fields' => array(
 					A::FUNDED_BY        => array(
 						'label'   => 'Asumida por',
@@ -346,7 +342,7 @@ final class Fields {
 						'col'     => 6,
 					),
 					'tax:fmc_programme' => array(
-						'label' => 'Programas',
+						'label' => 'Con cargo al programa',
 						'w'     => 'terms',
 						'col'   => 6,
 					),
@@ -541,56 +537,6 @@ final class Fields {
 					),
 				),
 			),
-			array(
-				'title'  => 'Cifras y cierre',
-				'help'   => 'Los totales se suman solos.',
-				'fields' => array(
-					A::ENROLLED_WOMEN  => array(
-						'label' => 'Matriculadas',
-						'w'     => 'number',
-						'col'   => 4,
-					),
-					A::ENROLLED_MEN    => array(
-						'label' => 'Matriculados',
-						'w'     => 'number',
-						'col'   => 4,
-					),
-					A::ATTENDED_WOMEN  => array(
-						'label' => 'Asistentes (mujeres)',
-						'w'     => 'number',
-						'col'   => 4,
-					),
-					A::ATTENDED_MEN    => array(
-						'label' => 'Asistentes (hombres)',
-						'w'     => 'number',
-						'col'   => 4,
-					),
-					A::CERTIFIED_WOMEN => array(
-						'label' => 'Certifican (mujeres)',
-						'w'     => 'number',
-						'col'   => 4,
-					),
-					A::CERTIFIED_MEN   => array(
-						'label' => 'Certifican (hombres)',
-						'w'     => 'number',
-						'col'   => 4,
-					),
-					A::DOCS_FILE       => array(
-						'label' => 'Documentación del expediente',
-						'w'     => 'url',
-					),
-					A::DOCS_DELIVERED  => array(
-						'label' => 'Documentación entregada al servicio el',
-						'w'     => 'date',
-						'col'   => 6,
-					),
-					A::COMPLETED       => array(
-						'label' => 'Proceso completado el',
-						'w'     => 'date',
-						'col'   => 6,
-					),
-				),
-			),
 		);
 	}
 
@@ -603,7 +549,7 @@ final class Fields {
 		return array(
 			array(
 				'title'  => 'Datos personales',
-				'help'   => 'Solo los ve quien gestiona acciones formativas.',
+				'help'   => 'Los ve quien gestiona acciones formativas; cada asesoría edita las fichas que ha dado de alta.',
 				'fields' => array(
 					S::FIRST_NAME => array(
 						'label' => 'Nombre',
@@ -670,7 +616,7 @@ final class Fields {
 					S::RECOMMENDED => array(
 						'label' => 'Recomendado para los diseños',
 						'w'     => 'designs',
-						'help'  => 'Escriba para buscar y añadir; la «×» de cada uno lo quita.',
+						'help'  => 'Escriba para buscar y añadir; la «×» de cada uno lo quita. Solo se ofrecen los diseños del catálogo.',
 					),
 					S::NOTES       => array(
 						'label' => 'Observaciones',

@@ -53,3 +53,16 @@ calculan.
 
 - Si algún día el otro sistema ofrece una API, las cifras se pueden leer de
   ahí con otra ADR.
+
+## Adenda — 2026-10-21: las cifras finales también salen
+
+En la revisión con la curaduría del 2026-10-21 se confirma que las cifras
+finales y el cierre de la acción tampoco se llevan aquí: se gestionan en el
+sistema de gestión del servicio de formación. La
+[ADR-0010](ADR-0010-las-cifras-de-cierre-salen-de-la-ficha-de-la-accion.md)
+(propuesta) las saca de la ficha, del resumen y del CSV, y deja sus claves
+registradas para no perder lo migrado. Si se acepta, la frase «la acción
+guarda […] las cifras finales por sexo; los totales se calculan» deja de
+regir. La decisión de esta ADR —aquí no hay matrícula— no cambia.
+
+Asistencia de IA: Claude Code (claude-opus-5-5).

@@ -382,17 +382,55 @@ class Test_Editor_Save extends WP_UnitTestCase {
 	}
 
 	/**
-	 * Sin título, la acción toma el del diseño; con título propio, se queda el suyo.
+	 * La acción lleva el título del diseño, aunque se mande otro; cambia si
+	 * cambia el diseño, y la antigua con título propio lo conserva (ADR-0009).
 	 */
-	public function test_an_action_takes_its_title_from_the_design_only_when_blank() {
+	public function test_an_action_always_takes_the_title_of_its_design() {
 		$this->as_role( 'fmc_adviser' );
 		$fields = $this->action_fields( array( 'post_title' => 'Edición de otoño' ) );
+		$design = (int) $fields[ A::DESIGN_ID ];
 
 		$own = Editor::apply( PostTypes::ACTION, 0, $fields, '', 0 );
-		$this->assertSame( 'Edición de otoño', get_the_title( $own['id'] ) );
+		$this->assertSame( get_the_title( $design ), get_the_title( $own['id'] ) );
 
-		Editor::apply( PostTypes::ACTION, $own['id'], array( 'post_title' => '  ' ) + $fields, '', 0 );
-		$this->assertSame( get_the_title( (int) $fields[ A::DESIGN_ID ] ), get_the_title( $own['id'] ) );
+		// Una antigua, con el título cambiado a mano: se queda como está.
+		wp_update_post(
+			array(
+				'ID'         => $own['id'],
+				'post_title' => 'Título de antes',
+			)
+		);
+		Editor::apply( PostTypes::ACTION, $own['id'], array( A::SUBTITLE => 'Edición de otoño' ) + $fields, '', 0 );
+		$this->assertSame( 'Título de antes', get_the_title( $own['id'] ) );
+		$this->assertSame( 'Edición de otoño', get_post_meta( $own['id'], A::SUBTITLE, true ) );
+
+		// Con otro diseño, el título de ese diseño.
+		$other = self::factory()->post->create(
+			array(
+				'post_type'  => PostTypes::DESIGN,
+				'post_title' => 'Otro diseño',
+			)
+		);
+		Editor::apply( PostTypes::ACTION, $own['id'], array( A::DESIGN_ID => (string) $other ) + $fields, '', 0 );
+		$this->assertSame( 'Otro diseño', get_the_title( $own['id'] ) );
+	}
+
+	/**
+	 * El código del diseño lo pone el aplicativo: el siguiente al mayor, con su prefijo.
+	 */
+	public function test_the_design_code_is_the_next_free_one() {
+		$this->as_role( 'fmc_adviser' );
+		$old = self::factory()->post->create( array( 'post_type' => PostTypes::DESIGN ) );
+		update_post_meta( $old, D::CODE, 'A247' );
+		$this->assertSame( 'A248', Editor::next_code() );
+
+		$result = Editor::apply( PostTypes::DESIGN, 0, $this->design_fields( array( D::CODE => 'Z1' ) ), 'draft', 0 );
+		$this->assertSame( 'created', $result['outcome'] );
+		$this->assertSame( 'A248', get_post_meta( $result['id'], D::CODE, true ), 'el que se teclee no cuenta' );
+
+		Editor::apply( PostTypes::DESIGN, $result['id'], $this->design_fields(), 'draft', 0 );
+		$this->assertSame( 'A248', get_post_meta( $result['id'], D::CODE, true ), 'y no cambia al volver a guardar' );
+		$this->assertSame( 'A249', Editor::next_code() );
 	}
 
 	/**

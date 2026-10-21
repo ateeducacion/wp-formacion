@@ -51,6 +51,7 @@ final class Lists {
 	 */
 	public static function register(): void {
 		add_filter( 'posts_where', array( self::class, 'visible_where' ), 10, 2 );
+		add_filter( 'posts_where', array( self::class, 'text_where' ), 10, 2 );
 		add_filter( 'posts_clauses', array( self::class, 'order_by_start' ), 10, 2 );
 	}
 
@@ -88,6 +89,48 @@ final class Lists {
 		}
 		global $wpdb;
 		return $where . $wpdb->prepare( " AND ( {$wpdb->posts}.post_status = 'publish' OR {$wpdb->posts}.post_author = %d )", get_current_user_id() );
+	}
+
+	/**
+	 * `fmc_text` query arg: the words in the title or in some meta keys.
+	 *
+	 * La búsqueda de WordPress solo mira el título y el texto; en las acciones
+	 * hay que encontrar también por el expediente y por el subtítulo, que es lo
+	 * que se teclea a diario (`fmc_text_keys`).
+	 *
+	 * @param string    $where SQL.
+	 * @param \WP_Query $query Query.
+	 * @return string
+	 */
+	public static function text_where( $where, $query ) {
+		if ( ! $query instanceof \WP_Query || '' === (string) $query->get( 'fmc_text' ) ) {
+			return $where;
+		}
+		global $wpdb;
+		$like = '%' . $wpdb->esc_like( (string) $query->get( 'fmc_text' ) ) . '%';
+		$keys = array_map( 'strval', (array) $query->get( 'fmc_text_keys' ) );
+		$in   = implode( ', ', array_fill( 0, count( $keys ), '%s' ) );
+		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare, WordPress.DB.PreparedSQLPlaceholders.ReplacementsWrongNumber -- los marcadores se cuentan arriba.
+		return $where . $wpdb->prepare( " AND ( {$wpdb->posts}.post_title LIKE %s OR EXISTS ( SELECT 1 FROM {$wpdb->postmeta} fmc_t WHERE fmc_t.post_id = {$wpdb->posts}.ID AND fmc_t.meta_key IN ( {$in} ) AND fmc_t.meta_value LIKE %s ) )", array_merge( array( $like ), $keys, array( $like ) ) );
+	}
+
+	/**
+	 * Incidents per action: how many and how many still pending.
+	 *
+	 * @return array<int, array{total:int, pending:int}> action => counts.
+	 */
+	private static function incidents(): array {
+		global $wpdb;
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery -- un recuento agrupado; no hay API.
+		$rows = $wpdb->get_results( $wpdb->prepare( "SELECT p.post_parent AS action, COUNT(*) AS total, SUM( COALESCE( r.meta_value, 'pending' ) = 'pending' ) AS pending FROM {$wpdb->posts} p LEFT JOIN {$wpdb->postmeta} r ON ( r.post_id = p.ID AND r.meta_key = %s ) WHERE p.post_type = %s AND p.post_status = 'publish' AND p.post_parent > 0 GROUP BY p.post_parent", I::RESOLUTION, PostTypes::INCIDENT ), ARRAY_A );
+		$out  = array();
+		foreach ( (array) $rows as $r ) {
+			$out[ (int) $r['action'] ] = array(
+				'total'   => (int) $r['total'],
+				'pending' => (int) $r['pending'],
+			);
+		}
+		return $out;
 	}
 
 	/**
@@ -148,6 +191,7 @@ final class Lists {
 				// Por fecha de inicio, las más recientes arriba y las que no tienen
 				// fecha al final: lo hace `order_by_start()` con una unión propia.
 				$args['fmc_order_start'] = true;
+				$args                    = self::action_search( $args );
 				$term( 'fmc_scope', self::arg( 'fmc_scope' ) );
 				$term( 'fmc_programme', self::arg( 'fmc_programme' ) );
 				$meta( A::MODALITY, self::arg( 'fmc_modality' ) );
@@ -215,25 +259,7 @@ final class Lists {
 				}
 				break;
 			case PostTypes::SPEAKER:
-				$meta( S::ZONE, self::arg( 'fmc_zone' ) );
-				if ( absint( self::arg( 'fmc_recommended' ) ) ) {
-					$args['meta_query'][] = array(
-						'key'     => S::RECOMMENDED,
-						'value'   => 'i:' . absint( self::arg( 'fmc_recommended' ) ) . ';',
-						'compare' => 'LIKE',
-					);
-				}
-				if ( $with_state && '' !== self::arg( 'fmc_available' ) ) {
-					$args['meta_query'][] = '1' === self::arg( 'fmc_available' )
-						? array(
-							'key'     => S::UNAVAILABLE,
-							'compare' => 'NOT EXISTS',
-						)
-						: array(
-							'key'   => S::UNAVAILABLE,
-							'value' => '1',
-						);
-				}
+				$args = self::speaker_args( $args, $with_state );
 				break;
 			case PostTypes::INCIDENT:
 				$args['orderby'] = 'date';
@@ -244,6 +270,125 @@ final class Lists {
 				break;
 		}
 		return $args;
+	}
+
+	/**
+	 * Speaker filters: zone, recommended, what they have given, availability and trash.
+	 *
+	 * @param array<string, mixed> $args       Query args.
+	 * @param bool                 $with_state Whether to apply the state filters.
+	 * @return array<string, mixed>
+	 */
+	private static function speaker_args( array $args, bool $with_state ): array {
+		if ( '' !== self::arg( 'fmc_zone' ) ) {
+			$args['meta_query'][] = array(
+				'key'   => S::ZONE,
+				'value' => self::arg( 'fmc_zone' ),
+			);
+		}
+			// Recomendado para el diseño o para alguno de los que sustituye (ADR-0012).
+		if ( absint( self::arg( 'fmc_recommended' ) ) ) {
+			$args['meta_query'][] = Speakers::recommended_clause( absint( self::arg( 'fmc_recommended' ) ) );
+		}
+			$args = self::speaker_order( $args );
+			// La papelera, con el motivo de cada baja, para la curaduría.
+		if ( $with_state && 'trash' === self::arg( 'fmc_status' ) && current_user_can( 'edit_others_fmc_speakers' ) ) {
+			$args['post_status'] = 'trash';
+		}
+		if ( $with_state && '' !== self::arg( 'fmc_available' ) ) {
+			$args['meta_query'][] = '1' === self::arg( 'fmc_available' )
+				? array(
+					'key'     => S::UNAVAILABLE,
+					'compare' => 'NOT EXISTS',
+				)
+				: array(
+					'key'   => S::UNAVAILABLE,
+					'value' => '1',
+				);
+		}
+		return $args;
+	}
+
+	/**
+	 * Action filters beyond the list ones: text, file number and incidents.
+	 *
+	 * @param array<string, mixed> $args Query args.
+	 * @return array<string, mixed>
+	 */
+	private static function action_search( array $args ): array {
+		// Se busca también por el expediente y el subtítulo, no solo por el título.
+		$args['fmc_text']      = $args['s'];
+		$args['fmc_text_keys'] = array( A::FILE_NUMBER, A::INTERNAL_REF, A::SUBTITLE );
+		$args['s']             = '';
+		// «Empieza por»: el prefijo del expediente dice con qué fondos se paga.
+		if ( '' !== self::arg( 'fmc_file' ) ) {
+			$args['meta_query'][] = array(
+				'key'     => A::FILE_NUMBER,
+				'value'   => '^' . preg_quote( self::arg( 'fmc_file' ), '' ),
+				'compare' => 'REGEXP',
+			);
+		}
+		if ( '' !== self::arg( 'fmc_incident' ) ) {
+			$with             = array_filter( self::incidents(), static fn( $c ) => 'pending' !== self::arg( 'fmc_incident' ) || $c['pending'] > 0 );
+			$args['post__in'] = $with ? array_keys( $with ) : array( 0 );
+		}
+		return $args;
+	}
+
+	/**
+	 * Speakers by what they have given: filter and order by it.
+	 *
+	 * «Ha impartido», el expediente y la fecha dejan solo a quien ha estado en
+	 * alguna de esas acciones; el orden puede ser por acciones, por horas o por
+	 * isla. Sin nada de eso, por nombre, como siempre.
+	 *
+	 * @param array<string, mixed> $args Query args.
+	 * @return array<string, mixed>
+	 */
+	private static function speaker_order( array $args ): array {
+		$sort     = self::arg( 'fmc_sort' );
+		$filtered = '' !== self::arg( 'fmc_given' ) . self::arg( 'fmc_file' ) . self::arg( 'fmc_from' );
+		if ( ! $filtered && ! in_array( $sort, array( 'actions', 'hours', 'zone' ), true ) ) {
+			return $args;
+		}
+		$stats = self::speaker_stats();
+		$ids   = $filtered ? array_keys( $stats ) : get_posts(
+			array(
+				'post_type'      => PostTypes::SPEAKER,
+				'post_status'    => 'publish',
+				'posts_per_page' => -1,
+				'fields'         => 'ids',
+				'no_found_rows'  => true,
+			)
+		);
+		$key   = static function ( int $id ) use ( $stats, $sort ) {
+			if ( 'zone' === $sort ) {
+				return (string) get_post_meta( $id, S::ZONE, true );
+			}
+			return - (float) ( $stats[ $id ][ 'hours' === $sort ? 'hours' : 'actions' ] ?? 0 );
+		};
+		// Con un filtro y sin orden elegido, primero quien más acciones ha dado.
+		if ( 'name' !== $sort ) {
+			usort(
+				$ids,
+				static function ( $a, $b ) use ( $key ) {
+					$order = $key( (int) $a ) <=> $key( (int) $b );
+					return 0 !== $order ? $order : $a <=> $b;
+				}
+			);
+			$args['orderby'] = 'post__in';
+		}
+		$args['post__in'] = $ids ? array_map( 'intval', $ids ) : array( 0 );
+		return $args;
+	}
+
+	/**
+	 * Stats of the speakers for the filters of the request.
+	 *
+	 * @return array<int, array{actions:int, hours:float}>
+	 */
+	private static function speaker_stats(): array {
+		return Speakers::stats( self::arg( 'fmc_given' ), self::arg( 'fmc_file' ), self::arg( 'fmc_from' ) );
 	}
 
 	/**
@@ -302,6 +447,11 @@ final class Lists {
 					$by[] = array( $status[0], 'fmc_status', $key, array( 'post_status' => $key ) );
 				}
 				break;
+			case PostTypes::SPEAKER:
+				if ( current_user_can( 'edit_others_fmc_speakers' ) ) {
+					$by[] = array( 'En la papelera', 'fmc_status', 'trash', array( 'post_status' => 'trash' ) );
+				}
+				break;
 			case PostTypes::INCIDENT:
 				foreach ( I::RESOLUTIONS as $key => $label ) {
 					$by[] = array(
@@ -351,17 +501,21 @@ final class Lists {
 			? '<a class="btn btn-primary fmc-abre-panel" href="' . esc_url( Screen::url( array( Screen::ARG_NEW => $type ) ) ) . '">+ Añadir ' . esc_html( mb_strtolower( $object->labels->singular_name ) ) . '</a>'
 			: '';
 
-		$actions .= ' <a class="btn btn-outline-secondary" href="' . esc_url(
-			Screen::url(
-				array_merge(
-					self::current_filters(),
-					array(
-						Screen::ARG_TAB => $tab,
-						'fmc_csv'       => '1',
+		// Los ponentes no se exportan: un listado con correos y documentos de
+		// identidad es demasiado fácil de sacar fuera (ADR-0011).
+		if ( PostTypes::SPEAKER !== $type ) {
+			$actions .= ' <a class="btn btn-outline-secondary" href="' . esc_url(
+				Screen::url(
+					array_merge(
+						self::current_filters(),
+						array(
+							Screen::ARG_TAB => $tab,
+							'fmc_csv'       => '1',
+						)
 					)
 				)
-			)
-		) . '">Exportar CSV</a>';
+			) . '">Exportar CSV</a>';
+		}
 
 		$body  = self::counters_html( $tab, self::counters( $type ) );
 		$body .= self::filters_html( $tab, $type );
@@ -371,7 +525,7 @@ final class Lists {
 		$subtitles = array(
 			PostTypes::ACTION   => 'Cada edición de un diseño: dónde, cuándo, para cuántos y cómo fue.',
 			PostTypes::DESIGN   => 'El catálogo y la mesa de trabajo: los borradores se escriben aquí hasta que la curaduría los da por finalizados.',
-			PostTypes::SPEAKER  => 'Datos personales: solo para quien gestiona acciones.',
+			PostTypes::SPEAKER  => 'Datos personales: solo para quien gestiona acciones. Busque por lo que han impartido, con sus acciones y sus horas.',
 			PostTypes::INCIDENT => 'Cambios pedidos sobre una acción. Se abren desde la propia acción.',
 		);
 
@@ -412,7 +566,7 @@ final class Lists {
 	 */
 	private static function current_filters(): array {
 		$out = array();
-		foreach ( array( 'fmc_s', 'fmc_scope', 'fmc_programme', 'fmc_topic', 'fmc_modality', 'fmc_process', 'fmc_situation', 'fmc_year', 'fmc_type', 'fmc_status', 'fmc_zone', 'fmc_available', 'fmc_resolution', 'fmc_month', 'fmc_speaker', 'fmc_from', 'fmc_to', 'fmc_catalogue', 'fmc_recommended' ) as $key ) {
+		foreach ( array( 'fmc_s', 'fmc_scope', 'fmc_programme', 'fmc_topic', 'fmc_modality', 'fmc_process', 'fmc_situation', 'fmc_year', 'fmc_type', 'fmc_status', 'fmc_zone', 'fmc_available', 'fmc_resolution', 'fmc_month', 'fmc_speaker', 'fmc_from', 'fmc_to', 'fmc_catalogue', 'fmc_recommended', 'fmc_file', 'fmc_incident', 'fmc_given', 'fmc_sort' ) as $key ) {
 			if ( '' !== self::arg( $key ) ) {
 				$out[ $key ] = self::arg( $key );
 			}
@@ -428,9 +582,14 @@ final class Lists {
 	 * @return string
 	 */
 	public static function filters_html( string $tab, string $type ): string {
-		$fields = array( self::search_field() );
+		$placeholders = array(
+			PostTypes::ACTION  => 'Título, subtítulo o expediente…',
+			PostTypes::SPEAKER => 'Nombre…',
+		);
+		$fields       = array( self::search_field( $placeholders[ $type ] ?? 'Título…' ) );
 		switch ( $type ) {
 			case PostTypes::ACTION:
+				$fields[] = self::text_field( 'fmc_file', 'Expediente empieza por', 'Prefijo' );
 				$fields[] = self::select( 'fmc_scope', 'Ámbito', self::term_choices( 'fmc_scope' ), 'Todos' );
 				$fields[] = self::select( 'fmc_year', 'Curso escolar', self::school_years(), 'Todos' );
 				$fields[] = self::select( 'fmc_programme', 'Programa', self::term_choices( 'fmc_programme' ), 'Todos' );
@@ -439,6 +598,15 @@ final class Lists {
 				$fields[] = self::select( 'fmc_process', 'Estado', A::PROCESSES, 'Todos' );
 				$fields[] = self::select( 'fmc_situation', 'Situación', A::SITUATIONS, 'Todas' );
 				$fields[] = self::select( 'fmc_speaker', 'Ponente', self::post_choices( PostTypes::SPEAKER ), 'Todos', true );
+				$fields[] = self::select(
+					'fmc_incident',
+					'Incidencias',
+					array(
+						'pending' => 'Con alguna pendiente',
+						'any'     => 'Con alguna',
+					),
+					'Todas'
+				);
 				$fields[] = self::date_field( 'fmc_from', 'Empieza desde' );
 				$fields[] = self::date_field( 'fmc_to', 'hasta' );
 				break;
@@ -462,6 +630,21 @@ final class Lists {
 					'Todos'
 				);
 				$fields[] = self::select( 'fmc_recommended', 'Recomendado para', self::post_choices( PostTypes::DESIGN ), 'Cualquier diseño', true );
+				// Lo que ha impartido cada cual, en vez de categorías de ponentes (ADR-0012).
+				$fields[] = self::text_field( 'fmc_given', 'Ha impartido', 'Palabras del título' );
+				$fields[] = self::text_field( 'fmc_file', 'Expediente empieza por', 'Prefijo' );
+				$fields[] = self::date_field( 'fmc_from', 'Acciones desde' );
+				$fields[] = self::select(
+					'fmc_sort',
+					'Ordenar por',
+					array(
+						'name'    => 'Nombre',
+						'actions' => 'Acciones impartidas',
+						'hours'   => 'Horas impartidas',
+						'zone'    => 'Isla o zona',
+					),
+					'Lo filtrado'
+				);
 				break;
 			case PostTypes::INCIDENT:
 				$fields[] = self::select( 'fmc_resolution', 'Resolución', I::RESOLUTIONS, 'Todas' );
@@ -481,10 +664,23 @@ final class Lists {
 	/**
 	 * The search box.
 	 *
+	 * @param string $placeholder What to type.
 	 * @return string
 	 */
-	private static function search_field(): string {
-		return '<div class="col-12 col-md-3"><label class="form-label small fw-semibold" for="fmc_s">Buscar</label><input class="form-control" id="fmc_s" name="fmc_s" type="search" value="' . esc_attr( self::arg( 'fmc_s' ) ) . '" placeholder="Título…"></div>';
+	private static function search_field( string $placeholder ): string {
+		return '<div class="col-12 col-md-3"><label class="form-label small fw-semibold" for="fmc_s">Buscar</label><input class="form-control" id="fmc_s" name="fmc_s" type="search" value="' . esc_attr( self::arg( 'fmc_s' ) ) . '" placeholder="' . esc_attr( $placeholder ) . '"></div>';
+	}
+
+	/**
+	 * A free-text filter.
+	 *
+	 * @param string $name        Query var.
+	 * @param string $label       Label.
+	 * @param string $placeholder What to type.
+	 * @return string
+	 */
+	private static function text_field( string $name, string $label, string $placeholder ): string {
+		return '<div class="col-6 col-md-2"><label class="form-label small fw-semibold" for="' . esc_attr( $name ) . '">' . esc_html( $label ) . '</label><input class="form-control" type="text" id="' . esc_attr( $name ) . '" name="' . esc_attr( $name ) . '" value="' . esc_attr( self::arg( $name ) ) . '" placeholder="' . esc_attr( $placeholder ) . '"></div>';
 	}
 
 	/**
@@ -595,7 +791,7 @@ final class Lists {
 	 * @param \WP_Post[] $posts Posts.
 	 * @return string
 	 */
-	private static function table_html( string $type, array $posts ): string {
+	public static function table_html( string $type, array $posts ): string {
 		if ( array() === $posts ) {
 			return '<div class="card card-body text-secondary">No hay nada que mostrar con estos filtros.</div>';
 		}
@@ -607,8 +803,10 @@ final class Lists {
 		$out .= '<th scope="col" class="text-end"><span class="visually-hidden">Acciones</span></th></tr></thead><tbody>';
 		foreach ( $posts as $post ) {
 			$thumb = PostTypes::DESIGN === $type && has_post_thumbnail( $post ) ? get_the_post_thumbnail( $post, array( 48, 48 ), array( 'class' => 'fmc-thumb' ) ) : '';
-			$link  = $thumb . '<a class="fw-semibold fmc-abre-panel" href="' . esc_url( Screen::url( array( Screen::ARG_EDIT => $post->ID ) ) ) . '">' . esc_html( self::title( $post ) ) . '</a>' . self::badge( $post );
-			$out  .= '<tr><td class="fmc-col-title">' . $link . '</td>';
+			// En la papelera no hay ficha que abrir: se recupera desde el escritorio.
+			$name = 'trash' === $post->post_status ? '<span class="fw-semibold">' . esc_html( self::title( $post ) ) . '</span>' : '<a class="fw-semibold fmc-abre-panel" href="' . esc_url( Screen::url( array( Screen::ARG_EDIT => $post->ID ) ) ) . '">' . esc_html( self::title( $post ) ) . '</a>';
+			$link = $thumb . $name . self::badge( $post ) . self::subtitle( $post );
+			$out .= '<tr><td class="fmc-col-title">' . $link . '</td>';
 			foreach ( $columns as $cell ) {
 				$lines = explode( "\n", (string) $cell( $post ) );
 				$out  .= '<td>' . esc_html( array_shift( $lines ) );
@@ -634,17 +832,23 @@ final class Lists {
 	 * @return void
 	 */
 	public static function csv( string $type ): void {
+		// Los ponentes no se exportan (ADR-0011): ni por la ruta ni llamando aquí.
+		if ( PostTypes::SPEAKER === $type ) {
+			return;
+		}
 		$args                   = self::query_args( $type );
 		$args['posts_per_page'] = 5000; // phpcs:ignore WordPress.WP.PostsPerPage.posts_per_page_posts_per_page -- una exportación entera.
 		$args['no_found_rows']  = true;
 		$fields                 = array_filter( Fields::all( $type ), static fn( $f ) => 'docs' !== $f['w'] );
 
-		$head = array( 'ID', 'Estado de la ficha' );
+		// La acción no tiene el título en la ficha —es el del diseño—, pero la hoja sí lo lleva.
+		$titled = ! isset( $fields['post_title'] );
+		$head   = array_merge( array( 'ID', 'Estado de la ficha' ), $titled ? array( 'Título' ) : array() );
 		foreach ( $fields as $f ) {
 			$head[] = $f['label'];
 		}
 		if ( PostTypes::ACTION === $type ) {
-			$head = array_merge( $head, array( 'Tipo de formación', 'Curso escolar', 'Horas totales', 'Matriculados', 'Asistentes', 'Certifican' ) );
+			$head = array_merge( $head, array( 'Tipo de formación', 'Curso escolar', 'Horas totales' ) );
 		}
 
 		nocache_headers();
@@ -654,7 +858,7 @@ final class Lists {
 		fwrite( $out, "\xEF\xBB\xBF" ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fwrite -- BOM para las hojas de cálculo.
 		fputcsv( $out, $head, ';' );
 		foreach ( get_posts( $args + array( 'suppress_filters' => false ) ) as $post ) {
-			$row = array( $post->ID, get_post_status_object( $post->post_status )->label ?? $post->post_status );
+			$row = array_merge( array( $post->ID, get_post_status_object( $post->post_status )->label ?? $post->post_status ), $titled ? array( get_the_title( $post ) ) : array() );
 			foreach ( $fields as $key => $f ) {
 				$row[] = self::plain( $post, $key, $f );
 			}
@@ -663,9 +867,6 @@ final class Lists {
 				$row[] = D::TYPES[ (string) get_post_meta( (int) get_post_meta( $post->ID, A::DESIGN_ID, true ), D::TYPE, true ) ] ?? '';
 				$row[] = SchoolYear::of( (string) get_post_meta( $post->ID, A::START, true ) );
 				$row[] = ( $n( A::HOURS_ONSITE ) + $n( A::HOURS_ONLINE ) ) * max( 1, (int) $n( A::REPLICAS ) );
-				$row[] = $n( A::ENROLLED_MEN ) + $n( A::ENROLLED_WOMEN );
-				$row[] = $n( A::ATTENDED_MEN ) + $n( A::ATTENDED_WOMEN );
-				$row[] = $n( A::CERTIFIED_MEN ) + $n( A::CERTIFIED_WOMEN );
 			}
 			fputcsv( $out, $row, ';' );
 		}
@@ -730,17 +931,24 @@ final class Lists {
 				);
 			case PostTypes::DESIGN:
 				return array(
-					'Código'       => static fn( $p ) => $m( $p, D::CODE ) . ( $m( $p, D::IN_CATALOGUE ) ? "\nEn el catálogo" : '' ),
-					'Tipo'         => static fn( $p ) => ( D::TYPES[ $m( $p, D::TYPE ) ] ?? '' ) . "\n" . ( D::MODALITIES[ $m( $p, D::MODALITY ) ] ?? '' ),
-					'Horas'        => static fn( $p ) => self::hours( $m( $p, D::HOURS_ONSITE ), $m( $p, D::HOURS_ONLINE ) ),
-					'Competencias' => static fn( $p ) => self::terms( $p->ID, 'fmc_competence' ),
-					'Programas'    => static fn( $p ) => self::terms( $p->ID, 'fmc_programme' ),
+					'Código'    => static fn( $p ) => $m( $p, D::CODE ) . ( $m( $p, D::IN_CATALOGUE ) ? "\nEn el catálogo" : '' ),
+					'Tipo'      => static fn( $p ) => ( D::TYPES[ $m( $p, D::TYPE ) ] ?? '' ) . "\n" . ( D::MODALITIES[ $m( $p, D::MODALITY ) ] ?? '' ),
+					'Horas'     => static fn( $p ) => self::hours( $m( $p, D::HOURS_ONSITE ), $m( $p, D::HOURS_ONLINE ) ),
+					'Temática'  => static fn( $p ) => self::terms( $p->ID, 'fmc_topic' ),
+					'Programas' => static fn( $p ) => self::terms( $p->ID, 'fmc_programme' ),
 				);
 			case PostTypes::SPEAKER:
+				if ( 'trash' === self::arg( 'fmc_status' ) ) {
+					return array(
+						'Baja'   => static fn( $p ) => $m( $p, S::TRASHED_AT ) . "\n" . get_the_author_meta( 'display_name', (int) $m( $p, S::TRASHED_BY ) ),
+						'Motivo' => static fn( $p ) => $m( $p, S::TRASH_REASON ),
+					);
+				}
+				$stats = self::speaker_stats();
 				return array(
 					'Contacto'         => static fn( $p ) => $m( $p, S::EMAIL ) . "\n" . $m( $p, S::PHONE ),
 					'Isla o zona'      => static fn( $p ) => $m( $p, S::ZONE ),
-					'Profesión'        => static fn( $p ) => $m( $p, S::PROFESSION ),
+					'Ha impartido'     => static fn( $p ) => isset( $stats[ $p->ID ] ) ? sprintf( '%d acción(es)', $stats[ $p->ID ]['actions'] ) . "\n" . ( $stats[ $p->ID ]['hours'] + 0 ) . ' h' : '—',
 					'Recomendado para' => static fn( $p ) => implode( "\n", array_map( 'get_the_title', array_slice( array_filter( array_map( 'intval', (array) get_post_meta( $p->ID, S::RECOMMENDED, true ) ) ), 0, 3 ) ) ),
 				);
 			default:
@@ -766,6 +974,9 @@ final class Lists {
 	 * @return string
 	 */
 	public static function row_buttons( \WP_Post $post ): string {
+		if ( 'trash' === $post->post_status ) {
+			return '<a class="btn btn-sm btn-outline-secondary" href="' . esc_url( admin_url( 'edit.php?post_status=trash&post_type=' . $post->post_type ) ) . '">Recuperar en el escritorio</a>';
+		}
 		$edit = current_user_can( 'edit_post', $post->ID );
 		$out  = '<a class="btn btn-sm btn-outline-primary fmc-abre-panel" title="' . esc_attr( self::title( $post ) ) . '" href="' . esc_url( Screen::url( array( Screen::ARG_EDIT => $post->ID ) ) ) . '">' . ( $edit ? 'Editar' : 'Ver' ) . '</a>';
 		// Como en el sistema anterior, la incidencia se abre desde la fila de su acción.
@@ -779,7 +990,7 @@ final class Lists {
 				)
 			) . '">Incidencia</a>';
 		}
-		if ( Screen::can_delete( $post ) ) {
+		if ( PostTypes::SPEAKER !== $post->post_type && Screen::can_delete( $post ) ) {
 			$out .= ' ' . Screen::delete_form( $post, 'btn-sm' );
 		}
 		return $out;
@@ -805,7 +1016,7 @@ final class Lists {
 	public static function badge( \WP_Post $post ): string {
 		if ( PostTypes::ACTION === $post->post_type ) {
 			$s = (string) get_post_meta( $post->ID, A::SITUATION, true );
-			return isset( A::SITUATIONS[ $s ] ) ? ' <span class="badge rounded-pill text-bg-' . esc_attr( self::SITUATION_COLOURS[ $s ] ) . '">' . esc_html( A::SITUATIONS[ $s ] ) . '</span>' : '';
+			return ( isset( A::SITUATIONS[ $s ] ) ? ' <span class="badge rounded-pill text-bg-' . esc_attr( self::SITUATION_COLOURS[ $s ] ) . '">' . esc_html( A::SITUATIONS[ $s ] ) . '</span>' : '' ) . self::incident_badge( $post->ID );
 		}
 		if ( PostTypes::DESIGN === $post->post_type && isset( self::DESIGN_STATUSES[ $post->post_status ] ) ) {
 			list( $label, $colour ) = self::DESIGN_STATUSES[ $post->post_status ];
@@ -815,6 +1026,39 @@ final class Lists {
 			return ' <span class="badge rounded-pill text-bg-secondary">No disponible</span>';
 		}
 		return '';
+	}
+
+	/**
+	 * Whether an action has incidents, and whether any is still pending.
+	 *
+	 * De un vistazo, como se pidió: en ámbar las que esperan resolución, en
+	 * verde cuando ya están todas resueltas.
+	 *
+	 * @param int $action Action ID.
+	 * @return string
+	 */
+	public static function incident_badge( int $action ): string {
+		static $cache = array();
+		$changed      = wp_cache_get_last_changed( 'posts' );
+		$cache        = isset( $cache[ $changed ] ) ? $cache : array( $changed => self::incidents() );
+		$c            = $cache[ $changed ][ $action ] ?? null;
+		if ( ! $c ) {
+			return '';
+		}
+		return $c['pending'] > 0
+			? ' <span class="badge rounded-pill fmc-inc is-pending">' . esc_html( sprintf( 'Incidencia pendiente (%d)', $c['pending'] ) ) . '</span>'
+			: ' <span class="badge rounded-pill fmc-inc is-done">Incidencias resueltas</span>';
+	}
+
+	/**
+	 * The subtitle of an action, under its title (ADR-0009).
+	 *
+	 * @param \WP_Post $post Post.
+	 * @return string
+	 */
+	public static function subtitle( \WP_Post $post ): string {
+		$sub = PostTypes::ACTION === $post->post_type ? (string) get_post_meta( $post->ID, A::SUBTITLE, true ) : '';
+		return '' !== $sub ? '<div class="small text-secondary">' . esc_html( $sub ) . '</div>' : '';
 	}
 
 	/**

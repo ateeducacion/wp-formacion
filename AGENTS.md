@@ -106,21 +106,26 @@ src/Fmc/
 ├── Meta/IncidentMetaKeys.php     Claves de la incidencia y sus resoluciones
 ├── Meta/MetaRegistration.php     register_post_meta con tipo, lista cerrada y permiso por campo
 ├── Domain/SchoolYear.php         El curso escolar de una fecha. Puro
+├── Domain/DigComp.php            El resumen de un perfil de competencia digital (su dirección). Puro
 ├── PostType/PostTypes.php        Los cuatro CPT y qué capacidades tiene cada rol en cada uno
 ├── Taxonomy/Taxonomies.php       Programa, temática, competencia digital y ámbito
 └── PublicFront/                  El aplicativo, en la portada del sitio
     ├── Screen.php                Enrutado (?fmc_tab, ?fmc_edit, ?fmc_new), cabecera y pestañas
     ├── Lists.php                 Contadores, filtros y tabla paginada de cada tipo
-    ├── Calendar.php              Calendario mensual con colores por situación y financiación
+    ├── Calendar.php              Calendario por mes, semana, día o lista, con colores por situación y financiación
     ├── Fields.php                Las fichas de edición escritas como datos: secciones y campos
     ├── Editor.php                Ficha de edición y guardado campo a campo (`apply()`), con las reglas de Fields::rules()
     ├── Documents.php             Documentos del diseño: adjuntos colgados de él, por clase y formato
+    ├── Speakers.php              Lo que ha impartido cada ponente y la cadena de diseños que se sustituyen
     └── Assets.php                El CSS de assets/, inlineado en el bundle
 ```
 
 **La portada del sitio es el aplicativo**: sin sesión manda al acceso; con
 sesión pinta su propio documento (Bootstrap 5, Tom Select y SweetAlert2 desde
-jsDelivr con SRI), no el del tema. Las fichas se abren en un **panel lateral**
+jsDelivr con SRI), no el del tema, con la piel de los aplicativos hermanos. La
+barra de WordPress sale solo para la administración y para quien la
+administración ha suplantado con WPFront —así se cambia de perfil y se vuelve—;
+como el documento no llama a `wp_head()`, `Screen::admin_bar()` la pinta a mano. Las fichas se abren en un **panel lateral**
 (offcanvas): `assets/js/fmc-app.js` pide la pantalla con `fmc_marco=1`, que
 `Screen::document()` devuelve como fragmento sin cabecera, y la pinta y la
 guarda dentro del panel. Sin JavaScript, los mismos enlaces abren la ficha en

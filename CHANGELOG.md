@@ -8,6 +8,42 @@ lee de la cabecera superior y la escribe en el `@version` del bundle.
 `make release` crea el tag y la release en GitHub; el despliegue de los snippets
 en el sitio de destino se hace después.
 
+## [Sin publicar]
+
+Lo que sale de la primera revisión del aplicativo con la curaduría, el 2026-10-21: el porqué está en el §9 de [REQ-0001](docs/requisitos/REQ-0001-aplicativo-de-formacion.md) y en las ADR de la 0009 a la 0012.
+
+### Añadido
+
+- **Ponentes por lo que han impartido** ([ADR-0012](docs/adr/ADR-0012-un-diseno-puede-sustituir-a-otro-y-los-ponentes-se-buscan-por-lo-impartido.md)): filtro «Ha impartido» por palabra clave sobre los títulos y subtítulos de sus acciones, combinable con el prefijo del expediente y las fechas de inicio. Cada ponente dice cuántas acciones y cuántas horas ha impartido, y el listado se ordena por acciones, horas o zona.
+- **Un diseño puede sustituir a otros** ([ADR-0012](docs/adr/ADR-0012-un-diseno-puede-sustituir-a-otro-y-los-ponentes-se-buscan-por-lo-impartido.md)): los ponentes recomendados para el diseño sustituido cuentan como recomendados para el nuevo, y el viejo sigue consultable como histórico.
+- **Baja motivada de ponentes** ([ADR-0011](docs/adr/ADR-0011-los-ponentes-son-un-directorio-compartido-con-baja-motivada.md)): asesoría y curaduría mandan a la papelera cualquier ponente diciendo por qué, y queda quién, cuándo y el motivo. La curaduría y la administración ven la papelera, con el motivo, desde el listado.
+- **Aviso de protección de datos** en la ficha del ponente. El texto legal lo pone quien despliega con el filtro `fmc_privacy_notice`.
+- **Calendario por semana, por día y como lista**, además de por mes.
+- **Listado de acciones: «Expediente empieza por»**, y la búsqueda de texto también encuentra por número de expediente. Con las fechas de inicio y el CSV, da lo que hoy se filtra a mano en una hoja de cálculo.
+- **Incidencias pendientes a la vista**: la acción que tiene una se marca en el listado y en el calendario, y hay un filtro para verlas.
+- **Cuadro de competencia digital** en la ficha del diseño: las competencias y los niveles del perfil enlazado, con un enlace para abrirlo en la herramienta.
+- **La barra de administración de WordPress** sale en el aplicativo para la administración, y para quien ha cambiado a otro usuario con WPFront User Role Editor, para que pueda volver. Nunca dentro del panel lateral.
+
+### Cambiado
+
+- **El título de la acción es el de su diseño** ([ADR-0009](docs/adr/ADR-0009-la-accion-lleva-el-titulo-de-su-diseno.md)): se pone al crearla y al cambiarle el diseño, y no se edita. Las acciones que ya tienen otro título lo conservan. El subtítulo se ve debajo del título en el listado, en el calendario y en la cabecera de la ficha, nunca en su lugar.
+- **El código del diseño lo pone el aplicativo**: el siguiente al más alto, con el mismo prefijo. Nadie lo edita.
+- **Toda asesoría consulta cualquier ponente** ([ADR-0011](docs/adr/ADR-0011-los-ponentes-son-un-directorio-compartido-con-baja-motivada.md)), documento de identidad incluido, de solo lectura. Cada una sigue editando solo los que dio de alta.
+- **«Recomendado para» solo ofrece diseños del catálogo** ([ADR-0012](docs/adr/ADR-0012-un-diseno-puede-sustituir-a-otro-y-los-ponentes-se-buscan-por-lo-impartido.md)). Las recomendaciones ya guardadas se conservan.
+- **La asesoría abre cualquier acción publicada** desde el calendario o el listado, de solo lectura; sigue editando solo las suyas.
+- **Al elegir ponentes en una acción**, cada nombre lleva su isla y cuántas acciones ha impartido, y una «★» y el primer puesto si se le recomienda para el diseño de la acción.
+- El aspecto del aplicativo —cabecera, pestañas, menú de usuario, pie y paleta— se iguala al de los aplicativos hermanos. `fmc_chrome` admite una pieza más, `brand`, para el logotipo y el nombre de la organización delante del del aplicativo.
+
+### Eliminado
+
+- **«Cifras y cierre» de la acción** ([ADR-0010](docs/adr/ADR-0010-las-cifras-de-cierre-salen-de-la-ficha-de-la-accion.md)): matriculados, asistentes y certificados, documentación del expediente, entrega al servicio y proceso completado salen de la ficha, del resumen y del CSV. Se llevan en el sistema de gestión del servicio de formación; lo que ya esté guardado se conserva.
+- **Exportar ponentes a CSV** ([ADR-0011](docs/adr/ADR-0011-los-ponentes-son-un-directorio-compartido-con-baja-motivada.md)): el botón desaparece y el servidor rechaza la exportación aunque se pida a mano.
+- **«Áreas de competencia digital»** sale del formulario del diseño: se trabaja con el perfil de competencia. Los datos se conservan.
+
+### Pendiente antes de desplegar
+
+- Un snippet del despliegue que conteste al filtro `fmc_privacy_notice` con el texto legal del tratamiento de datos. Sin él, la ficha del ponente enseña un texto genérico.
+
 ## [0.0.3] — 2026-10-07
 
 ### Corregido

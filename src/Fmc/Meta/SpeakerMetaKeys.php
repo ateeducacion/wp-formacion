@@ -30,25 +30,35 @@ final class SpeakerMetaKeys {
 	public const RECOMMENDED = 'fmc_recommended_designs';
 
 	/**
+	 * Why, who and when a speaker went to the trash (ADR-0011).
+	 */
+	public const TRASH_REASON = 'fmc_trash_reason';
+	public const TRASHED_BY   = 'fmc_trashed_by';
+	public const TRASHED_AT   = 'fmc_trashed_at';
+
+	/**
 	 * Every key with its value type.
 	 *
 	 * @return array<string, string>
 	 */
 	public static function map(): array {
 		return array(
-			self::FIRST_NAME  => MetaTypes::STRING,
-			self::LAST_NAME   => MetaTypes::STRING,
-			self::ID_NUMBER   => MetaTypes::STRING,
-			self::PHONE       => MetaTypes::STRING,
-			self::PROFESSION  => MetaTypes::STRING,
-			self::ZONE        => MetaTypes::STRING,
-			self::EMAIL       => MetaTypes::EMAIL,
-			self::EMAIL_ALT   => MetaTypes::EMAIL,
-			self::WEBSITE     => MetaTypes::URL,
-			self::ADDRESS     => MetaTypes::TEXT,
-			self::UNAVAILABLE => MetaTypes::BOOL,
-			self::NOTES       => MetaTypes::TEXT,
-			self::RECOMMENDED => MetaTypes::IDS,
+			self::FIRST_NAME   => MetaTypes::STRING,
+			self::LAST_NAME    => MetaTypes::STRING,
+			self::ID_NUMBER    => MetaTypes::STRING,
+			self::PHONE        => MetaTypes::STRING,
+			self::PROFESSION   => MetaTypes::STRING,
+			self::ZONE         => MetaTypes::STRING,
+			self::EMAIL        => MetaTypes::EMAIL,
+			self::EMAIL_ALT    => MetaTypes::EMAIL,
+			self::WEBSITE      => MetaTypes::URL,
+			self::ADDRESS      => MetaTypes::TEXT,
+			self::UNAVAILABLE  => MetaTypes::BOOL,
+			self::NOTES        => MetaTypes::TEXT,
+			self::RECOMMENDED  => MetaTypes::IDS,
+			self::TRASH_REASON => MetaTypes::TEXT,
+			self::TRASHED_BY   => MetaTypes::INT,
+			self::TRASHED_AT   => MetaTypes::STRING,
 		);
 	}
 }

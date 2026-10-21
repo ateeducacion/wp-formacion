@@ -118,7 +118,9 @@ final class PostTypes {
 				// Borrador y revisión, nada más: sin publicar ni editar publicados.
 				self::DESIGN   => array( 'edit', 'delete' ),
 				self::ACTION   => $own,
-				self::SPEAKER  => $own,
+				// Los ponentes son un directorio compartido: edita los suyos, pero
+				// cualquier ficha se puede dar de baja con motivo (ADR-0011).
+				self::SPEAKER  => array_merge( $own, array( 'delete_others', 'delete_published' ) ),
 				self::INCIDENT => array( 'edit', 'publish' ),
 			),
 			// El servicio de formación no edita nada por la vía general: lee y

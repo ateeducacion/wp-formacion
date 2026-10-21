@@ -1,42 +1,99 @@
-/* Aplicativo de formación: el armazón del aplicativo de eventos, en pequeño. */
+/* Aplicativo de formación: la piel de los aplicativos hermanos (eventos y
+   registro de visitas), con los mismos colores, cabecera, pestañas y pie. */
 
 .fmc {
-	--fmc-brand: #1a4f8b;
-	--fmc-line: #dee2e6;
-	--fmc-soft: #f3f5f8;
+	--fmc-brand: #1b4f8a;
+	--fmc-brand-cont: #e3ecf7;
+	--fmc-line: #e4e7eb;
+	--fmc-soft: #f7f8fa;
+	--fmc-sup-2: #f4f6f9;
+	--fmc-text: #1c2024;
+	--fmc-text-2: #5a6672;
+	--fmc-foot-bg: #05395c;
+	--fmc-ok: #1f6b45;
+	--fmc-ok-cont: #e4f0e8;
+	--fmc-wait: #8a5a12;
+	--fmc-wait-cont: #f9efe0;
+	--fmc-bad: #a8342c;
+	--fmc-bad-cont: #fae9e7;
+	--fmc-e1: 0 1px 2px rgba(16, 24, 40, .05), 0 1px 3px rgba(16, 24, 40, .07);
+	--fmc-e2: 0 2px 4px rgba(16, 24, 40, .05), 0 4px 12px rgba(16, 24, 40, .09);
+	--fmc-r: 12px;
+	--fmc-width: 1200px;
+	--bs-primary: #1b4f8a;
+	--bs-primary-rgb: 27, 79, 138;
+	--bs-link-color: #1b4f8a;
+	--bs-link-color-rgb: 27, 79, 138;
+	--bs-link-hover-color: #123a68;
 	background: var(--fmc-soft);
-	color: #212529;
+	color: var(--fmc-text);
+	/* El pie, abajo del todo aunque haya poco contenido. */
+	min-height: 100vh;
+	display: flex;
+	flex-direction: column;
 }
+.fmc main { flex: 1 0 auto; }
+.fmc .container { max-width: var(--fmc-width); }
 
-/* Cabecera y pestañas */
+/* Cabecera: marca del despliegue (si la hay), nombre del aplicativo y la cuenta */
 .fmc-top { background: #fff; border-bottom: 1px solid var(--fmc-line); }
-.fmc-top-in { display: flex; align-items: center; justify-content: space-between; min-height: 72px; gap: 1rem; }
-.fmc-brand { color: var(--fmc-brand); font-weight: 700; font-size: 1.35rem; text-decoration: none; }
-.fmc-user { display: flex; align-items: center; gap: .6rem; font-size: .875rem; line-height: 1.25; }
-.fmc-user a { color: var(--fmc-brand); }
-.fmc-avatar { display: inline-grid; place-items: center; width: 2.25rem; height: 2.25rem; border-radius: 50%; background: var(--fmc-soft); font-weight: 700; }
+.fmc-top-in { display: flex; align-items: center; gap: 14px; min-height: 72px; flex-wrap: wrap; padding-top: 10px; padding-bottom: 10px; }
+.fmc-brand { color: var(--fmc-brand); font-weight: 700; font-size: 18px; letter-spacing: -.02em; text-decoration: none; }
+.fmc-yo { margin-left: auto; position: relative; }
+.fmc-yo > summary { list-style: none; display: flex; align-items: center; gap: 10px; cursor: pointer; border-radius: 12px; padding: 4px 6px; }
+.fmc-yo > summary::-webkit-details-marker { display: none; }
+.fmc-yo > summary:hover, .fmc-yo[open] > summary { background: var(--fmc-sup-2); }
+.fmc-avatar { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 50%; background: var(--fmc-brand-cont); color: var(--fmc-brand); font-size: 13px; font-weight: 700; }
+.fmc-yo-txt { display: flex; flex-direction: column; line-height: 1.25; }
+.fmc-yo-txt strong { font-size: 14px; font-weight: 600; }
+.fmc-yo-txt small { font-size: 12.5px; color: var(--fmc-text-2); }
+.fmc-yo-menu { position: absolute; right: 0; top: calc(100% + 6px); min-width: 12rem; padding: 6px; background: #fff; border: 1px solid var(--fmc-line); border-radius: 12px; box-shadow: var(--fmc-e2); z-index: 1050; display: grid; }
+.fmc-yo-menu a { padding: 10px 12px; border-radius: 8px; color: var(--fmc-text); text-decoration: none; font-size: 14px; }
+.fmc-yo-menu a:hover { background: var(--fmc-sup-2); color: var(--fmc-brand); }
+
+/* Pestañas */
 .fmc-nav { background: #fff; border-bottom: 1px solid var(--fmc-line); }
-.fmc-nav .nav-link { color: #495057; padding: .9rem 1rem; border-bottom: 3px solid transparent; }
+.fmc-nav .nav { flex-wrap: nowrap; overflow-x: auto; gap: 4px; }
+.fmc-nav .nav-link { display: flex; align-items: center; min-height: 48px; padding: 0 16px; font-size: 14.5px; color: var(--fmc-text-2); border-bottom: 3px solid transparent; white-space: nowrap; }
 .fmc-nav .nav-link:hover { color: var(--fmc-brand); }
-.fmc-nav .nav-link.active { color: var(--fmc-brand); font-weight: 600; border-bottom-color: var(--fmc-brand); }
-.fmc-head { background: var(--fmc-soft); padding: 1.75rem 0 .25rem; }
-.fmc-head h1 .badge { font-size: .75rem; vertical-align: middle; margin-left: .35rem; }
-.fmc-foot { color: #6c757d; font-size: .8rem; padding: 2rem 0; }
+.fmc-nav .nav-link.active { color: var(--fmc-brand); font-weight: 700; border-bottom-color: var(--fmc-brand); }
+
+/* Título de la pantalla */
+.fmc-head { padding: 28px 0 4px; }
+.fmc-h1 { font-size: 27px; font-weight: 700; letter-spacing: -.02em; margin: 0 0 4px; }
+.fmc-h1 .badge { font-size: .75rem; vertical-align: middle; margin-left: .35rem; }
+.fmc-sub { margin: 0; color: var(--fmc-text-2); font-size: 14.5px; }
+
+/* Pie */
+.fmc-foot { background: var(--fmc-foot-bg); color: #fff; font-size: 13px; padding: 18px 0; }
+.fmc-foot a { color: #fff; }
+
+/* Bootstrap con los colores del aplicativo: botones en píldora y tarjetas suaves */
+.fmc .btn { border-radius: 999px; font-weight: 600; }
+.fmc .btn-primary { --bs-btn-bg: var(--fmc-brand); --bs-btn-border-color: var(--fmc-brand); --bs-btn-hover-bg: #163f6f; --bs-btn-hover-border-color: #163f6f; --bs-btn-active-bg: #163f6f; --bs-btn-active-border-color: #163f6f; --bs-btn-disabled-bg: var(--fmc-brand); --bs-btn-disabled-border-color: var(--fmc-brand); }
+.fmc .btn-outline-primary { --bs-btn-color: var(--fmc-brand); --bs-btn-border-color: var(--fmc-brand); --bs-btn-hover-bg: var(--fmc-brand); --bs-btn-hover-border-color: var(--fmc-brand); --bs-btn-active-bg: var(--fmc-brand); }
+.fmc .card { border-color: var(--fmc-line); border-radius: var(--fmc-r); box-shadow: var(--fmc-e1); }
+.fmc .form-control, .fmc .form-select { border-color: #d3d8de; }
+
+@media (max-width: 640px) {
+	.fmc-yo-txt { display: none; }
+	.fmc-h1 { font-size: 23px; }
+}
 
 /* Contadores: cada uno filtra el listado */
 .fmc-counters { display: grid; grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr)); gap: .75rem; }
-.fmc-counter { display: block; background: #fff; border: 1px solid var(--fmc-line); border-radius: .6rem; padding: .85rem 1rem; color: inherit; text-decoration: none; }
+.fmc-counter { display: block; background: #fff; border: 1px solid var(--fmc-line); border-radius: var(--fmc-r); box-shadow: var(--fmc-e1); padding: .85rem 1rem; color: inherit; text-decoration: none; }
 .fmc-counter strong { display: block; font-size: 1.6rem; line-height: 1.1; }
 .fmc-counter span { color: #6c757d; font-size: .875rem; }
 a.fmc-counter:hover, .fmc-counter.is-active { border-color: var(--fmc-brand); box-shadow: inset 0 0 0 1px var(--fmc-brand); }
 
-.fmc-filters { border-radius: .6rem; }
-.fmc-table { border-radius: .6rem; overflow: hidden; }
-.fmc-table th { font-size: .8rem; text-transform: uppercase; letter-spacing: .02em; color: #6c757d; white-space: nowrap; }
+.fmc-filters { border-radius: var(--fmc-r); }
+.fmc-table { border-radius: var(--fmc-r); overflow: hidden; }
+.fmc-table th { font-size: .78rem; text-transform: uppercase; letter-spacing: .05em; color: var(--fmc-text-2); background: var(--fmc-sup-2); white-space: nowrap; }
 .fmc-table td { font-size: .9rem; }
 
 /* Fichas de edición: una tarjeta por sección */
-.fmc-section { border-radius: .6rem; padding-top: .25rem; }
+.fmc-section { border-radius: var(--fmc-r); padding-top: .25rem; }
 .fmc-section-title { float: none; width: auto; margin: 0 0 -.75rem 1rem; padding: 0 .4rem; background: var(--fmc-soft); font-size: 1rem; font-weight: 700; position: relative; top: -.85rem; }
 .fmc-checks.is-long { max-height: 14rem; overflow: auto; border: 1px solid var(--fmc-line); border-radius: .4rem; padding: .5rem .75rem; background: #fff; }
 .fmc-savebar { position: sticky; bottom: 0; background: var(--fmc-soft); padding: .75rem 0; border-top: 1px solid var(--fmc-line); z-index: 2; }
@@ -54,7 +111,7 @@ a.fmc-counter:hover, .fmc-counter.is-active { border-color: var(--fmc-brand); bo
 .fmc-chip[class*="fmc-sit-"] { border-color: var(--sit); }
 
 /* Calendario */
-.fmc-cal { border-radius: .6rem; overflow: hidden; }
+.fmc-cal { border-radius: var(--fmc-r); overflow: hidden; }
 .fmc-cal-head, .fmc-cal-week { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)) repeat(2, minmax(0, .55fr)); }
 .fmc-cal-head div { padding: .5rem; font-size: .78rem; font-weight: 600; text-transform: uppercase; color: #6c757d; border-bottom: 1px solid var(--fmc-line); background: #fff; }
 .fmc-cal-day { min-height: 7rem; padding: .35rem; border-right: 1px solid var(--fmc-line); border-bottom: 1px solid var(--fmc-line); background: #fff; display: flex; flex-direction: column; gap: .3rem; min-width: 0; }
@@ -111,3 +168,30 @@ body.has-panel { overflow: hidden; }
 
 /* Filtros: que quepan todos sin cortar el texto de los desplegables */
 .fmc-filters .row > [class*="col-md"]:not(.col-md-2):not(.col-md-3) { flex: 1 0 9rem; max-width: 100%; }
+
+/* Calendario por semana y por día: una columna por día, con lo que empieza */
+.fmc-days { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); overflow: hidden; }
+.fmc-days.is-one { grid-template-columns: 1fr; }
+.fmc-days-col { padding: .5rem; border-right: 1px solid var(--fmc-line); min-height: 12rem; display: flex; flex-direction: column; gap: .4rem; min-width: 0; }
+.fmc-days-col:last-child { border-right: 0; }
+.fmc-days-col.is-today { background: var(--fmc-brand-cont); }
+.fmc-days-h { font-size: .78rem; font-weight: 600; text-transform: uppercase; margin: 0 0 .25rem; }
+.fmc-days-a { color: var(--fmc-text-2); text-decoration: none; }
+.fmc-days-a:hover { color: var(--fmc-brand); }
+.fmc-days.is-one .fmc-days-col { display: grid; grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr)); align-content: start; }
+.fmc-days.is-one .fmc-days-h { grid-column: 1 / -1; }
+.fmc-running { display: grid; grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr)); gap: .4rem; }
+@media (max-width: 767px) {
+	.fmc-days { grid-template-columns: 1fr; }
+	.fmc-days-col { border-right: 0; border-bottom: 1px solid var(--fmc-line); min-height: 0; }
+}
+
+/* Incidencias de una acción: ámbar si alguna espera, verde si están resueltas */
+.fmc-inc { font-weight: 600; }
+.fmc-inc.is-pending { background: var(--fmc-wait-cont); color: var(--fmc-wait); }
+.fmc-inc.is-done { background: var(--fmc-ok-cont); color: var(--fmc-ok); }
+.fmc-ev .fmc-inc { display: inline-block; margin-top: .15rem; font-size: .65rem; }
+
+/* Resumen del perfil de competencia digital */
+.fmc-digcomp { background: var(--fmc-sup-2); box-shadow: none; }
+.fmc-digcomp td { font-size: .85rem; }

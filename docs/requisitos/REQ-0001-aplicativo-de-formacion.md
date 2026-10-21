@@ -6,7 +6,7 @@ date: 2026-09-30
 related:
   issues: []
   prs: []
-  adrs: [ADR-0002, ADR-0003, ADR-0004, ADR-0005, ADR-0006, ADR-0007, ADR-0008]
+  adrs: [ADR-0002, ADR-0003, ADR-0004, ADR-0005, ADR-0006, ADR-0007, ADR-0008, ADR-0009, ADR-0010, ADR-0011, ADR-0012]
   sdds: []
 supersedes: []
 superseded_by: []
@@ -20,10 +20,13 @@ ai_assistance:
 **Estado:** propuesta. Se escribe el 2026-09-30 a partir de una reunión de
 revisión del sistema actual y de la foto de ese sistema tomada el mismo día. Se
 valida con quien gestiona hoy la formación antes de pasar a
-`Aceptada` (PLAN-0001, fase 1).
+`Aceptada` (PLAN-0001, fase 1). La primera revisión con la curaduría fue el
+2026-10-21: lo que cambió está en el §9.
 **Fuentes:**
 
-- Una reunión de revisión con quien usa el sistema. El material está en `.local/`.
+- Una reunión de revisión con quien usa el sistema, el 2026-09-30, y la
+  revisión del aplicativo con la curaduría, el 2026-10-21. El material de las
+  dos está en `.local/`.
 - Una exportación del sistema actual, tomada **solo con lecturas**. El análisis,
   con sus identificadores, está en `.local/`.
 - El aplicativo de eventos, del que este hereda la plataforma (ADR-0002).
@@ -73,15 +76,17 @@ confirmado. Queda como pregunta abierta (§8).
   línea, mixta), horas presenciales y en línea, temática, programas, áreas de
   competencia digital, descripción, destinatarios, objetivos, contenidos,
   metodología, fase práctica, temporalización, observaciones, autoría y tres
-  documentos (diseño, minutaje de las sesiones, material de apoyo).
-- **RF-2.** Un diseño lleva un **código** único y estable que se asigna solo.
+  documentos (diseño, minutaje de las sesiones, material de apoyo). Las áreas
+  de competencia digital salen del formulario (ver §9).
+- **RF-2.** Un diseño lleva un **código** único y estable que se asigna solo
+  (ver §9).
 - **RF-3.** Ciclo: **borrador → pendiente de revisión → finalizado**. La
   asesoría escribe y manda a revisión; **solo la curaduría lo da por
   finalizado**; finalizado, la asesoría ya no lo edita (ADR-0004).
 - **RF-4.** Estar en el catálogo público es una decisión aparte de estar
   finalizado, y pertenecer a un programa es otra (ADR-0003).
 - **RF-5.** El diseño puede enlazar su perfil de competencia digital, generado
-  con una herramienta externa, y mostrarlo integrado en su ficha.
+  con una herramienta externa, y mostrarlo integrado en su ficha (ver §9).
 - **RF-6.** Catálogo público de diseños finalizados, con búsqueda y filtros por
   modalidad y tipo.
 
@@ -89,6 +94,7 @@ confirmado. Queda como pregunta abierta (§8).
 
 - **RF-7.** Una acción es **una edición de un diseño**: se crea eligiendo el
   diseño, y hereda de él título, tipo, modalidad y horas, que puede ajustar.
+  El título ya no se ajusta (ADR-0009, ver §9).
 - **RF-8.** Datos propios: subtítulo, ámbito que la gestiona, centro donde se
   imparte, si es por videoconferencia, plazas, réplicas, quién la paga y de qué
   programa, asesoría responsable, ponentes (varios), plazos —inicio y fin de
@@ -100,13 +106,16 @@ confirmado. Queda como pregunta abierta (§8).
   al área → cerrada y entregada al servicio) y situación (gestionándose,
   impartiéndose, realizada, aplazada, cancelada).
 - **RF-10.** Cifras finales por sexo: matriculados, asistentes y certificados.
-  **Los totales se calculan**, no se teclean.
+  **Los totales se calculan**, no se teclean. Queda sin efecto: las cifras
+  se llevan en el sistema de gestión del servicio (ADR-0010, ver §9).
 - **RF-11.** El **curso escolar** se deduce de la fecha de inicio.
 - **RF-12.** El **número de expediente** lo pone solo el servicio de formación.
 - **RF-13.** **Calendario** de acciones con un **código de colores** que diga de
   un vistazo la situación y quién la asume, con los filtros del actual
   (ámbito, tipo, modalidad, estado, situación, ponente). Menos texto que hoy.
-- **RF-14.** Listados de control por programa, histórico y exportación a CSV.
+  Vistas de mes, semana, día y lista (ver §9).
+- **RF-14.** Listados de control por programa, histórico y exportación a CSV;
+  los ponentes no se exportan (ADR-0011, ver §9).
 
 ### 4.3 Ponentes
 
@@ -114,8 +123,10 @@ confirmado. Queda como pregunta abierta (§8).
   profesión, zona, correos, web, dirección, observaciones, «no disponible» y
   diseños para los que se le recomienda.
 - **RF-16.** Son **datos personales**: no públicos, fuera de la API y visibles
-  solo para quien gestiona acciones.
-- **RF-17.** Buscador de ponentes por diseño recomendado.
+  solo para quien gestiona acciones. Todas las asesorías los consultan; la baja
+  pide motivo (ADR-0011, ver §9).
+- **RF-17.** Buscador de ponentes por diseño recomendado y por lo que han
+  impartido (ADR-0012, ver §9).
 
 ### 4.4 Incidencias
 
@@ -124,7 +135,8 @@ confirmado. Queda como pregunta abierta (§8).
 - **RF-19.** La abre quien puede editar la acción; **la acción la fija el
   aplicativo**, no la URL (ADR-0007).
 - **RF-20.** Solo el servicio de formación la aprueba o la deniega, con
-  observaciones; quien la abrió recibe aviso.
+  observaciones; quien la abrió recibe aviso. El protocolo con el servicio está
+  por cerrar (§8, pregunta 6).
 
 ### 4.5 Consentimientos y documentos
 
@@ -160,9 +172,116 @@ desde la exportación, con su mapa de campos en `.local/` (ADR-0008).
 
 ## 8. Preguntas abiertas
 
-1. ¿Sigue en uso el perfil de empresa? Si sí, ¿qué campos rellena?
+Las que la revisión del 2026-10-21 contestó, del todo o en parte, lo dicen.
+
+1. ¿Sigue en uso el perfil de empresa? Si sí, ¿qué campos rellena? *No se
+   trató.*
 2. ¿La curaduría es siempre el área, o también la asesoría puede curar lo suyo?
+   *Sin cerrar.* En la revisión se habló siempre de tres perfiles —asesorías,
+   área y servicio de formación—, pero no se preguntó expresamente.
 3. ¿Se unifican el catálogo TIC y los cursos recomendados de otros programas, o
-   se mantienen como catálogos separados?
-4. ¿Se sigue usando el sistema de incidencias? La exportación dice que sí.
-5. ¿Qué webs consumen hoy los listados como API y quién las mantiene?
+   se mantienen como catálogos separados? *En parte:* el catálogo es público y
+   estar en él es una casilla aparte (RF-4); que un diseño sea de un programa
+   lo dice su término de programa (ADR-0003). Falta decidir si hay un catálogo
+   o varios.
+4. ¿Se sigue usando el sistema de incidencias? *Sí.* Pero no hay protocolo con
+   el servicio de formación: pasa a la pregunta 6.
+5. ¿Qué webs consumen hoy los listados como API y quién las mantiene? *En
+   parte:* al menos la web del área muestra el catálogo. Falta el inventario.
+6. ¿Cuál es el protocolo de incidencias y cancelaciones entre asesoría,
+   curaduría y servicio de formación? Quién abre, quién cierra, y cómo una
+   cancelación tramitada en el sistema de gestión del servicio llega también
+   aquí.
+7. La sección «Estado» de la acción —expediente, situación y campos del
+   servicio—, ¿se le oculta a la asesoría o se le enseña de solo lectura?
+8. ¿Las asesorías pasan a ser una lista cerrada, y el centro donde se imparte
+   se rellena por su código?
+9. ¿Se genera el documento del diseño desde su ficha? ¿Y se abre un
+   formulario público para que las empresas proveedoras rellenen el diseño?
+10. ¿Los ficheros maestros del diseño se guardan en el aplicativo, en vez de en
+    un almacenamiento en la nube externo?
+11. ¿Cuál es la lista nueva de temáticas, y qué términos de programa repetidos
+    se funden en uno?
+
+## 9. Revisión con la curaduría (2026-10-21)
+
+Primera sesión de la fase 1 del PLAN-0001: la curaduría recorrió el aplicativo
+sobre el entorno local. El material de la reunión está en `.local/`. Este
+apartado dice qué cambió y por qué; las secciones anteriores solo llevan una
+referencia aquí.
+
+### 9.1 Decisiones con ADR
+
+| Qué cambia | Por qué | Afecta a | ADR |
+|---|---|---|---|
+| El título de la acción es el de su diseño y no se edita; el subtítulo se añade debajo, nunca en su lugar. Las acciones históricas conservan su título | En el sistema anterior el «subtítulo» sustituía al título, y había acciones que llegaban al sistema de gestión del servicio con un título que no era el del catálogo | RF-7, RF-8 | [ADR-0009](../adr/ADR-0009-la-accion-lleva-el-titulo-de-su-diseno.md) |
+| Las cifras y el cierre —matriculados, asistentes y certificados por sexo, documentación del expediente, entrega al servicio, proceso completado— salen de la ficha, del resumen y del CSV de la acción | Se gestionan en el sistema de gestión del servicio, y aquí nadie las rellena | RF-10 | [ADR-0010](../adr/ADR-0010-las-cifras-de-cierre-salen-de-la-ficha-de-la-accion.md) |
+| Los ponentes son un directorio que toda asesoría consulta, documento de identidad incluido; cada una edita lo suyo; la baja va a la papelera con motivo obligatorio; sin exportación a CSV; aviso de protección de datos en la ficha | Las asesorías necesitan el documento de identidad para registrar al ponente en los planes de formación de los centros; una baja tiene que poder explicarse; un listado entero con correos y documentos no debe salir de un clic | RF-14, RF-15, RF-16 | [ADR-0011](../adr/ADR-0011-los-ponentes-son-un-directorio-compartido-con-baja-motivada.md) |
+| Un diseño declara a cuáles sustituye y hereda sus ponentes recomendados; «Recomendado para» solo ofrece diseños del catálogo; los ponentes se buscan por lo que han impartido, con acciones y horas | Mantener categorías de ponentes se queda viejo; lo impartido ya está en los datos; hoy esas horas se cuentan a mano en una hoja de cálculo | RF-15, RF-17 | [ADR-0012](../adr/ADR-0012-un-diseno-puede-sustituir-a-otro-y-los-ponentes-se-buscan-por-lo-impartido.md) |
+
+### 9.2 Cambios sin ADR propia
+
+- **Código del diseño (RF-2).** Lo asigna el aplicativo: el siguiente al más
+  alto que ya exista, con el mismo prefijo. Es de solo lectura para todos. Si
+  cada cual escribe el suyo, los códigos se solapan.
+- **Calendario (RF-13).** Se ve por mes, semana, día o como lista
+  (`fmc_view`, `fmc_day`).
+- **Listado de acciones (RF-14).** Filtro «Expediente empieza por», y la
+  búsqueda de texto mira también el expediente. El prefijo del expediente dice
+  con qué partida se paga una acción; el programa no, porque un diseño creado
+  para un programa no tiene por qué impartirse ni pagarse con él. Con los
+  filtros de fecha de inicio y el CSV, sustituye al filtrado que hoy se hace a
+  mano en una hoja de cálculo.
+- **Incidencias (RF-18).** Las acciones con una incidencia pendiente se marcan
+  en el listado y en el calendario, y hay un filtro para verlas.
+- **Competencia digital (RF-1, RF-5).** La ficha del diseño pinta un cuadro
+  resumen —competencias y niveles— a partir de la dirección del perfil
+  guardada (`src/Fmc/Domain/DigComp.php`), con un enlace para abrirlo en la
+  herramienta. El campo «Áreas de
+  competencia digital» sale del formulario: ahora se trabaja con el marco de
+  referencia nuevo. Sus datos (`fmc_competence`) se conservan.
+- **Barra de administración.** Sale en el aplicativo para la administración, y
+  para quien ha cambiado a otro usuario con WPFront User Role Editor, para que
+  pueda volver: así se prueba el aplicativo con el perfil de otro. Nunca dentro
+  del panel lateral.
+- **Aspecto.** Cabecera, pestañas, menú de usuario, pie y paleta se igualan a
+  los de los aplicativos hermanos.
+
+### 9.3 Lo que se confirma
+
+- El sitio actual se archiva y se conserva un tiempo, por si hay que recuperar
+  algo (ADR-0008).
+- Estar en el catálogo es una casilla aparte (RF-4). La marca de «diseño
+  finalizado» del sistema anterior se ponía también para poder ver un diseño y
+  crearle acciones; aquí eso ya lo da el estado (ADR-0004).
+- Las incidencias se siguen usando (§8, pregunta 4).
+- Los ponentes no son todos docentes: también los hay externos. No hace falta
+  un consentimiento firmado, pero sí informar del tratamiento allí donde se
+  introducen datos personales (ADR-0011).
+
+### 9.4 Pendiente
+
+- **Protocolo de incidencias y cancelaciones** entre asesorías, curaduría y
+  servicio de formación: quién abre, quién cierra. Una cancelación tramitada
+  en el sistema de gestión del servicio tiene que constar también aquí; si no,
+  una acción cancelada se cuenta como impartida (§8, pregunta 6).
+- **La sección «Estado» de la acción** —expediente, situación y campos del
+  servicio—: oculta o de solo lectura para la asesoría. Hoy el expediente, la
+  situación y el personal del servicio le salen deshabilitados y no se guardan
+  aunque los mande (ADR-0006); el proceso sí lo lleva ella (§8, pregunta 7).
+- **Temáticas y programas.** Hace falta una lista nueva de temáticas, y los
+  términos de programa repetidos —y los valores de «quién la asume» que los
+  mezclan— se limpian como datos en la migración, no en el código (ADR-0003,
+  ADR-0008) (§8, pregunta 11).
+- **Asesorías como lista**, y el centro donde se imparte rellenado por su
+  código, sobre el catálogo de centros externo que se hereda de eventos
+  (ADR-0002) (§8, pregunta 8).
+- **Documento del diseño generado** desde su ficha, en vez de un documento
+  subido que se desincroniza; y un **formulario público** para que las
+  empresas proveedoras rellenen el diseño. Lo segundo no tiene acuerdo: hay
+  quien prefiere seguir recibiendo un borrador y mejorarlo. Va con el RF-21 y la
+  fase 4 del plan (§8, pregunta 9).
+- **Ficheros maestros en el aplicativo**, no en un almacenamiento en la nube
+  externo cuyos enlaces han cambiado varias veces. Pide dimensionar el espacio
+  de subida del sitio (§8, pregunta 10).
+- **Siguiente sesión**, con el servicio de formación y una o dos asesorías.

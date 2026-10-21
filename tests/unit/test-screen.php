@@ -5,6 +5,7 @@
  * @package Fmc
  */
 
+use Fmc\Meta\SpeakerMetaKeys;
 use Fmc\PostType\PostTypes;
 use Fmc\PublicFront\Assets;
 use Fmc\PublicFront\Screen;
@@ -484,6 +485,7 @@ class Test_Screen extends WP_UnitTestCase {
 		$this->assertSame(
 			array(
 				'head'   => '',
+				'brand'  => '',
 				'footer' => 'Pie',
 			),
 			Screen::deployment_chrome()
@@ -554,10 +556,10 @@ class Test_Screen extends WP_UnitTestCase {
 
 		$this->assertStringNotContainsString( '<script>alert(1)</script>', $html );
 		$this->assertStringContainsString( '<title>&lt;script&gt;alert(1)&lt;/script&gt; · Formación</title>', $html );
-		$this->assertStringContainsString( '<p class="text-secondary mb-0">A &amp; &lt;b&gt;B&lt;/b&gt;</p>', $html );
+		$this->assertStringContainsString( '<p class="fmc-sub">A &amp; &lt;b&gt;B&lt;/b&gt;</p>', $html );
 		$this->assertStringContainsString( '<main class="container py-4"><p id="cuerpo">Cuerpo</p></main>', $html );
 
-		$this->assertStringNotContainsString( 'text-secondary mb-0', Screen::document( $this->screen() ), 'sin subtítulo no hay párrafo' );
+		$this->assertStringNotContainsString( '<p class="fmc-sub">', Screen::document( $this->screen() ), 'sin subtítulo no hay párrafo' );
 	}
 
 	/**
@@ -613,5 +615,57 @@ class Test_Screen extends WP_UnitTestCase {
 		$this->assertStringContainsString( '<li>&lt;b&gt;guion.exe&lt;/b&gt;: tipo no permitido</li>', $html );
 		$this->assertFalse( get_transient( 'fmc_problems_' . $user ) );
 		$this->assertStringNotContainsString( 'alert-warning', Screen::fragment( $this->screen() ) );
+	}
+
+
+	/**
+	 * La barra de WordPress: la administración sí, el resto no, y nunca en el panel.
+	 */
+	public function test_the_admin_bar_is_for_administration() {
+		$this->as_role( 'fmc_curator' );
+		$this->assertFalse( Screen::show_admin_bar( true ) );
+
+		$this->as_role( 'administrator' );
+		$this->assertTrue( Screen::show_admin_bar( false ) );
+		$this->assertSame( 100, has_filter( 'show_admin_bar', array( Screen::class, 'show_admin_bar' ) ) );
+
+		$_REQUEST[ Screen::ARG_FRAME ] = '1';
+		$this->assertFalse( Screen::show_admin_bar( true ) );
+	}
+
+	/**
+	 * Un ponente se da de baja con motivo, y queda quién, cuándo y por qué (ADR-0011).
+	 */
+	public function test_a_speaker_leaves_only_with_a_reason() {
+		$adviser = $this->as_role( 'fmc_adviser' );
+		$speaker = self::factory()->post->create( array( 'post_type' => PostTypes::SPEAKER ) );
+		$this->visit();
+		$_POST['fmc_delete']    = (string) $speaker;
+		$_POST['fmc_reason']    = '   ';
+		$_REQUEST['_fmc_nonce'] = wp_create_nonce( 'fmc_delete_' . $speaker );
+
+		$this->assertSame( 'reason', $this->redirect_query()[ Screen::ARG_NOTICE ] ?? '' );
+		$this->assertSame( 'publish', get_post_status( $speaker ) );
+
+		$_POST['fmc_reason'] = 'Pidió que se borrasen sus datos';
+		$this->assertSame( 'trashed', $this->redirect_query()[ Screen::ARG_NOTICE ] ?? '' );
+		$this->assertSame( 'trash', get_post_status( $speaker ) );
+		$this->assertSame( 'Pidió que se borrasen sus datos', get_post_meta( $speaker, SpeakerMetaKeys::TRASH_REASON, true ) );
+		$this->assertSame( $adviser, (int) get_post_meta( $speaker, SpeakerMetaKeys::TRASHED_BY, true ) );
+		$this->assertNotSame( '', get_post_meta( $speaker, SpeakerMetaKeys::TRASHED_AT, true ) );
+	}
+
+	/**
+	 * Pedir el CSV de ponentes no descarga nada: se pinta el listado.
+	 */
+	public function test_the_speakers_csv_is_refused() {
+		$this->as_role( 'fmc_curator' );
+		$this->visit(
+			array(
+				Screen::ARG_TAB => 'speakers',
+				'fmc_csv'       => '1',
+			)
+		);
+		$this->assertSame( 'document:Ponentes', $this->route() );
 	}
 }
