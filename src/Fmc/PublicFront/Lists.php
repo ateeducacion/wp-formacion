@@ -29,7 +29,7 @@ final class Lists {
 	 */
 	public const SUBTITLES = array(
 		PostTypes::ACTION   => 'Cada edición de un diseño: dónde, cuándo, para cuántos y cómo fue.',
-		PostTypes::DESIGN   => 'El catálogo y la mesa de trabajo: los borradores se escriben aquí hasta que la curaduría los da por finalizados.',
+		PostTypes::DESIGN   => 'El catálogo y la mesa de trabajo: los borradores se escriben aquí hasta que la validación los da por finalizados.',
 		PostTypes::SPEAKER  => 'Datos personales: solo para quien gestiona acciones. Busque por lo que han impartido, con sus acciones y sus horas.',
 		PostTypes::INCIDENT => 'Cambios pedidos sobre una acción. Se abren desde la propia acción.',
 	);
@@ -357,7 +357,7 @@ final class Lists {
 	/**
 	 * Whether the speaker trash is asked for by someone who may see it.
 	 *
-	 * La papelera, con el motivo de cada baja, es de la curaduría: a quien no
+	 * La papelera, con el motivo de cada baja, es de la validación: a quien no
 	 * puede verla, el mismo enlace le enseña el listado de siempre.
 	 *
 	 * @return bool

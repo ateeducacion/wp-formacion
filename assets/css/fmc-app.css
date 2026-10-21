@@ -148,6 +148,26 @@ a.fmc-counter:hover, .fmc-counter.is-active { border-color: var(--fmc-brand); bo
 .fmc-icon { display: inline-flex; align-items: center; justify-content: center; width: 2rem; height: 2rem; padding: 0; border-radius: .5rem; }
 .fmc-table .fmc-col-title { min-width: 16rem; }
 
+/* El perfil de competencia digital, como la tabla que genera elidd: por
+   áreas, con sus colores, y el nivel más alto de cada competencia */
+.fmc-digcomp-table { width: 100%; border-collapse: collapse; font-size: .78rem; text-align: center; }
+.fmc-digcomp-table th, .fmc-digcomp-table td { border: 2px solid #fff; padding: .3rem .2rem; }
+.fmc-digcomp-table thead th { font-weight: 600; }
+.fmc-digcomp-table td { font-weight: 700; height: 2.1rem; }
+.fmc-area-1 { background: #f9d2bf; }
+.fmc-area-2 { background: #9dd3b3; }
+.fmc-area-3 { background: #9fb9e7; }
+.fmc-area-4 { background: #7adad0; }
+.fmc-area-5 { background: #c8a6c2; }
+.fmc-area-6 { background: #eda8b6; }
+
+/* elidd incrustada en un diálogo nativo: por encima de todo, panel incluido */
+dialog.fmc-tool { width: min(1400px, 96vw); height: min(900px, 92vh); padding: 0; border: 0; border-radius: var(--fmc-r); box-shadow: var(--fmc-e2); }
+dialog.fmc-tool[open] { display: flex; flex-direction: column; }
+dialog.fmc-tool::backdrop { background: rgba(16, 24, 40, .55); }
+.fmc-tool-head { display: flex; align-items: center; gap: .75rem; padding: .75rem 1rem; border-bottom: 1px solid var(--fmc-line); }
+.fmc-tool iframe { flex: 1; width: 100%; border: 0; }
+
 /* Catálogo público: tarjetas de curso y los datos de la ficha */
 .fmc-courses { display: grid; grid-template-columns: repeat(auto-fill, minmax(18rem, 1fr)); gap: 1rem; }
 .fmc-course { border-radius: var(--fmc-r); box-shadow: var(--fmc-e1); }

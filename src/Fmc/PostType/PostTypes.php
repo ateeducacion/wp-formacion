@@ -15,7 +15,7 @@ namespace Fmc\PostType;
  * del diseño sale de las capacidades nativas (ADR-0004): la asesoría crea y
  * manda a revisión, pero no tiene `publish_fmc_designs` ni
  * `edit_published_fmc_designs`, así que ni lo da por finalizado ni lo toca
- * después. Eso lo hace la curaduría.
+ * después. Eso lo hace la validación.
  */
 final class PostTypes {
 

@@ -49,6 +49,22 @@ class Test_Roles_And_Profiles extends WP_UnitTestCase {
 	}
 
 	/**
+	 * Si el código cambia el rótulo de un rol, el rol ya creado lo coge.
+	 */
+	public function test_a_renamed_role_takes_its_new_label() {
+		fmc_register_roles();
+		$roles                               = wp_roles();
+		$roles->roles['fmc_curator']['name'] = 'Curaduría de formación';
+		$roles->role_names['fmc_curator']    = 'Curaduría de formación';
+		update_option( $roles->role_key, $roles->roles );
+
+		fmc_register_roles();
+
+		$this->assertSame( 'Validación de formación', wp_roles()->role_names['fmc_curator'] );
+		$this->assertSame( 'Validación de formación', get_option( wp_roles()->role_key )['fmc_curator']['name'], 'guardado, no solo en memoria' );
+	}
+
+	/**
 	 * Una capacidad prohibida concedida a mano se avisa, no se quita.
 	 */
 	public function test_a_forbidden_cap_granted_by_hand_is_reported() {

@@ -16,7 +16,7 @@ use Fmc\PostType\PostTypes;
  *
  * Sin sesión y en la portada, como el resto del aplicativo: `?fmc_catalogo=1`
  * es la lista y `?fmc_curso=ID`, la ficha de un curso. Solo salen los diseños
- * finalizados que la curaduría ha puesto en el catálogo, y de cada uno solo lo
+ * finalizados que la validación ha puesto en el catálogo, y de cada uno solo lo
  * que se publica; lo de trabajo —metodología, observaciones, autoría,
  * documentos— se queda dentro.
  */

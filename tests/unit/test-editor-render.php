@@ -192,7 +192,7 @@ class Test_Editor_Render extends WP_UnitTestCase {
 	}
 
 	/**
-	 * La curaduría finaliza; y en uno finalizado, guarda o lo devuelve a borrador.
+	 * La validación finaliza; y en uno finalizado, guarda o lo devuelve a borrador.
 	 */
 	public function test_design_buttons_for_a_curator() {
 		$adviser = self::factory()->user->create( array( 'role' => 'fmc_adviser' ) );
@@ -224,7 +224,7 @@ class Test_Editor_Render extends WP_UnitTestCase {
 		$this->assertStringNotContainsString( 'Ver en el catálogo', $screen['actions'] );
 		update_post_meta( $done, D::IN_CATALOGUE, '1' );
 		$this->assertStringContainsString( 'fmc_curso=' . $done . '" target="_blank" rel="noopener">Ver en el catálogo</a>', $this->screen_of( $done )['actions'] );
-		$this->assertStringNotContainsString( 'fmc_delete', $screen['actions'], 'la curaduría no borra' );
+		$this->assertStringNotContainsString( 'fmc_delete', $screen['actions'], 'la validación no borra' );
 
 		$this->as_role( 'administrator' );
 		$this->assertStringContainsString( 'name="_fmc_nonce"', $this->screen_of( $done )['actions'], 'la administración, sí' );
@@ -565,18 +565,31 @@ class Test_Editor_Render extends WP_UnitTestCase {
 	}
 
 	/**
-	 * El perfil de competencia digital se resume dentro de la ficha.
+	 * El perfil de competencia digital se ve dentro de la ficha como la tabla
+	 * que genera elidd, y se elige en elidd sin salir de ella.
 	 */
 	public function test_the_digital_competence_profile_is_summarised() {
 		$curator = $this->as_role( 'fmc_curator' );
 		$design  = $this->post( PostTypes::DESIGN, $curator );
-		update_post_meta( $design, D::DIGCOMP_URL, 'https://herramienta.example/?c=1.1.A1.1|1.1.A1.2|3.1.B1.1' );
+		update_post_meta( $design, D::DIGCOMP_URL, 'https://herramienta.example/?c=1.1.A1.1|1.1.A1.2|1.1.B1.1|3.1.B1.1' );
 
 		$body = $this->screen_of( $design )['body'];
 		$this->assertStringContainsString( 'Resumen del perfil', $body );
-		$this->assertStringContainsString( '<strong>1.1</strong> Comunicación organizativa', $body );
-		$this->assertStringContainsString( 'A1 · 2', $body );
-		$this->assertStringContainsString( 'Abrir en la herramienta', $body );
+		$this->assertStringContainsString( '<th scope="colgroup" colspan="5" class="fmc-area-1">1. Compromiso profesional</th>', $body );
+		$this->assertStringContainsString( '<th scope="col" class="fmc-area-1" title="Comunicación organizativa">1.1</th>', $body );
+		$this->assertSame( 23, substr_count( $body, '<td class="fmc-area-' ), 'una celda por competencia' );
+		// El nivel más alto; al pasar el ratón, todos, con sus indicadores.
+		$this->assertStringContainsString( '<td class="fmc-area-1" title="Comunicación organizativa: A1 (2), B1 (1) indicador(es)">B1</td>', $body );
+		$this->assertStringContainsString( '<td class="fmc-area-3" title="Enseñanza: B1 (1) indicador(es)">B1</td>', $body );
+		$this->assertStringContainsString( '<td class="fmc-area-2"></td>', $body );
+		$this->assertStringContainsString( '>Abrir en elidd</a>', $body );
+		$this->assertStringContainsString( 'data-fmc-tool="f-' . D::DIGCOMP_URL . '" data-fmc-tool-url="https://elidd.ernesto.es/">Elegir los indicadores en elidd</button>', $body );
+
+		// Quien despliega puede usar su propia copia de elidd.
+		$copy = static fn() => 'https://copia.example/elidd/';
+		add_filter( 'fmc_digcomp_tool', $copy );
+		$this->assertStringContainsString( 'data-fmc-tool-url="https://copia.example/elidd/"', $this->screen_of( $design )['body'] );
+		remove_filter( 'fmc_digcomp_tool', $copy );
 	}
 
 	/**

@@ -18,7 +18,7 @@ ai_assistance:
 # PLAN-0001 — Implantación por fases y migración
 
 **Estado:** propuesta. La **fase 0 está hecha** y la **fase 1, en marcha**:
-la primera sesión con la curaduría fue el 2026-10-21. Las demás son el orden
+la primera sesión con la validación fue el 2026-10-21. Las demás son el orden
 propuesto; a 2026-09-30 no se ha tocado nada en el sitio de destino.
 **Basado en:** [REQ-0001](../requisitos/REQ-0001-aplicativo-de-formacion.md),
 las ADR del [registro](../adr/registro.md) y el análisis del sistema actual, que
@@ -51,7 +51,7 @@ el entorno local con los datos de demostración:
 
 **Sale:** REQ-0001 en `Aceptada`, adendas donde toque.
 
-**Hecho, 2026-10-21:** primera sesión, con la curaduría. La reunión se cortó
+**Hecho, 2026-10-21:** primera sesión, con la validación. La reunión se cortó
 antes de recorrerlo todo. Lo que cambió está en el
 [§9 de REQ-0001](../requisitos/REQ-0001-aplicativo-de-formacion.md), y las
 decisiones, en cuatro ADR propuestas:
@@ -144,7 +144,7 @@ pruebas en navegador, que vuelven aquí):
    casan con las listas cerradas, diseños sin acción y acciones sin diseño.
    Los títulos de las acciones se importan tal cual, aunque no sean el de su
    diseño (ADR-0009); las cifras de cierre van a sus claves, que se conservan
-   (ADR-0010). Antes, la curaduría da la lista nueva de temáticas y decide qué
+   (ADR-0010). Antes, la validación da la lista nueva de temáticas y decide qué
    términos de programa repetidos —y qué valores de «quién la asume»— se funden
    (ADR-0003); y, si quiere, qué diseños históricos sustituye cada uno
    (ADR-0012).

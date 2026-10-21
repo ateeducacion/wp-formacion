@@ -235,7 +235,7 @@ class Test_Editor extends WP_UnitTestCase {
 	}
 
 	/**
-	 * Borrar es solo de administración, ni siquiera de la curaduría.
+	 * Borrar es solo de administración, ni siquiera de la validación.
 	 */
 	public function test_only_administration_can_delete() {
 		$action = get_post( self::factory()->post->create( array( 'post_type' => PostTypes::ACTION ) ) );
@@ -267,7 +267,7 @@ class Test_Editor extends WP_UnitTestCase {
 			$this->assertStringContainsString( 'Datos personales.', $form, 'el aviso de protección de datos' );
 		}
 		// La asesoría la abre para consultarla, pero no edita la ficha de otro.
-		$this->assertStringNotContainsString( 'Solo lectura', Editor::screen( $speaker->ID, '' )['body'], 'la curaduría sí' );
+		$this->assertStringNotContainsString( 'Solo lectura', Editor::screen( $speaker->ID, '' )['body'], 'la validación sí' );
 		$this->as_role( 'fmc_adviser' );
 		$this->assertStringContainsString( 'Solo lectura', Editor::screen( $speaker->ID, '' )['body'] );
 

@@ -458,8 +458,8 @@ final class Editor {
 				$range = 'number' === $f['w'] ? ' step="any" min="' . (int) ( $f['min'] ?? 0 ) . '"' . ( isset( $f['max'] ) ? ' max="' . (int) $f['max'] . '"' : '' ) : '';
 				$input = '<input class="form-control' . $invalid . '" type="' . ( $types[ $f['w'] ] ?? 'text' ) . '"' . $range . ' id="' . esc_attr( $id ) . '" name="' . esc_attr( $name ) . '" value="' . esc_attr( is_array( $value ) ? '' : (string) $value ) . '"' . $disabled . '>';
 		}
-		if ( D::DIGCOMP_URL === $key && is_string( $value ) && '' !== $value ) {
-			$input .= self::digcomp( $value );
+		if ( D::DIGCOMP_URL === $key ) {
+			$input .= self::digcomp_field( $id, $can, is_string( $value ) ? $value : '' );
 		}
 		$show = '';
 		foreach ( (array) ( $f['show'] ?? array() ) as $other => $wanted ) {
@@ -657,7 +657,28 @@ final class Editor {
 	}
 
 	/**
-	 * The summary of a digital-competence profile: competences and levels.
+	 * Under the profile field: the button that opens elidd, and the summary.
+	 *
+	 * La herramienta elidd se abre incrustada en un diálogo (`assets/js/fmc-app.js`); su
+	 * «Guardar» devuelve la selección, que se escribe en el campo como la
+	 * dirección del perfil. Sin JavaScript, la dirección se pega a mano.
+	 *
+	 * @param string $id    Field id.
+	 * @param bool   $can   Whether the user may edit it.
+	 * @param string $value Profile URL.
+	 * @return string
+	 */
+	private static function digcomp_field( string $id, bool $can, string $value ): string {
+		$out = '';
+		if ( $can ) {
+			$tool = (string) apply_filters( 'fmc_digcomp_tool', DigComp::TOOL );
+			$out .= '<div class="mt-2"><button type="button" class="btn btn-outline-primary btn-sm" data-fmc-tool="' . esc_attr( $id ) . '" data-fmc-tool-url="' . esc_url( $tool ) . '">Elegir los indicadores en elidd</button></div>';
+		}
+		return $out . ( '' !== $value ? self::digcomp( $value ) : '' );
+	}
+
+	/**
+	 * The profile summary, as elidd shows it when it generates.
 	 *
 	 * @param string $url Profile URL.
 	 * @return string
@@ -667,15 +688,24 @@ final class Editor {
 		if ( array() === $summary ) {
 			return '<div class="form-text text-warning">La dirección no trae ninguna competencia que se pueda leer.</div>';
 		}
-		$out = '<div class="fmc-digcomp card card-body mt-2"><div class="d-flex align-items-center mb-2"><strong class="me-auto">Resumen del perfil</strong><a class="btn btn-sm btn-outline-primary" href="' . esc_url( $url ) . '" target="_blank" rel="noopener">Abrir en la herramienta</a></div><table class="table table-sm mb-0"><thead><tr><th scope="col">Competencia</th><th scope="col">Niveles (indicadores)</th></tr></thead><tbody>';
-		foreach ( $summary as $code => $levels ) {
-			$cells = array();
-			foreach ( $levels as $level => $n ) {
-				$cells[] = '<span class="badge text-bg-light border">' . esc_html( $level ) . ' · ' . (int) $n . '</span>';
+		// La tabla que da elidd al generar: por áreas, el nivel más alto marcado
+		// en cada competencia. Al pasar el ratón, todos sus niveles.
+		$areas = '';
+		$codes = '';
+		$cells = '';
+		foreach ( DigComp::AREAS as $area => $name ) {
+			$competences = array_filter( DigComp::COMPETENCES, static fn( $code ) => (int) $code === $area, ARRAY_FILTER_USE_KEY );
+			$areas      .= '<th scope="colgroup" colspan="' . count( $competences ) . '" class="fmc-area-' . $area . '">' . esc_html( $area . '. ' . $name ) . '</th>';
+			foreach ( $competences as $code => $title ) {
+				$levels = $summary[ $code ] ?? array();
+				$detail = implode( ', ', array_map( static fn( $level, $n ) => $level . ' (' . $n . ')', array_keys( $levels ), $levels ) );
+				$codes .= '<th scope="col" class="fmc-area-' . $area . '" title="' . esc_attr( $title ) . '">' . esc_html( $code ) . '</th>';
+				$cells .= '<td class="fmc-area-' . $area . '"' . ( '' !== $detail ? ' title="' . esc_attr( $title . ': ' . $detail . ' indicador(es)' ) . '"' : '' ) . '>' . esc_html( (string) array_key_last( $levels ) ) . '</td>';
 			}
-			$out .= '<tr><td><strong>' . esc_html( $code ) . '</strong> ' . esc_html( DigComp::COMPETENCES[ $code ] ?? '' ) . '</td><td>' . implode( ' ', $cells ) . '</td></tr>';
 		}
-		return $out . '</tbody></table></div>';
+		return '<div class="fmc-digcomp card card-body mt-2"><div class="d-flex align-items-center mb-2"><strong class="me-auto">Resumen del perfil</strong><a class="btn btn-sm btn-outline-primary" href="' . esc_url( $url ) . '" target="_blank" rel="noopener">Abrir en elidd</a></div>'
+			. '<div class="table-responsive"><table class="fmc-digcomp-table"><thead><tr>' . $areas . '</tr><tr>' . $codes . '</tr></thead><tbody><tr>' . $cells . '</tr></tbody></table></div>'
+			. '<div class="form-text">El nivel más alto marcado en cada competencia; al pasar el ratón, todos, con sus indicadores.</div></div>';
 	}
 
 	/**

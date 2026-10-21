@@ -63,7 +63,7 @@ class Test_Post_Types extends WP_UnitTestCase {
 	}
 
 	/**
-	 * Finalizado, la asesoría ya no lo toca; la curaduría sí.
+	 * Finalizado, la asesoría ya no lo toca; la validación sí.
 	 */
 	public function test_a_finalised_design_is_locked_for_its_adviser() {
 		$adviser = $this->as_role( 'fmc_adviser' );
@@ -136,7 +136,7 @@ class Test_Post_Types extends WP_UnitTestCase {
 	}
 
 	/**
-	 * La curaduría finaliza, edita y borra diseños ajenos.
+	 * La validación finaliza, edita y borra diseños ajenos.
 	 */
 	public function test_a_curator_finalises_someone_elses_design() {
 		$adviser = self::factory()->user->create( array( 'role' => 'fmc_adviser' ) );

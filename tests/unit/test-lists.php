@@ -227,7 +227,7 @@ class Test_Lists extends WP_UnitTestCase {
 	}
 
 	/**
-	 * La asesoría ve lo publicado y lo suyo; la curaduría, todo.
+	 * La asesoría ve lo publicado y lo suyo; la validación, todo.
 	 */
 	public function test_an_adviser_only_sees_published_designs_and_her_own() {
 		$other = self::factory()->user->create( array( 'role' => 'fmc_adviser' ) );
@@ -954,7 +954,7 @@ class Test_Lists extends WP_UnitTestCase {
 	}
 
 	/**
-	 * La papelera de ponentes, con el motivo, solo para la curaduría.
+	 * La papelera de ponentes, con el motivo, solo para la validación.
 	 */
 	public function test_the_speaker_trash_shows_who_and_why() {
 		$curator = $this->as_role( 'fmc_curator' );

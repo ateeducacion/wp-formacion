@@ -175,7 +175,7 @@ class Test_Screen extends WP_UnitTestCase {
 	}
 
 	/**
-	 * Con sesión y sin pestaña, se abre la primera que le toca: el calendario a la curaduría.
+	 * Con sesión y sin pestaña, se abre la primera que le toca: el calendario a la validación.
 	 */
 	public function test_without_a_tab_the_first_allowed_tab_opens() {
 		$this->as_role( 'fmc_curator' );
@@ -319,7 +319,7 @@ class Test_Screen extends WP_UnitTestCase {
 	}
 
 	/**
-	 * La curaduría puede borrar por capacidad, pero borrar es solo de la administración.
+	 * La validación puede borrar por capacidad, pero borrar es solo de la administración.
 	 */
 	public function test_only_administration_may_delete() {
 		$this->as_role( 'fmc_curator' );
@@ -467,7 +467,7 @@ class Test_Screen extends WP_UnitTestCase {
 		$label = static fn( string $role ) => Screen::role_label( get_userdata( self::factory()->user->create( array( 'role' => $role ) ) ) );
 
 		$this->assertSame( 'Administración', $label( 'administrator' ) );
-		$this->assertSame( 'Curaduría de formación', $label( 'fmc_curator' ) );
+		$this->assertSame( 'Validación de formación', $label( 'fmc_curator' ) );
 		$this->assertSame( 'Servicio de formación', $label( 'fmc_training_service' ) );
 		$this->assertSame( '', $label( 'subscriber' ) );
 	}

@@ -10,6 +10,7 @@ function detach() {
 	if ( window.fmcApp ) {
 		document.removeEventListener( 'submit', window.fmcApp.onSubmit );
 		document.removeEventListener( 'click', window.fmcApp.onClick );
+		document.removeEventListener( 'click', window.fmcApp.onToolClick );
 		document.removeEventListener( 'keydown', window.fmcApp.onKey );
 		document.removeEventListener( 'change', window.fmcApp.onChange );
 	}
@@ -190,6 +191,43 @@ describe( 'el panel lateral', () => {
 
 	it( 'no abre fuera del propio sitio', () => {
 		expect( window.fmcApp.openPanel( 'https://example.org/', 'Fuera' ) ).toBe( false );
+	} );
+} );
+
+describe( 'el perfil en elidd', () => {
+	beforeEach( async () => {
+		document.body.innerHTML = '<input id="perfil" value="https://otra.example/elidd/?c=1.1.A1.1"><button type="button" data-fmc-tool="perfil" data-fmc-tool-url="https://elidd.example/">Elegir</button>';
+		await load();
+	} );
+	afterEach( detach );
+
+	function message( dialog, origin, data ) {
+		window.dispatchEvent( new MessageEvent( 'message', { origin, data, source: dialog.querySelector( 'iframe' ).contentWindow } ) );
+	}
+
+	it( 'abre elidd incrustada, con lo ya elegido, y escribe lo que devuelve su «Guardar»', () => {
+		const dialog = window.fmcApp.openTool( document.querySelector( 'button' ) );
+		const src = new URL( dialog.querySelector( 'iframe' ).src );
+		expect( src.origin + src.pathname ).toBe( 'https://elidd.example/' );
+		expect( src.searchParams.get( 'embed' ) ).toBe( '1' );
+		expect( src.searchParams.get( 'origin' ) ).toBe( window.location.origin );
+		expect( src.searchParams.get( 'c' ) ).toBe( '1.1.A1.1' );
+
+		message( dialog, 'https://elidd.example', { type: 'elidd:seleccion', c: '1.1.A1.1|3.1.B1.2' } );
+		expect( document.getElementById( 'perfil' ).value ).toBe( 'https://elidd.example/?c=1.1.A1.1|3.1.B1.2' );
+		expect( document.querySelector( '.fmc-tool-note' ).textContent ).toContain( '2 indicadores' );
+		expect( document.querySelector( 'dialog' ) ).toBeNull();
+	} );
+
+	it( 'no hace caso a otro origen ni a algo que no es una selección', () => {
+		const dialog = window.fmcApp.openTool( document.querySelector( 'button' ) );
+		message( dialog, 'https://intruso.example', { type: 'elidd:seleccion', c: '6.5.A1.1' } );
+		message( dialog, 'https://elidd.example', { type: 'elidd:seleccion', c: 'javascript:alert(1)' } );
+		message( dialog, 'https://elidd.example', { type: 'otra', c: '6.5.A1.1' } );
+		expect( document.getElementById( 'perfil' ).value ).toBe( 'https://otra.example/elidd/?c=1.1.A1.1' );
+		expect( document.querySelector( 'dialog' ) ).not.toBeNull();
+		dialog.querySelector( '.btn-close' ).click();
+		expect( document.querySelector( 'dialog' ) ).toBeNull();
 	} );
 } );
 

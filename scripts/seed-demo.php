@@ -72,7 +72,7 @@ function fmc_seed_post( array $post, array $meta, array $terms = array() ): int 
 	return $id;
 }
 
-fmc_seed_user( 'curaduria', 'fmc_curator', 'Curaduría de ejemplo' );
+fmc_seed_user( 'validacion', 'fmc_curator', 'Validación de ejemplo' );
 $fmc_adviser = fmc_seed_user( 'asesoria', 'fmc_adviser', 'Asesoría de ejemplo' );
 fmc_seed_user( 'asesoria2', 'fmc_adviser', 'Asesoría de ejemplo 2' );
 fmc_seed_user( 'servicio', 'fmc_training_service', 'Servicio de formación de ejemplo' );

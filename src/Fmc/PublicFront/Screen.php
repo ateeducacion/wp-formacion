@@ -512,7 +512,7 @@ final class Screen {
 	 */
 	public static function trash_form( \WP_Post $post ): string {
 		return '<form class="card fmc-section mt-3" method="post" action="' . esc_url( home_url( '/' ) ) . '" data-fmc-confirm="' . esc_attr( '¿Dar de baja a «' . get_the_title( $post ) . '»?' ) . '" data-fmc-confirm-text="Su ficha pasa a la papelera con el motivo y deja de verse en el aplicativo." data-fmc-confirm-button="Dar de baja"><div class="card-body">'
-			. '<h2 class="h6">Dar de baja</h2><p class="text-secondary small">Por ejemplo, si la persona pide que se borren sus datos. La curaduría ve en la papelera quién la dio de baja, cuándo y por qué.</p>'
+			. '<h2 class="h6">Dar de baja</h2><p class="text-secondary small">Por ejemplo, si la persona pide que se borren sus datos. Queda en la papelera quién la dio de baja, cuándo y por qué.</p>'
 			. wp_nonce_field( 'fmc_delete_' . $post->ID, '_fmc_nonce', true, false )
 			. '<input type="hidden" name="fmc_delete" value="' . esc_attr( (string) $post->ID ) . '">'
 			. '<label class="form-label fw-semibold" for="fmc-reason">Motivo <span class="text-danger" aria-hidden="true">*</span></label><div class="d-flex gap-2"><input class="form-control" id="fmc-reason" name="fmc_reason" required maxlength="500">'

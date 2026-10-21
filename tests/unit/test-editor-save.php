@@ -150,7 +150,7 @@ class Test_Editor_Save extends WP_UnitTestCase {
 	}
 
 	/**
-	 * La curaduría finaliza y devuelve a borrador; un estado inventado no cambia nada.
+	 * La validación finaliza y devuelve a borrador; un estado inventado no cambia nada.
 	 */
 	public function test_a_curator_finalises_and_returns_to_draft() {
 		$adviser = self::factory()->user->create( array( 'role' => 'fmc_adviser' ) );

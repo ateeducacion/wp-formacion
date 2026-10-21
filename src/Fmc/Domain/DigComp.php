@@ -10,13 +10,32 @@ namespace Fmc\Domain;
 /**
  * Lo que dice el perfil de competencia digital, sin salir del aplicativo.
  *
- * La herramienta de competencia digital comparte la selección como una
- * dirección con `?c=` y los indicadores separados por `|`: `1.1.A1.2` es la
- * competencia 1.1, nivel A1, indicador 2. De ahí sale el resumen que se pinta
- * en la ficha del diseño —qué competencias y en qué niveles—, el mismo cuadro
- * que la herramienta enseña al generar. Puro: no toca WordPress.
+ * La herramienta elidd, del marco de referencia de la competencia digital
+ * docente, comparte la selección como una dirección con `?c=` y los
+ * indicadores separados por `|`: `1.1.A1.2` es la competencia 1.1, nivel A1,
+ * indicador 2. De ahí sale el resumen que se pinta en la ficha del diseño
+ * —qué competencias y en qué niveles—, la misma tabla que elidd enseña al
+ * generar. Puro: no toca WordPress.
  */
 final class DigComp {
+
+	/**
+	 * Where profiles are chosen: elidd. A deployment may point elsewhere,
+	 * to its own copy, with the `fmc_digcomp_tool` filter.
+	 */
+	public const TOOL = 'https://elidd.ernesto.es/';
+
+	/**
+	 * Areas of the framework, by number.
+	 */
+	public const AREAS = array(
+		1 => 'Compromiso profesional',
+		2 => 'Contenidos digitales',
+		3 => 'Enseñanza y aprendizaje',
+		4 => 'Evaluación y retroalimentación',
+		5 => 'Empoderamiento del alumnado',
+		6 => 'Desarrollo de la competencia digital del alumnado',
+	);
 
 	/**
 	 * Competences of the teachers' digital-competence reference framework.

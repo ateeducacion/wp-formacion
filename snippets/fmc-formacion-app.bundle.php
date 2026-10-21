@@ -716,7 +716,26 @@ namespace Fmc\Domain;
 
 
 
+
 final class DigComp {
+
+
+
+
+
+	public const TOOL = 'https://elidd.ernesto.es/';
+
+
+
+
+	public const AREAS = array(
+		1 => 'Compromiso profesional',
+		2 => 'Contenidos digitales',
+		3 => 'Enseñanza y aprendizaje',
+		4 => 'Evaluación y retroalimentación',
+		5 => 'Empoderamiento del alumnado',
+		6 => 'Desarrollo de la competencia digital del alumnado',
+	);
 
 
 
@@ -1323,7 +1342,7 @@ final class Fields {
 					D::DIGCOMP_URL      => array(
 						'label' => 'Perfil de competencia digital',
 						'w'     => 'url',
-						'help'  => 'Elija las competencias en la herramienta de competencia digital, copie la dirección que genera al compartir y péguela aquí. Al guardar se ve el resumen.',
+						'help'  => 'Pulse «Elegir los indicadores en elidd», márquelos y pulse «Guardar»; o pegue aquí la dirección que da elidd al compartir. Al guardar la ficha se ve la tabla.',
 					),
 				),
 			),
@@ -2284,7 +2303,7 @@ final class Lists {
 
 	public const SUBTITLES = array(
 		PostTypes::ACTION   => 'Cada edición de un diseño: dónde, cuándo, para cuántos y cómo fue.',
-		PostTypes::DESIGN   => 'El catálogo y la mesa de trabajo: los borradores se escriben aquí hasta que la curaduría los da por finalizados.',
+		PostTypes::DESIGN   => 'El catálogo y la mesa de trabajo: los borradores se escriben aquí hasta que la validación los da por finalizados.',
 		PostTypes::SPEAKER  => 'Datos personales: solo para quien gestiona acciones. Busque por lo que han impartido, con sus acciones y sus horas.',
 		PostTypes::INCIDENT => 'Cambios pedidos sobre una acción. Se abren desde la propia acción.',
 	);
@@ -4539,8 +4558,8 @@ final class Editor {
 				$range = 'number' === $f['w'] ? ' step="any" min="' . (int) ( $f['min'] ?? 0 ) . '"' . ( isset( $f['max'] ) ? ' max="' . (int) $f['max'] . '"' : '' ) : '';
 				$input = '<input class="form-control' . $invalid . '" type="' . ( $types[ $f['w'] ] ?? 'text' ) . '"' . $range . ' id="' . esc_attr( $id ) . '" name="' . esc_attr( $name ) . '" value="' . esc_attr( is_array( $value ) ? '' : (string) $value ) . '"' . $disabled . '>';
 		}
-		if ( D::DIGCOMP_URL === $key && is_string( $value ) && '' !== $value ) {
-			$input .= self::digcomp( $value );
+		if ( D::DIGCOMP_URL === $key ) {
+			$input .= self::digcomp_field( $id, $can, is_string( $value ) ? $value : '' );
 		}
 		$show = '';
 		foreach ( (array) ( $f['show'] ?? array() ) as $other => $wanted ) {
@@ -4743,20 +4762,50 @@ final class Editor {
 
 
 
+
+
+
+
+
+
+	private static function digcomp_field( string $id, bool $can, string $value ): string {
+		$out = '';
+		if ( $can ) {
+			$tool = (string) apply_filters( 'fmc_digcomp_tool', DigComp::TOOL );
+			$out .= '<div class="mt-2"><button type="button" class="btn btn-outline-primary btn-sm" data-fmc-tool="' . esc_attr( $id ) . '" data-fmc-tool-url="' . esc_url( $tool ) . '">Elegir los indicadores en elidd</button></div>';
+		}
+		return $out . ( '' !== $value ? self::digcomp( $value ) : '' );
+	}
+
+
+
+
+
+
+
 	public static function digcomp( string $url ): string {
 		$summary = DigComp::summary( $url );
 		if ( array() === $summary ) {
 			return '<div class="form-text text-warning">La dirección no trae ninguna competencia que se pueda leer.</div>';
 		}
-		$out = '<div class="fmc-digcomp card card-body mt-2"><div class="d-flex align-items-center mb-2"><strong class="me-auto">Resumen del perfil</strong><a class="btn btn-sm btn-outline-primary" href="' . esc_url( $url ) . '" target="_blank" rel="noopener">Abrir en la herramienta</a></div><table class="table table-sm mb-0"><thead><tr><th scope="col">Competencia</th><th scope="col">Niveles (indicadores)</th></tr></thead><tbody>';
-		foreach ( $summary as $code => $levels ) {
-			$cells = array();
-			foreach ( $levels as $level => $n ) {
-				$cells[] = '<span class="badge text-bg-light border">' . esc_html( $level ) . ' · ' . (int) $n . '</span>';
+
+
+		$areas = '';
+		$codes = '';
+		$cells = '';
+		foreach ( DigComp::AREAS as $area => $name ) {
+			$competences = array_filter( DigComp::COMPETENCES, static fn( $code ) => (int) $code === $area, ARRAY_FILTER_USE_KEY );
+			$areas      .= '<th scope="colgroup" colspan="' . count( $competences ) . '" class="fmc-area-' . $area . '">' . esc_html( $area . '. ' . $name ) . '</th>';
+			foreach ( $competences as $code => $title ) {
+				$levels = $summary[ $code ] ?? array();
+				$detail = implode( ', ', array_map( static fn( $level, $n ) => $level . ' (' . $n . ')', array_keys( $levels ), $levels ) );
+				$codes .= '<th scope="col" class="fmc-area-' . $area . '" title="' . esc_attr( $title ) . '">' . esc_html( $code ) . '</th>';
+				$cells .= '<td class="fmc-area-' . $area . '"' . ( '' !== $detail ? ' title="' . esc_attr( $title . ': ' . $detail . ' indicador(es)' ) . '"' : '' ) . '>' . esc_html( (string) array_key_last( $levels ) ) . '</td>';
 			}
-			$out .= '<tr><td><strong>' . esc_html( $code ) . '</strong> ' . esc_html( DigComp::COMPETENCES[ $code ] ?? '' ) . '</td><td>' . implode( ' ', $cells ) . '</td></tr>';
 		}
-		return $out . '</tbody></table></div>';
+		return '<div class="fmc-digcomp card card-body mt-2"><div class="d-flex align-items-center mb-2"><strong class="me-auto">Resumen del perfil</strong><a class="btn btn-sm btn-outline-primary" href="' . esc_url( $url ) . '" target="_blank" rel="noopener">Abrir en elidd</a></div>'
+			. '<div class="table-responsive"><table class="fmc-digcomp-table"><thead><tr>' . $areas . '</tr><tr>' . $codes . '</tr></thead><tbody><tr>' . $cells . '</tr></tbody></table></div>'
+			. '<div class="form-text">El nivel más alto marcado en cada competencia; al pasar el ratón, todos, con sus indicadores.</div></div>';
 	}
 
 
@@ -5616,7 +5665,7 @@ final class Screen {
 
 	public static function trash_form( \WP_Post $post ): string {
 		return '<form class="card fmc-section mt-3" method="post" action="' . esc_url( home_url( '/' ) ) . '" data-fmc-confirm="' . esc_attr( '¿Dar de baja a «' . get_the_title( $post ) . '»?' ) . '" data-fmc-confirm-text="Su ficha pasa a la papelera con el motivo y deja de verse en el aplicativo." data-fmc-confirm-button="Dar de baja"><div class="card-body">'
-			. '<h2 class="h6">Dar de baja</h2><p class="text-secondary small">Por ejemplo, si la persona pide que se borren sus datos. La curaduría ve en la papelera quién la dio de baja, cuándo y por qué.</p>'
+			. '<h2 class="h6">Dar de baja</h2><p class="text-secondary small">Por ejemplo, si la persona pide que se borren sus datos. Queda en la papelera quién la dio de baja, cuándo y por qué.</p>'
 			. wp_nonce_field( 'fmc_delete_' . $post->ID, '_fmc_nonce', true, false )
 			. '<input type="hidden" name="fmc_delete" value="' . esc_attr( (string) $post->ID ) . '">'
 			. '<label class="form-label fw-semibold" for="fmc-reason">Motivo <span class="text-danger" aria-hidden="true">*</span></label><div class="d-flex gap-2"><input class="form-control" id="fmc-reason" name="fmc_reason" required maxlength="500">'
@@ -6203,6 +6252,26 @@ a.fmc-counter:hover, .fmc-counter.is-active { border-color: var(--fmc-brand); bo
 .fmc-icon { display: inline-flex; align-items: center; justify-content: center; width: 2rem; height: 2rem; padding: 0; border-radius: .5rem; }
 .fmc-table .fmc-col-title { min-width: 16rem; }
 
+/* El perfil de competencia digital, como la tabla que genera elidd: por
+   áreas, con sus colores, y el nivel más alto de cada competencia */
+.fmc-digcomp-table { width: 100%; border-collapse: collapse; font-size: .78rem; text-align: center; }
+.fmc-digcomp-table th, .fmc-digcomp-table td { border: 2px solid #fff; padding: .3rem .2rem; }
+.fmc-digcomp-table thead th { font-weight: 600; }
+.fmc-digcomp-table td { font-weight: 700; height: 2.1rem; }
+.fmc-area-1 { background: #f9d2bf; }
+.fmc-area-2 { background: #9dd3b3; }
+.fmc-area-3 { background: #9fb9e7; }
+.fmc-area-4 { background: #7adad0; }
+.fmc-area-5 { background: #c8a6c2; }
+.fmc-area-6 { background: #eda8b6; }
+
+/* elidd incrustada en un diálogo nativo: por encima de todo, panel incluido */
+dialog.fmc-tool { width: min(1400px, 96vw); height: min(900px, 92vh); padding: 0; border: 0; border-radius: var(--fmc-r); box-shadow: var(--fmc-e2); }
+dialog.fmc-tool[open] { display: flex; flex-direction: column; }
+dialog.fmc-tool::backdrop { background: rgba(16, 24, 40, .55); }
+.fmc-tool-head { display: flex; align-items: center; gap: .75rem; padding: .75rem 1rem; border-bottom: 1px solid var(--fmc-line); }
+.fmc-tool iframe { flex: 1; width: 100%; border: 0; }
+
 /* Catálogo público: tarjetas de curso y los datos de la ficha */
 .fmc-courses { display: grid; grid-template-columns: repeat(auto-fill, minmax(18rem, 1fr)); gap: 1rem; }
 .fmc-course { border-radius: var(--fmc-r); box-shadow: var(--fmc-e1); }
@@ -6319,6 +6388,9 @@ body.has-panel { overflow: hidden; }
  * 6. Los `textarea[data-fmc-rich]` llevan el TinyMCE que trae WordPress,
  *    con lo justo: negrita, cursiva y listas. Sin él, se quedan como cuadro
  *    de texto y el HTML se guarda igual.
+ * 7. Los `button[data-fmc-tool]` abren elidd incrustada en un diálogo: su
+ *    «Guardar» devuelve los indicadores elegidos, que se escriben en el campo
+ *    del perfil como su dirección. Sin guion, la dirección se pega a mano.
  * 2. Los `form[data-fmc-confirm]` piden confirmación antes de enviarse, en
  *    tres escalones como en eventos: SweetAlert2 si ha cargado; si no, el
  *    `confirm()` del navegador; y sin JavaScript el formulario se envía tal
@@ -6639,6 +6711,88 @@ body.has-panel { overflow: hidden; }
 		load( panel, { url: form.action, method: \'POST\', body: data, fallback: window.location.href } );
 	}
 
+	// Una selección de elidd: indicadores `1.1.A1.2` separados por `|`, o nada.
+	const SELECTION = /^(\\d\\.\\d\\.[ABC][12]\\.\\d+(\\|\\d\\.\\d\\.[ABC][12]\\.\\d+)*)?$/;
+
+	function openTool( button ) {
+		const field = document.getElementById( button.dataset.fmcTool );
+		let tool;
+		try {
+			tool = new URL( button.dataset.fmcToolUrl );
+		} catch ( error ) {
+			return null;
+		}
+		if ( ! field || ! /^https?:$/.test( tool.protocol ) ) {
+			return null;
+		}
+		const base = tool.origin + tool.pathname;
+		const src = new URL( base );
+		src.searchParams.set( \'embed\', \'1\' );
+		src.searchParams.set( \'origin\', window.location.origin );
+		// Lo ya elegido viene en la dirección del campo, sea de esta copia o de otra.
+		let current = \'\';
+		try {
+			current = field.value ? new URL( field.value ).searchParams.get( \'c\' ) || \'\' : \'\';
+		} catch ( error ) {
+			current = \'\';
+		}
+		if ( current ) {
+			src.searchParams.set( \'c\', current );
+		}
+
+		const dialog = document.createElement( \'dialog\' );
+		dialog.className = \'fmc-tool\';
+		dialog.setAttribute( \'aria-label\', \'Perfil de competencia digital\' );
+		dialog.innerHTML = \'<div class="fmc-tool-head"><strong>Perfil de competencia digital</strong><span class="small text-secondary">Marque los indicadores y pulse «Guardar».</span><button type="button" class="btn-close ms-auto" aria-label="Cerrar"></button></div><iframe title="elidd"></iframe>\';
+		const frame = dialog.querySelector( \'iframe\' );
+		frame.src = src.toString();
+
+		// Sin `<dialog>` nativo (navegadores viejos), se cierra a mano.
+		function close() {
+			if ( dialog.close ) {
+				dialog.close();
+			} else {
+				dialog.removeAttribute( \'open\' );
+				dialog.dispatchEvent( new Event( \'close\' ) );
+			}
+		}
+
+		// Solo se acepta lo que manda elidd desde este marco, y con su formato.
+		function onMessage( event ) {
+			const data = event.data || {};
+			if ( event.origin !== tool.origin || event.source !== frame.contentWindow || \'elidd:seleccion\' !== data.type || \'string\' !== typeof data.c || ! SELECTION.test( data.c ) ) {
+				return;
+			}
+			field.value = data.c ? base + \'?c=\' + data.c : \'\';
+			field.dispatchEvent( new Event( \'change\', { bubbles: true } ) );
+			const note = field.parentNode.querySelector( \'.fmc-tool-note\' ) || document.createElement( \'div\' );
+			note.className = \'form-text fmc-tool-note\';
+			note.textContent = data.c ? \'Elegidos \' + data.c.split( \'|\' ).length + \' indicadores. Guarde la ficha para ver la tabla.\' : \'Sin indicadores. Guarde la ficha para quitar el perfil.\';
+			field.after( note );
+			close();
+		}
+		window.addEventListener( \'message\', onMessage );
+		dialog.addEventListener( \'close\', function () {
+			window.removeEventListener( \'message\', onMessage );
+			dialog.remove();
+		} );
+		dialog.querySelector( \'.btn-close\' ).addEventListener( \'click\', close );
+		document.body.append( dialog );
+		if ( dialog.showModal ) {
+			dialog.showModal();
+		} else {
+			dialog.setAttribute( \'open\', \'\' );
+		}
+		return dialog;
+	}
+
+	function onToolClick( event ) {
+		const button = event.target.closest ? event.target.closest( \'button[data-fmc-tool]\' ) : null;
+		if ( button && openTool( button ) ) {
+			event.preventDefault();
+		}
+	}
+
 	function onKey( event ) {
 		if ( \'Escape\' === event.key ) {
 			closePanel();
@@ -6648,6 +6802,7 @@ body.has-panel { overflow: hidden; }
 	document.addEventListener( \'submit\', onSubmit );
 	document.addEventListener( \'submit\', onPanelSubmit );
 	document.addEventListener( \'click\', onClick );
+	document.addEventListener( \'click\', onToolClick );
 	document.addEventListener( \'keydown\', onKey );
 	document.addEventListener( \'change\', onChange );
 	if ( \'loading\' === document.readyState ) {
@@ -6673,6 +6828,8 @@ body.has-panel { overflow: hidden; }
 		initRich: initRich,
 		removeRich: removeRich,
 		openPanel: openPanel,
+		openTool: openTool,
+		onToolClick: onToolClick,
 		closePanel: closePanel,
 		reload: reload,
 	};

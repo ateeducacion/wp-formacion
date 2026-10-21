@@ -7,7 +7,7 @@
 Un aplicativo para WordPress que gestiona la **formación del profesorado**: el
 catálogo de **diseños de curso**, las **acciones formativas** que se imparten a
 partir de ellos, sus **ponentes** y las **incidencias** que se abren sobre una
-acción. La asesoría diseña y registra; la curaduría da los diseños por
+acción. La asesoría diseña y registra; la validación da los diseños por
 finalizados; el servicio de formación pone el expediente y resuelve las
 incidencias. La matrícula no: esa la lleva el sistema de gestión del servicio.
 
@@ -33,7 +33,7 @@ La contraseña es `password` en todos. Los crea `scripts/seed-demo.php`.
 | Usuario | Rol | Qué puede hacer |
 |---------|-----|-----------------|
 | `admin` | administrator | Todo |
-| `curaduria` | `fmc_curator` | Finalizar diseños y gestionar todas las acciones |
+| `validacion` | `fmc_curator` | Finalizar diseños y gestionar todas las acciones |
 | `asesoria`, `asesoria2` | `fmc_adviser` | Escribir diseños y mandarlos a revisión; sus acciones; abrir incidencias |
 | `servicio` | `fmc_training_service` | Poner el expediente de una acción y resolver incidencias |
 

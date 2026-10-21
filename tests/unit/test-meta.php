@@ -216,7 +216,7 @@ class Test_Meta extends WP_UnitTestCase {
 	}
 
 	/**
-	 * El permiso registrado por campo: la curaduría escribe los campos del servicio, la asesoría no.
+	 * El permiso registrado por campo: la validación escribe los campos del servicio, la asesoría no.
 	 */
 	public function test_the_registered_auth_callback_guards_service_fields() {
 		$owner  = self::factory()->user->create( array( 'role' => 'fmc_adviser' ) );

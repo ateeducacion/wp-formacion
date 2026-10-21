@@ -53,7 +53,7 @@ sus números de formulario, de campo y de vista— está en `.local/`.
 |---|---|
 | Un formulario de diseño de curso cuyas entradas son el catálogo | CPT `fmc_design`, público; la descripción en `post_content` |
 | Una casilla «Opciones» que mezcla *está en el catálogo*, *diseño finalizado* y *pertenece a tal programa* | El estado es el `post_status` (ADR-0004); el catálogo, una meta; el programa, un término de `fmc_programme` (ADR-0003) |
-| «Diseño finalizado» lo marca quien sea que vea la casilla | Solo la curaduría publica: la asesoría no tiene `publish_fmc_designs` ni `edit_published_fmc_designs` |
+| «Diseño finalizado» lo marca quien sea que vea la casilla | Solo la validación publica: la asesoría no tiene `publish_fmc_designs` ni `edit_published_fmc_designs` |
 | Un formulario de acción formativa enorme, con campos «obsoletos» dentro | CPT `fmc_action` que apunta a su diseño (`fmc_design_id`) y guarda solo lo suyo; los totales se suman, no se teclean |
 | Tres listas de «asumida por» que repiten los mismos programas | Quién paga es `fmc_funded_by` (lista cerrada); de qué programa, un término |
 | Campos que solo rellena el servicio de formación, escondidos a los demás por la vista | Permiso por campo en el servidor: `auth_callback` de la meta (ADR-0006) |
@@ -106,7 +106,7 @@ src/Fmc/
 ├── Meta/IncidentMetaKeys.php     Claves de la incidencia y sus resoluciones
 ├── Meta/MetaRegistration.php     register_post_meta con tipo, lista cerrada y permiso por campo
 ├── Domain/SchoolYear.php         El curso escolar de una fecha. Puro
-├── Domain/DigComp.php            El resumen de un perfil de competencia digital (su dirección). Puro
+├── Domain/DigComp.php            El perfil de competencia digital de elidd (su dirección), sus áreas y competencias. Puro
 ├── PostType/PostTypes.php        Los cuatro CPT y qué capacidades tiene cada rol en cada uno
 ├── Taxonomy/Taxonomies.php       Programa, temática, competencia digital y ámbito
 └── PublicFront/                  El aplicativo, en la portada del sitio

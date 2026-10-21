@@ -20,12 +20,12 @@ ai_assistance:
 **Estado:** propuesta. Se escribe el 2026-09-30 a partir de una reunión de
 revisión del sistema actual y de la foto de ese sistema tomada el mismo día. Se
 valida con quien gestiona hoy la formación antes de pasar a
-`Aceptada` (PLAN-0001, fase 1). La primera revisión con la curaduría fue el
+`Aceptada` (PLAN-0001, fase 1). La primera revisión con la validación fue el
 2026-10-21: lo que cambió está en el §9.
 **Fuentes:**
 
 - Una reunión de revisión con quien usa el sistema, el 2026-09-30, y la
-  revisión del aplicativo con la curaduría, el 2026-10-21. El material de las
+  revisión del aplicativo con la validación, el 2026-10-21. El material de las
   dos está en `.local/`.
 - Una exportación del sistema actual, tomada **solo con lecturas**. El análisis,
   con sus identificadores, está en `.local/`.
@@ -58,7 +58,7 @@ que el sistema actual hace bien. Quien lo usa lo resume así: la aplicación
 | Actor | Qué hace | Rol |
 |---|---|---|
 | Administración | Todo, y administrar el aplicativo | `administrator` |
-| Curaduría | Revisa los diseños y los da por finalizados; gestiona todas las acciones | `fmc_curator` |
+| Validación | Revisa los diseños y los da por finalizados; gestiona todas las acciones | `fmc_curator` |
 | Asesoría | Escribe diseños, registra y mantiene sus acciones, abre incidencias, da de alta ponentes | `fmc_adviser` |
 | Servicio de formación | Pone el número de expediente de la acción y resuelve las incidencias; nada más | `fmc_training_service` |
 | Visitante | Consulta el catálogo de diseños finalizados | — |
@@ -81,7 +81,7 @@ confirmado. Queda como pregunta abierta (§8).
 - **RF-2.** Un diseño lleva un **código** único y estable que se asigna solo
   (ver §9).
 - **RF-3.** Ciclo: **borrador → pendiente de revisión → finalizado**. La
-  asesoría escribe y manda a revisión; **solo la curaduría lo da por
+  asesoría escribe y manda a revisión; **solo la validación lo da por
   finalizado**; finalizado, la asesoría ya no lo edita (ADR-0004).
 - **RF-4.** Estar en el catálogo público es una decisión aparte de estar
   finalizado, y pertenecer a un programa es otra (ADR-0003).
@@ -176,7 +176,7 @@ Las que la revisión del 2026-10-21 contestó, del todo o en parte, lo dicen.
 
 1. ¿Sigue en uso el perfil de empresa? Si sí, ¿qué campos rellena? *No se
    trató.*
-2. ¿La curaduría es siempre el área, o también la asesoría puede curar lo suyo?
+2. ¿Valida siempre el área, o también la asesoría puede validar lo suyo?
    *Sin cerrar.* En la revisión se habló siempre de tres perfiles —asesorías,
    área y servicio de formación—, pero no se preguntó expresamente.
 3. ¿Se unifican el catálogo TIC y los cursos recomendados de otros programas, o
@@ -189,7 +189,7 @@ Las que la revisión del 2026-10-21 contestó, del todo o en parte, lo dicen.
 5. ¿Qué webs consumen hoy los listados como API y quién las mantiene? *En
    parte:* al menos la web del área muestra el catálogo. Falta el inventario.
 6. ¿Cuál es el protocolo de incidencias y cancelaciones entre asesoría,
-   curaduría y servicio de formación? Quién abre, quién cierra, y cómo una
+   validación y servicio de formación? Quién abre, quién cierra, y cómo una
    cancelación tramitada en el sistema de gestión del servicio llega también
    aquí.
 7. La sección «Estado» de la acción —expediente, situación y campos del
@@ -203,9 +203,9 @@ Las que la revisión del 2026-10-21 contestó, del todo o en parte, lo dicen.
 11. ¿Cuál es la lista nueva de temáticas, y qué términos de programa repetidos
     se funden en uno?
 
-## 9. Revisión con la curaduría (2026-10-21)
+## 9. Revisión con la validación (2026-10-21)
 
-Primera sesión de la fase 1 del PLAN-0001: la curaduría recorrió el aplicativo
+Primera sesión de la fase 1 del PLAN-0001: la validación recorrió el aplicativo
 sobre el entorno local. El material de la reunión está en `.local/`. Este
 apartado dice qué cambió y por qué; las secciones anteriores solo llevan una
 referencia aquí.
@@ -237,10 +237,12 @@ referencia aquí.
   mano en una hoja de cálculo.
 - **Incidencias (RF-18).** Las acciones con una incidencia pendiente se marcan
   en el listado y en el calendario, y hay un filtro para verlas.
-- **Competencia digital (RF-1, RF-5).** La ficha del diseño pinta un cuadro
-  resumen —competencias y niveles— a partir de la dirección del perfil
-  guardada (`src/Fmc/Domain/DigComp.php`), con un enlace para abrirlo en la
-  herramienta. El campo «Áreas de
+- **Competencia digital (RF-1, RF-5).** El perfil se elige en elidd sin salir
+  de la ficha: se abre incrustada en un diálogo y su «Guardar» lo devuelve
+  ([ADR-0014](../adr/ADR-0014-el-perfil-de-competencia-digital-se-elige-en-elidd-incrustada.md)).
+  La ficha pinta la tabla que da elidd al generar —por áreas, el nivel más
+  alto de cada competencia—, con un enlace para abrirlo en elidd
+  (`src/Fmc/Domain/DigComp.php`). El campo «Áreas de
   competencia digital» sale del formulario: ahora se trabaja con el marco de
   referencia nuevo. Sus datos (`fmc_competence`) se conservan.
 - **Barra de administración.** Sale en el aplicativo para la administración, y
@@ -254,7 +256,7 @@ referencia aquí.
   finalizados que están en el catálogo, y de cada uno solo una parte: la
   descripción, los destinatarios, los objetivos, los contenidos y el perfil de
   competencia digital ([ADR-0013](../adr/ADR-0013-el-catalogo-publico-es-una-pantalla-del-aplicativo.md)).
-  Qué campos son públicos hay que confirmarlo con la curaduría.
+  Qué campos son públicos hay que confirmarlo con la validación.
 
 ### 9.3 Lo que se confirma
 
@@ -270,7 +272,7 @@ referencia aquí.
 
 ### 9.4 Pendiente
 
-- **Protocolo de incidencias y cancelaciones** entre asesorías, curaduría y
+- **Protocolo de incidencias y cancelaciones** entre asesorías, validación y
   servicio de formación: quién abre, quién cierra. Una cancelación tramitada
   en el sistema de gestión del servicio tiene que constar también aquí; si no,
   una acción cancelada se cuenta como impartida (§8, pregunta 6).

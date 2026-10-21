@@ -221,7 +221,7 @@ final class Fields {
 					D::DIGCOMP_URL      => array(
 						'label' => 'Perfil de competencia digital',
 						'w'     => 'url',
-						'help'  => 'Elija las competencias en la herramienta de competencia digital, copie la dirección que genera al compartir y péguela aquí. Al guardar se ve el resumen.',
+						'help'  => 'Pulse «Elegir los indicadores en elidd», márquelos y pulse «Guardar»; o pegue aquí la dirección que da elidd al compartir. Al guardar la ficha se ve la tabla.',
 					),
 				),
 			),
