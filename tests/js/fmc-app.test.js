@@ -169,6 +169,25 @@ describe( 'el panel lateral', () => {
 		expect( document.querySelector( '.fmc-panel' ) ).toBeNull();
 	} );
 
+	it( 'los enlaces del aplicativo dentro del panel siguen en él; los de fuera, no', async () => {
+		window.fetch.mockResolvedValue( {
+			text: () => Promise.resolve( '<div class="fmc-fragment" data-fmc-title="Acción A"><a id="dentro" href="/?fmc_new=fmc_incident&amp;fmc_parent=7&amp;fmc_marco=1">Abrir una incidencia</a><a id="fuera" href="/wp-content/uploads/a.pdf">Documento</a></div>' ),
+		} );
+		window.fmcApp.openPanel( '/?fmc_edit=7', 'Acción A' );
+		await settle();
+		const inside = new MouseEvent( 'click', { bubbles: true, cancelable: true } );
+		document.getElementById( 'dentro' ).dispatchEvent( inside );
+		expect( inside.defaultPrevented ).toBe( true );
+		const url = new URL( window.fetch.mock.calls[ 1 ][ 0 ] );
+		expect( url.searchParams.get( 'fmc_new' ) ).toBe( 'fmc_incident' );
+		expect( url.searchParams.get( 'fmc_marco' ) ).toBe( '1' );
+		await settle();
+		const outside = new MouseEvent( 'click', { bubbles: true, cancelable: true } );
+		document.querySelector( '.fmc-panel' ).append( Object.assign( document.createElement( 'a' ), { id: 'pdf', href: '/wp-content/uploads/a.pdf' } ) );
+		document.getElementById( 'pdf' ).dispatchEvent( outside );
+		expect( outside.defaultPrevented ).toBe( false );
+	} );
+
 	it( 'no abre fuera del propio sitio', () => {
 		expect( window.fmcApp.openPanel( 'https://example.org/', 'Fuera' ) ).toBe( false );
 	} );

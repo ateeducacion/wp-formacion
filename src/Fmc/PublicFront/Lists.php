@@ -62,28 +62,107 @@ final class Lists {
 	public static function register(): void {
 		add_filter( 'posts_where', array( self::class, 'visible_where' ), 10, 2 );
 		add_filter( 'posts_where', array( self::class, 'text_where' ), 10, 2 );
-		add_filter( 'posts_clauses', array( self::class, 'order_by_start' ), 10, 2 );
+		add_filter( 'posts_clauses', array( self::class, 'order_by_meta' ), 10, 2 );
 	}
 
 	/**
-	 * `fmc_order_start` query arg: newest start date first, undated last.
+	 * `fmc_order_meta` query arg, `array( meta key, 'asc'|'desc' )`: by that
+	 * meta, with the posts that lack it last either way.
 	 *
 	 * Ordenar con `meta_key` deja fuera lo que no tiene la meta, y con una
 	 * cláusula «no existe» WordPress ordena por otra unión cualquiera. Una
-	 * unión propia, de una fila por acción, lo hace bien.
+	 * unión propia, de una fila por entrada, lo hace bien.
 	 *
 	 * @param array<string, string> $clauses SQL clauses.
 	 * @param \WP_Query             $query   Query.
 	 * @return array<string, string>
 	 */
-	public static function order_by_start( $clauses, $query ) {
-		if ( ! $query instanceof \WP_Query || ! $query->get( 'fmc_order_start' ) ) {
+	public static function order_by_meta( $clauses, $query ) {
+		$order = $query instanceof \WP_Query ? $query->get( 'fmc_order_meta' ) : null;
+		if ( ! is_array( $order ) || 2 !== count( $order ) ) {
 			return $clauses;
 		}
 		global $wpdb;
-		$clauses['join']   .= $wpdb->prepare( " LEFT JOIN {$wpdb->postmeta} AS fmc_start ON ( fmc_start.post_id = {$wpdb->posts}.ID AND fmc_start.meta_key = %s )", A::START );
-		$clauses['orderby'] = "fmc_start.meta_value IS NULL ASC, fmc_start.meta_value DESC, {$wpdb->posts}.ID DESC";
+		$dir                = 'asc' === $order[1] ? 'ASC' : 'DESC';
+		$clauses['join']   .= $wpdb->prepare( " LEFT JOIN {$wpdb->postmeta} AS fmc_sort ON ( fmc_sort.post_id = {$wpdb->posts}.ID AND fmc_sort.meta_key = %s )", (string) $order[0] );
+		$clauses['orderby'] = "( fmc_sort.meta_value IS NULL OR fmc_sort.meta_value = '' ) ASC, fmc_sort.meta_value {$dir}, {$wpdb->posts}.ID {$dir}";
 		return $clauses;
+	}
+
+	/**
+	 * Columns that sort the list, per type: heading => sort key.
+	 *
+	 * Solo las que tienen un orden con sentido: el ámbito es una taxonomía y
+	 * los ponentes de una acción son varios.
+	 */
+	public const SORTABLE = array(
+		PostTypes::ACTION   => array(
+			'Acción formativa' => 'title',
+			'Fechas'           => 'start',
+		),
+		PostTypes::DESIGN   => array(
+			'Diseño de curso' => 'title',
+			'Código'          => 'code',
+		),
+		PostTypes::SPEAKER  => array(
+			'Ponente'      => 'name',
+			'Isla o zona'  => 'zone',
+			'Ha impartido' => 'actions',
+		),
+		PostTypes::INCIDENT => array( 'Creada' => 'date' ),
+	);
+
+	/**
+	 * Sort keys that start descending: the newest, or the most, first.
+	 */
+	private const DESCENDING = array( 'start', 'date', 'actions', 'hours' );
+
+	/**
+	 * The sort asked for (`fmc_sort`, `fmc_dir`), or the list's own.
+	 *
+	 * @param string $type Post type.
+	 * @return array{0:string, 1:string} Sort key, and `asc` or `desc`.
+	 */
+	private static function sort_of( string $type ): array {
+		$own  = array(
+			PostTypes::ACTION   => 'start',
+			PostTypes::DESIGN   => 'title',
+			PostTypes::SPEAKER  => self::speaker_filtered() ? 'actions' : 'name',
+			PostTypes::INCIDENT => 'date',
+		);
+		$keys = array_values( self::SORTABLE[ $type ] ?? array() );
+		if ( PostTypes::SPEAKER === $type ) {
+			// «Ordenar por» ofrece también las horas.
+			$keys[] = 'hours';
+		}
+		$key = in_array( self::arg( 'fmc_sort' ), $keys, true ) ? self::arg( 'fmc_sort' ) : ( $own[ $type ] ?? 'title' );
+		$dir = self::arg( 'fmc_dir' );
+		if ( 'asc' !== $dir && 'desc' !== $dir ) {
+			$dir = in_array( $key, self::DESCENDING, true ) ? 'desc' : 'asc';
+		}
+		return array( $key, $dir );
+	}
+
+	/**
+	 * Query args with the sort of the list.
+	 *
+	 * @param string               $type Post type.
+	 * @param array<string, mixed> $args Query args.
+	 * @return array<string, mixed>
+	 */
+	private static function sorted( string $type, array $args ): array {
+		list( $key, $dir ) = self::sort_of( $type );
+		$metas             = array(
+			'start' => A::START,
+			'code'  => D::CODE,
+		);
+		if ( isset( $metas[ $key ] ) ) {
+			$args['fmc_order_meta'] = array( $metas[ $key ], $dir );
+		} elseif ( 'title' === $key || 'date' === $key ) {
+			$args['orderby'] = $key;
+			$args['order']   = strtoupper( $dir );
+		}
+		return $args;
 	}
 
 	/**
@@ -196,12 +275,7 @@ final class Lists {
 
 		switch ( $type ) {
 			case PostTypes::ACTION:
-				// Ordenar por una meta deja fuera lo que no la tiene: el «o no existe»
-				// mantiene en la lista las acciones sin fecha de inicio.
-				// Por fecha de inicio, las más recientes arriba y las que no tienen
-				// fecha al final: lo hace `order_by_start()` con una unión propia.
-				$args['fmc_order_start'] = true;
-				$args                    = self::action_search( $args );
+				$args = self::action_search( $args );
 				$term( 'fmc_scope', self::arg( 'fmc_scope' ) );
 				$term( 'fmc_programme', self::arg( 'fmc_programme' ) );
 				$meta( A::MODALITY, self::arg( 'fmc_modality' ) );
@@ -272,14 +346,12 @@ final class Lists {
 				$args = self::speaker_args( $args, $with_state );
 				break;
 			case PostTypes::INCIDENT:
-				$args['orderby'] = 'date';
-				$args['order']   = 'DESC';
 				if ( $with_state ) {
 					$meta( I::RESOLUTION, self::arg( 'fmc_resolution' ) );
 				}
 				break;
 		}
-		return $args;
+		return self::sorted( $type, $args );
 	}
 
 	/**
@@ -367,10 +439,13 @@ final class Lists {
 	 * @return array<string, mixed>
 	 */
 	private static function speaker_order( array $args ): array {
-		$sort     = self::arg( 'fmc_sort' );
-		$filtered = '' !== self::arg( 'fmc_given' ) . self::arg( 'fmc_file' ) . self::arg( 'fmc_from' );
-		if ( ! $filtered && ! in_array( $sort, array( 'actions', 'hours', 'zone' ), true ) ) {
-			return $args;
+		list( $sort, $dir ) = self::sort_of( PostTypes::SPEAKER );
+		$filtered           = self::speaker_filtered();
+		if ( 'name' === $sort ) {
+			$args['order'] = strtoupper( $dir );
+			if ( ! $filtered ) {
+				return $args;
+			}
 		}
 		$stats = self::speaker_stats();
 		$ids   = $filtered ? array_keys( $stats ) : get_posts(
@@ -397,10 +472,23 @@ final class Lists {
 					return 0 !== $order ? $order : $a <=> $b;
 				}
 			);
+			// La clave ya ordena en el sentido de partida; el otro, al revés.
+			if ( ( in_array( $sort, self::DESCENDING, true ) ? 'desc' : 'asc' ) !== $dir ) {
+				$ids = array_reverse( $ids );
+			}
 			$args['orderby'] = 'post__in';
 		}
 		$args['post__in'] = $ids ? array_map( 'intval', $ids ) : array( 0 );
 		return $args;
+	}
+
+	/**
+	 * Whether the speakers are filtered by what they have given.
+	 *
+	 * @return bool
+	 */
+	private static function speaker_filtered(): bool {
+		return '' !== self::arg( 'fmc_given' ) . self::arg( 'fmc_file' ) . self::arg( 'fmc_from' );
 	}
 
 	/**
@@ -605,7 +693,7 @@ final class Lists {
 	 */
 	private static function current_filters(): array {
 		$out = array();
-		foreach ( array( 'fmc_s', 'fmc_scope', 'fmc_programme', 'fmc_topic', 'fmc_modality', 'fmc_process', 'fmc_situation', 'fmc_year', 'fmc_type', 'fmc_status', 'fmc_zone', 'fmc_available', 'fmc_resolution', 'fmc_month', 'fmc_speaker', 'fmc_from', 'fmc_to', 'fmc_catalogue', 'fmc_recommended', 'fmc_file', 'fmc_incident', 'fmc_given', 'fmc_sort', 'fmc_view' ) as $key ) {
+		foreach ( array( 'fmc_s', 'fmc_scope', 'fmc_programme', 'fmc_topic', 'fmc_modality', 'fmc_process', 'fmc_situation', 'fmc_year', 'fmc_type', 'fmc_status', 'fmc_zone', 'fmc_available', 'fmc_resolution', 'fmc_month', 'fmc_speaker', 'fmc_from', 'fmc_to', 'fmc_catalogue', 'fmc_recommended', 'fmc_file', 'fmc_incident', 'fmc_given', 'fmc_sort', 'fmc_dir', 'fmc_view' ) as $key ) {
 			if ( '' !== self::arg( $key ) ) {
 				$out[ $key ] = self::arg( $key );
 			}
@@ -692,8 +780,9 @@ final class Lists {
 
 		$out  = '<form class="card card-body mb-3 fmc-filters" method="get" action="' . esc_url( home_url( '/' ) ) . '">';
 		$out .= '<input type="hidden" name="' . esc_attr( Screen::ARG_TAB ) . '" value="' . esc_attr( $tab ) . '">';
-		// Filtrar no cambia de vista ni de fecha.
-		foreach ( array( 'fmc_view', 'fmc_month', 'fmc_day' ) as $key ) {
+		// Filtrar no cambia de vista, ni de fecha, ni de orden; el de los
+		// ponentes va en su propio «Ordenar por».
+		foreach ( array_merge( array( 'fmc_view', 'fmc_month', 'fmc_day', 'fmc_dir' ), PostTypes::SPEAKER === $type ? array() : array( 'fmc_sort' ) ) as $key ) {
 			if ( '' !== self::arg( $key ) ) {
 				$out .= '<input type="hidden" name="' . esc_attr( $key ) . '" value="' . esc_attr( self::arg( $key ) ) . '">';
 			}
@@ -855,9 +944,9 @@ final class Lists {
 			return '<div class="card card-body text-secondary">No hay nada que mostrar con estos filtros.</div>';
 		}
 		$columns = self::columns( $type );
-		$out     = '<div class="card fmc-table"><div class="table-responsive"><table class="table table-hover align-middle mb-0"><thead><tr><th scope="col">' . esc_html( get_post_type_object( $type )->labels->singular_name ) . '</th>';
-		foreach ( array_keys( $columns ) as $h ) {
-			$out .= '<th scope="col">' . esc_html( $h ) . '</th>';
+		$out     = '<div class="card fmc-table"><div class="table-responsive"><table class="table table-hover align-middle mb-0"><thead><tr>';
+		foreach ( array_merge( array( get_post_type_object( $type )->labels->singular_name ), array_keys( $columns ) ) as $h ) {
+			$out .= self::th( $type, $h );
 		}
 		$out .= '<th scope="col" class="text-end"><span class="visually-hidden">Acciones</span></th></tr></thead><tbody>';
 		foreach ( $posts as $post ) {
@@ -879,6 +968,31 @@ final class Lists {
 			$out .= '<td class="text-end text-nowrap">' . self::row_buttons( $post ) . '</td></tr>';
 		}
 		return $out . '</tbody></table></div></div>';
+	}
+
+	/**
+	 * A column heading; the ones that sort are a link that flips the order.
+	 *
+	 * @param string $type    Post type.
+	 * @param string $heading Heading.
+	 * @return string
+	 */
+	private static function th( string $type, string $heading ): string {
+		$key = self::SORTABLE[ $type ][ $heading ] ?? '';
+		if ( '' === $key ) {
+			return '<th scope="col">' . esc_html( $heading ) . '</th>';
+		}
+		list( $current, $dir ) = self::sort_of( $type );
+		$active                = $key === $current;
+		$start                 = in_array( $key, self::DESCENDING, true ) ? 'desc' : 'asc';
+		$args                  = array(
+			Screen::ARG_TAB => Screen::tab_of( $type ),
+			'fmc_sort'      => $key,
+			// Pulsar la columna por la que ya se ordena le da la vuelta.
+			'fmc_dir'       => $active ? ( 'asc' === $dir ? 'desc' : 'asc' ) : $start,
+		);
+		$icon                  = $active ? ( 'asc' === $dir ? 'bi-sort-up' : 'bi-sort-down' ) : 'bi-arrow-down-up';
+		return '<th scope="col"' . ( $active ? ' aria-sort="' . ( 'asc' === $dir ? 'ascending' : 'descending' ) . '"' : '' ) . '><a class="fmc-sort' . ( $active ? ' is-active' : '' ) . '" href="' . esc_url( Screen::url( array_merge( self::current_filters(), $args ) ) ) . '">' . esc_html( $heading ) . ' <i class="bi ' . $icon . '" aria-hidden="true"></i></a></th>';
 	}
 
 	/**

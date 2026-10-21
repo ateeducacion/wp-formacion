@@ -175,7 +175,7 @@ class Test_Editor_Render extends WP_UnitTestCase {
 		$screen = Editor::screen( 0, PostTypes::DESIGN );
 
 		$this->assertSame( 'designs', $screen['tab'] );
-		$this->assertSame( 'Nuevo: ' . mb_strtolower( get_post_type_object( PostTypes::DESIGN )->labels->singular_name ), $screen['title'] );
+		$this->assertSame( 'Nuevo diseño de curso', $screen['title'] );
 		$this->assertSame(
 			array(
 				'Guardar borrador'  => 'draft',

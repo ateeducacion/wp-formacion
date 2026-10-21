@@ -239,7 +239,7 @@ class Test_Screen extends WP_UnitTestCase {
 		$this->assertSame( 'document:Robótica en el aula', $this->route() );
 
 		$this->visit( array( Screen::ARG_NEW => PostTypes::DESIGN ) );
-		$this->assertSame( 'document:Nuevo: diseño de curso', $this->route() );
+		$this->assertSame( 'document:Nuevo diseño de curso', $this->route() );
 
 		$this->visit( array( Screen::ARG_EDIT => $design + 1000 ) );
 		$this->assertSame( 'document:No disponible', $this->route() );
@@ -418,6 +418,13 @@ class Test_Screen extends WP_UnitTestCase {
 		$this->assertTrue( Screen::framed() );
 		$this->assertSame( '1', $this->query_of( Screen::url( array( Screen::ARG_TAB => 'designs' ) ) )[ Screen::ARG_FRAME ] ?? '' );
 		$this->assertArrayNotHasKey( Screen::ARG_FRAME, $this->query_of( Screen::url( array( Screen::ARG_FRAME => '' ) ) ) );
+
+		// Abierta como página —otra pestaña, un marcador—, la dirección del panel se pinta entera.
+		$_SERVER['HTTP_SEC_FETCH_MODE'] = 'navigate';
+		$this->assertFalse( Screen::framed() );
+		$_SERVER['HTTP_SEC_FETCH_MODE'] = 'cors';
+		$this->assertTrue( Screen::framed() );
+		unset( $_SERVER['HTTP_SEC_FETCH_MODE'] );
 
 		$_REQUEST[ Screen::ARG_FRAME ] = 'true';
 		$this->assertFalse( Screen::framed() );

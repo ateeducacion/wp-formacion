@@ -246,7 +246,7 @@ final class Editor {
 		return array(
 			'tab'      => $tab,
 			'back'     => '<a class="small" href="' . esc_url( Screen::url( array( Screen::ARG_TAB => $tab ) ) ) . '">← ' . esc_html( $object->labels->name ) . '</a>',
-			'title'    => $post ? Lists::title( $post ) : 'Nuevo: ' . mb_strtolower( $object->labels->singular_name ),
+			'title'    => $post ? Lists::title( $post ) : $object->labels->new_item,
 			// El subtítulo de la acción se añade al título, debajo (ADR-0009).
 			'subtitle' => $post && PostTypes::ACTION === $type ? (string) get_post_meta( $post->ID, A::SUBTITLE, true ) : '',
 			'badges'   => $badges,

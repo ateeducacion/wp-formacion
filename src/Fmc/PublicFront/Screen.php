@@ -195,8 +195,12 @@ final class Screen {
 	 * @return bool
 	 */
 	public static function framed(): bool {
+		// El fragmento es solo para el panel, que lo pide por detrás. Abierto como
+		// página —en otra pestaña, desde un marcador— se pinta entero: el navegador
+		// lo dice con `Sec-Fetch-Mode: navigate`.
+		$mode = isset( $_SERVER['HTTP_SEC_FETCH_MODE'] ) ? sanitize_key( wp_unslash( $_SERVER['HTTP_SEC_FETCH_MODE'] ) ) : '';
 		// phpcs:ignore WordPress.Security.NonceVerification -- solo decide si se pinta la cabecera.
-		return isset( $_REQUEST[ self::ARG_FRAME ] ) && '1' === $_REQUEST[ self::ARG_FRAME ];
+		return 'navigate' !== $mode && isset( $_REQUEST[ self::ARG_FRAME ] ) && '1' === $_REQUEST[ self::ARG_FRAME ];
 	}
 
 	/**

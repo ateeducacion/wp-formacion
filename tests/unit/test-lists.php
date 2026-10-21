@@ -629,6 +629,54 @@ class Test_Lists extends WP_UnitTestCase {
 	}
 
 	/**
+	 * Las cabeceras ordenan en el servidor, en los dos sentidos, y lo que no
+	 * tiene el dato va al final; filtrar o paginar no pierde el orden.
+	 */
+	public function test_headings_sort_the_whole_list_both_ways() {
+		$this->as_role( 'fmc_curator' );
+		$this->post( PostTypes::ACTION, 'B', array( A::START => '2026-03-01' ) );
+		$this->post( PostTypes::ACTION, 'A', array( A::START => '2026-05-01' ) );
+		$this->post( PostTypes::ACTION, 'C sin fecha' );
+
+		$this->assertSame( array( 'A', 'B', 'C sin fecha' ), $this->rows( PostTypes::ACTION ), 'de serie, la más reciente arriba' );
+		$_GET = array(
+			'fmc_sort' => 'start',
+			'fmc_dir'  => 'asc',
+		);
+		$this->assertSame( array( 'B', 'A', 'C sin fecha' ), $this->rows( PostTypes::ACTION ), 'sin fecha, al final también al revés' );
+		$_GET = array(
+			'fmc_sort' => 'title',
+			'fmc_dir'  => 'desc',
+		);
+		$this->assertSame( array( 'C sin fecha', 'B', 'A' ), $this->rows( PostTypes::ACTION ) );
+
+		$body = Lists::screen( 'actions', PostTypes::ACTION )['body'];
+		$this->assertMatchesRegularExpression( '/<th scope="col" aria-sort="descending"><a class="fmc-sort is-active" href="[^"]*fmc_sort=title[^"]*fmc_dir=asc[^"]*">Acción formativa <i class="bi bi-sort-down"/', $body, 'pulsarla otra vez le da la vuelta' );
+		$this->assertMatchesRegularExpression( '/<th scope="col"><a class="fmc-sort" href="[^"]*fmc_sort=start[^"]*fmc_dir=desc[^"]*">Fechas/', $body, 'otra columna empieza por lo más reciente' );
+		$this->assertStringContainsString( '<th scope="col">Ponentes</th>', $body );
+		$this->assertStringContainsString( '<input type="hidden" name="fmc_sort" value="title">', $body, 'filtrar no pierde el orden' );
+
+		$this->post( PostTypes::DESIGN, 'Sin código' );
+		$this->post( PostTypes::DESIGN, 'Segundo', array( D::CODE => 'A002' ) );
+		$this->post( PostTypes::DESIGN, 'Primero', array( D::CODE => 'A001' ) );
+		$_GET = array(
+			'fmc_sort' => 'code',
+			'fmc_dir'  => 'desc',
+		);
+		$this->assertSame( array( 'Segundo', 'Primero', 'Sin código' ), $this->rows( PostTypes::DESIGN ) );
+
+		$this->post( PostTypes::SPEAKER, 'Ana', array( S::ZONE => 'Norte' ) );
+		$this->post( PostTypes::SPEAKER, 'Bea', array( S::ZONE => 'Sur' ) );
+		$_GET = array(
+			'fmc_sort' => 'zone',
+			'fmc_dir'  => 'desc',
+		);
+		$this->assertSame( array( 'Bea', 'Ana' ), $this->rows( PostTypes::SPEAKER ) );
+		$_GET['fmc_dir'] = 'asc';
+		$this->assertSame( array( 'Ana', 'Bea' ), $this->rows( PostTypes::SPEAKER ) );
+	}
+
+	/**
 	 * La tarjeta de filtros conserva lo elegido y el mes del calendario.
 	 */
 	public function test_the_filter_card_keeps_the_current_choices() {

@@ -137,6 +137,13 @@ a.fmc-counter:hover, .fmc-counter.is-active { border-color: var(--fmc-brand); bo
 	.fmc-cal-num { align-self: flex-start; }
 }
 
+/* Cabeceras que ordenan: la flecha, tenue hasta que se ordena por ellas */
+.fmc-sort { color: inherit; text-decoration: none; white-space: nowrap; }
+.fmc-sort:hover { color: var(--fmc-brand); }
+.fmc-sort .bi { opacity: .35; }
+.fmc-sort.is-active { color: var(--fmc-brand); }
+.fmc-sort.is-active .bi { opacity: 1; }
+
 /* Los botones de icono de cada fila: cuadrados y del mismo tamaño */
 .fmc-icon { display: inline-flex; align-items: center; justify-content: center; width: 2rem; height: 2rem; padding: 0; border-radius: .5rem; }
 .fmc-table .fmc-col-title { min-width: 16rem; }

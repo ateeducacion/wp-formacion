@@ -124,7 +124,7 @@ final class Calendar {
 		$args['posts_per_page'] = 500; // phpcs:ignore WordPress.WP.PostsPerPage.posts_per_page_posts_per_page -- un mes entero de acciones.
 		$args['orderby']        = 'title';
 		$args['order']          = 'ASC';
-		unset( $args['fmc_order_start'] );
+		unset( $args['fmc_order_meta'] );
 		// phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_query -- las fechas del calendario.
 		$args['meta_query']   = array_values(
 			array_filter(

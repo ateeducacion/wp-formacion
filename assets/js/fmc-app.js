@@ -305,7 +305,10 @@
 		if ( event.metaKey || event.ctrlKey || event.shiftKey || event.button || ! event.target.closest ) {
 			return;
 		}
-		const link = event.target.closest( 'a.fmc-abre-panel' );
+		// Dentro del panel, los enlaces del aplicativo llevan `fmc_marco=1`
+		// (`Screen::url()`): siguen en el panel aunque no lleven la clase, porque
+		// si el navegador los siguiera pintaría el fragmento suelto, sin estilos.
+		const link = event.target.closest( 'a.fmc-abre-panel, .fmc-panel a[href*="fmc_marco=1"]' );
 		if ( ! link ) {
 			return;
 		}

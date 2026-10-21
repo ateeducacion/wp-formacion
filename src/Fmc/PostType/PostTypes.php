@@ -38,13 +38,14 @@ final class PostTypes {
 	/**
 	 * Labels and arguments that differ between the four types.
 	 *
-	 * @return array<string, array{singular:string, plural:string, public:bool, icon:string}>
+	 * @return array<string, array{singular:string, plural:string, new:string, public:bool, icon:string}>
 	 */
 	public static function definitions(): array {
 		return array(
 			self::DESIGN   => array(
 				'singular' => 'Diseño de curso',
 				'plural'   => 'Diseños de curso',
+				'new'      => 'Nuevo diseño de curso',
 				// El catálogo es público: los diseños finalizados se enseñan.
 				'public'   => true,
 				'icon'     => 'dashicons-welcome-learn-more',
@@ -52,12 +53,14 @@ final class PostTypes {
 			self::ACTION   => array(
 				'singular' => 'Acción formativa',
 				'plural'   => 'Acciones formativas',
+				'new'      => 'Nueva acción formativa',
 				'public'   => false,
 				'icon'     => 'dashicons-calendar-alt',
 			),
 			self::SPEAKER  => array(
 				'singular' => 'Ponente',
 				'plural'   => 'Ponentes',
+				'new'      => 'Nuevo ponente',
 				// Datos personales: ni públicos ni en REST.
 				'public'   => false,
 				'icon'     => 'dashicons-groups',
@@ -65,6 +68,7 @@ final class PostTypes {
 			self::INCIDENT => array(
 				'singular' => 'Incidencia',
 				'plural'   => 'Incidencias',
+				'new'      => 'Nueva incidencia',
 				'public'   => false,
 				'icon'     => 'dashicons-flag',
 			),
@@ -84,6 +88,7 @@ final class PostTypes {
 					'labels'          => array(
 						'name'          => $def['plural'],
 						'singular_name' => $def['singular'],
+						'new_item'      => $def['new'],
 						'menu_name'     => $def['plural'],
 					),
 					'public'          => $def['public'],

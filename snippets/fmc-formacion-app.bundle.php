@@ -817,6 +817,7 @@ final class PostTypes {
 			self::DESIGN   => array(
 				'singular' => 'Diseño de curso',
 				'plural'   => 'Diseños de curso',
+				'new'      => 'Nuevo diseño de curso',
 
 				'public'   => true,
 				'icon'     => 'dashicons-welcome-learn-more',
@@ -824,12 +825,14 @@ final class PostTypes {
 			self::ACTION   => array(
 				'singular' => 'Acción formativa',
 				'plural'   => 'Acciones formativas',
+				'new'      => 'Nueva acción formativa',
 				'public'   => false,
 				'icon'     => 'dashicons-calendar-alt',
 			),
 			self::SPEAKER  => array(
 				'singular' => 'Ponente',
 				'plural'   => 'Ponentes',
+				'new'      => 'Nuevo ponente',
 
 				'public'   => false,
 				'icon'     => 'dashicons-groups',
@@ -837,6 +840,7 @@ final class PostTypes {
 			self::INCIDENT => array(
 				'singular' => 'Incidencia',
 				'plural'   => 'Incidencias',
+				'new'      => 'Nueva incidencia',
 				'public'   => false,
 				'icon'     => 'dashicons-flag',
 			),
@@ -856,6 +860,7 @@ final class PostTypes {
 					'labels'          => array(
 						'name'          => $def['plural'],
 						'singular_name' => $def['singular'],
+						'new_item'      => $def['new'],
 						'menu_name'     => $def['plural'],
 					),
 					'public'          => $def['public'],
@@ -2312,7 +2317,7 @@ final class Lists {
 	public static function register(): void {
 		add_filter( 'posts_where', array( self::class, 'visible_where' ), 10, 2 );
 		add_filter( 'posts_where', array( self::class, 'text_where' ), 10, 2 );
-		add_filter( 'posts_clauses', array( self::class, 'order_by_start' ), 10, 2 );
+		add_filter( 'posts_clauses', array( self::class, 'order_by_meta' ), 10, 2 );
 	}
 
 
@@ -2326,14 +2331,93 @@ final class Lists {
 
 
 
-	public static function order_by_start( $clauses, $query ) {
-		if ( ! $query instanceof \WP_Query || ! $query->get( 'fmc_order_start' ) ) {
+
+	public static function order_by_meta( $clauses, $query ) {
+		$order = $query instanceof \WP_Query ? $query->get( 'fmc_order_meta' ) : null;
+		if ( ! is_array( $order ) || 2 !== count( $order ) ) {
 			return $clauses;
 		}
 		global $wpdb;
-		$clauses['join']   .= $wpdb->prepare( " LEFT JOIN {$wpdb->postmeta} AS fmc_start ON ( fmc_start.post_id = {$wpdb->posts}.ID AND fmc_start.meta_key = %s )", A::START );
-		$clauses['orderby'] = "fmc_start.meta_value IS NULL ASC, fmc_start.meta_value DESC, {$wpdb->posts}.ID DESC";
+		$dir                = 'asc' === $order[1] ? 'ASC' : 'DESC';
+		$clauses['join']   .= $wpdb->prepare( " LEFT JOIN {$wpdb->postmeta} AS fmc_sort ON ( fmc_sort.post_id = {$wpdb->posts}.ID AND fmc_sort.meta_key = %s )", (string) $order[0] );
+		$clauses['orderby'] = "( fmc_sort.meta_value IS NULL OR fmc_sort.meta_value = '' ) ASC, fmc_sort.meta_value {$dir}, {$wpdb->posts}.ID {$dir}";
 		return $clauses;
+	}
+
+
+
+
+
+
+
+	public const SORTABLE = array(
+		PostTypes::ACTION   => array(
+			'Acción formativa' => 'title',
+			'Fechas'           => 'start',
+		),
+		PostTypes::DESIGN   => array(
+			'Diseño de curso' => 'title',
+			'Código'          => 'code',
+		),
+		PostTypes::SPEAKER  => array(
+			'Ponente'      => 'name',
+			'Isla o zona'  => 'zone',
+			'Ha impartido' => 'actions',
+		),
+		PostTypes::INCIDENT => array( 'Creada' => 'date' ),
+	);
+
+
+
+
+	private const DESCENDING = array( 'start', 'date', 'actions', 'hours' );
+
+
+
+
+
+
+
+	private static function sort_of( string $type ): array {
+		$own  = array(
+			PostTypes::ACTION   => 'start',
+			PostTypes::DESIGN   => 'title',
+			PostTypes::SPEAKER  => self::speaker_filtered() ? 'actions' : 'name',
+			PostTypes::INCIDENT => 'date',
+		);
+		$keys = array_values( self::SORTABLE[ $type ] ?? array() );
+		if ( PostTypes::SPEAKER === $type ) {
+
+			$keys[] = 'hours';
+		}
+		$key = in_array( self::arg( 'fmc_sort' ), $keys, true ) ? self::arg( 'fmc_sort' ) : ( $own[ $type ] ?? 'title' );
+		$dir = self::arg( 'fmc_dir' );
+		if ( 'asc' !== $dir && 'desc' !== $dir ) {
+			$dir = in_array( $key, self::DESCENDING, true ) ? 'desc' : 'asc';
+		}
+		return array( $key, $dir );
+	}
+
+
+
+
+
+
+
+
+	private static function sorted( string $type, array $args ): array {
+		list( $key, $dir ) = self::sort_of( $type );
+		$metas             = array(
+			'start' => A::START,
+			'code'  => D::CODE,
+		);
+		if ( isset( $metas[ $key ] ) ) {
+			$args['fmc_order_meta'] = array( $metas[ $key ], $dir );
+		} elseif ( 'title' === $key || 'date' === $key ) {
+			$args['orderby'] = $key;
+			$args['order']   = strtoupper( $dir );
+		}
+		return $args;
 	}
 
 
@@ -2446,12 +2530,7 @@ final class Lists {
 
 		switch ( $type ) {
 			case PostTypes::ACTION:
-
-
-
-
-				$args['fmc_order_start'] = true;
-				$args                    = self::action_search( $args );
+				$args = self::action_search( $args );
 				$term( 'fmc_scope', self::arg( 'fmc_scope' ) );
 				$term( 'fmc_programme', self::arg( 'fmc_programme' ) );
 				$meta( A::MODALITY, self::arg( 'fmc_modality' ) );
@@ -2522,14 +2601,12 @@ final class Lists {
 				$args = self::speaker_args( $args, $with_state );
 				break;
 			case PostTypes::INCIDENT:
-				$args['orderby'] = 'date';
-				$args['order']   = 'DESC';
 				if ( $with_state ) {
 					$meta( I::RESOLUTION, self::arg( 'fmc_resolution' ) );
 				}
 				break;
 		}
-		return $args;
+		return self::sorted( $type, $args );
 	}
 
 
@@ -2617,10 +2694,13 @@ final class Lists {
 
 
 	private static function speaker_order( array $args ): array {
-		$sort     = self::arg( 'fmc_sort' );
-		$filtered = '' !== self::arg( 'fmc_given' ) . self::arg( 'fmc_file' ) . self::arg( 'fmc_from' );
-		if ( ! $filtered && ! in_array( $sort, array( 'actions', 'hours', 'zone' ), true ) ) {
-			return $args;
+		list( $sort, $dir ) = self::sort_of( PostTypes::SPEAKER );
+		$filtered           = self::speaker_filtered();
+		if ( 'name' === $sort ) {
+			$args['order'] = strtoupper( $dir );
+			if ( ! $filtered ) {
+				return $args;
+			}
 		}
 		$stats = self::speaker_stats();
 		$ids   = $filtered ? array_keys( $stats ) : get_posts(
@@ -2647,10 +2727,23 @@ final class Lists {
 					return 0 !== $order ? $order : $a <=> $b;
 				}
 			);
+
+			if ( ( in_array( $sort, self::DESCENDING, true ) ? 'desc' : 'asc' ) !== $dir ) {
+				$ids = array_reverse( $ids );
+			}
 			$args['orderby'] = 'post__in';
 		}
 		$args['post__in'] = $ids ? array_map( 'intval', $ids ) : array( 0 );
 		return $args;
+	}
+
+
+
+
+
+
+	private static function speaker_filtered(): bool {
+		return '' !== self::arg( 'fmc_given' ) . self::arg( 'fmc_file' ) . self::arg( 'fmc_from' );
 	}
 
 
@@ -2855,7 +2948,7 @@ final class Lists {
 
 	private static function current_filters(): array {
 		$out = array();
-		foreach ( array( 'fmc_s', 'fmc_scope', 'fmc_programme', 'fmc_topic', 'fmc_modality', 'fmc_process', 'fmc_situation', 'fmc_year', 'fmc_type', 'fmc_status', 'fmc_zone', 'fmc_available', 'fmc_resolution', 'fmc_month', 'fmc_speaker', 'fmc_from', 'fmc_to', 'fmc_catalogue', 'fmc_recommended', 'fmc_file', 'fmc_incident', 'fmc_given', 'fmc_sort', 'fmc_view' ) as $key ) {
+		foreach ( array( 'fmc_s', 'fmc_scope', 'fmc_programme', 'fmc_topic', 'fmc_modality', 'fmc_process', 'fmc_situation', 'fmc_year', 'fmc_type', 'fmc_status', 'fmc_zone', 'fmc_available', 'fmc_resolution', 'fmc_month', 'fmc_speaker', 'fmc_from', 'fmc_to', 'fmc_catalogue', 'fmc_recommended', 'fmc_file', 'fmc_incident', 'fmc_given', 'fmc_sort', 'fmc_dir', 'fmc_view' ) as $key ) {
 			if ( '' !== self::arg( $key ) ) {
 				$out[ $key ] = self::arg( $key );
 			}
@@ -2943,7 +3036,8 @@ final class Lists {
 		$out  = '<form class="card card-body mb-3 fmc-filters" method="get" action="' . esc_url( home_url( '/' ) ) . '">';
 		$out .= '<input type="hidden" name="' . esc_attr( Screen::ARG_TAB ) . '" value="' . esc_attr( $tab ) . '">';
 
-		foreach ( array( 'fmc_view', 'fmc_month', 'fmc_day' ) as $key ) {
+
+		foreach ( array_merge( array( 'fmc_view', 'fmc_month', 'fmc_day', 'fmc_dir' ), PostTypes::SPEAKER === $type ? array() : array( 'fmc_sort' ) ) as $key ) {
 			if ( '' !== self::arg( $key ) ) {
 				$out .= '<input type="hidden" name="' . esc_attr( $key ) . '" value="' . esc_attr( self::arg( $key ) ) . '">';
 			}
@@ -3105,9 +3199,9 @@ final class Lists {
 			return '<div class="card card-body text-secondary">No hay nada que mostrar con estos filtros.</div>';
 		}
 		$columns = self::columns( $type );
-		$out     = '<div class="card fmc-table"><div class="table-responsive"><table class="table table-hover align-middle mb-0"><thead><tr><th scope="col">' . esc_html( get_post_type_object( $type )->labels->singular_name ) . '</th>';
-		foreach ( array_keys( $columns ) as $h ) {
-			$out .= '<th scope="col">' . esc_html( $h ) . '</th>';
+		$out     = '<div class="card fmc-table"><div class="table-responsive"><table class="table table-hover align-middle mb-0"><thead><tr>';
+		foreach ( array_merge( array( get_post_type_object( $type )->labels->singular_name ), array_keys( $columns ) ) as $h ) {
+			$out .= self::th( $type, $h );
 		}
 		$out .= '<th scope="col" class="text-end"><span class="visually-hidden">Acciones</span></th></tr></thead><tbody>';
 		foreach ( $posts as $post ) {
@@ -3129,6 +3223,31 @@ final class Lists {
 			$out .= '<td class="text-end text-nowrap">' . self::row_buttons( $post ) . '</td></tr>';
 		}
 		return $out . '</tbody></table></div></div>';
+	}
+
+
+
+
+
+
+
+
+	private static function th( string $type, string $heading ): string {
+		$key = self::SORTABLE[ $type ][ $heading ] ?? '';
+		if ( '' === $key ) {
+			return '<th scope="col">' . esc_html( $heading ) . '</th>';
+		}
+		list( $current, $dir ) = self::sort_of( $type );
+		$active                = $key === $current;
+		$start                 = in_array( $key, self::DESCENDING, true ) ? 'desc' : 'asc';
+		$args                  = array(
+			Screen::ARG_TAB => Screen::tab_of( $type ),
+			'fmc_sort'      => $key,
+
+			'fmc_dir'       => $active ? ( 'asc' === $dir ? 'desc' : 'asc' ) : $start,
+		);
+		$icon                  = $active ? ( 'asc' === $dir ? 'bi-sort-up' : 'bi-sort-down' ) : 'bi-arrow-down-up';
+		return '<th scope="col"' . ( $active ? ' aria-sort="' . ( 'asc' === $dir ? 'ascending' : 'descending' ) . '"' : '' ) . '><a class="fmc-sort' . ( $active ? ' is-active' : '' ) . '" href="' . esc_url( Screen::url( array_merge( self::current_filters(), $args ) ) ) . '">' . esc_html( $heading ) . ' <i class="bi ' . $icon . '" aria-hidden="true"></i></a></th>';
 	}
 
 
@@ -3571,7 +3690,7 @@ final class Calendar {
 		$args['posts_per_page'] = 500; 
 		$args['orderby']        = 'title';
 		$args['order']          = 'ASC';
-		unset( $args['fmc_order_start'] );
+		unset( $args['fmc_order_meta'] );
 
 		$args['meta_query']   = array_values(
 			array_filter(
@@ -4205,7 +4324,7 @@ final class Editor {
 		return array(
 			'tab'      => $tab,
 			'back'     => '<a class="small" href="' . esc_url( Screen::url( array( Screen::ARG_TAB => $tab ) ) ) . '">← ' . esc_html( $object->labels->name ) . '</a>',
-			'title'    => $post ? Lists::title( $post ) : 'Nuevo: ' . mb_strtolower( $object->labels->singular_name ),
+			'title'    => $post ? Lists::title( $post ) : $object->labels->new_item,
 
 			'subtitle' => $post && PostTypes::ACTION === $type ? (string) get_post_meta( $post->ID, A::SUBTITLE, true ) : '',
 			'badges'   => $badges,
@@ -5175,7 +5294,11 @@ final class Screen {
 
 	public static function framed(): bool {
 
-		return isset( $_REQUEST[ self::ARG_FRAME ] ) && '1' === $_REQUEST[ self::ARG_FRAME ];
+
+
+		$mode = isset( $_SERVER['HTTP_SEC_FETCH_MODE'] ) ? sanitize_key( wp_unslash( $_SERVER['HTTP_SEC_FETCH_MODE'] ) ) : '';
+
+		return 'navigate' !== $mode && isset( $_REQUEST[ self::ARG_FRAME ] ) && '1' === $_REQUEST[ self::ARG_FRAME ];
 	}
 
 
@@ -5737,6 +5860,13 @@ a.fmc-counter:hover, .fmc-counter.is-active { border-color: var(--fmc-brand); bo
 	.fmc-cal-num { align-self: flex-start; }
 }
 
+/* Cabeceras que ordenan: la flecha, tenue hasta que se ordena por ellas */
+.fmc-sort { color: inherit; text-decoration: none; white-space: nowrap; }
+.fmc-sort:hover { color: var(--fmc-brand); }
+.fmc-sort .bi { opacity: .35; }
+.fmc-sort.is-active { color: var(--fmc-brand); }
+.fmc-sort.is-active .bi { opacity: 1; }
+
 /* Los botones de icono de cada fila: cuadrados y del mismo tamaño */
 .fmc-icon { display: inline-flex; align-items: center; justify-content: center; width: 2rem; height: 2rem; padding: 0; border-radius: .5rem; }
 .fmc-table .fmc-col-title { min-width: 16rem; }
@@ -6139,7 +6269,10 @@ body.has-panel { overflow: hidden; }
 		if ( event.metaKey || event.ctrlKey || event.shiftKey || event.button || ! event.target.closest ) {
 			return;
 		}
-		const link = event.target.closest( \'a.fmc-abre-panel\' );
+		// Dentro del panel, los enlaces del aplicativo llevan `fmc_marco=1`
+		// (`Screen::url()`): siguen en el panel aunque no lleven la clase, porque
+		// si el navegador los siguiera pintaría el fragmento suelto, sin estilos.
+		const link = event.target.closest( \'a.fmc-abre-panel, .fmc-panel a[href*="fmc_marco=1"]\' );
 		if ( ! link ) {
 			return;
 		}
