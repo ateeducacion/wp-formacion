@@ -35,6 +35,12 @@ final class DesignMetaKeys {
 	public const SESSIONS_FILE = 'fmc_sessions_file';
 	public const SUPPORT_FILE  = 'fmc_support_file';
 	public const IN_CATALOGUE  = 'fmc_in_catalogue';
+	public const REPLACES      = 'fmc_replaces';
+
+	/**
+	 * Prefix of the first code when there is none yet.
+	 */
+	public const CODE_PREFIX = 'A';
 
 	/**
 	 * Training types. «Histórico» is not a type: it follows from the dates.
@@ -83,6 +89,7 @@ final class DesignMetaKeys {
 			self::SESSIONS_FILE => MetaTypes::URL,
 			self::SUPPORT_FILE  => MetaTypes::URL,
 			self::IN_CATALOGUE  => MetaTypes::BOOL,
+			self::REPLACES      => MetaTypes::IDS,
 		);
 	}
 }

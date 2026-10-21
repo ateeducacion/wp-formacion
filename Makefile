@@ -62,7 +62,7 @@ up: check-docker start-if-not-running ## Arranca el entorno de desarrollo y lo p
 	@echo "  Incidencias:      http://localhost:8858/wp-admin/edit.php?post_type=fmc_incident"
 	@echo "  Entorno de tests: http://localhost:8859"
 	@echo "  Credenciales:     admin / password"
-	@echo "  Demo:             curaduria | asesoria | asesoria2 | servicio  (password)"
+	@echo "  Demo:             validacion | asesoria | asesoria2 | servicio  (password)"
 
 down: ## Para el entorno de desarrollo
 	$(WP_ENV) stop
@@ -95,7 +95,7 @@ provision: ## Provisiona: idioma, bundle, snippets, roles, vocabulario y datos d
 	@$(WP_ENV) run cli wp $(WP_URL) eval-file $(FMC_DEV)/scripts/provision-roles.php
 	@echo "Creando el vocabulario de las cuatro taxonomías..."
 	@$(WP_ENV) run cli wp $(WP_URL) eval-file $(FMC_DEV)/scripts/setup-vocabulary.php
-	@echo "Usuarios y contenido de prueba (curaduria, asesoria, asesoria2, servicio)..."
+	@echo "Usuarios y contenido de prueba (validacion, asesoria, asesoria2, servicio)..."
 	@$(WP_ENV) run cli wp $(WP_URL) eval-file $(FMC_DEV)/scripts/seed-demo.php
 
 seed-demo: start-if-not-running ## Rehace los datos de demostración: usuarios, diseños y acciones

@@ -9,6 +9,7 @@ use Fmc\Meta\ActionMetaKeys as A;
 use Fmc\Meta\MetaRegistration;
 use Fmc\PostType\PostTypes;
 use Fmc\PublicFront\Calendar;
+use Fmc\PublicFront\Lists;
 
 /**
  * Cada acción cae en su día de inicio, con el color de su situación.
@@ -69,6 +70,16 @@ class Test_Calendar extends WP_UnitTestCase {
 	}
 
 	/**
+	 * The period bar of a calendar screen: arrows, today, title and count.
+	 *
+	 * @param array<string, string> $screen Calendar screen.
+	 * @return string
+	 */
+	private function period( array $screen ): string {
+		return (string) strstr( (string) strstr( $screen['body'], '<div class="fmc-period">' ), '<div class="fmc-legend', true );
+	}
+
+	/**
 	 * The titles of the cards shown on a day of the calendar body.
 	 *
 	 * @param string $body Calendar body.
@@ -113,9 +124,11 @@ class Test_Calendar extends WP_UnitTestCase {
 
 		$screen = Calendar::screen();
 
-		$this->assertSame( 'calendar', $screen['tab'] );
-		$this->assertSame( 'Calendario de marzo de 2026', $screen['title'] );
-		$this->assertSame( '3 acción(es) empiezan este mes.', $screen['subtitle'] );
+		$this->assertSame( 'actions', $screen['tab'] );
+		$this->assertMatchesRegularExpression( '/fmc_tab=actions[^"]*fmc_csv=1[^"]*fmc_from=2026-03-01[^"]*fmc_to=2026-03-31">Exportar CSV</', $screen['actions'], 'el CSV, de lo que empieza ese mes' );
+		$this->assertSame( 'Acciones formativas', $screen['title'] );
+		$this->assertStringContainsString( '<h2 class="fmc-period-title">Marzo de 2026</h2>', $screen['body'] );
+		$this->assertStringContainsString( '3 acción(es) empiezan este mes.', $this->period( $screen ) );
 		$this->assertSame( array( 'Ajedrez', 'Robótica' ), $this->cards_on( $screen['body'], 10 ) );
 		$this->assertSame( array( 'Teatro' ), $this->cards_on( $screen['body'], 31 ) );
 		$this->assertStringNotContainsString( 'De febrero', $screen['body'] );
@@ -154,14 +167,15 @@ class Test_Calendar extends WP_UnitTestCase {
 			'fmc_year'      => '2025-2026',
 		);
 
-		$actions = Calendar::screen()['actions'];
+		$screen = Calendar::screen();
+		$nav    = $this->period( $screen );
 
-		$this->assertMatchesRegularExpression( '/href="[^"]*fmc_situation=done[^"]*fmc_month=2025-12">‹<\/a>/', $actions );
-		$this->assertMatchesRegularExpression( '/href="[^"]*fmc_month=2026-02">›<\/a>/', $actions );
-		$this->assertMatchesRegularExpression( '/href="[^"]*fmc_month=' . gmdate( 'Y-m' ) . '">Hoy<\/a>/', $actions );
+		$this->assertMatchesRegularExpression( '/href="[^"]*fmc_situation=done[^"]*fmc_month=2025-12" title="Periodo anterior">‹<\/a>/', $nav );
+		$this->assertMatchesRegularExpression( '/href="[^"]*fmc_month=2026-02" title="Periodo siguiente">›<\/a>/', $nav );
+		$this->assertMatchesRegularExpression( '/href="[^"]*fmc_month=' . substr( Calendar::today(), 0, 7 ) . '">Hoy<\/a>/', $nav );
 		// El curso escolar no viaja con las flechas: el mes ya dice cuándo.
-		$this->assertStringNotContainsString( 'fmc_year', $actions );
-		$this->assertStringContainsString( '+ Añadir acción', $actions );
+		$this->assertStringNotContainsString( 'fmc_year', $nav );
+		$this->assertStringContainsString( '+ Añadir acción formativa', $screen['actions'] );
 	}
 
 	/**
@@ -327,5 +341,74 @@ class Test_Calendar extends WP_UnitTestCase {
 		$this->assertStringNotContainsString( '<img', $card );
 		$this->assertStringContainsString( 'title="&lt;img src=x onerror=alert(1)&gt;"', $card );
 		$this->assertStringContainsString( '<span class="fmc-ev-title">&lt;img src=x onerror=alert(1)&gt;</span>', $card );
+	}
+
+
+	/**
+	 * La semana: de lunes a domingo, lo que empieza cada día y lo que sigue en curso.
+	 */
+	public function test_the_week_view_shows_its_days_and_what_is_running() {
+		$this->as_role( 'fmc_curator' );
+		$this->action( 'Empieza el martes', '2026-10-20' );
+		$this->action( 'Empezó antes', '2026-10-05', array( A::END => '2026-11-30' ) );
+		$this->action( 'Ya acabó', '2026-10-01', array( A::END => '2026-10-10' ) );
+		$this->action( 'La semana siguiente', '2026-10-27' );
+
+		$_GET['fmc_view'] = 'week';
+		$_GET['fmc_day']  = '2026-10-21';
+		$screen           = Calendar::screen();
+
+		$this->assertStringContainsString( '>Semana del 19 de octubre de 2026</h2>', $screen['body'] );
+		$this->assertStringContainsString( '1 acción(es) empiezan; 1 siguen en curso.', $this->period( $screen ) );
+		$this->assertSame( 7, substr_count( $screen['body'], '<section class="fmc-days-col' ) );
+		$this->assertStringContainsString( 'Empieza el martes', $screen['body'] );
+		$this->assertStringContainsString( 'Empezó antes', $screen['body'] );
+		$this->assertStringNotContainsString( 'Ya acabó', $screen['body'] );
+		$this->assertStringNotContainsString( 'La semana siguiente', $screen['body'] );
+		$this->assertMatchesRegularExpression( '/fmc_view=week[^"]*fmc_day=2026-10-14" title="Periodo anterior">‹</', $this->period( $screen ) );
+		$this->assertMatchesRegularExpression( '/fmc_view=week[^"]*fmc_day=2026-10-28" title="Periodo siguiente">›</', $this->period( $screen ) );
+		$this->assertMatchesRegularExpression( '/<a class="fmc-view" href="[^"]*fmc_month=2026-10[^"]*">Mes</', $screen['actions'], 'al mes de esa semana' );
+	}
+
+	/**
+	 * El día, y la lista, que es el listado de acciones.
+	 */
+	public function test_the_day_and_list_views() {
+		$this->as_role( 'fmc_curator' );
+		$this->action( 'Hoy', '2026-10-21' );
+		$this->action( 'Mañana', '2026-10-22' );
+
+		$_GET['fmc_view'] = 'day';
+		$_GET['fmc_day']  = '2026-10-21';
+		$screen           = Calendar::screen();
+		$this->assertStringContainsString( '>Miércoles 21 de octubre de 2026</h2>', $screen['body'] );
+		$calendar = $screen;
+		$this->assertStringContainsString( '>Hoy</span>', $screen['body'] );
+		$this->assertStringNotContainsString( 'Mañana', $screen['body'] );
+
+		$this->assertMatchesRegularExpression( '/fmc_csv=1[^"]*fmc_from=2026-10-21[^"]*fmc_to=2026-10-21">Exportar CSV</', $screen['actions'] );
+
+		$_GET   = array(
+			'fmc_view'  => 'list',
+			'fmc_month' => '2026-10',
+		);
+		$screen = Lists::screen( 'actions', PostTypes::ACTION );
+		$this->assertStringContainsString( '<table', $screen['body'] );
+		$this->assertStringContainsString( '>Mañana</a>', $screen['body'] );
+		$this->assertMatchesRegularExpression( '/<a class="fmc-view" href="[^"]*fmc_view=list[^"]*" aria-current="true">Lista</', $screen['actions'], 'la vista activa, marcada' );
+		$this->assertMatchesRegularExpression( '/<a class="fmc-view" href="[^"]*fmc_month=2026-10[^"]*">Mes</', $screen['actions'], 'vuelve al mismo mes' );
+		// La misma cabecera en el calendario y en la lista: al cambiar de vista no se mueve nada.
+		$this->assertSame( $calendar['title'], $screen['title'] );
+		$this->assertSame( $calendar['subtitle'], $screen['subtitle'] );
+		$this->assertSame( preg_replace( '/<nav.*<\/nav>| href="[^"]*"/U', '', $calendar['actions'] ), preg_replace( '/<nav.*<\/nav>| href="[^"]*"/U', '', $screen['actions'] ) );
+		$this->assertMatchesRegularExpression( '/fmc_view=list[^"]*fmc_csv=1">Exportar CSV</', $screen['actions'] );
+		$this->assertStringContainsString( '<input type="hidden" name="fmc_view" value="list">', $screen['body'], 'filtrar no cambia de vista' );
+
+		// Cambiar de vista no pierde la fecha: de otro mes, a su primera semana.
+		$_GET = array( 'fmc_month' => '2025-03' );
+		$this->assertMatchesRegularExpression( '/fmc_view=week[^"]*fmc_day=2025-03-01">Semana</', Calendar::views_html( 'month' ) );
+
+		$_GET = array( 'fmc_view' => 'inventada' );
+		$this->assertSame( 'month', Calendar::view() );
 	}
 }

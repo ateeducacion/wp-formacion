@@ -244,7 +244,7 @@ class Test_Documents extends WP_UnitTestCase {
 	}
 
 	/**
-	 * El servicio de formación no sube nada; la curaduría, en cualquier diseño.
+	 * El servicio de formación no sube nada; la validación, en cualquier diseño.
 	 */
 	public function test_who_manages_documents() {
 		$id = $this->adviser_design();

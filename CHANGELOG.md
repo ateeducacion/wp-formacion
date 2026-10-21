@@ -8,6 +8,50 @@ lee de la cabecera superior y la escribe en el `@version` del bundle.
 `make release` crea el tag y la release en GitHub; el despliegue de los snippets
 en el sitio de destino se hace después.
 
+## [Sin publicar]
+
+Lo que sale de la primera revisión del aplicativo, el 2026-10-21: el porqué está en el §9 de [REQ-0001](docs/requisitos/REQ-0001-aplicativo-de-formacion.md) y en las ADR de la 0009 a la 0012.
+
+### Añadido
+
+- **Ponentes por lo que han impartido** ([ADR-0012](docs/adr/ADR-0012-un-diseno-puede-sustituir-a-otro-y-los-ponentes-se-buscan-por-lo-impartido.md)): filtro «Ha impartido» por palabra clave sobre los títulos y subtítulos de sus acciones, combinable con el prefijo del expediente y las fechas de inicio. Cada ponente dice cuántas acciones y cuántas horas ha impartido, y el listado se ordena por acciones, horas o zona.
+- **Un diseño puede sustituir a otros** ([ADR-0012](docs/adr/ADR-0012-un-diseno-puede-sustituir-a-otro-y-los-ponentes-se-buscan-por-lo-impartido.md)): los ponentes recomendados para el diseño sustituido cuentan como recomendados para el nuevo, y el viejo sigue consultable como histórico.
+- **Baja motivada de ponentes** ([ADR-0011](docs/adr/ADR-0011-los-ponentes-son-un-directorio-compartido-con-baja-motivada.md)): asesoría y validación mandan a la papelera cualquier ponente diciendo por qué, y queda quién, cuándo y el motivo. La validación y la administración ven la papelera, con el motivo, desde el listado.
+- **Aviso de protección de datos** en la ficha del ponente. El texto legal lo pone quien despliega con el filtro `fmc_privacy_notice`.
+- **Calendario por semana y por día**, además de por mes. Calendario y listado de acciones pasan a ser una sola pestaña, «Acciones formativas», que se abre en el calendario; el listado de siempre es su vista «Lista». La cabecera es la misma en todas las vistas, para que nada se mueva al cambiar, y el periodo —flechas, «Hoy», título y recuento— va debajo de los filtros. Cambiar de vista conserva la fecha. Todas las vistas exportan a CSV; desde el calendario, lo que empieza en el periodo que se ve. Los enlaces viejos a la pestaña del calendario siguen llevando a él.
+- **Listado de acciones: «Expediente empieza por»**, y la búsqueda de texto también encuentra por número de expediente. Con las fechas de inicio y el CSV, da lo que hoy se filtra a mano en una hoja de cálculo.
+- **Incidencias pendientes a la vista**: la acción que tiene una se marca en el listado y en el calendario, y hay un filtro para verlas.
+- **Catálogo público** ([ADR-0013](docs/adr/ADR-0013-el-catalogo-publico-es-una-pantalla-del-aplicativo.md)): `?fmc_catalogo=1` lista, sin sesión, los diseños finalizados que están en el catálogo, con búsqueda por título o código y filtros de tipo, modalidad y temática; `?fmc_curso=ID` es la ficha de un curso, con su descripción, destinatarios, objetivos, contenidos y perfil de competencia digital. La página que el tema daba a cada diseño lleva ahora a esa ficha, y un diseño fuera del catálogo ya no se ve por su dirección. Enlaces: «Ver el catálogo público» en el listado de diseños y «Ver en el catálogo» en la ficha.
+- **Las tablas se ordenan por sus cabeceras**, en el servidor y en los dos sentidos: acciones por título o fechas, diseños por título o código, ponentes por nombre, isla o lo impartido, e incidencias por fecha. Lo que no tiene el dato va al final; filtrar, paginar, los contadores y el CSV respetan el orden.
+- **El perfil de competencia digital se elige en elidd sin salir de la ficha** ([ADR-0014](docs/adr/ADR-0014-el-perfil-de-competencia-digital-se-elige-en-elidd-incrustada.md)): «Elegir los indicadores en elidd» la abre incrustada en un diálogo, con lo ya elegido, y su «Guardar» escribe la selección en el campo. La ficha y el catálogo pintan la tabla que da elidd al generar: por áreas y con sus colores, el nivel más alto de cada competencia, y todos al pasar el ratón. El filtro `fmc_digcomp_tool` apunta a otra copia de elidd; sin él, la pública. Necesita la versión de elidd con el modo incrustado.
+- **La barra de administración de WordPress** sale en el aplicativo para la administración, y para quien ha cambiado a otro usuario con WPFront User Role Editor, para que pueda volver. Nunca dentro del panel lateral.
+
+### Cambiado
+
+- **El título de la acción es el de su diseño** ([ADR-0009](docs/adr/ADR-0009-la-accion-lleva-el-titulo-de-su-diseno.md)): se pone al crearla y al cambiarle el diseño, y no se edita. Las acciones que ya tienen otro título lo conservan. El subtítulo se ve debajo del título en el listado, en el calendario y en la cabecera de la ficha, nunca en su lugar.
+- **El código del diseño lo pone el aplicativo**: el siguiente al más alto, con el mismo prefijo. Nadie lo edita.
+- **Toda asesoría consulta cualquier ponente** ([ADR-0011](docs/adr/ADR-0011-los-ponentes-son-un-directorio-compartido-con-baja-motivada.md)), documento de identidad incluido, de solo lectura. Cada una sigue editando solo los que dio de alta.
+- **«Recomendado para» solo ofrece diseños del catálogo** ([ADR-0012](docs/adr/ADR-0012-un-diseno-puede-sustituir-a-otro-y-los-ponentes-se-buscan-por-lo-impartido.md)), en la ficha del ponente y en el filtro del listado, con el código delante del título para buscar por él. Las recomendaciones ya guardadas se conservan. Los filtros con buscador ocupan media fila y el elegido se ve en una línea.
+- **El panel lateral se abre por encima de la barra de WordPress**, y los avisos, por encima del panel.
+- **Los enlaces del aplicativo dentro del panel se quedan en el panel** («Abrir una incidencia», «Sobre la acción», cada incidencia de la ficha). Antes, los que no llevaban la clase del panel llevaban a la ficha suelta, sin estilos; y si esa dirección se abre como página —otra pestaña, un marcador—, ahora se pinta entera.
+- **El título de una ficha nueva concuerda**: «Nueva incidencia», «Nueva acción formativa», «Nuevo diseño de curso», «Nuevo ponente».
+- **Los botones de cada fila son iconos** —lápiz para editar, ojo para ver, aviso para abrir una incidencia y papelera para borrar—, con su nombre al pasar el ratón y para los lectores de pantalla. Los iconos son Bootstrap Icons 1.11.3, desde jsDelivr con SRI, como el resto de librerías.
+- **En la lista de acciones, el expediente va debajo del título**: una columna menos, y «Ámbito y centro» tiene más sitio.
+- **Ponentes sin tarjetas de recuento**: no tienen estados que contar. Encima de la tabla sale cuántos encuentran los filtros y, para la validación, el enlace a la papelera y de vuelta.
+- **La asesoría abre cualquier acción publicada** desde el calendario o el listado, de solo lectura; sigue editando solo las suyas.
+- **Al elegir ponentes en una acción**, cada nombre lleva su isla y cuántas acciones ha impartido, y una «★» y el primer puesto si se le recomienda para el diseño de la acción.
+- El aspecto del aplicativo —cabecera, pestañas, menú de usuario, pie y paleta— se iguala al de los aplicativos hermanos. `fmc_chrome` admite una pieza más, `brand`, para el logotipo y el nombre de la organización delante del del aplicativo.
+
+### Eliminado
+
+- **«Cifras y cierre» de la acción** ([ADR-0010](docs/adr/ADR-0010-las-cifras-de-cierre-salen-de-la-ficha-de-la-accion.md)): matriculados, asistentes y certificados, documentación del expediente, entrega al servicio y proceso completado salen de la ficha, del resumen y del CSV. Se llevan en el sistema de gestión del servicio de formación; lo que ya esté guardado se conserva.
+- **Exportar ponentes a CSV** ([ADR-0011](docs/adr/ADR-0011-los-ponentes-son-un-directorio-compartido-con-baja-motivada.md)): el botón desaparece y el servidor rechaza la exportación aunque se pida a mano.
+- **«Áreas de competencia digital»** sale del formulario del diseño: se trabaja con el perfil de competencia. Los datos se conservan.
+
+### Pendiente antes de desplegar
+
+- Un snippet del despliegue que conteste al filtro `fmc_privacy_notice` con el texto legal del tratamiento de datos. Sin él, la ficha del ponente enseña un texto genérico.
+
 ## [0.0.3] — 2026-10-07
 
 ### Corregido
@@ -39,15 +83,15 @@ Primera versión publicada: la que se lleva al sitio de destino.
 - **Esqueleto del aplicativo de formación**, sobre la misma plataforma que el aplicativo de eventos ([ADR-0002](docs/adr/ADR-0002-se-hereda-la-plataforma-del-aplicativo-de-eventos.md)): entorno wp-env y Playground, empaquetado en un snippet, sincronización con Code Snippets, CI, comprobación de publicación y skills de agentes.
 - **Cuatro tipos de contenido**: diseño de curso, acción formativa, ponente e incidencia, cada uno con sus capacidades.
 - **Cuatro taxonomías**, una por dimensión: programa, temática, área de competencia digital y ámbito ([ADR-0003](docs/adr/ADR-0003-una-dimension-un-sitio.md)).
-- **El ciclo del diseño con los estados de WordPress**: la asesoría escribe y manda a revisión; solo la curaduría lo da por finalizado, y finalizado ya no lo edita la asesoría ([ADR-0004](docs/adr/ADR-0004-el-ciclo-del-diseno-son-los-estados-de-wordpress.md)).
+- **El ciclo del diseño con los estados de WordPress**: la asesoría escribe y manda a revisión; solo la validación lo da por finalizado, y finalizado ya no lo edita la asesoría ([ADR-0004](docs/adr/ADR-0004-el-ciclo-del-diseno-son-los-estados-de-wordpress.md)).
 - **Permisos por campo en el servidor**: el número de expediente y la resolución de una incidencia solo los guarda el servicio de formación, aunque otro los mande ([ADR-0006](docs/adr/ADR-0006-los-permisos-se-deciden-en-el-servidor-campo-a-campo.md)).
-- **Tres roles**: curaduría, asesoría y servicio de formación.
+- **Tres roles**: validación, asesoría y servicio de formación.
 - **Requisitos, decisiones y plan de implantación y migración** en `docs/`.
 - **El aplicativo en la portada del sitio**: tras iniciar sesión se abre directamente, con la cabecera y las pestañas del aplicativo de eventos.
 - **Calendario mensual** de acciones: el color es la situación, el punto dice quién la paga, y las cintas marcan el desdoble y los datos incompletos. Con los filtros de ámbito, curso escolar, programa, modalidad, proceso y situación.
 - **Listados** de acciones, diseños, ponentes e incidencias, con contadores que filtran, filtros y paginación.
 - **Fichas de edición** por secciones para los cuatro tipos. Lo que no le toca a cada perfil sale deshabilitado y, además, no se guarda aunque se mande.
-- **El ciclo del diseño en la ficha**: la asesoría guarda el borrador o lo manda a revisión; solo la curaduría lo da por finalizado o lo devuelve a borrador.
+- **El ciclo del diseño en la ficha**: la asesoría guarda el borrador o lo manda a revisión; solo la validación lo da por finalizado o lo devuelve a borrador.
 - **Incidencias desde su acción**: nacen colgadas de ella y pendientes.
 - **Panel lateral para editar y añadir**, como en eventos: «Editar», el título de cada fila, «+ Añadir» y las acciones del calendario abren la ficha en un panel de Bootstrap que se desliza desde la derecha. Se guarda sin salir de él; al cerrarlo, la vista de debajo se recarga si se guardó algo.
 - **Listas de varios con buscador** (Tom Select): ponentes, programas, áreas de competencia y diseños recomendados se ven como etiquetas con su «×» y se añaden escribiendo. Las listas largas de una sola opción —diseño, asesoría, ámbito— también llevan buscador.

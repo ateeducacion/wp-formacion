@@ -5,8 +5,10 @@
  * @package Fmc
  */
 
+use Fmc\Meta\SpeakerMetaKeys;
 use Fmc\PostType\PostTypes;
 use Fmc\PublicFront\Assets;
+use Fmc\PublicFront\Catalogue;
 use Fmc\PublicFront\Screen;
 
 /**
@@ -173,17 +175,37 @@ class Test_Screen extends WP_UnitTestCase {
 	}
 
 	/**
-	 * Con sesión y sin pestaña, se abre la primera que le toca: el calendario a la curaduría.
+	 * Con sesión y sin pestaña, se abre la primera que le toca: el calendario a la validación.
 	 */
 	public function test_without_a_tab_the_first_allowed_tab_opens() {
 		$this->as_role( 'fmc_curator' );
 		$this->visit();
 
-		$this->assertStringStartsWith( 'document:Calendario de ', $this->route() );
+		$this->assertSame( 'document:Acciones formativas', $this->route() );
 	}
 
 	/**
-	 * Cada pestaña abre su listado.
+	 * El catálogo se ve sin sesión, con su propia cabecera: sin pestañas ni
+	 * cuenta, y con la puerta de entrada.
+	 */
+	public function test_the_catalogue_is_public() {
+		$this->visit( array( Catalogue::ARG_LIST => '1' ) );
+		$this->assertSame( 'document:Catálogo de formación', $this->route() );
+		$this->visit( array( Catalogue::ARG_SHEET => '999999' ) );
+		$this->assertSame( 'document:Este curso no está en el catálogo', $this->route() );
+
+		$_GET = array( Catalogue::ARG_LIST => '1' );
+		$html = Screen::document( Catalogue::screen() );
+		$this->assertStringContainsString( '>Entrar</a>', $html );
+		$this->assertStringNotContainsString( '<nav class="fmc-nav"', $html );
+		$this->assertStringNotContainsString( '<details class="fmc-yo"', $html );
+
+		$this->as_role( 'fmc_adviser' );
+		$this->assertStringContainsString( '>Ir al aplicativo</a>', Screen::document( Catalogue::screen() ) );
+	}
+
+	/**
+	 * Cada pestaña abre su listado; el de acciones es su vista «Lista».
 	 */
 	public function test_each_tab_opens_its_own_list() {
 		$this->as_role( 'fmc_curator' );
@@ -194,7 +216,12 @@ class Test_Screen extends WP_UnitTestCase {
 			'incidents' => 'Incidencias',
 		);
 		foreach ( $expected as $tab => $title ) {
-			$this->visit( array( Screen::ARG_TAB => $tab ) );
+			$this->visit(
+				array(
+					Screen::ARG_TAB => $tab,
+					'fmc_view'      => 'list',
+				)
+			);
 			$this->assertSame( 'document:' . $title, $this->route(), $tab );
 		}
 	}
@@ -205,7 +232,11 @@ class Test_Screen extends WP_UnitTestCase {
 	public function test_an_unknown_or_forbidden_tab_falls_back_to_the_first_allowed() {
 		$this->as_role( 'fmc_curator' );
 		$this->visit( array( Screen::ARG_TAB => 'no-existe' ) );
-		$this->assertStringStartsWith( 'document:Calendario de ', $this->route() );
+		$this->assertSame( 'document:Acciones formativas', $this->route() );
+		// La pestaña del calendario ya no existe: sus enlaces llevan a las acciones,
+		// que se abren en él.
+		$this->visit( array( Screen::ARG_TAB => 'calendar' ) );
+		$this->assertSame( 'document:Acciones formativas', $this->route() );
 
 		// Sin acciones ni ponentes, la única pestaña es la del catálogo.
 		$this->as_role( 'subscriber' );
@@ -229,7 +260,7 @@ class Test_Screen extends WP_UnitTestCase {
 		$this->assertSame( 'document:Robótica en el aula', $this->route() );
 
 		$this->visit( array( Screen::ARG_NEW => PostTypes::DESIGN ) );
-		$this->assertSame( 'document:Nuevo: diseño de curso', $this->route() );
+		$this->assertSame( 'document:Nuevo diseño de curso', $this->route() );
 
 		$this->visit( array( Screen::ARG_EDIT => $design + 1000 ) );
 		$this->assertSame( 'document:No disponible', $this->route() );
@@ -254,7 +285,7 @@ class Test_Screen extends WP_UnitTestCase {
 				'fmc_csv'       => '1',
 			)
 		);
-		$this->assertStringStartsWith( 'document:Calendario de ', $this->route() );
+		$this->assertSame( 'document:Acciones formativas', $this->route() );
 	}
 
 	/**
@@ -288,7 +319,7 @@ class Test_Screen extends WP_UnitTestCase {
 	}
 
 	/**
-	 * La curaduría puede borrar por capacidad, pero borrar es solo de la administración.
+	 * La validación puede borrar por capacidad, pero borrar es solo de la administración.
 	 */
 	public function test_only_administration_may_delete() {
 		$this->as_role( 'fmc_curator' );
@@ -354,7 +385,10 @@ class Test_Screen extends WP_UnitTestCase {
 		$this->assertSame( 1, wp_verify_nonce( $m[1], 'fmc_delete_' . $design ) );
 		$this->assertStringContainsString( 'name="fmc_delete" value="' . $design . '"', $html );
 		$this->assertStringContainsString( 'method="post"', $html );
-		$this->assertStringContainsString( 'btn-outline-danger btn-sm', $html );
+		$this->assertStringContainsString( 'btn-outline-danger btn-sm" type="submit">Borrar</button>', $html );
+		$icon = Screen::delete_form( get_post( $design ), 'btn-sm', true );
+		$this->assertStringContainsString( 'title="Borrar" aria-label="Borrar «Uso &#8220;seguro&#8221; &lt;de&gt; redes»"><i class="bi bi-trash3" aria-hidden="true"></i></button>', $icon );
+		$this->assertStringNotContainsString( '<de>', $icon );
 		$this->assertStringNotContainsString( '<de>', $html );
 		$this->assertStringContainsString( '&lt;de&gt;', $html );
 	}
@@ -364,11 +398,11 @@ class Test_Screen extends WP_UnitTestCase {
 	 */
 	public function test_tabs_depend_on_the_role() {
 		$expected = array(
-			'administrator'        => array( 'calendar', 'actions', 'designs', 'speakers', 'incidents' ),
-			'fmc_curator'          => array( 'calendar', 'actions', 'designs', 'speakers', 'incidents' ),
-			'fmc_adviser'          => array( 'calendar', 'actions', 'designs', 'speakers', 'incidents' ),
+			'administrator'        => array( 'actions', 'designs', 'speakers', 'incidents' ),
+			'fmc_curator'          => array( 'actions', 'designs', 'speakers', 'incidents' ),
+			'fmc_adviser'          => array( 'actions', 'designs', 'speakers', 'incidents' ),
 			// El servicio lee acciones e incidencias, pero los ponentes no son cosa suya.
-			'fmc_training_service' => array( 'calendar', 'actions', 'designs', 'incidents' ),
+			'fmc_training_service' => array( 'actions', 'designs', 'incidents' ),
 			'subscriber'           => array( 'designs' ),
 		);
 		foreach ( $expected as $role => $tabs ) {
@@ -406,6 +440,13 @@ class Test_Screen extends WP_UnitTestCase {
 		$this->assertSame( '1', $this->query_of( Screen::url( array( Screen::ARG_TAB => 'designs' ) ) )[ Screen::ARG_FRAME ] ?? '' );
 		$this->assertArrayNotHasKey( Screen::ARG_FRAME, $this->query_of( Screen::url( array( Screen::ARG_FRAME => '' ) ) ) );
 
+		// Abierta como página —otra pestaña, un marcador—, la dirección del panel se pinta entera.
+		$_SERVER['HTTP_SEC_FETCH_MODE'] = 'navigate';
+		$this->assertFalse( Screen::framed() );
+		$_SERVER['HTTP_SEC_FETCH_MODE'] = 'cors';
+		$this->assertTrue( Screen::framed() );
+		unset( $_SERVER['HTTP_SEC_FETCH_MODE'] );
+
 		$_REQUEST[ Screen::ARG_FRAME ] = 'true';
 		$this->assertFalse( Screen::framed() );
 	}
@@ -426,7 +467,7 @@ class Test_Screen extends WP_UnitTestCase {
 		$label = static fn( string $role ) => Screen::role_label( get_userdata( self::factory()->user->create( array( 'role' => $role ) ) ) );
 
 		$this->assertSame( 'Administración', $label( 'administrator' ) );
-		$this->assertSame( 'Curaduría de formación', $label( 'fmc_curator' ) );
+		$this->assertSame( 'Validación de formación', $label( 'fmc_curator' ) );
 		$this->assertSame( 'Servicio de formación', $label( 'fmc_training_service' ) );
 		$this->assertSame( '', $label( 'subscriber' ) );
 	}
@@ -441,7 +482,7 @@ class Test_Screen extends WP_UnitTestCase {
 		$this->assertStringStartsWith( '<!doctype html><html lang="es">', $html );
 		$this->assertStringEndsWith( '</body></html>', $html );
 
-		$this->assertSame( 4, preg_match_all( '/<(?:script|link)\b[^>]*cdn\.jsdelivr\.net[^>]*>/', $html, $tags ) );
+		$this->assertSame( 5, preg_match_all( '/<(?:script|link)\b[^>]*cdn\.jsdelivr\.net[^>]*>/', $html, $tags ) );
 		foreach ( $tags[0] as $tag ) {
 			$this->assertMatchesRegularExpression( '/ integrity="sha384-[A-Za-z0-9+\/]{64}"/', $tag );
 			$this->assertStringContainsString( ' crossorigin="anonymous"', $tag );
@@ -452,7 +493,7 @@ class Test_Screen extends WP_UnitTestCase {
 		$package  = json_decode( (string) file_get_contents( dirname( __DIR__, 2 ) . '/package.json' ), true );
 		$versions = ( $package['dependencies'] ?? array() ) + ( $package['devDependencies'] ?? array() );
 		preg_match_all( '~cdn\.jsdelivr\.net/npm/([^@/]+)@([^/]+)/~', $html, $libraries, PREG_SET_ORDER );
-		$this->assertSame( array( 'bootstrap', 'tom-select', 'sweetalert2' ), array_values( array_unique( array_column( $libraries, 1 ) ) ) );
+		$this->assertSame( array( 'bootstrap', 'bootstrap-icons', 'tom-select', 'sweetalert2' ), array_values( array_unique( array_column( $libraries, 1 ) ) ) );
 		foreach ( $libraries as list( , $library, $version ) ) {
 			$this->assertSame( $version, $versions[ $library ] ?? null, $library . ' no tiene en package.json la versión del CDN' );
 		}
@@ -484,6 +525,7 @@ class Test_Screen extends WP_UnitTestCase {
 		$this->assertSame(
 			array(
 				'head'   => '',
+				'brand'  => '',
 				'footer' => 'Pie',
 			),
 			Screen::deployment_chrome()
@@ -521,7 +563,7 @@ class Test_Screen extends WP_UnitTestCase {
 		$this->assertStringContainsString( esc_url( wp_logout_url( home_url( '/' ) ) ), $html );
 		$this->assertStringNotContainsString( '>Escritorio</a>', $html, 'el escritorio es solo de la administración' );
 
-		$this->assertSame( 4, substr_count( $html, 'class="nav-item"' ) );
+		$this->assertSame( 3, substr_count( $html, 'class="nav-item"' ) );
 		$this->assertStringNotContainsString( '>Ponentes</a>', $html );
 		$this->assertSame( 1, substr_count( $html, 'aria-current="page"' ) );
 		$this->assertStringContainsString( 'nav-link active" aria-current="page" href="' . esc_url( Screen::url( array( Screen::ARG_TAB => 'actions' ) ) ) . '">Acciones formativas</a>', $html );
@@ -554,10 +596,10 @@ class Test_Screen extends WP_UnitTestCase {
 
 		$this->assertStringNotContainsString( '<script>alert(1)</script>', $html );
 		$this->assertStringContainsString( '<title>&lt;script&gt;alert(1)&lt;/script&gt; · Formación</title>', $html );
-		$this->assertStringContainsString( '<p class="text-secondary mb-0">A &amp; &lt;b&gt;B&lt;/b&gt;</p>', $html );
+		$this->assertStringContainsString( '<p class="fmc-sub">A &amp; &lt;b&gt;B&lt;/b&gt;</p>', $html );
 		$this->assertStringContainsString( '<main class="container py-4"><p id="cuerpo">Cuerpo</p></main>', $html );
 
-		$this->assertStringNotContainsString( 'text-secondary mb-0', Screen::document( $this->screen() ), 'sin subtítulo no hay párrafo' );
+		$this->assertStringNotContainsString( '<p class="fmc-sub">', Screen::document( $this->screen() ), 'sin subtítulo no hay párrafo' );
 	}
 
 	/**
@@ -613,5 +655,57 @@ class Test_Screen extends WP_UnitTestCase {
 		$this->assertStringContainsString( '<li>&lt;b&gt;guion.exe&lt;/b&gt;: tipo no permitido</li>', $html );
 		$this->assertFalse( get_transient( 'fmc_problems_' . $user ) );
 		$this->assertStringNotContainsString( 'alert-warning', Screen::fragment( $this->screen() ) );
+	}
+
+
+	/**
+	 * La barra de WordPress: la administración sí, el resto no, y nunca en el panel.
+	 */
+	public function test_the_admin_bar_is_for_administration() {
+		$this->as_role( 'fmc_curator' );
+		$this->assertFalse( Screen::show_admin_bar( true ) );
+
+		$this->as_role( 'administrator' );
+		$this->assertTrue( Screen::show_admin_bar( false ) );
+		$this->assertSame( 100, has_filter( 'show_admin_bar', array( Screen::class, 'show_admin_bar' ) ) );
+
+		$_REQUEST[ Screen::ARG_FRAME ] = '1';
+		$this->assertFalse( Screen::show_admin_bar( true ) );
+	}
+
+	/**
+	 * Un ponente se da de baja con motivo, y queda quién, cuándo y por qué (ADR-0011).
+	 */
+	public function test_a_speaker_leaves_only_with_a_reason() {
+		$adviser = $this->as_role( 'fmc_adviser' );
+		$speaker = self::factory()->post->create( array( 'post_type' => PostTypes::SPEAKER ) );
+		$this->visit();
+		$_POST['fmc_delete']    = (string) $speaker;
+		$_POST['fmc_reason']    = '   ';
+		$_REQUEST['_fmc_nonce'] = wp_create_nonce( 'fmc_delete_' . $speaker );
+
+		$this->assertSame( 'reason', $this->redirect_query()[ Screen::ARG_NOTICE ] ?? '' );
+		$this->assertSame( 'publish', get_post_status( $speaker ) );
+
+		$_POST['fmc_reason'] = 'Pidió que se borrasen sus datos';
+		$this->assertSame( 'trashed', $this->redirect_query()[ Screen::ARG_NOTICE ] ?? '' );
+		$this->assertSame( 'trash', get_post_status( $speaker ) );
+		$this->assertSame( 'Pidió que se borrasen sus datos', get_post_meta( $speaker, SpeakerMetaKeys::TRASH_REASON, true ) );
+		$this->assertSame( $adviser, (int) get_post_meta( $speaker, SpeakerMetaKeys::TRASHED_BY, true ) );
+		$this->assertNotSame( '', get_post_meta( $speaker, SpeakerMetaKeys::TRASHED_AT, true ) );
+	}
+
+	/**
+	 * Pedir el CSV de ponentes no descarga nada: se pinta el listado.
+	 */
+	public function test_the_speakers_csv_is_refused() {
+		$this->as_role( 'fmc_curator' );
+		$this->visit(
+			array(
+				Screen::ARG_TAB => 'speakers',
+				'fmc_csv'       => '1',
+			)
+		);
+		$this->assertSame( 'document:Ponentes', $this->route() );
 	}
 }

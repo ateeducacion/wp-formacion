@@ -9,6 +9,7 @@ namespace Fmc;
 
 use Fmc\Meta\MetaRegistration;
 use Fmc\PostType\PostTypes;
+use Fmc\PublicFront\Catalogue;
 use Fmc\PublicFront\Lists;
 use Fmc\PublicFront\Screen;
 use Fmc\Taxonomy\Taxonomies;
@@ -44,5 +45,6 @@ final class App {
 		// La portada del sitio es el aplicativo: sin sesión, al acceso.
 		Lists::register();
 		Screen::register();
+		Catalogue::register();
 	}
 }

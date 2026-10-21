@@ -15,7 +15,7 @@ namespace Fmc\PostType;
  * del diseño sale de las capacidades nativas (ADR-0004): la asesoría crea y
  * manda a revisión, pero no tiene `publish_fmc_designs` ni
  * `edit_published_fmc_designs`, así que ni lo da por finalizado ni lo toca
- * después. Eso lo hace la curaduría.
+ * después. Eso lo hace la validación.
  */
 final class PostTypes {
 
@@ -38,13 +38,14 @@ final class PostTypes {
 	/**
 	 * Labels and arguments that differ between the four types.
 	 *
-	 * @return array<string, array{singular:string, plural:string, public:bool, icon:string}>
+	 * @return array<string, array{singular:string, plural:string, new:string, public:bool, icon:string}>
 	 */
 	public static function definitions(): array {
 		return array(
 			self::DESIGN   => array(
 				'singular' => 'Diseño de curso',
 				'plural'   => 'Diseños de curso',
+				'new'      => 'Nuevo diseño de curso',
 				// El catálogo es público: los diseños finalizados se enseñan.
 				'public'   => true,
 				'icon'     => 'dashicons-welcome-learn-more',
@@ -52,12 +53,14 @@ final class PostTypes {
 			self::ACTION   => array(
 				'singular' => 'Acción formativa',
 				'plural'   => 'Acciones formativas',
+				'new'      => 'Nueva acción formativa',
 				'public'   => false,
 				'icon'     => 'dashicons-calendar-alt',
 			),
 			self::SPEAKER  => array(
 				'singular' => 'Ponente',
 				'plural'   => 'Ponentes',
+				'new'      => 'Nuevo ponente',
 				// Datos personales: ni públicos ni en REST.
 				'public'   => false,
 				'icon'     => 'dashicons-groups',
@@ -65,6 +68,7 @@ final class PostTypes {
 			self::INCIDENT => array(
 				'singular' => 'Incidencia',
 				'plural'   => 'Incidencias',
+				'new'      => 'Nueva incidencia',
 				'public'   => false,
 				'icon'     => 'dashicons-flag',
 			),
@@ -84,6 +88,7 @@ final class PostTypes {
 					'labels'          => array(
 						'name'          => $def['plural'],
 						'singular_name' => $def['singular'],
+						'new_item'      => $def['new'],
 						'menu_name'     => $def['plural'],
 					),
 					'public'          => $def['public'],
@@ -118,7 +123,9 @@ final class PostTypes {
 				// Borrador y revisión, nada más: sin publicar ni editar publicados.
 				self::DESIGN   => array( 'edit', 'delete' ),
 				self::ACTION   => $own,
-				self::SPEAKER  => $own,
+				// Los ponentes son un directorio compartido: edita los suyos, pero
+				// cualquier ficha se puede dar de baja con motivo (ADR-0011).
+				self::SPEAKER  => array_merge( $own, array( 'delete_others', 'delete_published' ) ),
 				self::INCIDENT => array( 'edit', 'publish' ),
 			),
 			// El servicio de formación no edita nada por la vía general: lee y

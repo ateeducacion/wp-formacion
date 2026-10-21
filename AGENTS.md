@@ -53,7 +53,7 @@ sus números de formulario, de campo y de vista— está en `.local/`.
 |---|---|
 | Un formulario de diseño de curso cuyas entradas son el catálogo | CPT `fmc_design`, público; la descripción en `post_content` |
 | Una casilla «Opciones» que mezcla *está en el catálogo*, *diseño finalizado* y *pertenece a tal programa* | El estado es el `post_status` (ADR-0004); el catálogo, una meta; el programa, un término de `fmc_programme` (ADR-0003) |
-| «Diseño finalizado» lo marca quien sea que vea la casilla | Solo la curaduría publica: la asesoría no tiene `publish_fmc_designs` ni `edit_published_fmc_designs` |
+| «Diseño finalizado» lo marca quien sea que vea la casilla | Solo la validación publica: la asesoría no tiene `publish_fmc_designs` ni `edit_published_fmc_designs` |
 | Un formulario de acción formativa enorme, con campos «obsoletos» dentro | CPT `fmc_action` que apunta a su diseño (`fmc_design_id`) y guarda solo lo suyo; los totales se suman, no se teclean |
 | Tres listas de «asumida por» que repiten los mismos programas | Quién paga es `fmc_funded_by` (lista cerrada); de qué programa, un término |
 | Campos que solo rellena el servicio de formación, escondidos a los demás por la vista | Permiso por campo en el servidor: `auth_callback` de la meta (ADR-0006) |
@@ -106,21 +106,29 @@ src/Fmc/
 ├── Meta/IncidentMetaKeys.php     Claves de la incidencia y sus resoluciones
 ├── Meta/MetaRegistration.php     register_post_meta con tipo, lista cerrada y permiso por campo
 ├── Domain/SchoolYear.php         El curso escolar de una fecha. Puro
+├── Domain/DigComp.php            El perfil de competencia digital de elidd (su dirección), sus áreas y competencias. Puro
 ├── PostType/PostTypes.php        Los cuatro CPT y qué capacidades tiene cada rol en cada uno
 ├── Taxonomy/Taxonomies.php       Programa, temática, competencia digital y ámbito
 └── PublicFront/                  El aplicativo, en la portada del sitio
     ├── Screen.php                Enrutado (?fmc_tab, ?fmc_edit, ?fmc_new), cabecera y pestañas
     ├── Lists.php                 Contadores, filtros y tabla paginada de cada tipo
-    ├── Calendar.php              Calendario mensual con colores por situación y financiación
+    ├── Calendar.php              Las acciones por mes, semana o día, con colores por situación y financiación; su vista «Lista» es Lists
     ├── Fields.php                Las fichas de edición escritas como datos: secciones y campos
     ├── Editor.php                Ficha de edición y guardado campo a campo (`apply()`), con las reglas de Fields::rules()
     ├── Documents.php             Documentos del diseño: adjuntos colgados de él, por clase y formato
+    ├── Speakers.php              Lo que ha impartido cada ponente y la cadena de diseños que se sustituyen
+    ├── Catalogue.php             El catálogo público, sin sesión: lista y ficha de los cursos (ADR-0013)
     └── Assets.php                El CSS de assets/, inlineado en el bundle
 ```
 
-**La portada del sitio es el aplicativo**: sin sesión manda al acceso; con
+**La portada del sitio es el aplicativo**: sin sesión manda al acceso, salvo
+el catálogo público (`?fmc_catalogo=1`, `?fmc_curso=ID`, ADR-0013), que es la
+única pantalla que se ve sin entrar y solo enseña lo que está en él; con
 sesión pinta su propio documento (Bootstrap 5, Tom Select y SweetAlert2 desde
-jsDelivr con SRI), no el del tema. Las fichas se abren en un **panel lateral**
+jsDelivr con SRI), no el del tema, con la piel de los aplicativos hermanos. La
+barra de WordPress sale solo para la administración y para quien la
+administración ha suplantado con WPFront —así se cambia de perfil y se vuelve—;
+como el documento no llama a `wp_head()`, `Screen::admin_bar()` la pinta a mano. Las fichas se abren en un **panel lateral**
 (offcanvas): `assets/js/fmc-app.js` pide la pantalla con `fmc_marco=1`, que
 `Screen::document()` devuelve como fragmento sin cabecera, y la pinta y la
 guarda dentro del panel. Sin JavaScript, los mismos enlaces abren la ficha en

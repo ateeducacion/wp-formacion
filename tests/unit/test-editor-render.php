@@ -9,6 +9,7 @@ use Fmc\Meta\ActionMetaKeys as A;
 use Fmc\Meta\DesignMetaKeys as D;
 use Fmc\Meta\IncidentMetaKeys as I;
 use Fmc\Meta\MetaRegistration;
+use Fmc\Meta\SpeakerMetaKeys;
 use Fmc\PostType\PostTypes;
 use Fmc\PublicFront\Documents;
 use Fmc\PublicFront\Editor;
@@ -158,6 +159,8 @@ class Test_Editor_Render extends WP_UnitTestCase {
 		$this->assertFalse( Editor::can_view( get_post( self::factory()->post->create() ) ) );
 
 		$this->as_role( 'fmc_adviser' );
+		$this->assertTrue( Editor::can_view( get_post( $this->post( PostTypes::ACTION, $adviser ) ) ), 'la acción del calendario, aunque sea de otra' );
+		$this->assertFalse( Editor::can_view( get_post( $this->post( PostTypes::ACTION, $adviser, 'draft' ) ) ), 'su borrador, no' );
 		$this->assertTrue( Editor::can_view( get_post( $this->post( PostTypes::DESIGN, $adviser ) ) ), 'un diseño finalizado lo lee cualquiera' );
 		$this->assertFalse( Editor::can_view( get_post( $this->post( PostTypes::DESIGN, $adviser, 'draft' ) ) ), 'el borrador de otra, no' );
 		$this->assertFalse( Editor::can_view( $incident ) );
@@ -172,7 +175,7 @@ class Test_Editor_Render extends WP_UnitTestCase {
 		$screen = Editor::screen( 0, PostTypes::DESIGN );
 
 		$this->assertSame( 'designs', $screen['tab'] );
-		$this->assertSame( 'Nuevo: ' . mb_strtolower( get_post_type_object( PostTypes::DESIGN )->labels->singular_name ), $screen['title'] );
+		$this->assertSame( 'Nuevo diseño de curso', $screen['title'] );
 		$this->assertSame(
 			array(
 				'Guardar borrador'  => 'draft',
@@ -189,7 +192,7 @@ class Test_Editor_Render extends WP_UnitTestCase {
 	}
 
 	/**
-	 * La curaduría finaliza; y en uno finalizado, guarda o lo devuelve a borrador.
+	 * La validación finaliza; y en uno finalizado, guarda o lo devuelve a borrador.
 	 */
 	public function test_design_buttons_for_a_curator() {
 		$adviser = self::factory()->user->create( array( 'role' => 'fmc_adviser' ) );
@@ -217,8 +220,11 @@ class Test_Editor_Render extends WP_UnitTestCase {
 		$this->assertStringContainsString( 'Finalizado', $screen['badges'] );
 		$this->assertStringContainsString( 'Crear una acción con este diseño', $screen['actions'] );
 		$this->assertStringContainsString( 'fmc_design=' . $done, $screen['actions'] );
-		$this->assertStringContainsString( 'Ver la ficha pública', $screen['actions'] );
-		$this->assertStringNotContainsString( 'fmc_delete', $screen['actions'], 'la curaduría no borra' );
+		// Finalizado pero fuera del catálogo: no tiene ficha pública que ver.
+		$this->assertStringNotContainsString( 'Ver en el catálogo', $screen['actions'] );
+		update_post_meta( $done, D::IN_CATALOGUE, '1' );
+		$this->assertStringContainsString( 'fmc_curso=' . $done . '" target="_blank" rel="noopener">Ver en el catálogo</a>', $this->screen_of( $done )['actions'] );
+		$this->assertStringNotContainsString( 'fmc_delete', $screen['actions'], 'la validación no borra' );
 
 		$this->as_role( 'administrator' );
 		$this->assertStringContainsString( 'name="_fmc_nonce"', $this->screen_of( $done )['actions'], 'la administración, sí' );
@@ -264,14 +270,15 @@ class Test_Editor_Render extends WP_UnitTestCase {
 		$body = $this->screen_of( $action )['body'];
 		$this->assertFalse( $this->disabled( $body, A::FILE_NUMBER ) );
 		$this->assertTrue( $this->disabled( $body, A::PLACES ) );
-		$this->assertTrue( $this->disabled( $body, 'post_title' ) );
+		$this->assertTrue( $this->disabled( $body, A::SUBTITLE ) );
 		$this->assertStringNotContainsString( 'Lo rellena el servicio de formación.', $body );
 		$this->assertStringNotContainsString( '¿No está en la lista?', $body );
 		$this->assertSame( array( 'Guardar' => '' ), $this->buttons( $body ), 'tiene algo que guardar' );
 	}
 
 	/**
-	 * La acción enseña sus totales calculados y su curso escolar.
+	 * La acción enseña sus horas calculadas y su curso escolar; las cifras de
+	 * matrícula ya no (ADR-0010).
 	 */
 	public function test_an_action_shows_its_computed_totals() {
 		$adviser = $this->as_role( 'fmc_adviser' );
@@ -283,7 +290,6 @@ class Test_Editor_Render extends WP_UnitTestCase {
 				A::HOURS_ONLINE   => 3,
 				A::REPLICAS       => 2,
 				A::ENROLLED_WOMEN => 12,
-				A::ENROLLED_MEN   => 10,
 				A::SITUATION      => 'done',
 			) as $key => $value
 		) {
@@ -298,8 +304,8 @@ class Test_Editor_Render extends WP_UnitTestCase {
 
 		$this->assertSame( '2026-2027', $counters['Curso escolar'] );
 		$this->assertSame( '12 h (24 h con el desdoble)', $counters['Horas totales'] );
-		$this->assertSame( '22', $counters['Matriculados'] );
-		$this->assertSame( '0', $counters['Asistentes'] );
+		$this->assertArrayNotHasKey( 'Matriculados', $counters );
+		$this->assertStringNotContainsString( A::ENROLLED_WOMEN, $screen['body'] );
 		$this->assertStringContainsString( 'Realizada', $screen['badges'] );
 
 		delete_post_meta( $action, A::HOURS_ONSITE );
@@ -543,5 +549,87 @@ class Test_Editor_Render extends WP_UnitTestCase {
 		$this->assertSame( array( $topic ), Editor::value( $post, 'tax:fmc_topic' ) );
 		$this->assertSame( 'A1', Editor::value( $post, D::CODE ) );
 		$this->assertSame( (string) $topic, $this->find( $this->screen_of( $design )['body'], '//select[@name="f[tax:fmc_topic]"]/option[@selected]' )->item( 0 )->getAttribute( 'value' ) );
+	}
+
+	/**
+	 * El diseño nuevo enseña el código que le tocará, y nadie lo escribe.
+	 */
+	public function test_a_new_design_shows_its_code_read_only() {
+		$this->as_role( 'fmc_curator' );
+		update_post_meta( $this->post( PostTypes::DESIGN, 0 ), D::CODE, 'A41' );
+
+		$body = Editor::screen( 0, PostTypes::DESIGN )['body'];
+		$this->assertTrue( $this->disabled( $body, D::CODE ) );
+		$this->assertSame( 'A42', $this->find( $body, '//input[@name="f[' . D::CODE . ']"]' )->item( 0 )->getAttribute( 'value' ) );
+		$this->assertStringNotContainsString( 'name="f[tax:fmc_competence]', $body, 'las áreas antiguas ya no se rellenan' );
+	}
+
+	/**
+	 * El perfil de competencia digital se ve dentro de la ficha como la tabla
+	 * que genera elidd, y se elige en elidd sin salir de ella.
+	 */
+	public function test_the_digital_competence_profile_is_summarised() {
+		$curator = $this->as_role( 'fmc_curator' );
+		$design  = $this->post( PostTypes::DESIGN, $curator );
+		update_post_meta( $design, D::DIGCOMP_URL, 'https://herramienta.example/?c=1.1.A1.1|1.1.A1.2|1.1.B1.1|3.1.B1.1' );
+
+		$body = $this->screen_of( $design )['body'];
+		$this->assertStringContainsString( 'Resumen del perfil', $body );
+		$this->assertStringContainsString( '<th scope="colgroup" colspan="5" class="fmc-area-1">1. Compromiso profesional</th>', $body );
+		$this->assertStringContainsString( '<th scope="col" class="fmc-area-1" title="Comunicación organizativa">1.1</th>', $body );
+		$this->assertSame( 23, substr_count( $body, '<td class="fmc-area-' ), 'una celda por competencia' );
+		// El nivel más alto; al pasar el ratón, todos, con sus indicadores.
+		$this->assertStringContainsString( '<td class="fmc-area-1" title="Comunicación organizativa: A1 (2), B1 (1) indicador(es)">B1</td>', $body );
+		$this->assertStringContainsString( '<td class="fmc-area-3" title="Enseñanza: B1 (1) indicador(es)">B1</td>', $body );
+		$this->assertStringContainsString( '<td class="fmc-area-2"></td>', $body );
+		$this->assertStringContainsString( '>Abrir en elidd</a>', $body );
+		$this->assertStringContainsString( 'data-fmc-tool="f-' . D::DIGCOMP_URL . '" data-fmc-tool-url="https://elidd.ernesto.es/">Elegir los indicadores en elidd</button>', $body );
+
+		// Quien despliega puede usar su propia copia de elidd.
+		$copy = static fn() => 'https://copia.example/elidd/';
+		add_filter( 'fmc_digcomp_tool', $copy );
+		$this->assertStringContainsString( 'data-fmc-tool-url="https://copia.example/elidd/"', $this->screen_of( $design )['body'] );
+		remove_filter( 'fmc_digcomp_tool', $copy );
+	}
+
+	/**
+	 * Al elegir ponentes: su isla, lo que han dado y una estrella si se les
+	 * recomienda para el diseño de la acción, y estos primero.
+	 */
+	public function test_the_speaker_choices_help_to_choose() {
+		$curator = $this->as_role( 'fmc_curator' );
+		$design  = $this->post( PostTypes::DESIGN, $curator );
+		$zoe     = $this->post( PostTypes::SPEAKER, $curator, 'publish', 'Zoe' );
+		$ana     = $this->post( PostTypes::SPEAKER, $curator, 'publish', 'Ana' );
+		update_post_meta( $zoe, SpeakerMetaKeys::RECOMMENDED, array( $design ) );
+		update_post_meta( $ana, SpeakerMetaKeys::ZONE, 'Norte' );
+		$action = $this->post( PostTypes::ACTION, $curator );
+		update_post_meta( $action, A::DESIGN_ID, $design );
+		update_post_meta( $action, A::SPEAKERS, array( $ana ) );
+
+		$options = array();
+		foreach ( $this->find( $this->screen_of( $action )['body'], '//select[@name="f[' . A::SPEAKERS . '][]"]/option' ) as $option ) {
+			$options[] = $option->textContent; // phpcs:ignore WordPress.NamingConventions.ValidVariableName.UsedPropertyNotSnakeCase -- DOM.
+		}
+		$this->assertSame( array( '★ Zoe', 'Ana · Norte · 1 acción(es)' ), $options );
+	}
+
+	/**
+	 * «Recomendado para» solo ofrece diseños del catálogo, pero no pierde lo ya elegido.
+	 */
+	public function test_recommended_designs_come_from_the_catalogue() {
+		$curator = $this->as_role( 'fmc_curator' );
+		$offered = $this->post( PostTypes::DESIGN, $curator, 'publish', 'En el catálogo' );
+		$old     = $this->post( PostTypes::DESIGN, $curator, 'publish', 'Histórico' );
+		$this->post( PostTypes::DESIGN, $curator, 'publish', 'Otro histórico' );
+		update_post_meta( $offered, D::IN_CATALOGUE, '1' );
+		$speaker = $this->post( PostTypes::SPEAKER, $curator );
+		update_post_meta( $speaker, SpeakerMetaKeys::RECOMMENDED, array( $old ) );
+
+		$options = array();
+		foreach ( $this->find( $this->screen_of( $speaker )['body'], '//select[@name="f[' . SpeakerMetaKeys::RECOMMENDED . '][]"]/option' ) as $option ) {
+			$options[] = $option->textContent; // phpcs:ignore WordPress.NamingConventions.ValidVariableName.UsedPropertyNotSnakeCase -- DOM.
+		}
+		$this->assertSame( array( 'En el catálogo', 'Histórico (fuera del catálogo)' ), $options );
 	}
 }

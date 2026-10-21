@@ -14,6 +14,9 @@
  * 6. Los `textarea[data-fmc-rich]` llevan el TinyMCE que trae WordPress,
  *    con lo justo: negrita, cursiva y listas. Sin él, se quedan como cuadro
  *    de texto y el HTML se guarda igual.
+ * 7. Los `button[data-fmc-tool]` abren elidd incrustada en un diálogo: su
+ *    «Guardar» devuelve los indicadores elegidos, que se escriben en el campo
+ *    del perfil como su dirección. Sin guion, la dirección se pega a mano.
  * 2. Los `form[data-fmc-confirm]` piden confirmación antes de enviarse, en
  *    tres escalones como en eventos: SweetAlert2 si ha cargado; si no, el
  *    `confirm()` del navegador; y sin JavaScript el formulario se envía tal
@@ -305,7 +308,10 @@
 		if ( event.metaKey || event.ctrlKey || event.shiftKey || event.button || ! event.target.closest ) {
 			return;
 		}
-		const link = event.target.closest( 'a.fmc-abre-panel' );
+		// Dentro del panel, los enlaces del aplicativo llevan `fmc_marco=1`
+		// (`Screen::url()`): siguen en el panel aunque no lleven la clase, porque
+		// si el navegador los siguiera pintaría el fragmento suelto, sin estilos.
+		const link = event.target.closest( 'a.fmc-abre-panel, .fmc-panel a[href*="fmc_marco=1"]' );
 		if ( ! link ) {
 			return;
 		}
@@ -331,6 +337,88 @@
 		load( panel, { url: form.action, method: 'POST', body: data, fallback: window.location.href } );
 	}
 
+	// Una selección de elidd: indicadores `1.1.A1.2` separados por `|`, o nada.
+	const SELECTION = /^(\d\.\d\.[ABC][12]\.\d+(\|\d\.\d\.[ABC][12]\.\d+)*)?$/;
+
+	function openTool( button ) {
+		const field = document.getElementById( button.dataset.fmcTool );
+		let tool;
+		try {
+			tool = new URL( button.dataset.fmcToolUrl );
+		} catch ( error ) {
+			return null;
+		}
+		if ( ! field || ! /^https?:$/.test( tool.protocol ) ) {
+			return null;
+		}
+		const base = tool.origin + tool.pathname;
+		const src = new URL( base );
+		src.searchParams.set( 'embed', '1' );
+		src.searchParams.set( 'origin', window.location.origin );
+		// Lo ya elegido viene en la dirección del campo, sea de esta copia o de otra.
+		let current = '';
+		try {
+			current = field.value ? new URL( field.value ).searchParams.get( 'c' ) || '' : '';
+		} catch ( error ) {
+			current = '';
+		}
+		if ( current ) {
+			src.searchParams.set( 'c', current );
+		}
+
+		const dialog = document.createElement( 'dialog' );
+		dialog.className = 'fmc-tool';
+		dialog.setAttribute( 'aria-label', 'Perfil de competencia digital' );
+		dialog.innerHTML = '<div class="fmc-tool-head"><strong>Perfil de competencia digital</strong><span class="small text-secondary">Marque los indicadores y pulse «Guardar».</span><button type="button" class="btn-close ms-auto" aria-label="Cerrar"></button></div><iframe title="elidd"></iframe>';
+		const frame = dialog.querySelector( 'iframe' );
+		frame.src = src.toString();
+
+		// Sin `<dialog>` nativo (navegadores viejos), se cierra a mano.
+		function close() {
+			if ( dialog.close ) {
+				dialog.close();
+			} else {
+				dialog.removeAttribute( 'open' );
+				dialog.dispatchEvent( new Event( 'close' ) );
+			}
+		}
+
+		// Solo se acepta lo que manda elidd desde este marco, y con su formato.
+		function onMessage( event ) {
+			const data = event.data || {};
+			if ( event.origin !== tool.origin || event.source !== frame.contentWindow || 'elidd:seleccion' !== data.type || 'string' !== typeof data.c || ! SELECTION.test( data.c ) ) {
+				return;
+			}
+			field.value = data.c ? base + '?c=' + data.c : '';
+			field.dispatchEvent( new Event( 'change', { bubbles: true } ) );
+			const note = field.parentNode.querySelector( '.fmc-tool-note' ) || document.createElement( 'div' );
+			note.className = 'form-text fmc-tool-note';
+			note.textContent = data.c ? 'Elegidos ' + data.c.split( '|' ).length + ' indicadores. Guarde la ficha para ver la tabla.' : 'Sin indicadores. Guarde la ficha para quitar el perfil.';
+			field.after( note );
+			close();
+		}
+		window.addEventListener( 'message', onMessage );
+		dialog.addEventListener( 'close', function () {
+			window.removeEventListener( 'message', onMessage );
+			dialog.remove();
+		} );
+		dialog.querySelector( '.btn-close' ).addEventListener( 'click', close );
+		document.body.append( dialog );
+		if ( dialog.showModal ) {
+			dialog.showModal();
+		} else {
+			dialog.setAttribute( 'open', '' );
+		}
+		return dialog;
+	}
+
+	function onToolClick( event ) {
+		const button = event.target.closest ? event.target.closest( 'button[data-fmc-tool]' ) : null;
+		if ( button && openTool( button ) ) {
+			event.preventDefault();
+		}
+	}
+
 	function onKey( event ) {
 		if ( 'Escape' === event.key ) {
 			closePanel();
@@ -340,6 +428,7 @@
 	document.addEventListener( 'submit', onSubmit );
 	document.addEventListener( 'submit', onPanelSubmit );
 	document.addEventListener( 'click', onClick );
+	document.addEventListener( 'click', onToolClick );
 	document.addEventListener( 'keydown', onKey );
 	document.addEventListener( 'change', onChange );
 	if ( 'loading' === document.readyState ) {
@@ -365,6 +454,8 @@
 		initRich: initRich,
 		removeRich: removeRich,
 		openPanel: openPanel,
+		openTool: openTool,
+		onToolClick: onToolClick,
 		closePanel: closePanel,
 		reload: reload,
 	};

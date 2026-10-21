@@ -222,7 +222,7 @@ castellano y, en el menú de la izquierda, **Diseños de curso**,
 **Acciones formativas**, **Ponentes** e **Incidencias**.
 
 Hay más cuentas para probar qué ve cada perfil, todas con la contraseña
-`password`: `curaduria`, `asesoria`, `asesoria2` y `servicio`.
+`password`: `validacion`, `asesoria`, `asesoria2` y `servicio`.
 Están explicadas en el [README](../README.md#usuarios-de-prueba).
 
 Este WordPress **es tuyo y es de mentira**. Puedes romperlo, borrarlo y

@@ -9,8 +9,10 @@ namespace Fmc\PublicFront;
 
 use Fmc\Meta\ActionMetaKeys as A;
 use Fmc\Meta\DesignMetaKeys as D;
+use Fmc\Domain\DigComp;
 use Fmc\Meta\IncidentMetaKeys as I;
 use Fmc\Meta\MetaRegistration;
+use Fmc\Meta\SpeakerMetaKeys as S;
 use Fmc\PostType\PostTypes;
 
 /**
@@ -39,7 +41,8 @@ final class Editor {
 	 * Whether the current user may open a post.
 	 *
 	 * Los ponentes son datos personales: abrirlos pide poder gestionarlos, no
-	 * basta con que estén publicados.
+	 * basta con que estén publicados. Quien los gestiona abre cualquiera, para
+	 * consultarlo, aunque solo edite los suyos (ADR-0011).
 	 *
 	 * @param \WP_Post $post Post.
 	 * @return bool
@@ -52,9 +55,12 @@ final class Editor {
 			case PostTypes::DESIGN:
 				return current_user_can( 'read_post', $post->ID );
 			case PostTypes::ACTION:
-				return 'publish' === $post->post_status && current_user_can( 'read_private_fmc_actions' );
+				// La que sale en el calendario se puede abrir para verla; se edita si es tuya.
+				return 'publish' === $post->post_status && ( current_user_can( 'read_private_fmc_actions' ) || current_user_can( 'edit_fmc_actions' ) );
 			case PostTypes::INCIDENT:
 				return current_user_can( 'read_private_fmc_incidents' ) || current_user_can( PostTypes::CAP_RESOLVE );
+			case PostTypes::SPEAKER:
+				return 'publish' === $post->post_status && current_user_can( 'edit_fmc_speakers' );
 		}
 		return false;
 	}
@@ -70,6 +76,9 @@ final class Editor {
 	public static function can_write( string $type, string $key, int $id ): bool {
 		if ( 'docs' === $key ) {
 			return $id ? Documents::can_manage( $id ) : current_user_can( 'upload_files' ) && current_user_can( get_post_type_object( $type )->cap->create_posts );
+		}
+		if ( ! empty( Fields::all( $type )[ $key ]['auto'] ) ) {
+			return false;
 		}
 		$post_field = 'post_title' === $key || 'post_content' === $key || 0 === strpos( $key, 'tax:' );
 		if ( 0 === $id ) {
@@ -171,7 +180,15 @@ final class Editor {
 			);
 		}
 
+		// El código del diseño nuevo: el que le tocará al guardar.
+		if ( ! $post && PostTypes::DESIGN === $type ) {
+			$values += array( D::CODE => self::next_code() );
+		}
+
 		$body = '';
+		if ( PostTypes::SPEAKER === $type ) {
+			$body .= self::privacy_notice();
+		}
 		if ( $errors ) {
 			$body .= '<div class="alert alert-danger" role="alert"><strong>No se ha guardado.</strong><ul class="mb-0">';
 			foreach ( $errors as $message ) {
@@ -205,6 +222,7 @@ final class Editor {
 				$writable = $writable || $can;
 				$value    = array_key_exists( $key, $values ) ? $values[ $key ] : self::value( $post, $key );
 				$shown    = self::shown( $field, static fn( $k ) => array_key_exists( $k, $values ) ? $values[ $k ] : self::value( $post, $k ) );
+				$field   += array( 'design' => (int) ( array_key_exists( A::DESIGN_ID, $values ) ? $values[ A::DESIGN_ID ] : self::value( $post, A::DESIGN_ID ) ) );
 				$body    .= 'docs' === $field['w'] ? self::docs( $post, $can ) : self::field( $type, $key, $field, $value, $can, isset( $errors[ $key ] ), $shown );
 			}
 			$body .= '</div></div></fieldset>';
@@ -220,16 +238,60 @@ final class Editor {
 		if ( PostTypes::ACTION === $type && $post ) {
 			$body .= self::incidents( $post );
 		}
+		if ( PostTypes::SPEAKER === $type && $post && Screen::can_delete( $post ) ) {
+			$body .= Screen::trash_form( $post );
+		}
 
 		$badges = $post ? Lists::badge( $post ) : '';
 		return array(
-			'tab'     => $tab,
-			'back'    => '<a class="small" href="' . esc_url( Screen::url( array( Screen::ARG_TAB => $tab ) ) ) . '">← ' . esc_html( $object->labels->name ) . '</a>',
-			'title'   => $post ? Lists::title( $post ) : 'Nuevo: ' . mb_strtolower( $object->labels->singular_name ),
-			'badges'  => $badges,
-			'actions' => self::header_actions( $type, $post ),
-			'body'    => $body,
+			'tab'      => $tab,
+			'back'     => '<a class="small" href="' . esc_url( Screen::url( array( Screen::ARG_TAB => $tab ) ) ) . '">← ' . esc_html( $object->labels->name ) . '</a>',
+			'title'    => $post ? Lists::title( $post ) : $object->labels->new_item,
+			// El subtítulo de la acción se añade al título, debajo (ADR-0009).
+			'subtitle' => $post && PostTypes::ACTION === $type ? (string) get_post_meta( $post->ID, A::SUBTITLE, true ) : '',
+			'badges'   => $badges,
+			'actions'  => self::header_actions( $type, $post ),
+			'body'     => $body,
 		);
+	}
+
+	/**
+	 * The data-protection notice above a speaker record.
+	 *
+	 * El texto legal es de quien despliega (ADR-0002): llega por el filtro
+	 * `fmc_privacy_notice`. El de serie dice lo que hay que saber sin nombrar a
+	 * nadie.
+	 *
+	 * @return string
+	 */
+	public static function privacy_notice(): string {
+		$text = (string) apply_filters(
+			'fmc_privacy_notice',
+			'<strong>Datos personales.</strong> Registre solo a quien imparte o va a impartir formación, y solo los datos que se piden aquí. Quien los registra se asegura de que la persona sabe que constan en este aplicativo para gestionar la formación. Si pide que se borren, dé de baja su ficha indicando el motivo.'
+		);
+		return '' !== $text ? '<div class="alert alert-info fmc-privacy" role="note">' . wp_kses_post( $text ) . '</div>' : '';
+	}
+
+	/**
+	 * The next design code: the highest number in use plus one, same prefix.
+	 *
+	 * @return string
+	 */
+	public static function next_code(): string {
+		// ponytail: dos altas en el mismo segundo podrían llevarse el mismo código;
+		// si llega a pasar, un índice único en la meta o un contador en una opción.
+		global $wpdb;
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery -- el mayor código en uso; no hay API para esto.
+		$codes  = $wpdb->get_col( $wpdb->prepare( "SELECT meta_value FROM {$wpdb->postmeta} WHERE meta_key = %s", D::CODE ) );
+		$prefix = D::CODE_PREFIX;
+		$max    = 0;
+		foreach ( $codes as $code ) {
+			if ( preg_match( '/^([A-Za-z]*)(\d+)$/', trim( (string) $code ), $m ) && (int) $m[2] > $max ) {
+				$max    = (int) $m[2];
+				$prefix = $m[1];
+			}
+		}
+		return $prefix . ( $max + 1 );
 	}
 
 	/**
@@ -255,9 +317,13 @@ final class Editor {
 					)
 				) . '">Crear una acción con este diseño</a> ';
 			}
-			$out .= '<a class="btn btn-outline-primary btn-sm" href="' . esc_url( get_permalink( $post ) ) . '" target="_blank" rel="noopener">Ver la ficha pública</a> ';
+			// Solo lo que está en el catálogo tiene ficha pública.
+			if ( Catalogue::is_listed( $post ) ) {
+				$out .= '<a class="btn btn-outline-primary btn-sm" href="' . esc_url( Catalogue::url( $post->ID ) ) . '" target="_blank" rel="noopener">Ver en el catálogo</a> ';
+			}
 		}
-		if ( Screen::can_delete( $post ) ) {
+		// El ponente se da de baja abajo, con su motivo.
+		if ( PostTypes::SPEAKER !== $type && Screen::can_delete( $post ) ) {
 			$out .= Screen::delete_form( $post, 'btn-sm' );
 		}
 		return $out;
@@ -358,8 +424,12 @@ final class Editor {
 				// etiqueta con su «×», y se añaden más escribiendo. El oculto vacío
 				// hace que quitarlos todos también se guarde.
 				$choices = self::choices( $f, $key );
-				$current = array_map( 'strval', (array) $value );
-				$input   = '<input type="hidden" name="' . esc_attr( $name ) . '[]" value=""' . $disabled . '><select class="form-select" multiple data-fmc-ts data-placeholder="Escriba para añadir…" id="' . esc_attr( $id ) . '" name="' . esc_attr( $name ) . '[]"' . $disabled . '>';
+				$current = array_map( 'strval', array_filter( (array) $value ) );
+				// Lo ya elegido se conserva aunque la lista ya no lo ofrezca (un diseño histórico).
+				foreach ( array_diff( $current, array_map( 'strval', array_keys( $choices ) ) ) as $kept ) {
+					$choices[ $kept ] = get_the_title( (int) $kept ) . ' (fuera del catálogo)';
+				}
+				$input = '<input type="hidden" name="' . esc_attr( $name ) . '[]" value=""' . $disabled . '><select class="form-select" multiple data-fmc-ts data-placeholder="Escriba para añadir…" id="' . esc_attr( $id ) . '" name="' . esc_attr( $name ) . '[]"' . $disabled . '>';
 				foreach ( $choices as $v => $text ) {
 					$input .= '<option value="' . esc_attr( (string) $v ) . '"' . ( in_array( (string) $v, $current, true ) ? ' selected' : '' ) . '>' . esc_html( $text ) . '</option>';
 				}
@@ -387,6 +457,9 @@ final class Editor {
 				);
 				$range = 'number' === $f['w'] ? ' step="any" min="' . (int) ( $f['min'] ?? 0 ) . '"' . ( isset( $f['max'] ) ? ' max="' . (int) $f['max'] . '"' : '' ) : '';
 				$input = '<input class="form-control' . $invalid . '" type="' . ( $types[ $f['w'] ] ?? 'text' ) . '"' . $range . ' id="' . esc_attr( $id ) . '" name="' . esc_attr( $name ) . '" value="' . esc_attr( is_array( $value ) ? '' : (string) $value ) . '"' . $disabled . '>';
+		}
+		if ( D::DIGCOMP_URL === $key ) {
+			$input .= self::digcomp_field( $id, $can, is_string( $value ) ? $value : '' );
 		}
 		$show = '';
 		foreach ( (array) ( $f['show'] ?? array() ) as $other => $wanted ) {
@@ -489,38 +562,150 @@ final class Editor {
 			return $out;
 		}
 		if ( 'adviser' === $f['w'] ) {
-			$out = array();
-			foreach ( get_users(
-				array(
-					'role__in' => array( 'fmc_adviser', 'fmc_curator' ),
-					'orderby'  => 'display_name',
-					'fields'   => array( 'ID', 'display_name' ),
-				)
-			) as $u ) {
-				$out[ (int) $u->ID ] = $u->display_name;
-			}
-			return $out;
+			return self::advisers();
 		}
-		$type = 'speakers' === $f['w'] ? PostTypes::SPEAKER : PostTypes::DESIGN;
-		$out  = array();
-		foreach ( get_posts(
-			array(
-				'post_type'        => $type,
-				'post_status'      => PostTypes::DESIGN === $type ? array( 'publish', 'pending', 'draft' ) : 'publish',
-				'posts_per_page'   => -1,
-				'orderby'          => 'title',
-				'order'            => 'ASC',
-				'fmc_visible'      => ! current_user_can( 'edit_others_' . $type . 's' ),
-				'suppress_filters' => false,
-				'no_found_rows'    => true,
-			)
-		) as $p ) {
-			$code          = PostTypes::DESIGN === $type ? (string) get_post_meta( $p->ID, D::CODE, true ) : '';
-			$kind          = PostTypes::DESIGN === $type ? ( D::TYPES[ (string) get_post_meta( $p->ID, D::TYPE, true ) ] ?? '' ) : '';
+		$type  = 'speakers' === $f['w'] ? PostTypes::SPEAKER : PostTypes::DESIGN;
+		$query = self::posts_query( $type, ! empty( $f['catalogue'] ) );
+		if ( PostTypes::SPEAKER === $type ) {
+			return self::speaker_choices( get_posts( $query ), (int) ( $f['design'] ?? 0 ) );
+		}
+		$out = array();
+		foreach ( get_posts( $query ) as $p ) {
+			$code          = (string) get_post_meta( $p->ID, D::CODE, true );
+			$kind          = D::TYPES[ (string) get_post_meta( $p->ID, D::TYPE, true ) ] ?? '';
 			$notes         = array_filter( array( $kind, 'publish' !== $p->post_status ? Lists::DESIGN_STATUSES[ $p->post_status ][0] ?? '' : '' ) );
 			$out[ $p->ID ] = ( '' !== $code ? $code . ' · ' : '' ) . get_the_title( $p ) . ( $notes ? ' (' . implode( ', ', $notes ) . ')' : '' );
 		}
 		return $out;
+	}
+
+	/**
+	 * The people who can be the adviser of an action.
+	 *
+	 * @return array<int, string>
+	 */
+	private static function advisers(): array {
+		$out = array();
+		foreach ( get_users(
+			array(
+				'role__in' => array( 'fmc_adviser', 'fmc_curator' ),
+				'orderby'  => 'display_name',
+				'fields'   => array( 'ID', 'display_name' ),
+			)
+		) as $u ) {
+			$out[ (int) $u->ID ] = $u->display_name;
+		}
+		return $out;
+	}
+
+	/**
+	 * The query of the posts a field chooses from.
+	 *
+	 * @param string $type      Post type.
+	 * @param bool   $catalogue Only designs in the public catalogue.
+	 * @return array<string, mixed>
+	 */
+	private static function posts_query( string $type, bool $catalogue ): array {
+		$query = array(
+			'post_type'        => $type,
+			'post_status'      => PostTypes::DESIGN === $type && ! $catalogue ? array( 'publish', 'pending', 'draft' ) : 'publish',
+			'posts_per_page'   => -1,
+			'orderby'          => 'title',
+			'order'            => 'ASC',
+			'fmc_visible'      => ! current_user_can( 'edit_others_' . $type . 's' ),
+			'suppress_filters' => false,
+			'no_found_rows'    => true,
+		);
+		if ( $catalogue ) {
+			// phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_query -- solo los diseños del catálogo.
+			$query['meta_query'] = array(
+				array(
+					'key'   => D::IN_CATALOGUE,
+					'value' => '1',
+				),
+			);
+		}
+		return $query;
+	}
+
+	/**
+	 * Speakers to choose from, with what helps to choose: island, actions
+	 * given, and a star when recommended for the action's design.
+	 *
+	 * @param \WP_Post[] $speakers Speakers.
+	 * @param int        $design   Design of the action, if any.
+	 * @return array<int, string>
+	 */
+	private static function speaker_choices( array $speakers, int $design ): array {
+		$stats       = Speakers::stats();
+		$recommended = array_flip( Speakers::recommended_for( $design ) );
+		$out         = array();
+		foreach ( $speakers as $p ) {
+			$given         = (int) ( $stats[ $p->ID ]['actions'] ?? 0 );
+			$details       = array_filter( array( (string) get_post_meta( $p->ID, S::ZONE, true ), $given ? sprintf( '%d acción(es)', $given ) : '' ) );
+			$out[ $p->ID ] = ( isset( $recommended[ $p->ID ] ) ? '★ ' : '' ) . get_the_title( $p ) . ( $details ? ' · ' . implode( ' · ', $details ) : '' );
+		}
+		// Los recomendados, primero.
+		uksort(
+			$out,
+			static function ( $a, $b ) use ( $out, $recommended ) {
+				$first = isset( $recommended[ $b ] ) <=> isset( $recommended[ $a ] );
+				return 0 !== $first ? $first : strcmp( $out[ $a ], $out[ $b ] );
+			}
+		);
+		return $out;
+	}
+
+	/**
+	 * Under the profile field: the button that opens elidd, and the summary.
+	 *
+	 * La herramienta elidd se abre incrustada en un diálogo (`assets/js/fmc-app.js`); su
+	 * «Guardar» devuelve la selección, que se escribe en el campo como la
+	 * dirección del perfil. Sin JavaScript, la dirección se pega a mano.
+	 *
+	 * @param string $id    Field id.
+	 * @param bool   $can   Whether the user may edit it.
+	 * @param string $value Profile URL.
+	 * @return string
+	 */
+	private static function digcomp_field( string $id, bool $can, string $value ): string {
+		$out = '';
+		if ( $can ) {
+			$tool = (string) apply_filters( 'fmc_digcomp_tool', DigComp::TOOL );
+			$out .= '<div class="mt-2"><button type="button" class="btn btn-outline-primary btn-sm" data-fmc-tool="' . esc_attr( $id ) . '" data-fmc-tool-url="' . esc_url( $tool ) . '">Elegir los indicadores en elidd</button></div>';
+		}
+		return $out . ( '' !== $value ? self::digcomp( $value ) : '' );
+	}
+
+	/**
+	 * The profile summary, as elidd shows it when it generates.
+	 *
+	 * @param string $url Profile URL.
+	 * @return string
+	 */
+	public static function digcomp( string $url ): string {
+		$summary = DigComp::summary( $url );
+		if ( array() === $summary ) {
+			return '<div class="form-text text-warning">La dirección no trae ninguna competencia que se pueda leer.</div>';
+		}
+		// La tabla que da elidd al generar: por áreas, el nivel más alto marcado
+		// en cada competencia. Al pasar el ratón, todos sus niveles.
+		$areas = '';
+		$codes = '';
+		$cells = '';
+		foreach ( DigComp::AREAS as $area => $name ) {
+			$competences = array_filter( DigComp::COMPETENCES, static fn( $code ) => (int) $code === $area, ARRAY_FILTER_USE_KEY );
+			$areas      .= '<th scope="colgroup" colspan="' . count( $competences ) . '" class="fmc-area-' . $area . '">' . esc_html( $area . '. ' . $name ) . '</th>';
+			foreach ( $competences as $code => $title ) {
+				$levels = $summary[ $code ] ?? array();
+				$detail = implode( ', ', array_map( static fn( $level, $n ) => $level . ' (' . $n . ')', array_keys( $levels ), $levels ) );
+				$codes .= '<th scope="col" class="fmc-area-' . $area . '" title="' . esc_attr( $title ) . '">' . esc_html( $code ) . '</th>';
+				$cells .= '<td class="fmc-area-' . $area . '"' . ( '' !== $detail ? ' title="' . esc_attr( $title . ': ' . $detail . ' indicador(es)' ) . '"' : '' ) . '>' . esc_html( (string) array_key_last( $levels ) ) . '</td>';
+			}
+		}
+		return '<div class="fmc-digcomp card card-body mt-2"><div class="d-flex align-items-center mb-2"><strong class="me-auto">Resumen del perfil</strong><a class="btn btn-sm btn-outline-primary" href="' . esc_url( $url ) . '" target="_blank" rel="noopener">Abrir en elidd</a></div>'
+			. '<div class="table-responsive"><table class="fmc-digcomp-table"><thead><tr>' . $areas . '</tr><tr>' . $codes . '</tr></thead><tbody><tr>' . $cells . '</tr></tbody></table></div>'
+			. '<div class="form-text">El nivel más alto marcado en cada competencia; al pasar el ratón, todos, con sus indicadores.</div></div>';
 	}
 
 	/**
@@ -533,14 +718,13 @@ final class Editor {
 		$m        = static fn( string $k ): float => (float) get_post_meta( $post->ID, $k, true );
 		$hours    = $m( A::HOURS_ONSITE ) + $m( A::HOURS_ONLINE );
 		$replicas = max( 1, (int) $m( A::REPLICAS ) );
-		$items    = array(
+		// Las cifras de matrícula y certificación las lleva el servicio de formación (ADR-0010).
+		$items = array(
 			'Curso escolar' => \Fmc\Domain\SchoolYear::of( (string) get_post_meta( $post->ID, A::START, true ) ),
 			'Horas totales' => $hours ? ( $hours + 0 ) . ' h' . ( $replicas > 1 ? ' (' . ( $hours * $replicas + 0 ) . ' h con el desdoble)' : '' ) : '',
-			'Matriculados'  => (string) ( $m( A::ENROLLED_MEN ) + $m( A::ENROLLED_WOMEN ) ),
-			'Asistentes'    => (string) ( $m( A::ATTENDED_MEN ) + $m( A::ATTENDED_WOMEN ) ),
-			'Certifican'    => (string) ( $m( A::CERTIFIED_MEN ) + $m( A::CERTIFIED_WOMEN ) ),
+			'Ponentes'      => (string) count( array_filter( (array) get_post_meta( $post->ID, A::SPEAKERS, true ) ) ),
 		);
-		$out      = '<div class="fmc-counters mb-4">';
+		$out   = '<div class="fmc-counters mb-4">';
 		foreach ( $items as $label => $value ) {
 			$out .= '<div class="fmc-counter"><strong>' . esc_html( '' !== $value ? $value : '—' ) . '</strong><span>' . esc_html( $label ) . '</span></div>';
 		}
@@ -747,8 +931,14 @@ final class Editor {
 		if ( isset( $writable['post_title'] ) ) {
 			$postarr['post_title'] = (string) $values['post_title'];
 		}
-		if ( PostTypes::ACTION === $type && '' === trim( (string) ( $values['post_title'] ?? ( $post->post_title ?? '' ) ) ) && ! empty( $values[ A::DESIGN_ID ] ) ) {
+		// La acción lleva el título de su diseño: al crearla y al cambiarle el
+		// diseño. Las antiguas con un título propio lo conservan (ADR-0009).
+		if ( PostTypes::ACTION === $type && ! empty( $values[ A::DESIGN_ID ] ) && ( ! $post || '' === trim( $post->post_title ) || (int) get_post_meta( $post->ID, A::DESIGN_ID, true ) !== (int) $values[ A::DESIGN_ID ] ) ) {
 			$postarr['post_title'] = get_the_title( (int) $values[ A::DESIGN_ID ] );
+		}
+		// El código del diseño lo pone el aplicativo, la primera vez que se guarda.
+		if ( PostTypes::DESIGN === $type && ( ! $post || '' === (string) get_post_meta( $post->ID, D::CODE, true ) ) ) {
+			$values[ D::CODE ] = self::next_code();
 		}
 		if ( PostTypes::SPEAKER === $type && isset( $values['fmc_last_name'] ) ) {
 			$postarr['post_title'] = trim( $values['fmc_last_name'] . ', ' . $values['fmc_first_name'], ', ' );

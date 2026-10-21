@@ -1,7 +1,7 @@
 <?php
 /**
  * Snippet Name: FMC — Roles
- * Description: Registra los tres roles del aplicativo de formación —curaduría, asesoría y servicio de formación— y la capacidad de administrarlo. Las capacidades de los tipos de contenido las reparte el aplicativo.
+ * Description: Registra los tres roles del aplicativo de formación —validación, asesoría y servicio de formación— y la capacidad de administrarlo. Las capacidades de los tipos de contenido las reparte el aplicativo.
  * Scope: global
  * Priority: 5
  *
@@ -26,7 +26,7 @@ if ( ! function_exists( 'fmc_role_definitions' ) ) {
 	function fmc_role_definitions(): array {
 		return array(
 			'fmc_curator'          => array(
-				'label' => 'Curaduría de formación',
+				'label' => 'Validación de formación',
 				'caps'  => array( 'read', 'upload_files' ),
 			),
 			'fmc_adviser'          => array(
@@ -72,7 +72,8 @@ if ( ! function_exists( 'fmc_register_roles' ) ) {
 	 *
 	 * Aditiva: crea el rol si falta y añade la capacidad si falta, nunca quita.
 	 * Lo que se conceda a mano en el editor de roles sigue ahí en la siguiente
-	 * carga.
+	 * carga. El rótulo sí es el del código: si cambia, el rol ya creado lo
+	 * coge, o un sitio desplegado seguiría con el nombre viejo.
 	 *
 	 * @return void
 	 */
@@ -82,6 +83,14 @@ if ( ! function_exists( 'fmc_register_roles' ) ) {
 			if ( ! $role ) {
 				add_role( $slug, $def['label'], array() );
 				$role = get_role( $slug );
+			}
+			$roles = wp_roles();
+			if ( isset( $roles->roles[ $slug ] ) && $def['label'] !== $roles->roles[ $slug ]['name'] ) {
+				$roles->roles[ $slug ]['name'] = $def['label'];
+				$roles->role_names[ $slug ]    = $def['label'];
+				if ( $roles->use_db ) {
+					update_option( $roles->role_key, $roles->roles );
+				}
 			}
 			foreach ( $role ? $def['caps'] : array() as $cap ) {
 				if ( ! $role->has_cap( $cap ) ) {

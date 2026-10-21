@@ -7,6 +7,7 @@
 
 namespace Fmc\PublicFront;
 
+use Fmc\Meta\SpeakerMetaKeys;
 use Fmc\PostType\PostTypes;
 
 /**
@@ -14,7 +15,7 @@ use Fmc\PostType\PostTypes;
  *
  * Sin sesión, al acceso. Con sesión, un documento propio —no el del tema—,
  * con la cabecera y las pestañas del aplicativo de eventos. Cada pantalla es
- * un parámetro de la portada (`?fmc_tab=calendar`, `?fmc_edit=123`): no hay
+ * un parámetro de la portada (`?fmc_tab=designs`, `?fmc_edit=123`): no hay
  * páginas que crear ni que se puedan borrar por error.
  */
 final class Screen {
@@ -36,6 +37,14 @@ final class Screen {
 	public const BOOTSTRAP = array(
 		'css'     => 'https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css',
 		'css_sri' => 'sha384-sRIl4kxILFvY47J16cr9ZwB07vP4J8+LH7qKQnuqkuIAvNWLzeN8tE5YBujZqJLB',
+	);
+
+	/**
+	 * Bootstrap Icons from jsDelivr, pinned with SRI, same version as `package.json`.
+	 */
+	public const BOOTSTRAP_ICONS = array(
+		'css'     => 'https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css',
+		'css_sri' => 'sha384-XGjxtQfXaH2tnPFa9x+ruJTuLE3Aa6LhHSWRr1XeTyhezb4abCG4ccI5AkVDxqC+',
 	);
 
 	/**
@@ -66,6 +75,41 @@ final class Screen {
 	public static function register(): void {
 		add_action( 'template_redirect', array( self::class, 'route' ), 1 );
 		add_filter( 'login_redirect', array( self::class, 'login_redirect' ), 10, 2 );
+		add_filter( 'show_admin_bar', array( self::class, 'show_admin_bar' ), 100 );
+	}
+
+	/**
+	 * The WordPress admin bar: administration, and an administrator who switched into someone.
+	 *
+	 * Como en los aplicativos hermanos: la barra es por donde la administración
+	 * vuelve al escritorio y, con WPFront User Role Editor, se cambia a otro
+	 * usuario para probar el aplicativo con su perfil. A quien suplanta se le
+	 * deja para que pueda volver a su cuenta. Solo decide si se ve; no concede
+	 * nada al usuario suplantado. Nunca en el panel lateral.
+	 *
+	 * @param bool $show Whether WordPress would show it.
+	 * @return bool
+	 */
+	public static function show_admin_bar( $show = false ): bool {
+		unset( $show );
+		if ( self::framed() || ! is_user_logged_in() ) {
+			return false;
+		}
+		if ( current_user_can( 'manage_options' ) ) {
+			return true;
+		}
+		$key = 'wpfront_ure_user_switching_stack_' . COOKIEHASH;
+		if ( ! class_exists( '\\WPFront\\URE\\WPFront_User_Role_Editor_Utils' ) || ! isset( $_COOKIE[ $key ] ) || ! is_string( $_COOKIE[ $key ] ) ) {
+			return false;
+		}
+		// La pila de WPFront: «COOKIEHASH-hora-id,id,…-recordar», cifrada; el primero es quien empezó.
+		$stack = explode( '-', (string) \WPFront\URE\WPFront_User_Role_Editor_Utils::decrypt( sanitize_text_field( wp_unslash( $_COOKIE[ $key ] ) ) ), 4 );
+		if ( count( $stack ) < 3 || COOKIEHASH !== $stack[0] || ! ctype_digit( $stack[1] ) ) {
+			return false;
+		}
+		$age   = time() - (int) $stack[1];
+		$users = explode( ',', $stack[2] );
+		return $age >= 0 && $age <= 12 * HOUR_IN_SECONDS && ctype_digit( $users[0] ) && user_can( (int) $users[0], 'manage_options' );
 	}
 
 	/**
@@ -91,11 +135,7 @@ final class Screen {
 		$tabs    = array();
 		$actions = current_user_can( 'edit_fmc_actions' ) || current_user_can( 'read_private_fmc_actions' );
 		if ( $actions ) {
-			$tabs['calendar'] = array(
-				'label' => 'Calendario',
-				'type'  => PostTypes::ACTION,
-			);
-			$tabs['actions']  = array(
+			$tabs['actions'] = array(
 				'label' => 'Acciones formativas',
 				'type'  => PostTypes::ACTION,
 			);
@@ -155,8 +195,12 @@ final class Screen {
 	 * @return bool
 	 */
 	public static function framed(): bool {
+		// El fragmento es solo para el panel, que lo pide por detrás. Abierto como
+		// página —en otra pestaña, desde un marcador— se pinta entero: el navegador
+		// lo dice con `Sec-Fetch-Mode: navigate`.
+		$mode = isset( $_SERVER['HTTP_SEC_FETCH_MODE'] ) ? sanitize_key( wp_unslash( $_SERVER['HTTP_SEC_FETCH_MODE'] ) ) : '';
 		// phpcs:ignore WordPress.Security.NonceVerification -- solo decide si se pinta la cabecera.
-		return isset( $_REQUEST[ self::ARG_FRAME ] ) && '1' === $_REQUEST[ self::ARG_FRAME ];
+		return 'navigate' !== $mode && isset( $_REQUEST[ self::ARG_FRAME ] ) && '1' === $_REQUEST[ self::ARG_FRAME ];
 	}
 
 	/**
@@ -167,6 +211,13 @@ final class Screen {
 	public static function route(): void {
 		if ( ! is_front_page() ) {
 			return;
+		}
+		// El catálogo es público: se ve sin sesión.
+		if ( Catalogue::asked() ) {
+			nocache_headers();
+			// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- document() escapes, and the catalogue body is built escaped.
+			echo self::document( Catalogue::screen() );
+			exit;
 		}
 		if ( ! is_user_logged_in() ) {
 			wp_safe_redirect( wp_login_url( home_url( '/' ) ) );
@@ -192,8 +243,9 @@ final class Screen {
 		// phpcs:enable
 
 		$tabs = self::tabs();
-		// La descarga en CSV de un listado, con sus filtros; el calendario exporta acciones.
-		if ( '' !== Lists::arg( 'fmc_csv' ) && isset( $tabs[ $tab ] ) ) {
+		// La descarga en CSV de un listado, con sus filtros. Los ponentes no se
+		// exportan: son datos personales (ADR-0011).
+		if ( '' !== Lists::arg( 'fmc_csv' ) && isset( $tabs[ $tab ] ) && PostTypes::SPEAKER !== $tabs[ $tab ]['type'] ) {
 			Lists::csv( $tabs[ $tab ]['type'] );
 			exit;
 		}
@@ -203,7 +255,8 @@ final class Screen {
 			if ( ! isset( $tabs[ $tab ] ) ) {
 				$tab = (string) array_key_first( $tabs );
 			}
-			$screen = 'calendar' === $tab ? Calendar::screen() : Lists::screen( $tab, $tabs[ $tab ]['type'] );
+			// Las acciones se abren en el calendario; su vista «Lista» es el listado.
+			$screen = 'actions' === $tab && 'list' !== Calendar::view() ? Calendar::screen() : Lists::screen( $tab, $tabs[ $tab ]['type'] );
 		}
 
 		// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- document() escapes, and every screen body is built escaped.
@@ -213,24 +266,27 @@ final class Screen {
 
 	/**
 	 * What the deployment adds around the app: `head` (analytics, cookie
-	 * notice) and `footer` (legal links, the organisation's name).
+	 * notice), `brand` (logo and organisation, before the app name) and
+	 * `footer` (legal links, the organisation's name).
 	 *
 	 * Lo que dice de quién es el despliegue no se versiona (ADR-0002): llega por
 	 * el filtro `fmc_chrome`, vacío por defecto, desde un snippet de quien
 	 * despliega. Es HTML de quien administra el código, así que no se escapa.
 	 *
-	 * @return array{head:string, footer:string}
+	 * @return array{head:string, brand:string, footer:string}
 	 */
 	public static function deployment_chrome(): array {
 		$chrome = (array) apply_filters(
 			'fmc_chrome',
 			array(
 				'head'   => '',
+				'brand'  => '',
 				'footer' => '',
 			)
 		);
 		return array(
 			'head'   => (string) ( $chrome['head'] ?? '' ),
+			'brand'  => (string) ( $chrome['brand'] ?? '' ),
 			'footer' => (string) ( $chrome['footer'] ?? '' ),
 		);
 	}
@@ -251,16 +307,19 @@ final class Screen {
 		// Bootstrap desde jsDelivr con SRI (ADR-0002).
 		// phpcs:ignore WordPress.WP.EnqueuedResources.NonEnqueuedStylesheet -- documento propio, fuera del tema.
 		$out .= '<link rel="stylesheet" href="' . esc_url( self::BOOTSTRAP['css'] ) . '" integrity="' . esc_attr( self::BOOTSTRAP['css_sri'] ) . '" crossorigin="anonymous">';
+		// phpcs:ignore WordPress.WP.EnqueuedResources.NonEnqueuedStylesheet -- documento propio, fuera del tema.
+		$out .= '<link rel="stylesheet" href="' . esc_url( self::BOOTSTRAP_ICONS['css'] ) . '" integrity="' . esc_attr( self::BOOTSTRAP_ICONS['css_sri'] ) . '" crossorigin="anonymous">';
 		// Tom Select para las listas con buscador y las de varios elegidos, como en eventos.
 		// phpcs:ignore WordPress.WP.EnqueuedResources.NonEnqueuedStylesheet -- documento propio, fuera del tema.
 		$out .= '<link rel="stylesheet" href="' . esc_url( self::TOM_SELECT['css'] ) . '" integrity="' . esc_attr( self::TOM_SELECT['css_sri'] ) . '" crossorigin="anonymous">';
-		$out .= '<style>' . Assets::css() . '</style>' . $chrome['head'] . '</head><body class="fmc">';
-		$out .= self::chrome( $screen['tab'] );
+		$bar  = self::admin_bar();
+		$out .= '<style>' . Assets::css() . '</style>' . $bar['head'] . $chrome['head'] . '</head><body class="fmc' . ( '' !== $bar['body'] ? ' admin-bar' : '' ) . '">' . $bar['body'];
+		$out .= empty( $screen['public'] ) ? self::chrome( $screen['tab'], $chrome['brand'] ) : self::public_chrome( $chrome['brand'] );
 
 		$out .= '<div class="fmc-head"><div class="container d-flex flex-wrap align-items-start gap-3">';
-		$out .= '<div class="me-auto">' . ( $screen['back'] ?? '' ) . '<h1 class="h3 fw-bold mb-1">' . esc_html( $screen['title'] ) . ( $screen['badges'] ?? '' ) . '</h1>';
+		$out .= '<div class="me-auto">' . ( $screen['back'] ?? '' ) . '<h1 class="fmc-h1">' . esc_html( $screen['title'] ) . ( $screen['badges'] ?? '' ) . '</h1>';
 		if ( ! empty( $screen['subtitle'] ) ) {
-			$out .= '<p class="text-secondary mb-0">' . esc_html( $screen['subtitle'] ) . '</p>';
+			$out .= '<p class="fmc-sub">' . esc_html( $screen['subtitle'] ) . '</p>';
 		}
 		$out .= '</div>' . ( $screen['actions'] ?? '' ) . '</div></div>';
 
@@ -275,8 +334,44 @@ final class Screen {
 		$out .= '<script src="' . esc_url( includes_url( 'js/tinymce/tinymce.min.js' ) ) . '"></script>';
 		$out .= '<script>window.fmcTinymceBase = ' . wp_json_encode( includes_url( 'js/tinymce' ) ) . ';</script>';
 		$out .= '<script>' . Assets::contents( 'js/fmc-app.js' ) . '</script>';
-		$out .= '</body></html>';
+		$out .= $bar['foot'] . '</body></html>';
 		return $out;
+	}
+
+	/**
+	 * The admin bar, printed by hand: this document skips `wp_head()` and
+	 * `wp_footer()` so the theme stays out.
+	 *
+	 * WordPress ya la ha preparado en `template_redirect` (prioridad 0), antes
+	 * que el aplicativo; aquí solo se pintan su hoja, el hueco de arriba y la
+	 * propia barra con sus nodos —el «Cambiar a…» y el «Volver» de WPFront van
+	 * dentro—.
+	 *
+	 * @return array{head:string, body:string, foot:string}
+	 */
+	private static function admin_bar(): array {
+		global $wp_admin_bar;
+		$none = array(
+			'head' => '',
+			'body' => '',
+			'foot' => '',
+		);
+		if ( ! is_admin_bar_showing() || ! is_object( $wp_admin_bar ) ) {
+			return $none;
+		}
+		ob_start();
+		wp_print_styles( array( 'admin-bar' ) );
+		$head = (string) ob_get_clean() . '<style>html{margin-top:32px!important}@media screen and (max-width:782px){html{margin-top:46px!important}}</style>';
+		ob_start();
+		wp_admin_bar_render();
+		$body = (string) ob_get_clean();
+		ob_start();
+		wp_print_scripts( array( 'admin-bar' ) );
+		return array(
+			'head' => $head,
+			'body' => $body,
+			'foot' => (string) ob_get_clean(),
+		);
 	}
 
 	/**
@@ -297,31 +392,53 @@ final class Screen {
 	}
 
 	/**
-	 * Header and tabs of the application.
+	 * Header and tabs of the application, as in the sibling apps.
+	 *
+	 * El menú de la cuenta es un `details` nativo: sin guion, y se cierra solo
+	 * al navegar. Lo que dice de quién es el despliegue —logotipo, organización—
+	 * llega en `$brand` por `fmc_chrome` (ADR-0002).
 	 *
 	 * @param string $current Active tab.
+	 * @param string $brand   Deployment HTML before the app name.
 	 * @return string
 	 */
-	private static function chrome( string $current ): string {
+	private static function chrome( string $current, string $brand = '' ): string {
 		$user = wp_get_current_user();
-		$role = self::role_label( $user );
-		$out  = '<header class="fmc-top"><div class="container fmc-top-in">';
+		$name = (string) $user->display_name;
+		$out  = '<header class="fmc-top"><div class="container fmc-top-in">' . $brand;
 		$out .= '<a class="fmc-brand" href="' . esc_url( home_url( '/' ) ) . '">Formación</a>';
-		$out .= '<div class="fmc-user"><span class="fmc-avatar" aria-hidden="true">' . esc_html( strtoupper( mb_substr( (string) $user->display_name, 0, 1 ) ) ) . '</span>';
-		$out .= '<span><strong>' . esc_html( (string) $user->display_name ) . '</strong><br><small class="text-secondary">' . esc_html( $role ) . '</small><br>';
+		$out .= '<details class="fmc-yo"><summary><span class="fmc-avatar" aria-hidden="true">' . esc_html( strtoupper( mb_substr( $name, 0, 1 ) ) ) . '</span>';
+		$out .= '<span class="fmc-yo-txt"><strong>' . esc_html( $name ) . '</strong><small>' . esc_html( self::role_label( $user ) ) . '</small></span></summary><div class="fmc-yo-menu">';
 		if ( current_user_can( 'manage_options' ) ) {
-			$out .= '<a href="' . esc_url( admin_url() ) . '">Escritorio</a> · ';
+			$out .= '<a href="' . esc_url( admin_url() ) . '">Escritorio</a>';
 		}
-		$out .= '<a href="' . esc_url( wp_logout_url( home_url( '/' ) ) ) . '">Salir</a></span></div>';
+		// Con WPFront, la administración prueba el aplicativo con el perfil de otro desde «Usuarios».
+		if ( current_user_can( 'switch_users' ) ) {
+			$out .= '<a href="' . esc_url( admin_url( 'users.php' ) ) . '">Ver como otro usuario</a>';
+		}
+		$out .= '<a href="' . esc_url( wp_logout_url( home_url( '/' ) ) ) . '">Salir</a></div></details>';
 		$out .= '</div></header>';
 
-		$out .= '<nav class="fmc-nav"><div class="container"><ul class="nav">';
+		$out .= '<nav class="fmc-nav" aria-label="Secciones"><div class="container"><ul class="nav">';
 		foreach ( self::tabs() as $key => $tab ) {
 			$active = $key === $current;
 			$out   .= '<li class="nav-item"><a class="nav-link' . ( $active ? ' active' : '' ) . '"' . ( $active ? ' aria-current="page"' : '' ) . ' href="' . esc_url( self::url( array( self::ARG_TAB => $key ) ) ) . '">' . esc_html( $tab['label'] ) . '</a></li>';
 		}
 		$out .= '</ul></div></nav>';
 		return $out;
+	}
+
+	/**
+	 * The header of the public pages: the app's name and the way in.
+	 *
+	 * @param string $brand The deployment's logo and name.
+	 * @return string
+	 */
+	private static function public_chrome( string $brand ): string {
+		$in = is_user_logged_in()
+			? '<a class="btn btn-outline-primary btn-sm" href="' . esc_url( home_url( '/' ) ) . '">Ir al aplicativo</a>'
+			: '<a class="btn btn-outline-primary btn-sm" href="' . esc_url( wp_login_url( home_url( '/' ) ) ) . '">Entrar</a>';
+		return '<header class="fmc-top"><div class="container fmc-top-in">' . $brand . '<a class="fmc-brand" href="' . esc_url( Catalogue::url() ) . '">Formación</a><span class="ms-auto">' . $in . '</span></div></header>';
 	}
 
 	/**
@@ -351,6 +468,7 @@ final class Screen {
 			'created' => array( 'success', 'Creado.' ),
 			'denied'  => array( 'danger', 'No tiene permiso para hacer eso.' ),
 			'trashed' => array( 'success', 'Enviado a la papelera. Se puede recuperar desde el escritorio.' ),
+			'reason'  => array( 'warning', 'Para dar de baja a un ponente hay que escribir el motivo.' ),
 		);
 		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- solo elige un texto fijo.
 		$key = isset( $_GET[ self::ARG_NOTICE ] ) ? sanitize_key( wp_unslash( $_GET[ self::ARG_NOTICE ] ) ) : '';
@@ -370,13 +488,35 @@ final class Screen {
 	}
 
 	/**
-	 * Whether the current user may delete a post: administration only.
+	 * Whether the current user may delete a post.
+	 *
+	 * Borrar es de administración. Los ponentes, además, los puede dar de baja
+	 * quien los gestiona, con motivo: es como se atiende a quien pide que se
+	 * borren sus datos (ADR-0011).
 	 *
 	 * @param \WP_Post $post Post.
 	 * @return bool
 	 */
 	public static function can_delete( \WP_Post $post ): bool {
+		if ( PostTypes::SPEAKER === $post->post_type && 'trash' !== $post->post_status ) {
+			return current_user_can( 'delete_post', $post->ID );
+		}
 		return current_user_can( 'manage_options' ) && current_user_can( 'delete_post', $post->ID );
+	}
+
+	/**
+	 * The speaker's leave form: a reason is mandatory.
+	 *
+	 * @param \WP_Post $post Speaker.
+	 * @return string
+	 */
+	public static function trash_form( \WP_Post $post ): string {
+		return '<form class="card fmc-section mt-3" method="post" action="' . esc_url( home_url( '/' ) ) . '" data-fmc-confirm="' . esc_attr( '¿Dar de baja a «' . get_the_title( $post ) . '»?' ) . '" data-fmc-confirm-text="Su ficha pasa a la papelera con el motivo y deja de verse en el aplicativo." data-fmc-confirm-button="Dar de baja"><div class="card-body">'
+			. '<h2 class="h6">Dar de baja</h2><p class="text-secondary small">Por ejemplo, si la persona pide que se borren sus datos. Queda en la papelera quién la dio de baja, cuándo y por qué.</p>'
+			. wp_nonce_field( 'fmc_delete_' . $post->ID, '_fmc_nonce', true, false )
+			. '<input type="hidden" name="fmc_delete" value="' . esc_attr( (string) $post->ID ) . '">'
+			. '<label class="form-label fw-semibold" for="fmc-reason">Motivo <span class="text-danger" aria-hidden="true">*</span></label><div class="d-flex gap-2"><input class="form-control" id="fmc-reason" name="fmc_reason" required maxlength="500">'
+			. '<button class="btn btn-outline-danger text-nowrap" type="submit">Dar de baja</button></div></div></form>';
 	}
 
 	/**
@@ -384,15 +524,19 @@ final class Screen {
 	 *
 	 * @param \WP_Post $post Post.
 	 * @param string   $size Extra button class.
+	 * @param bool     $icon Whether the button is the trash icon, as in the rows.
 	 * @return string
 	 */
-	public static function delete_form( \WP_Post $post, string $size = '' ): string {
+	public static function delete_form( \WP_Post $post, string $size = '', bool $icon = false ): string {
 		$title = get_the_title( $post );
 		// Desde el panel lateral, borrar es un envío normal: recarga la página entera.
 		return '<form class="d-inline" method="post" action="' . esc_url( home_url( '/' ) ) . '" data-fmc-confirm="' . esc_attr( '¿Enviar «' . $title . '» a la papelera?' ) . '" data-fmc-confirm-text="Dejará de verse en el aplicativo. Se puede recuperar desde el escritorio." data-fmc-confirm-button="Enviar a la papelera">'
 			. wp_nonce_field( 'fmc_delete_' . $post->ID, '_fmc_nonce', true, false )
 			. '<input type="hidden" name="fmc_delete" value="' . esc_attr( (string) $post->ID ) . '">'
-			. '<button class="btn btn-outline-danger ' . esc_attr( $size ) . '" type="submit">Borrar</button></form>';
+			. ( $icon
+				? '<button class="btn btn-outline-danger fmc-icon ' . esc_attr( $size ) . '" type="submit" title="Borrar" aria-label="' . esc_attr( 'Borrar «' . $title . '»' ) . '"><i class="bi bi-trash3" aria-hidden="true"></i></button>'
+				: '<button class="btn btn-outline-danger ' . esc_attr( $size ) . '" type="submit">Borrar</button>' )
+			. '</form>';
 	}
 
 	/**
@@ -406,6 +550,23 @@ final class Screen {
 		$post = get_post( $id );
 		if ( ! $post instanceof \WP_Post || ! isset( PostTypes::definitions()[ $post->post_type ] ) || ! self::can_delete( $post ) ) {
 			self::leave( self::url( array( self::ARG_NOTICE => 'denied' ) ) );
+		}
+		if ( PostTypes::SPEAKER === $post->post_type ) {
+			// phpcs:ignore WordPress.Security.NonceVerification.Missing -- verificado arriba.
+			$reason = isset( $_POST['fmc_reason'] ) ? sanitize_textarea_field( wp_unslash( $_POST['fmc_reason'] ) ) : '';
+			if ( '' === trim( $reason ) ) {
+				self::leave(
+					self::url(
+						array(
+							self::ARG_EDIT   => $id,
+							self::ARG_NOTICE => 'reason',
+						)
+					)
+				);
+			}
+			update_post_meta( $id, SpeakerMetaKeys::TRASH_REASON, $reason );
+			update_post_meta( $id, SpeakerMetaKeys::TRASHED_BY, get_current_user_id() );
+			update_post_meta( $id, SpeakerMetaKeys::TRASHED_AT, current_time( 'mysql' ) );
 		}
 		wp_trash_post( $id );
 		self::leave(

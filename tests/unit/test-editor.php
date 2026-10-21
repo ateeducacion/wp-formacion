@@ -235,20 +235,44 @@ class Test_Editor extends WP_UnitTestCase {
 	}
 
 	/**
-	 * Borrar es solo de administración, ni siquiera de la curaduría.
+	 * Borrar es solo de administración, ni siquiera de la validación.
 	 */
 	public function test_only_administration_can_delete() {
-		$speaker = get_post( self::factory()->post->create( array( 'post_type' => PostTypes::SPEAKER ) ) );
+		$action = get_post( self::factory()->post->create( array( 'post_type' => PostTypes::ACTION ) ) );
 
 		$this->as_role( 'fmc_curator' );
-		$this->assertFalse( Screen::can_delete( $speaker ) );
-		$this->assertStringNotContainsString( 'fmc_delete', Lists::row_buttons( $speaker ) );
+		$this->assertFalse( Screen::can_delete( $action ) );
+		$this->assertStringNotContainsString( 'fmc_delete', Lists::row_buttons( $action ) );
 
 		$this->as_role( 'administrator' );
-		$this->assertTrue( Screen::can_delete( $speaker ) );
-		$form = Screen::delete_form( $speaker );
+		$this->assertTrue( Screen::can_delete( $action ) );
+		$form = Screen::delete_form( $action );
 		$this->assertStringContainsString( 'data-fmc-confirm=', $form );
 		$this->assertStringContainsString( 'name="_fmc_nonce"', $form );
+	}
+
+	/**
+	 * Un ponente lo da de baja quien gestiona ponentes, aunque no sea suyo, y
+	 * desde su ficha, con motivo: no desde la fila del listado (ADR-0011).
+	 */
+	public function test_speakers_leave_from_their_record_with_a_reason() {
+		$speaker = get_post( self::factory()->post->create( array( 'post_type' => PostTypes::SPEAKER ) ) );
+
+		foreach ( array( 'fmc_adviser', 'fmc_curator' ) as $role ) {
+			$this->as_role( $role );
+			$this->assertTrue( Screen::can_delete( $speaker ), $role );
+			$this->assertStringNotContainsString( 'fmc_delete', Lists::row_buttons( $speaker ), $role );
+			$form = Editor::screen( $speaker->ID, '' )['body'];
+			$this->assertStringContainsString( 'name="fmc_reason" required', $form, $role );
+			$this->assertStringContainsString( 'Datos personales.', $form, 'el aviso de protección de datos' );
+		}
+		// La asesoría la abre para consultarla, pero no edita la ficha de otro.
+		$this->assertStringNotContainsString( 'Solo lectura', Editor::screen( $speaker->ID, '' )['body'], 'la validación sí' );
+		$this->as_role( 'fmc_adviser' );
+		$this->assertStringContainsString( 'Solo lectura', Editor::screen( $speaker->ID, '' )['body'] );
+
+		$this->as_role( 'fmc_training_service' );
+		$this->assertFalse( Screen::can_delete( $speaker ) );
 	}
 
 	/**

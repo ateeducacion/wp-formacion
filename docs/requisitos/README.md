@@ -24,4 +24,4 @@ o registra una acción; en los SDD, cómo se construye.
 
 | ID | Título | Estado |
 |----|--------|--------|
-| [REQ-0001](REQ-0001-aplicativo-de-formacion.md) | Aplicativo de formación | Propuesta; se valida en la fase 1 del PLAN-0001 |
+| [REQ-0001](REQ-0001-aplicativo-de-formacion.md) | Aplicativo de formación | Propuesta; se valida en la fase 1 del PLAN-0001 (primera revisión, 2026-10-21) |
