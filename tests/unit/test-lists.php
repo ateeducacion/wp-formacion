@@ -391,7 +391,8 @@ class Test_Lists extends WP_UnitTestCase {
 
 		$body = Lists::screen( 'actions', PostTypes::ACTION )['body'];
 
-		$this->assertStringContainsString( '<td>EXP-42</td>', $body );
+		// El expediente, debajo del título.
+		$this->assertStringContainsString( '>Acción</a><div class="small text-secondary">EXP-42</div></td>', $body );
 		$this->assertStringContainsString( '<td>Ámbito norte<div class="small text-secondary">Centro de formación Norte</div></td>', $body );
 		$this->assertStringContainsString( '<td>Ponente Uno</td>', $body );
 		$this->assertStringContainsString( '<td>Teleformación<div class="small text-secondary">En línea · 20 h</div></td>', $body );
@@ -608,7 +609,8 @@ class Test_Lists extends WP_UnitTestCase {
 
 		// La asesoría edita la suya y abre una incidencia desde la fila.
 		$buttons = Lists::row_buttons( $post );
-		$this->assertStringContainsString( '>Editar</a>', $buttons );
+		$this->assertMatchesRegularExpression( '/title="Editar" aria-label="Editar «Otra»" href="[^"]*"><i class="bi bi-pencil" aria-hidden="true"><\/i><\/a>/', $buttons );
+		$this->assertStringContainsString( 'title="Abrir una incidencia" aria-label="Abrir una incidencia sobre «Otra»"', $buttons );
 		$this->assertMatchesRegularExpression( '/fmc_new=fmc_incident&(amp;|#038;)?fmc_parent=' . $post->ID . '/', $buttons );
 
 		$this->as_role( 'fmc_training_service' );
@@ -616,12 +618,14 @@ class Test_Lists extends WP_UnitTestCase {
 		$buttons = Lists::row_buttons( $post );
 		$this->assertStringNotContainsString( 'Añadir', $screen['actions'] );
 		$this->assertStringContainsString( 'Exportar CSV', $screen['actions'] );
-		$this->assertStringContainsString( '>Ver</a>', $buttons );
-		$this->assertStringNotContainsString( 'Incidencia', $buttons );
+		$this->assertMatchesRegularExpression( '/title="Ver" aria-label="Ver «Otra»" href="[^"]*"><i class="bi bi-eye" aria-hidden="true"><\/i><\/a>/', $buttons );
+		$this->assertStringNotContainsString( 'fmc_incident', $buttons );
 		$this->assertStringNotContainsString( 'fmc_delete', $buttons );
 
 		$this->as_role( 'administrator' );
-		$this->assertStringContainsString( 'name="fmc_delete" value="' . $post->ID . '"', Lists::row_buttons( $post ) );
+		$buttons = Lists::row_buttons( $post );
+		$this->assertStringContainsString( 'name="fmc_delete" value="' . $post->ID . '"', $buttons );
+		$this->assertStringContainsString( 'title="Borrar" aria-label="Borrar «Otra»"><i class="bi bi-trash3" aria-hidden="true"></i></button>', $buttons );
 	}
 
 	/**
@@ -916,14 +920,20 @@ class Test_Lists extends WP_UnitTestCase {
 		);
 		wp_trash_post( $gone );
 
-		$this->assertSame( 1, $this->counters( Lists::screen( 'speakers', PostTypes::SPEAKER )['body'] )['En la papelera'] );
+		$this->post( PostTypes::SPEAKER, 'Sigue' );
+		$body = Lists::screen( 'speakers', PostTypes::SPEAKER )['body'];
+		// Sin tarjetas: el total, en una línea, con la puerta de la papelera.
+		$this->assertStringNotContainsString( 'fmc-counter', $body );
+		$this->assertMatchesRegularExpression( '/<p class="fmc-found">1 ponente\(s\) · <a href="[^"]*fmc_status=trash[^"]*">Ver la papelera<\/a><\/p>/', $body );
 		$_GET['fmc_status'] = 'trash';
 		$body               = Lists::screen( 'speakers', PostTypes::SPEAKER )['body'];
+		$this->assertStringContainsString( '1 en la papelera · ', $body );
+		$this->assertStringContainsString( '>Volver a los ponentes</a>', $body );
 		$this->assertStringContainsString( 'Pidió que se borrasen sus datos', $body );
 		$this->assertStringContainsString( 'Recuperar en el escritorio', $body );
 
 		$this->as_role( 'fmc_adviser' );
-		$this->assertArrayNotHasKey( 'En la papelera', $this->counters( Lists::screen( 'speakers', PostTypes::SPEAKER )['body'] ) );
+		$this->assertStringNotContainsString( 'papelera', Lists::screen( 'speakers', PostTypes::SPEAKER )['body'] );
 		$this->assertStringNotContainsString( 'Pidió que se borrasen', Lists::screen( 'speakers', PostTypes::SPEAKER )['body'] );
 	}
 }

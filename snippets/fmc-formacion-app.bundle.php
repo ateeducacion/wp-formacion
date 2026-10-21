@@ -2539,6 +2539,18 @@ final class Lists {
 
 
 
+
+	private static function speaker_trash(): bool {
+		return 'trash' === self::arg( 'fmc_status' ) && current_user_can( 'edit_others_fmc_speakers' );
+	}
+
+
+
+
+
+
+
+
 	private static function speaker_args( array $args, bool $with_state ): array {
 		if ( '' !== self::arg( 'fmc_zone' ) ) {
 			$args['meta_query'][] = array(
@@ -2550,9 +2562,8 @@ final class Lists {
 		if ( absint( self::arg( 'fmc_recommended' ) ) ) {
 			$args['meta_query'][] = Speakers::recommended_clause( absint( self::arg( 'fmc_recommended' ) ) );
 		}
-			$args = self::speaker_order( $args );
-
-		if ( $with_state && 'trash' === self::arg( 'fmc_status' ) && current_user_can( 'edit_others_fmc_speakers' ) ) {
+		$args = self::speaker_order( $args );
+		if ( $with_state && self::speaker_trash() ) {
 			$args['post_status'] = 'trash';
 		}
 		if ( $with_state && '' !== self::arg( 'fmc_available' ) ) {
@@ -2781,8 +2792,10 @@ final class Lists {
 			$actions = Calendar::views_html( 'list' ) . ' ' . $actions;
 		}
 
-		$body  = self::counters_html( $tab, self::counters( $type ) );
+
+		$body  = PostTypes::SPEAKER === $type ? '' : self::counters_html( $tab, self::counters( $type ) );
 		$body .= self::filters_html( $tab, $type );
+		$body .= PostTypes::SPEAKER === $type ? self::found_html( $tab, (int) $q->found_posts ) : '';
 		$body .= self::table_html( $type, $q->posts );
 		$body .= self::pager_html( $page, (int) $q->max_num_pages );
 
@@ -2793,6 +2806,25 @@ final class Lists {
 			'actions'  => $actions,
 			'body'     => $body,
 		);
+	}
+
+
+
+
+
+
+
+
+	private static function found_html( string $tab, int $found ): string {
+		$trash = self::speaker_trash();
+		$out   = '<p class="fmc-found">' . esc_html( sprintf( $trash ? '%s en la papelera' : '%s ponente(s)', number_format_i18n( $found ) ) );
+		if ( current_user_can( 'edit_others_fmc_speakers' ) ) {
+			$args = array_merge( self::current_filters(), array( Screen::ARG_TAB => $tab ) );
+
+			$args['fmc_status'] = $trash ? '' : 'trash';
+			$out               .= ' · <a href="' . esc_url( Screen::url( $args ) ) . '">' . ( $trash ? 'Volver a los ponentes' : 'Ver la papelera' ) . '</a>';
+		}
+		return $out . '</p>';
 	}
 
 
@@ -3082,7 +3114,9 @@ final class Lists {
 			$thumb = PostTypes::DESIGN === $type && has_post_thumbnail( $post ) ? get_the_post_thumbnail( $post, array( 48, 48 ), array( 'class' => 'fmc-thumb' ) ) : '';
 
 			$name = 'trash' === $post->post_status ? '<span class="fw-semibold">' . esc_html( self::title( $post ) ) . '</span>' : '<a class="fw-semibold fmc-abre-panel" href="' . esc_url( Screen::url( array( Screen::ARG_EDIT => $post->ID ) ) ) . '">' . esc_html( self::title( $post ) ) . '</a>';
-			$link = $thumb . $name . self::badge( $post ) . self::subtitle( $post );
+			$file = PostTypes::ACTION === $type ? (string) get_post_meta( $post->ID, A::FILE_NUMBER, true ) : '';
+
+			$link = $thumb . $name . self::badge( $post ) . self::subtitle( $post ) . ( '' !== $file ? '<div class="small text-secondary">' . esc_html( $file ) . '</div>' : '' );
 			$out .= '<tr><td class="fmc-col-title">' . $link . '</td>';
 			foreach ( $columns as $cell ) {
 				$lines = explode( "\n", (string) $cell( $post ) );
@@ -3199,12 +3233,11 @@ final class Lists {
 		switch ( $type ) {
 			case PostTypes::ACTION:
 				return array(
-					'Expediente'   => static fn( $p ) => $m( $p, A::FILE_NUMBER ),
-					'Ámbito'       => static fn( $p ) => self::terms( $p->ID, 'fmc_scope' ) . "\n" . $m( $p, A::VENUE_CENTRE ),
-					'Ponentes'     => static fn( $p ) => implode( "\n", array_map( 'get_the_title', array_filter( array_map( 'intval', (array) get_post_meta( $p->ID, A::SPEAKERS, true ) ) ) ) ),
-					'Tipo y horas' => static fn( $p ) => ( D::TYPES[ (string) get_post_meta( (int) $m( $p, A::DESIGN_ID ), D::TYPE, true ) ] ?? '' ) . "\n" . trim( ( D::MODALITIES[ $m( $p, A::MODALITY ) ] ?? '' ) . ' · ' . self::hours( $m( $p, A::HOURS_ONSITE ), $m( $p, A::HOURS_ONLINE ) ), ' ·' ),
-					'Fechas'       => static fn( $p ) => self::dates( $m( $p, A::START ), $m( $p, A::END ) ) . "\n" . wp_trim_words( $m( $p, A::SCHEDULE ), 12 ),
-					'Estado'       => static fn( $p ) => ( A::PROCESSES[ $m( $p, A::PROCESS ) ] ?? '' ) . "\n" . SchoolYear::of( $m( $p, A::START ) ),
+					'Ámbito y centro' => static fn( $p ) => self::terms( $p->ID, 'fmc_scope' ) . "\n" . $m( $p, A::VENUE_CENTRE ),
+					'Ponentes'        => static fn( $p ) => implode( "\n", array_map( 'get_the_title', array_filter( array_map( 'intval', (array) get_post_meta( $p->ID, A::SPEAKERS, true ) ) ) ) ),
+					'Tipo y horas'    => static fn( $p ) => ( D::TYPES[ (string) get_post_meta( (int) $m( $p, A::DESIGN_ID ), D::TYPE, true ) ] ?? '' ) . "\n" . trim( ( D::MODALITIES[ $m( $p, A::MODALITY ) ] ?? '' ) . ' · ' . self::hours( $m( $p, A::HOURS_ONSITE ), $m( $p, A::HOURS_ONLINE ) ), ' ·' ),
+					'Fechas'          => static fn( $p ) => self::dates( $m( $p, A::START ), $m( $p, A::END ) ) . "\n" . wp_trim_words( $m( $p, A::SCHEDULE ), 12 ),
+					'Estado'          => static fn( $p ) => ( A::PROCESSES[ $m( $p, A::PROCESS ) ] ?? '' ) . "\n" . SchoolYear::of( $m( $p, A::START ) ),
 				);
 			case PostTypes::DESIGN:
 				return array(
@@ -3215,7 +3248,7 @@ final class Lists {
 					'Programas' => static fn( $p ) => self::terms( $p->ID, 'fmc_programme' ),
 				);
 			case PostTypes::SPEAKER:
-				if ( 'trash' === self::arg( 'fmc_status' ) ) {
+				if ( self::speaker_trash() ) {
 					return array(
 						'Baja'   => static fn( $p ) => $m( $p, S::TRASHED_AT ) . "\n" . get_the_author_meta( 'display_name', (int) $m( $p, S::TRASHED_BY ) ),
 						'Motivo' => static fn( $p ) => $m( $p, S::TRASH_REASON ),
@@ -3254,21 +3287,24 @@ final class Lists {
 		if ( 'trash' === $post->post_status ) {
 			return '<a class="btn btn-sm btn-outline-secondary" href="' . esc_url( admin_url( 'edit.php?post_status=trash&post_type=' . $post->post_type ) ) . '">Recuperar en el escritorio</a>';
 		}
-		$edit = current_user_can( 'edit_post', $post->ID );
-		$out  = '<a class="btn btn-sm btn-outline-primary fmc-abre-panel" title="' . esc_attr( self::title( $post ) ) . '" href="' . esc_url( Screen::url( array( Screen::ARG_EDIT => $post->ID ) ) ) . '">' . ( $edit ? 'Editar' : 'Ver' ) . '</a>';
+
+
+		$edit  = current_user_can( 'edit_post', $post->ID );
+		$label = ( $edit ? 'Editar' : 'Ver' ) . ' «' . self::title( $post ) . '»';
+		$out   = '<a class="btn btn-sm btn-outline-primary fmc-icon fmc-abre-panel" title="' . esc_attr( $edit ? 'Editar' : 'Ver' ) . '" aria-label="' . esc_attr( $label ) . '" href="' . esc_url( Screen::url( array( Screen::ARG_EDIT => $post->ID ) ) ) . '"><i class="bi ' . ( $edit ? 'bi-pencil' : 'bi-eye' ) . '" aria-hidden="true"></i></a>';
 
 		if ( PostTypes::ACTION === $post->post_type && $edit && current_user_can( 'edit_fmc_incidents' ) ) {
-			$out .= ' <a class="btn btn-sm btn-outline-secondary fmc-abre-panel" title="Abrir una incidencia" href="' . esc_url(
+			$out .= ' <a class="btn btn-sm btn-outline-secondary fmc-icon fmc-abre-panel" title="Abrir una incidencia" aria-label="' . esc_attr( 'Abrir una incidencia sobre «' . self::title( $post ) . '»' ) . '" href="' . esc_url(
 				Screen::url(
 					array(
 						Screen::ARG_NEW    => PostTypes::INCIDENT,
 						Screen::ARG_PARENT => $post->ID,
 					)
 				)
-			) . '">Incidencia</a>';
+			) . '"><i class="bi bi-exclamation-triangle" aria-hidden="true"></i></a>';
 		}
 		if ( PostTypes::SPEAKER !== $post->post_type && Screen::can_delete( $post ) ) {
-			$out .= ' ' . Screen::delete_form( $post, 'btn-sm' );
+			$out .= ' ' . Screen::delete_form( $post, 'btn-sm', true );
 		}
 		return $out;
 	}
@@ -4985,6 +5021,14 @@ final class Screen {
 
 
 
+	public const BOOTSTRAP_ICONS = array(
+		'css'     => 'https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css',
+		'css_sri' => 'sha384-XGjxtQfXaH2tnPFa9x+ruJTuLE3Aa6LhHSWRr1XeTyhezb4abCG4ccI5AkVDxqC+',
+	);
+
+
+
+
 	public const SWEETALERT = array(
 		'js'     => 'https://cdn.jsdelivr.net/npm/sweetalert2@11.26.25/dist/sweetalert2.all.min.js',
 		'js_sri' => 'sha384-nLoOnA/BDh8A/jxqtckg4DumuCGOBYUnNJLZdQz/zfYNp3wcjGSoWTAzgko06G/2',
@@ -5232,6 +5276,8 @@ final class Screen {
 
 		$out .= '<link rel="stylesheet" href="' . esc_url( self::BOOTSTRAP['css'] ) . '" integrity="' . esc_attr( self::BOOTSTRAP['css_sri'] ) . '" crossorigin="anonymous">';
 
+		$out .= '<link rel="stylesheet" href="' . esc_url( self::BOOTSTRAP_ICONS['css'] ) . '" integrity="' . esc_attr( self::BOOTSTRAP_ICONS['css_sri'] ) . '" crossorigin="anonymous">';
+
 
 		$out .= '<link rel="stylesheet" href="' . esc_url( self::TOM_SELECT['css'] ) . '" integrity="' . esc_attr( self::TOM_SELECT['css_sri'] ) . '" crossorigin="anonymous">';
 		$bar  = self::admin_bar();
@@ -5435,13 +5481,17 @@ final class Screen {
 
 
 
-	public static function delete_form( \WP_Post $post, string $size = '' ): string {
+
+	public static function delete_form( \WP_Post $post, string $size = '', bool $icon = false ): string {
 		$title = get_the_title( $post );
 
 		return '<form class="d-inline" method="post" action="' . esc_url( home_url( '/' ) ) . '" data-fmc-confirm="' . esc_attr( '¿Enviar «' . $title . '» a la papelera?' ) . '" data-fmc-confirm-text="Dejará de verse en el aplicativo. Se puede recuperar desde el escritorio." data-fmc-confirm-button="Enviar a la papelera">'
 			. wp_nonce_field( 'fmc_delete_' . $post->ID, '_fmc_nonce', true, false )
 			. '<input type="hidden" name="fmc_delete" value="' . esc_attr( (string) $post->ID ) . '">'
-			. '<button class="btn btn-outline-danger ' . esc_attr( $size ) . '" type="submit">Borrar</button></form>';
+			. ( $icon
+				? '<button class="btn btn-outline-danger fmc-icon ' . esc_attr( $size ) . '" type="submit" title="Borrar" aria-label="' . esc_attr( 'Borrar «' . $title . '»' ) . '"><i class="bi bi-trash3" aria-hidden="true"></i></button>'
+				: '<button class="btn btn-outline-danger ' . esc_attr( $size ) . '" type="submit">Borrar</button>' )
+			. '</form>';
 	}
 
 
@@ -5686,6 +5736,13 @@ a.fmc-counter:hover, .fmc-counter.is-active { border-color: var(--fmc-brand); bo
 	.fmc-cal-day { min-height: 0; }
 	.fmc-cal-num { align-self: flex-start; }
 }
+
+/* Los botones de icono de cada fila: cuadrados y del mismo tamaño */
+.fmc-icon { display: inline-flex; align-items: center; justify-content: center; width: 2rem; height: 2rem; padding: 0; border-radius: .5rem; }
+.fmc-table .fmc-col-title { min-width: 16rem; }
+
+/* Cuántos ponentes salen, en una línea encima de la tabla */
+.fmc-found { margin: 0 0 .5rem; color: var(--fmc-text-2); font-size: .9rem; }
 
 /* Las listas con buscador de los filtros, en una línea: un título largo no
    descuadra la fila. El desplegable lo enseña entero. */

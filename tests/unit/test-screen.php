@@ -364,7 +364,10 @@ class Test_Screen extends WP_UnitTestCase {
 		$this->assertSame( 1, wp_verify_nonce( $m[1], 'fmc_delete_' . $design ) );
 		$this->assertStringContainsString( 'name="fmc_delete" value="' . $design . '"', $html );
 		$this->assertStringContainsString( 'method="post"', $html );
-		$this->assertStringContainsString( 'btn-outline-danger btn-sm', $html );
+		$this->assertStringContainsString( 'btn-outline-danger btn-sm" type="submit">Borrar</button>', $html );
+		$icon = Screen::delete_form( get_post( $design ), 'btn-sm', true );
+		$this->assertStringContainsString( 'title="Borrar" aria-label="Borrar «Uso &#8220;seguro&#8221; &lt;de&gt; redes»"><i class="bi bi-trash3" aria-hidden="true"></i></button>', $icon );
+		$this->assertStringNotContainsString( '<de>', $icon );
 		$this->assertStringNotContainsString( '<de>', $html );
 		$this->assertStringContainsString( '&lt;de&gt;', $html );
 	}
@@ -451,7 +454,7 @@ class Test_Screen extends WP_UnitTestCase {
 		$this->assertStringStartsWith( '<!doctype html><html lang="es">', $html );
 		$this->assertStringEndsWith( '</body></html>', $html );
 
-		$this->assertSame( 4, preg_match_all( '/<(?:script|link)\b[^>]*cdn\.jsdelivr\.net[^>]*>/', $html, $tags ) );
+		$this->assertSame( 5, preg_match_all( '/<(?:script|link)\b[^>]*cdn\.jsdelivr\.net[^>]*>/', $html, $tags ) );
 		foreach ( $tags[0] as $tag ) {
 			$this->assertMatchesRegularExpression( '/ integrity="sha384-[A-Za-z0-9+\/]{64}"/', $tag );
 			$this->assertStringContainsString( ' crossorigin="anonymous"', $tag );
@@ -462,7 +465,7 @@ class Test_Screen extends WP_UnitTestCase {
 		$package  = json_decode( (string) file_get_contents( dirname( __DIR__, 2 ) . '/package.json' ), true );
 		$versions = ( $package['dependencies'] ?? array() ) + ( $package['devDependencies'] ?? array() );
 		preg_match_all( '~cdn\.jsdelivr\.net/npm/([^@/]+)@([^/]+)/~', $html, $libraries, PREG_SET_ORDER );
-		$this->assertSame( array( 'bootstrap', 'tom-select', 'sweetalert2' ), array_values( array_unique( array_column( $libraries, 1 ) ) ) );
+		$this->assertSame( array( 'bootstrap', 'bootstrap-icons', 'tom-select', 'sweetalert2' ), array_values( array_unique( array_column( $libraries, 1 ) ) ) );
 		foreach ( $libraries as list( , $library, $version ) ) {
 			$this->assertSame( $version, $versions[ $library ] ?? null, $library . ' no tiene en package.json la versión del CDN' );
 		}

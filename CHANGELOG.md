@@ -31,6 +31,9 @@ Lo que sale de la primera revisión del aplicativo con la curaduría, el 2026-10
 - **Toda asesoría consulta cualquier ponente** ([ADR-0011](docs/adr/ADR-0011-los-ponentes-son-un-directorio-compartido-con-baja-motivada.md)), documento de identidad incluido, de solo lectura. Cada una sigue editando solo los que dio de alta.
 - **«Recomendado para» solo ofrece diseños del catálogo** ([ADR-0012](docs/adr/ADR-0012-un-diseno-puede-sustituir-a-otro-y-los-ponentes-se-buscan-por-lo-impartido.md)), en la ficha del ponente y en el filtro del listado, con el código delante del título para buscar por él. Las recomendaciones ya guardadas se conservan. Los filtros con buscador ocupan media fila y el elegido se ve en una línea.
 - **El panel lateral se abre por encima de la barra de WordPress**, y los avisos, por encima del panel.
+- **Los botones de cada fila son iconos** —lápiz para editar, ojo para ver, aviso para abrir una incidencia y papelera para borrar—, con su nombre al pasar el ratón y para los lectores de pantalla. Los iconos son Bootstrap Icons 1.11.3, desde jsDelivr con SRI, como el resto de librerías.
+- **En la lista de acciones, el expediente va debajo del título**: una columna menos, y «Ámbito y centro» tiene más sitio.
+- **Ponentes sin tarjetas de recuento**: no tienen estados que contar. Encima de la tabla sale cuántos encuentran los filtros y, para la curaduría, el enlace a la papelera y de vuelta.
 - **La asesoría abre cualquier acción publicada** desde el calendario o el listado, de solo lectura; sigue editando solo las suyas.
 - **Al elegir ponentes en una acción**, cada nombre lleva su isla y cuántas acciones ha impartido, y una «★» y el primer puesto si se le recomienda para el diseño de la acción.
 - El aspecto del aplicativo —cabecera, pestañas, menú de usuario, pie y paleta— se iguala al de los aplicativos hermanos. `fmc_chrome` admite una pieza más, `brand`, para el logotipo y el nombre de la organización delante del del aplicativo.

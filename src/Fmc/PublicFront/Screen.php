@@ -40,6 +40,14 @@ final class Screen {
 	);
 
 	/**
+	 * Bootstrap Icons from jsDelivr, pinned with SRI, same version as `package.json`.
+	 */
+	public const BOOTSTRAP_ICONS = array(
+		'css'     => 'https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css',
+		'css_sri' => 'sha384-XGjxtQfXaH2tnPFa9x+ruJTuLE3Aa6LhHSWRr1XeTyhezb4abCG4ccI5AkVDxqC+',
+	);
+
+	/**
 	 * SweetAlert2 from jsDelivr, pinned with SRI, same version as eventos and `package.json`.
 	 */
 	public const SWEETALERT = array(
@@ -288,6 +296,8 @@ final class Screen {
 		// Bootstrap desde jsDelivr con SRI (ADR-0002).
 		// phpcs:ignore WordPress.WP.EnqueuedResources.NonEnqueuedStylesheet -- documento propio, fuera del tema.
 		$out .= '<link rel="stylesheet" href="' . esc_url( self::BOOTSTRAP['css'] ) . '" integrity="' . esc_attr( self::BOOTSTRAP['css_sri'] ) . '" crossorigin="anonymous">';
+		// phpcs:ignore WordPress.WP.EnqueuedResources.NonEnqueuedStylesheet -- documento propio, fuera del tema.
+		$out .= '<link rel="stylesheet" href="' . esc_url( self::BOOTSTRAP_ICONS['css'] ) . '" integrity="' . esc_attr( self::BOOTSTRAP_ICONS['css_sri'] ) . '" crossorigin="anonymous">';
 		// Tom Select para las listas con buscador y las de varios elegidos, como en eventos.
 		// phpcs:ignore WordPress.WP.EnqueuedResources.NonEnqueuedStylesheet -- documento propio, fuera del tema.
 		$out .= '<link rel="stylesheet" href="' . esc_url( self::TOM_SELECT['css'] ) . '" integrity="' . esc_attr( self::TOM_SELECT['css_sri'] ) . '" crossorigin="anonymous">';
@@ -490,15 +500,19 @@ final class Screen {
 	 *
 	 * @param \WP_Post $post Post.
 	 * @param string   $size Extra button class.
+	 * @param bool     $icon Whether the button is the trash icon, as in the rows.
 	 * @return string
 	 */
-	public static function delete_form( \WP_Post $post, string $size = '' ): string {
+	public static function delete_form( \WP_Post $post, string $size = '', bool $icon = false ): string {
 		$title = get_the_title( $post );
 		// Desde el panel lateral, borrar es un envío normal: recarga la página entera.
 		return '<form class="d-inline" method="post" action="' . esc_url( home_url( '/' ) ) . '" data-fmc-confirm="' . esc_attr( '¿Enviar «' . $title . '» a la papelera?' ) . '" data-fmc-confirm-text="Dejará de verse en el aplicativo. Se puede recuperar desde el escritorio." data-fmc-confirm-button="Enviar a la papelera">'
 			. wp_nonce_field( 'fmc_delete_' . $post->ID, '_fmc_nonce', true, false )
 			. '<input type="hidden" name="fmc_delete" value="' . esc_attr( (string) $post->ID ) . '">'
-			. '<button class="btn btn-outline-danger ' . esc_attr( $size ) . '" type="submit">Borrar</button></form>';
+			. ( $icon
+				? '<button class="btn btn-outline-danger fmc-icon ' . esc_attr( $size ) . '" type="submit" title="Borrar" aria-label="' . esc_attr( 'Borrar «' . $title . '»' ) . '"><i class="bi bi-trash3" aria-hidden="true"></i></button>'
+				: '<button class="btn btn-outline-danger ' . esc_attr( $size ) . '" type="submit">Borrar</button>' )
+			. '</form>';
 	}
 
 	/**

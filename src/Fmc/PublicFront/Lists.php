@@ -283,6 +283,18 @@ final class Lists {
 	}
 
 	/**
+	 * Whether the speaker trash is asked for by someone who may see it.
+	 *
+	 * La papelera, con el motivo de cada baja, es de la curaduría: a quien no
+	 * puede verla, el mismo enlace le enseña el listado de siempre.
+	 *
+	 * @return bool
+	 */
+	private static function speaker_trash(): bool {
+		return 'trash' === self::arg( 'fmc_status' ) && current_user_can( 'edit_others_fmc_speakers' );
+	}
+
+	/**
 	 * Speaker filters: zone, recommended, what they have given, availability and trash.
 	 *
 	 * @param array<string, mixed> $args       Query args.
@@ -296,13 +308,12 @@ final class Lists {
 				'value' => self::arg( 'fmc_zone' ),
 			);
 		}
-			// Recomendado para el diseño o para alguno de los que sustituye (ADR-0012).
+		// Recomendado para el diseño o para alguno de los que sustituye (ADR-0012).
 		if ( absint( self::arg( 'fmc_recommended' ) ) ) {
 			$args['meta_query'][] = Speakers::recommended_clause( absint( self::arg( 'fmc_recommended' ) ) );
 		}
-			$args = self::speaker_order( $args );
-			// La papelera, con el motivo de cada baja, para la curaduría.
-		if ( $with_state && 'trash' === self::arg( 'fmc_status' ) && current_user_can( 'edit_others_fmc_speakers' ) ) {
+		$args = self::speaker_order( $args );
+		if ( $with_state && self::speaker_trash() ) {
 			$args['post_status'] = 'trash';
 		}
 		if ( $with_state && '' !== self::arg( 'fmc_available' ) ) {
@@ -531,8 +542,10 @@ final class Lists {
 			$actions = Calendar::views_html( 'list' ) . ' ' . $actions;
 		}
 
-		$body  = self::counters_html( $tab, self::counters( $type ) );
+		// Los ponentes no tienen estados que contar: su total va en una línea.
+		$body  = PostTypes::SPEAKER === $type ? '' : self::counters_html( $tab, self::counters( $type ) );
 		$body .= self::filters_html( $tab, $type );
+		$body .= PostTypes::SPEAKER === $type ? self::found_html( $tab, (int) $q->found_posts ) : '';
 		$body .= self::table_html( $type, $q->posts );
 		$body .= self::pager_html( $page, (int) $q->max_num_pages );
 
@@ -543,6 +556,25 @@ final class Lists {
 			'actions'  => $actions,
 			'body'     => $body,
 		);
+	}
+
+	/**
+	 * How many speakers the filters find, and the way to the trash and back.
+	 *
+	 * @param string $tab   Tab.
+	 * @param int    $found Speakers found.
+	 * @return string
+	 */
+	private static function found_html( string $tab, int $found ): string {
+		$trash = self::speaker_trash();
+		$out   = '<p class="fmc-found">' . esc_html( sprintf( $trash ? '%s en la papelera' : '%s ponente(s)', number_format_i18n( $found ) ) );
+		if ( current_user_can( 'edit_others_fmc_speakers' ) ) {
+			$args = array_merge( self::current_filters(), array( Screen::ARG_TAB => $tab ) );
+			// La papelera se abre con los filtros puestos, y se vuelve con ellos.
+			$args['fmc_status'] = $trash ? '' : 'trash';
+			$out               .= ' · <a href="' . esc_url( Screen::url( $args ) ) . '">' . ( $trash ? 'Volver a los ponentes' : 'Ver la papelera' ) . '</a>';
+		}
+		return $out . '</p>';
 	}
 
 	/**
@@ -832,7 +864,9 @@ final class Lists {
 			$thumb = PostTypes::DESIGN === $type && has_post_thumbnail( $post ) ? get_the_post_thumbnail( $post, array( 48, 48 ), array( 'class' => 'fmc-thumb' ) ) : '';
 			// En la papelera no hay ficha que abrir: se recupera desde el escritorio.
 			$name = 'trash' === $post->post_status ? '<span class="fw-semibold">' . esc_html( self::title( $post ) ) . '</span>' : '<a class="fw-semibold fmc-abre-panel" href="' . esc_url( Screen::url( array( Screen::ARG_EDIT => $post->ID ) ) ) . '">' . esc_html( self::title( $post ) ) . '</a>';
-			$link = $thumb . $name . self::badge( $post ) . self::subtitle( $post );
+			$file = PostTypes::ACTION === $type ? (string) get_post_meta( $post->ID, A::FILE_NUMBER, true ) : '';
+			// El expediente va debajo del título: una columna menos, y el ámbito cabe.
+			$link = $thumb . $name . self::badge( $post ) . self::subtitle( $post ) . ( '' !== $file ? '<div class="small text-secondary">' . esc_html( $file ) . '</div>' : '' );
 			$out .= '<tr><td class="fmc-col-title">' . $link . '</td>';
 			foreach ( $columns as $cell ) {
 				$lines = explode( "\n", (string) $cell( $post ) );
@@ -949,12 +983,11 @@ final class Lists {
 		switch ( $type ) {
 			case PostTypes::ACTION:
 				return array(
-					'Expediente'   => static fn( $p ) => $m( $p, A::FILE_NUMBER ),
-					'Ámbito'       => static fn( $p ) => self::terms( $p->ID, 'fmc_scope' ) . "\n" . $m( $p, A::VENUE_CENTRE ),
-					'Ponentes'     => static fn( $p ) => implode( "\n", array_map( 'get_the_title', array_filter( array_map( 'intval', (array) get_post_meta( $p->ID, A::SPEAKERS, true ) ) ) ) ),
-					'Tipo y horas' => static fn( $p ) => ( D::TYPES[ (string) get_post_meta( (int) $m( $p, A::DESIGN_ID ), D::TYPE, true ) ] ?? '' ) . "\n" . trim( ( D::MODALITIES[ $m( $p, A::MODALITY ) ] ?? '' ) . ' · ' . self::hours( $m( $p, A::HOURS_ONSITE ), $m( $p, A::HOURS_ONLINE ) ), ' ·' ),
-					'Fechas'       => static fn( $p ) => self::dates( $m( $p, A::START ), $m( $p, A::END ) ) . "\n" . wp_trim_words( $m( $p, A::SCHEDULE ), 12 ),
-					'Estado'       => static fn( $p ) => ( A::PROCESSES[ $m( $p, A::PROCESS ) ] ?? '' ) . "\n" . SchoolYear::of( $m( $p, A::START ) ),
+					'Ámbito y centro' => static fn( $p ) => self::terms( $p->ID, 'fmc_scope' ) . "\n" . $m( $p, A::VENUE_CENTRE ),
+					'Ponentes'        => static fn( $p ) => implode( "\n", array_map( 'get_the_title', array_filter( array_map( 'intval', (array) get_post_meta( $p->ID, A::SPEAKERS, true ) ) ) ) ),
+					'Tipo y horas'    => static fn( $p ) => ( D::TYPES[ (string) get_post_meta( (int) $m( $p, A::DESIGN_ID ), D::TYPE, true ) ] ?? '' ) . "\n" . trim( ( D::MODALITIES[ $m( $p, A::MODALITY ) ] ?? '' ) . ' · ' . self::hours( $m( $p, A::HOURS_ONSITE ), $m( $p, A::HOURS_ONLINE ) ), ' ·' ),
+					'Fechas'          => static fn( $p ) => self::dates( $m( $p, A::START ), $m( $p, A::END ) ) . "\n" . wp_trim_words( $m( $p, A::SCHEDULE ), 12 ),
+					'Estado'          => static fn( $p ) => ( A::PROCESSES[ $m( $p, A::PROCESS ) ] ?? '' ) . "\n" . SchoolYear::of( $m( $p, A::START ) ),
 				);
 			case PostTypes::DESIGN:
 				return array(
@@ -965,7 +998,7 @@ final class Lists {
 					'Programas' => static fn( $p ) => self::terms( $p->ID, 'fmc_programme' ),
 				);
 			case PostTypes::SPEAKER:
-				if ( 'trash' === self::arg( 'fmc_status' ) ) {
+				if ( self::speaker_trash() ) {
 					return array(
 						'Baja'   => static fn( $p ) => $m( $p, S::TRASHED_AT ) . "\n" . get_the_author_meta( 'display_name', (int) $m( $p, S::TRASHED_BY ) ),
 						'Motivo' => static fn( $p ) => $m( $p, S::TRASH_REASON ),
@@ -1004,21 +1037,24 @@ final class Lists {
 		if ( 'trash' === $post->post_status ) {
 			return '<a class="btn btn-sm btn-outline-secondary" href="' . esc_url( admin_url( 'edit.php?post_status=trash&post_type=' . $post->post_type ) ) . '">Recuperar en el escritorio</a>';
 		}
-		$edit = current_user_can( 'edit_post', $post->ID );
-		$out  = '<a class="btn btn-sm btn-outline-primary fmc-abre-panel" title="' . esc_attr( self::title( $post ) ) . '" href="' . esc_url( Screen::url( array( Screen::ARG_EDIT => $post->ID ) ) ) . '">' . ( $edit ? 'Editar' : 'Ver' ) . '</a>';
+		// Iconos, para que la fila no se coma la tabla; el nombre va en `title`
+		// (al pasar el ratón) y en `aria-label` (lectores de pantalla).
+		$edit  = current_user_can( 'edit_post', $post->ID );
+		$label = ( $edit ? 'Editar' : 'Ver' ) . ' «' . self::title( $post ) . '»';
+		$out   = '<a class="btn btn-sm btn-outline-primary fmc-icon fmc-abre-panel" title="' . esc_attr( $edit ? 'Editar' : 'Ver' ) . '" aria-label="' . esc_attr( $label ) . '" href="' . esc_url( Screen::url( array( Screen::ARG_EDIT => $post->ID ) ) ) . '"><i class="bi ' . ( $edit ? 'bi-pencil' : 'bi-eye' ) . '" aria-hidden="true"></i></a>';
 		// Como en el sistema anterior, la incidencia se abre desde la fila de su acción.
 		if ( PostTypes::ACTION === $post->post_type && $edit && current_user_can( 'edit_fmc_incidents' ) ) {
-			$out .= ' <a class="btn btn-sm btn-outline-secondary fmc-abre-panel" title="Abrir una incidencia" href="' . esc_url(
+			$out .= ' <a class="btn btn-sm btn-outline-secondary fmc-icon fmc-abre-panel" title="Abrir una incidencia" aria-label="' . esc_attr( 'Abrir una incidencia sobre «' . self::title( $post ) . '»' ) . '" href="' . esc_url(
 				Screen::url(
 					array(
 						Screen::ARG_NEW    => PostTypes::INCIDENT,
 						Screen::ARG_PARENT => $post->ID,
 					)
 				)
-			) . '">Incidencia</a>';
+			) . '"><i class="bi bi-exclamation-triangle" aria-hidden="true"></i></a>';
 		}
 		if ( PostTypes::SPEAKER !== $post->post_type && Screen::can_delete( $post ) ) {
-			$out .= ' ' . Screen::delete_form( $post, 'btn-sm' );
+			$out .= ' ' . Screen::delete_form( $post, 'btn-sm', true );
 		}
 		return $out;
 	}

@@ -137,6 +137,13 @@ a.fmc-counter:hover, .fmc-counter.is-active { border-color: var(--fmc-brand); bo
 	.fmc-cal-num { align-self: flex-start; }
 }
 
+/* Los botones de icono de cada fila: cuadrados y del mismo tamaño */
+.fmc-icon { display: inline-flex; align-items: center; justify-content: center; width: 2rem; height: 2rem; padding: 0; border-radius: .5rem; }
+.fmc-table .fmc-col-title { min-width: 16rem; }
+
+/* Cuántos ponentes salen, en una línea encima de la tabla */
+.fmc-found { margin: 0 0 .5rem; color: var(--fmc-text-2); font-size: .9rem; }
+
 /* Las listas con buscador de los filtros, en una línea: un título largo no
    descuadra la fila. El desplegable lo enseña entero. */
 .fmc-filters .ts-wrapper.single .ts-control { flex-wrap: nowrap; }
