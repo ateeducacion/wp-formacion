@@ -15,7 +15,7 @@ use Fmc\PostType\PostTypes;
  *
  * Sin sesión, al acceso. Con sesión, un documento propio —no el del tema—,
  * con la cabecera y las pestañas del aplicativo de eventos. Cada pantalla es
- * un parámetro de la portada (`?fmc_tab=calendar`, `?fmc_edit=123`): no hay
+ * un parámetro de la portada (`?fmc_tab=designs`, `?fmc_edit=123`): no hay
  * páginas que crear ni que se puedan borrar por error.
  */
 final class Screen {
@@ -127,11 +127,7 @@ final class Screen {
 		$tabs    = array();
 		$actions = current_user_can( 'edit_fmc_actions' ) || current_user_can( 'read_private_fmc_actions' );
 		if ( $actions ) {
-			$tabs['calendar'] = array(
-				'label' => 'Calendario',
-				'type'  => PostTypes::ACTION,
-			);
-			$tabs['actions']  = array(
+			$tabs['actions'] = array(
 				'label' => 'Acciones formativas',
 				'type'  => PostTypes::ACTION,
 			);
@@ -228,8 +224,8 @@ final class Screen {
 		// phpcs:enable
 
 		$tabs = self::tabs();
-		// La descarga en CSV de un listado, con sus filtros; el calendario exporta
-		// acciones. Los ponentes no se exportan: son datos personales (ADR-0011).
+		// La descarga en CSV de un listado, con sus filtros. Los ponentes no se
+		// exportan: son datos personales (ADR-0011).
 		if ( '' !== Lists::arg( 'fmc_csv' ) && isset( $tabs[ $tab ] ) && PostTypes::SPEAKER !== $tabs[ $tab ]['type'] ) {
 			Lists::csv( $tabs[ $tab ]['type'] );
 			exit;
@@ -240,7 +236,8 @@ final class Screen {
 			if ( ! isset( $tabs[ $tab ] ) ) {
 				$tab = (string) array_key_first( $tabs );
 			}
-			$screen = 'calendar' === $tab ? Calendar::screen() : Lists::screen( $tab, $tabs[ $tab ]['type'] );
+			// Las acciones se abren en el calendario; su vista «Lista» es el listado.
+			$screen = 'actions' === $tab && 'list' !== Calendar::view() ? Calendar::screen() : Lists::screen( $tab, $tabs[ $tab ]['type'] );
 		}
 
 		// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- document() escapes, and every screen body is built escaped.

@@ -13,8 +13,10 @@ use Fmc\PostType\PostTypes;
 /**
  * El calendario que se usa a diario.
  *
- * Por mes, semana, día o en lista, como el registro de visitas. Cada acción
- * cae en su fecha de inicio; en la semana y el día se ven aparte las que
+ * Es lo primero que se ve de las acciones formativas: por mes, semana o día,
+ * como el registro de visitas; su vista «Lista» es el listado de siempre
+ * (`Lists`), con sus contadores y su paginación. Cada acción cae en su fecha
+ * de inicio; en la semana y el día se ven aparte las que
  * empezaron antes y siguen en curso. De un vistazo: el color es la
  * situación, el borde de puntos dice quién la paga y las cintas marcan el
  * desdoble y los datos incompletos. Menos texto que el calendario anterior,
@@ -49,7 +51,20 @@ final class Calendar {
 	 */
 	public static function month(): string {
 		$m = Lists::arg( 'fmc_month' );
-		return preg_match( '/^(\d{4})-(0[1-9]|1[0-2])$/', $m ) ? $m . '-01' : gmdate( 'Y-m-01', (int) current_time( 'timestamp' ) ); // phpcs:ignore WordPress.DateTime.CurrentTimeTimestamp.Requested -- día local.
+		if ( preg_match( '/^(\d{4})-(0[1-9]|1[0-2])$/', $m ) ) {
+			return $m . '-01';
+		}
+		// Desde la semana o el día, el mes de ese día.
+		return substr( self::day(), 0, 8 ) . '01';
+	}
+
+	/**
+	 * Today, Y-m-d, in the site's time zone.
+	 *
+	 * @return string
+	 */
+	public static function today(): string {
+		return gmdate( 'Y-m-d', (int) current_time( 'timestamp' ) ); // phpcs:ignore WordPress.DateTime.CurrentTimeTimestamp.Requested -- día local.
 	}
 
 	/**
@@ -73,13 +88,19 @@ final class Calendar {
 	}
 
 	/**
-	 * The day the week and day views show, Y-m-d: `fmc_day`, or today.
+	 * The day the week and day views show, Y-m-d: `fmc_day`; from another
+	 * month, its first day; else today.
 	 *
 	 * @return string
 	 */
 	public static function day(): string {
 		$d = Lists::arg( 'fmc_day' );
-		return preg_match( '/^\d{4}-\d{2}-\d{2}$/', $d ) && strtotime( $d ) ? $d : gmdate( 'Y-m-d', (int) current_time( 'timestamp' ) ); // phpcs:ignore WordPress.DateTime.CurrentTimeTimestamp.Requested -- día local.
+		if ( preg_match( '/^\d{4}-\d{2}-\d{2}$/', $d ) && strtotime( $d ) ) {
+			return $d;
+		}
+		// Del mes a la semana: la de hoy si es este mes; si no, la primera del mes.
+		$m = Lists::arg( 'fmc_month' );
+		return preg_match( '/^(\d{4})-(0[1-9]|1[0-2])$/', $m ) && substr( self::today(), 0, 7 ) !== $m ? $m . '-01' : self::today();
 	}
 
 	/**
@@ -185,15 +206,25 @@ final class Calendar {
 	 * @return array<string, string>
 	 */
 	public static function screen(): array {
-		$view = self::view();
-		if ( 'week' === $view || 'day' === $view ) {
-			$screen = self::days_screen( $view );
-		} else {
-			$screen = self::month_screen( $view );
-		}
-		$screen['actions'] = self::views_html( $view ) . ' ' . $screen['actions'] . ( current_user_can( 'edit_fmc_actions' ) ? ' <a class="btn btn-primary ms-2 fmc-abre-panel" href="' . esc_url( Screen::url( array( Screen::ARG_NEW => PostTypes::ACTION ) ) ) . '">+ Añadir acción</a>' : '' );
-		$screen['body']    = Lists::filters_html( 'calendar', PostTypes::ACTION ) . self::legend() . $screen['body'];
-		return $screen + array( 'tab' => 'calendar' );
+		$view   = self::view();
+		$period = 'week' === $view || 'day' === $view ? self::days_screen( $view ) : self::month_screen();
+		$object = get_post_type_object( PostTypes::ACTION );
+		$add    = current_user_can( $object->cap->create_posts ) ? ' <a class="btn btn-primary fmc-abre-panel" href="' . esc_url( Screen::url( array( Screen::ARG_NEW => PostTypes::ACTION ) ) ) . '">+ Añadir acción formativa</a>' : '';
+		// El CSV, de lo que empieza en el periodo que se ve, con los filtros.
+		$csv = array(
+			'fmc_csv'  => '1',
+			'fmc_from' => $period['from'],
+			'fmc_to'   => $period['to'],
+		);
+		// La cabecera es la de la lista, así que al cambiar de vista no se mueve
+		// nada; el periodo, con sus flechas, va abajo, junto a lo que se ve.
+		return array(
+			'tab'      => 'actions',
+			'title'    => $object->labels->name,
+			'subtitle' => Lists::SUBTITLES[ PostTypes::ACTION ],
+			'actions'  => self::views_html( $view ) . $add . ' ' . self::nav_link( $csv, 'Exportar CSV' ),
+			'body'     => Lists::filters_html( 'actions', PostTypes::ACTION ) . self::period_html( $period ) . self::legend() . $period['body'],
+		);
 	}
 
 	/**
@@ -202,52 +233,67 @@ final class Calendar {
 	 * @param array<string, string> $args Calendar args.
 	 * @param string                $text Text.
 	 * @param string                $css  Classes.
+	 * @param array<string, string> $attr More attributes.
 	 * @return string
 	 */
-	private static function nav_link( array $args, string $text, string $css = 'btn btn-outline-secondary' ): string {
-		return '<a class="' . esc_attr( $css ) . '" href="' . esc_url( Screen::url( array_merge( self::filters(), array( Screen::ARG_TAB => 'calendar' ), $args ) ) ) . '">' . esc_html( $text ) . '</a>';
+	private static function nav_link( array $args, string $text, string $css = 'btn btn-outline-secondary', array $attr = array() ): string {
+		$more = '';
+		foreach ( $attr as $name => $value ) {
+			$more .= ' ' . $name . '="' . esc_attr( $value ) . '"';
+		}
+		return '<a class="' . esc_attr( $css ) . '" href="' . esc_url( Screen::url( array_merge( self::filters(), array( Screen::ARG_TAB => 'actions' ), $args ) ) ) . '"' . $more . '>' . esc_html( $text ) . '</a>';
 	}
 
 	/**
-	 * Buttons to switch view, on the same day or month.
+	 * Buttons to switch view, on the same day or month; the list is `Lists`.
 	 *
 	 * @param string $current View shown.
 	 * @return string
 	 */
-	private static function views_html( string $current ): string {
-		$out = '<div class="btn-group me-2" role="group" aria-label="Vista">';
+	public static function views_html( string $current ): string {
+		$out = '<nav class="fmc-views" aria-label="Vista">';
 		foreach ( self::VIEWS as $view => $label ) {
 			$anchor = 'week' === $view || 'day' === $view ? array( 'fmc_day' => self::day() ) : array( 'fmc_month' => substr( self::month(), 0, 7 ) );
-			$out   .= self::nav_link( array( 'fmc_view' => 'month' === $view ? '' : $view ) + $anchor, $label, 'btn ' . ( $view === $current ? 'btn-secondary' : 'btn-outline-secondary' ) );
+			$out   .= self::nav_link( array( 'fmc_view' => 'month' === $view ? '' : $view ) + $anchor, $label, 'fmc-view', $view === $current ? array( 'aria-current' => 'true' ) : array() );
 		}
-		return $out . '</div>';
+		return $out . '</nav>';
 	}
 
 	/**
-	 * Month grid, or the month as a list.
+	 * The period shown, its arrows and today; how many actions, on the right.
 	 *
-	 * @param string $view `month` or `list`.
-	 * @return array<string, string>
+	 * Las flechas van delante del título para que no salten cuando el título
+	 * cambia de largo.
+	 *
+	 * @param array<string, mixed> $period Period: title, count, and prev, next and today args.
+	 * @return string
 	 */
-	private static function month_screen( string $view ): array {
-		$first = self::month();
-		$ts    = (int) strtotime( $first );
-		$title = self::MONTHS[ (int) gmdate( 'n', $ts ) ] . ' de ' . gmdate( 'Y', $ts );
-		$keep  = 'list' === $view ? array( 'fmc_view' => 'list' ) : array();
-		$nav   = '<div class="btn-group">' . self::nav_link( $keep + array( 'fmc_month' => gmdate( 'Y-m', (int) strtotime( '-1 month', $ts ) ) ), '‹' ) . self::nav_link( $keep + array( 'fmc_month' => gmdate( 'Y-m' ) ), 'Hoy' ) . self::nav_link( $keep + array( 'fmc_month' => gmdate( 'Y-m', (int) strtotime( '+1 month', $ts ) ) ), '›' ) . '</div>';
+	private static function period_html( array $period ): string {
+		return '<div class="fmc-period"><div class="fmc-period-nav" role="group" aria-label="Navegar por fechas">'
+			. self::nav_link( $period['prev'], '‹', 'btn btn-light', array( 'title' => 'Periodo anterior' ) )
+			. self::nav_link( $period['next'], '›', 'btn btn-light', array( 'title' => 'Periodo siguiente' ) )
+			. self::nav_link( $period['today'], 'Hoy', 'fmc-period-hoy' )
+			. '</div><h2 class="fmc-period-title">' . esc_html( $period['title'] ) . '</h2><span class="fmc-period-count">' . esc_html( $period['count'] ) . '</span></div>';
+	}
 
+	/**
+	 * The month grid.
+	 *
+	 * @return array<string, mixed>
+	 */
+	private static function month_screen(): array {
+		$first  = self::month();
+		$ts     = (int) strtotime( $first );
 		$by_day = self::by_day( $first );
-		$count  = array_sum( array_map( 'count', $by_day ) );
-		if ( 'list' === $view ) {
-			$body = Lists::table_html( PostTypes::ACTION, array_merge( array(), ...array_values( $by_day ) ) );
-		} else {
-			$body = self::grid( $first, $by_day );
-		}
 		return array(
-			'title'    => 'Calendario de ' . $title,
-			'subtitle' => sprintf( '%d acción(es) empiezan este mes.', $count ),
-			'actions'  => $nav,
-			'body'     => $body,
+			'title' => ucfirst( self::MONTHS[ (int) gmdate( 'n', $ts ) ] ) . ' de ' . gmdate( 'Y', $ts ),
+			'count' => sprintf( '%d acción(es) empiezan este mes.', array_sum( array_map( 'count', $by_day ) ) ),
+			'prev'  => array( 'fmc_month' => gmdate( 'Y-m', (int) strtotime( '-1 month', $ts ) ) ),
+			'next'  => array( 'fmc_month' => gmdate( 'Y-m', (int) strtotime( '+1 month', $ts ) ) ),
+			'today' => array( 'fmc_month' => substr( self::today(), 0, 7 ) ),
+			'from'  => $first,
+			'to'    => gmdate( 'Y-m-t', $ts ),
+			'body'  => self::grid( $first, $by_day ),
 		);
 	}
 
@@ -267,7 +313,7 @@ final class Calendar {
 			$body .= '<div' . ( $i > 4 ? ' class="is-weekend"' : '' ) . '>' . esc_html( $d ) . '</div>';
 		}
 		$body .= '</div>';
-		$today = gmdate( 'Y-m-d', (int) current_time( 'timestamp' ) ); // phpcs:ignore WordPress.DateTime.CurrentTimeTimestamp.Requested -- día local.
+		$today = self::today();
 		foreach ( self::weeks( $first ) as $week ) {
 			$body .= '<div class="fmc-cal-week">';
 			foreach ( $week as $i => $day ) {
@@ -346,33 +392,45 @@ final class Calendar {
 	 * A week or a day: what starts each day, and what is already running.
 	 *
 	 * @param string $view `week` or `day`.
-	 * @return array<string, string>
+	 * @return array<string, mixed>
 	 */
 	private static function days_screen( string $view ): array {
 		$day   = self::day();
 		$ts    = (int) strtotime( $day );
 		$days  = self::days_of( $view, $day );
 		$from  = $days[0];
+		$to    = (string) end( $days );
 		$step  = 'week' === $view ? '7 days' : '1 day';
-		$keep  = array( 'fmc_view' => $view );
-		$nav   = '<div class="btn-group">' . self::nav_link( $keep + array( 'fmc_day' => gmdate( 'Y-m-d', (int) strtotime( '-' . $step, $ts ) ) ), '‹' ) . self::nav_link( $keep + array( 'fmc_day' => gmdate( 'Y-m-d', (int) current_time( 'timestamp' ) ) ), 'Hoy' ) . self::nav_link( $keep + array( 'fmc_day' => gmdate( 'Y-m-d', (int) strtotime( '+' . $step, $ts ) ) ), '›' ) . '</div>'; // phpcs:ignore WordPress.DateTime.CurrentTimeTimestamp.Requested -- día local.
-		$by    = self::by_range( $days[0], end( $days ) );
-		$today = gmdate( 'Y-m-d', (int) current_time( 'timestamp' ) ); // phpcs:ignore WordPress.DateTime.CurrentTimeTimestamp.Requested -- día local.
+		$by    = self::by_range( $from, $to );
+		$today = self::today();
 
 		$body = '<div class="fmc-days card' . ( 'day' === $view ? ' is-one' : '' ) . '">';
 		foreach ( $days as $d ) {
 			$body .= self::day_html( $d, $by[ $d ] ?? array(), $d === $today );
 		}
 		$body   .= '</div>';
-		$running = self::ongoing( $days[0] );
+		$running = self::ongoing( $from );
 		$body   .= self::running_html( $running );
 
 		$label = (int) substr( $from, 8 ) . ' de ' . self::MONTHS[ (int) gmdate( 'n', (int) strtotime( $from ) ) ] . ' de ' . gmdate( 'Y', (int) strtotime( $from ) );
 		return array(
-			'title'    => 'week' === $view ? 'Calendario de la semana del ' . $label : 'Calendario del ' . mb_strtolower( self::WEEKDAYS[ (int) gmdate( 'N', $ts ) - 1 ] ) . ' ' . $label,
-			'subtitle' => sprintf( '%1$d acción(es) empiezan; %2$d siguen en curso.', array_sum( array_map( 'count', $by ) ), count( $running ) ),
-			'actions'  => $nav,
-			'body'     => $body,
+			'title' => 'week' === $view ? 'Semana del ' . $label : self::WEEKDAYS[ (int) gmdate( 'N', $ts ) - 1 ] . ' ' . $label,
+			'count' => sprintf( '%1$d acción(es) empiezan; %2$d siguen en curso.', array_sum( array_map( 'count', $by ) ), count( $running ) ),
+			'prev'  => array(
+				'fmc_view' => $view,
+				'fmc_day'  => gmdate( 'Y-m-d', (int) strtotime( '-' . $step, $ts ) ),
+			),
+			'next'  => array(
+				'fmc_view' => $view,
+				'fmc_day'  => gmdate( 'Y-m-d', (int) strtotime( '+' . $step, $ts ) ),
+			),
+			'today' => array(
+				'fmc_view' => $view,
+				'fmc_day'  => $today,
+			),
+			'from'  => $from,
+			'to'    => $to,
+			'body'  => $body,
 		);
 	}
 

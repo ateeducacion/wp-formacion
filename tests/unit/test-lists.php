@@ -638,9 +638,9 @@ class Test_Lists extends WP_UnitTestCase {
 			'fmc_s'         => '"><b>x',
 		);
 
-		$html = Lists::filters_html( 'calendar', PostTypes::ACTION );
+		$html = Lists::filters_html( 'actions', PostTypes::ACTION );
 
-		$this->assertStringContainsString( '<input type="hidden" name="fmc_tab" value="calendar">', $html );
+		$this->assertStringContainsString( '<input type="hidden" name="fmc_tab" value="actions">', $html );
 		$this->assertStringContainsString( '<input type="hidden" name="fmc_month" value="2026-03">', $html );
 		$this->assertStringContainsString( '<option value="done" selected=\'selected\'>Realizada</option>', $html );
 		$this->assertStringContainsString( 'id="fmc_from" name="fmc_from" value="2026-01-01"', $html );
@@ -650,17 +650,27 @@ class Test_Lists extends WP_UnitTestCase {
 	}
 
 	/**
-	 * En el filtro de diseños entran también los que no están finalizados.
+	 * En el filtro de diseños solo entran los del catálogo, con su código
+	 * delante para buscar por él (ADR-0012).
 	 */
-	public function test_design_choices_include_drafts() {
+	public function test_design_choices_are_the_catalogue_with_their_code() {
 		$this->as_role( 'fmc_curator' );
-		$draft = $this->post( PostTypes::DESIGN, 'B borrador', array(), array( 'post_status' => 'draft' ) );
-		$done  = $this->post( PostTypes::DESIGN, 'A finalizado' );
+		$this->post( PostTypes::DESIGN, 'C borrador', array( D::IN_CATALOGUE => '1' ), array( 'post_status' => 'draft' ) );
+		$this->post( PostTypes::DESIGN, 'B histórico' );
+		$listed = $this->post(
+			PostTypes::DESIGN,
+			'A en el catálogo',
+			array(
+				D::IN_CATALOGUE => '1',
+				D::CODE         => 'A7',
+			)
+		);
+		$plain  = $this->post( PostTypes::DESIGN, 'D sin código', array( D::IN_CATALOGUE => '1' ) );
 
 		$this->assertSame(
 			array(
-				$done  => 'A finalizado',
-				$draft => 'B borrador',
+				$listed => 'A7 · A en el catálogo',
+				$plain  => 'D sin código',
 			),
 			Lists::post_choices( PostTypes::DESIGN )
 		);

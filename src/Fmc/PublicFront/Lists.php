@@ -25,6 +25,16 @@ final class Lists {
 	public const PER_PAGE = 50;
 
 	/**
+	 * What each list is for, under its title.
+	 */
+	public const SUBTITLES = array(
+		PostTypes::ACTION   => 'Cada edición de un diseño: dónde, cuándo, para cuántos y cómo fue.',
+		PostTypes::DESIGN   => 'El catálogo y la mesa de trabajo: los borradores se escriben aquí hasta que la curaduría los da por finalizados.',
+		PostTypes::SPEAKER  => 'Datos personales: solo para quien gestiona acciones. Busque por lo que han impartido, con sus acciones y sus horas.',
+		PostTypes::INCIDENT => 'Cambios pedidos sobre una acción. Se abren desde la propia acción.',
+	);
+
+	/**
 	 * Bootstrap colour of each action situation.
 	 */
 	public const SITUATION_COLOURS = array(
@@ -516,23 +526,20 @@ final class Lists {
 				)
 			) . '">Exportar CSV</a>';
 		}
+		// La lista es una vista más de las acciones, junto al calendario.
+		if ( PostTypes::ACTION === $type ) {
+			$actions = Calendar::views_html( 'list' ) . ' ' . $actions;
+		}
 
 		$body  = self::counters_html( $tab, self::counters( $type ) );
 		$body .= self::filters_html( $tab, $type );
 		$body .= self::table_html( $type, $q->posts );
 		$body .= self::pager_html( $page, (int) $q->max_num_pages );
 
-		$subtitles = array(
-			PostTypes::ACTION   => 'Cada edición de un diseño: dónde, cuándo, para cuántos y cómo fue.',
-			PostTypes::DESIGN   => 'El catálogo y la mesa de trabajo: los borradores se escriben aquí hasta que la curaduría los da por finalizados.',
-			PostTypes::SPEAKER  => 'Datos personales: solo para quien gestiona acciones. Busque por lo que han impartido, con sus acciones y sus horas.',
-			PostTypes::INCIDENT => 'Cambios pedidos sobre una acción. Se abren desde la propia acción.',
-		);
-
 		return array(
 			'tab'      => $tab,
 			'title'    => $object->labels->name,
-			'subtitle' => $subtitles[ $type ],
+			'subtitle' => self::SUBTITLES[ $type ],
 			'actions'  => $actions,
 			'body'     => $body,
 		);
@@ -566,7 +573,7 @@ final class Lists {
 	 */
 	private static function current_filters(): array {
 		$out = array();
-		foreach ( array( 'fmc_s', 'fmc_scope', 'fmc_programme', 'fmc_topic', 'fmc_modality', 'fmc_process', 'fmc_situation', 'fmc_year', 'fmc_type', 'fmc_status', 'fmc_zone', 'fmc_available', 'fmc_resolution', 'fmc_month', 'fmc_speaker', 'fmc_from', 'fmc_to', 'fmc_catalogue', 'fmc_recommended', 'fmc_file', 'fmc_incident', 'fmc_given', 'fmc_sort' ) as $key ) {
+		foreach ( array( 'fmc_s', 'fmc_scope', 'fmc_programme', 'fmc_topic', 'fmc_modality', 'fmc_process', 'fmc_situation', 'fmc_year', 'fmc_type', 'fmc_status', 'fmc_zone', 'fmc_available', 'fmc_resolution', 'fmc_month', 'fmc_speaker', 'fmc_from', 'fmc_to', 'fmc_catalogue', 'fmc_recommended', 'fmc_file', 'fmc_incident', 'fmc_given', 'fmc_sort', 'fmc_view' ) as $key ) {
 			if ( '' !== self::arg( $key ) ) {
 				$out[ $key ] = self::arg( $key );
 			}
@@ -653,11 +660,18 @@ final class Lists {
 
 		$out  = '<form class="card card-body mb-3 fmc-filters" method="get" action="' . esc_url( home_url( '/' ) ) . '">';
 		$out .= '<input type="hidden" name="' . esc_attr( Screen::ARG_TAB ) . '" value="' . esc_attr( $tab ) . '">';
-		if ( '' !== self::arg( 'fmc_month' ) ) {
-			$out .= '<input type="hidden" name="fmc_month" value="' . esc_attr( self::arg( 'fmc_month' ) ) . '">';
+		// Filtrar no cambia de vista ni de fecha.
+		foreach ( array( 'fmc_view', 'fmc_month', 'fmc_day' ) as $key ) {
+			if ( '' !== self::arg( $key ) ) {
+				$out .= '<input type="hidden" name="' . esc_attr( $key ) . '" value="' . esc_attr( self::arg( $key ) ) . '">';
+			}
 		}
-		$out .= '<div class="row g-2 align-items-end">' . implode( '', $fields );
-		$out .= '<div class="col-auto"><button class="btn btn-outline-dark" type="submit">Filtrar</button> <a class="btn btn-link" href="' . esc_url( Screen::url( array( Screen::ARG_TAB => $tab ) ) ) . '">Quitar filtros</a></div>';
+		$out  .= '<div class="row g-2 align-items-end">' . implode( '', $fields );
+		$reset = array(
+			Screen::ARG_TAB => $tab,
+			'fmc_view'      => self::arg( 'fmc_view' ),
+		);
+		$out  .= '<div class="col-auto"><button class="btn btn-outline-dark" type="submit">Filtrar</button> <a class="btn btn-link" href="' . esc_url( Screen::url( $reset ) ) . '">Quitar filtros</a></div>';
 		return $out . '</div></form>';
 	}
 
@@ -694,7 +708,8 @@ final class Lists {
 	 * @return string
 	 */
 	public static function select( string $name, string $label, array $choices, string $all, bool $search = false ): string {
-		$wide = $search ? 'col-12 col-md-3' : 'col-6 col-md';
+		// Las de buscador llevan títulos largos: media fila, para leerlos enteros.
+		$wide = $search ? 'col-12 col-lg-6' : 'col-6 col-md';
 		$out  = '<div class="' . $wide . '"><label class="form-label small fw-semibold" for="' . esc_attr( $name ) . '">' . esc_html( $label ) . '</label><select class="form-select" id="' . esc_attr( $name ) . '" name="' . esc_attr( $name ) . '"' . ( $search ? ' data-fmc-ts data-placeholder="' . esc_attr( $all ) . '"' : '' ) . '><option value="">' . esc_html( $all ) . '</option>';
 		foreach ( $choices as $value => $text ) {
 			$out .= '<option value="' . esc_attr( (string) $value ) . '"' . selected( self::arg( $name ), (string) $value, false ) . '>' . esc_html( $text ) . '</option>';
@@ -720,18 +735,30 @@ final class Lists {
 	 * @return array<int, string>
 	 */
 	public static function post_choices( string $type ): array {
+		$args = array(
+			'post_type'      => $type,
+			'post_status'    => 'publish',
+			'posts_per_page' => -1,
+			'orderby'        => 'title',
+			'order'          => 'ASC',
+			'no_found_rows'  => true,
+		);
+		if ( PostTypes::DESIGN === $type ) {
+			// Solo los del catálogo, que son los que se imparten (ADR-0012): los
+			// históricos alargaban la lista hasta hacerla inmanejable.
+			// phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_query -- solo los diseños del catálogo.
+			$args['meta_query'] = array(
+				array(
+					'key'   => D::IN_CATALOGUE,
+					'value' => '1',
+				),
+			);
+		}
 		$out = array();
-		foreach ( get_posts(
-			array(
-				'post_type'      => $type,
-				'post_status'    => PostTypes::DESIGN === $type ? array( 'publish', 'pending', 'draft' ) : 'publish',
-				'posts_per_page' => -1,
-				'orderby'        => 'title',
-				'order'          => 'ASC',
-				'no_found_rows'  => true,
-			)
-		) as $p ) {
-			$out[ $p->ID ] = get_the_title( $p );
+		foreach ( get_posts( $args ) as $p ) {
+			// El código delante: se busca por él y separa títulos parecidos.
+			$code          = PostTypes::DESIGN === $type ? (string) get_post_meta( $p->ID, D::CODE, true ) : '';
+			$out[ $p->ID ] = ( '' !== $code ? $code . ' · ' : '' ) . get_the_title( $p );
 		}
 		return $out;
 	}

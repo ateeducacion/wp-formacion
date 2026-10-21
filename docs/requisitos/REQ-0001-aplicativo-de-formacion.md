@@ -224,8 +224,11 @@ referencia aquí.
 - **Código del diseño (RF-2).** Lo asigna el aplicativo: el siguiente al más
   alto que ya exista, con el mismo prefijo. Es de solo lectura para todos. Si
   cada cual escribe el suyo, los códigos se solapan.
-- **Calendario (RF-13).** Se ve por mes, semana, día o como lista
-  (`fmc_view`, `fmc_day`).
+- **Calendario (RF-13).** Calendario y listado de acciones son una sola
+  pestaña, «Acciones formativas»: se abre en el mes, y se ve también por
+  semana, por día o como lista, que es el listado de siempre, con sus
+  contadores (`fmc_view`, `fmc_day`). Cada vista exporta a CSV: el calendario,
+  lo que empieza en el periodo que enseña; la lista, lo filtrado.
 - **Listado de acciones (RF-14).** Filtro «Expediente empieza por», y la
   búsqueda de texto mira también el expediente. El prefijo del expediente dice
   con qué partida se paga una acción; el programa no, porque un diseño creado

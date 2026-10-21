@@ -112,7 +112,7 @@ src/Fmc/
 └── PublicFront/                  El aplicativo, en la portada del sitio
     ├── Screen.php                Enrutado (?fmc_tab, ?fmc_edit, ?fmc_new), cabecera y pestañas
     ├── Lists.php                 Contadores, filtros y tabla paginada de cada tipo
-    ├── Calendar.php              Calendario por mes, semana, día o lista, con colores por situación y financiación
+    ├── Calendar.php              Las acciones por mes, semana o día, con colores por situación y financiación; su vista «Lista» es Lists
     ├── Fields.php                Las fichas de edición escritas como datos: secciones y campos
     ├── Editor.php                Ficha de edición y guardado campo a campo (`apply()`), con las reglas de Fields::rules()
     ├── Documents.php             Documentos del diseño: adjuntos colgados de él, por clase y formato

@@ -137,13 +137,22 @@ a.fmc-counter:hover, .fmc-counter.is-active { border-color: var(--fmc-brand); bo
 	.fmc-cal-num { align-self: flex-start; }
 }
 
+/* Las listas con buscador de los filtros, en una línea: un título largo no
+   descuadra la fila. El desplegable lo enseña entero. */
+.fmc-filters .ts-wrapper.single .ts-control { flex-wrap: nowrap; }
+.fmc-filters .ts-wrapper.single .ts-control > .item { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
 /* Tom Select dentro de las fichas */
 .fmc-form .ts-wrapper.multi .ts-control > .item { background: #e7f0fb; border: 1px solid #b6cff0; border-radius: .3rem; color: #1a4f8b; }
 .fmc-form .ts-wrapper.disabled .ts-control { background-color: #f8f9fa; }
 
 /* Panel lateral: el offcanvas de Bootstrap con la ficha dentro */
 body.has-panel { overflow: hidden; }
-.fmc-panel.offcanvas { --bs-offcanvas-width: min(880px, 100vw); background: var(--fmc-soft); }
+.fmc-panel.offcanvas { --bs-offcanvas-width: min(880px, 100vw); --bs-offcanvas-zindex: 100001; z-index: 100001; background: var(--fmc-soft); }
+/* Por encima de la barra de WordPress (z-index 99999), que tapa como tapa la
+   página; y los avisos de SweetAlert2, por encima del panel. */
+.fmc-panel-backdrop { z-index: 100000; }
+.fmc .swal2-container { z-index: 100002; }
 .fmc-panel .offcanvas-header { background: #fff; }
 .fmc-panel .offcanvas-body { padding: 1.25rem; }
 .fmc-panel .offcanvas-body[aria-busy="true"] { opacity: .5; pointer-events: none; }
@@ -156,6 +165,26 @@ body.has-panel { overflow: hidden; }
 .fmc-doc-kind + .fmc-doc-kind { border-top: 1px dashed var(--fmc-line); padding-top: .75rem; }
 .fmc-docs .btn-check:checked + .btn-outline-danger { color: #fff; }
 .fmc-docs .list-group-item:has(.btn-check:checked) a { text-decoration: line-through; opacity: .6; }
+
+/* Vistas y periodo, con los colores del registro de visitas: la vista activa,
+   en blanco sobre gris; debajo, las flechas, «Hoy», el periodo y su recuento.
+   La vista activa no cambia de grosor, para que el selector no baile. */
+.fmc-views { display: inline-flex; padding: .2rem; background: var(--fmc-sup-2); border: 1px solid var(--fmc-line); border-radius: .5rem; }
+.fmc-views a { display: inline-flex; align-items: center; min-height: 2.1rem; padding: 0 .8rem; border-radius: .4rem; text-decoration: none; font-size: .85rem; font-weight: 600; color: var(--fmc-brand); }
+.fmc-views a:hover { background: #fff8; }
+.fmc-views a[aria-current] { background: #fff; box-shadow: 0 1px 3px #0003; }
+.fmc-period { display: flex; flex-wrap: wrap; align-items: center; gap: .75rem 1rem; margin: 0 0 1rem; }
+.fmc-period-nav { display: flex; align-items: center; gap: .4rem; }
+.fmc-period-nav .btn { min-width: 2.5rem; min-height: 2.5rem; border: 1px solid var(--fmc-line); border-radius: .5rem; background: #fff; color: var(--fmc-brand); font-weight: 700; }
+.fmc-period-hoy { display: inline-flex; align-items: center; min-height: 2.5rem; padding: 0 .9rem; border: 1px solid var(--fmc-brand); border-radius: 999px; color: var(--fmc-brand); font-weight: 700; font-size: .85rem; text-decoration: none; }
+.fmc-period-hoy:hover { background: var(--fmc-brand-cont); }
+.fmc-period-title { margin: 0; font-size: 1.15rem; font-weight: 700; letter-spacing: -.01em; }
+.fmc-period-count { margin-left: auto; padding: .35rem .7rem; border-radius: 999px; background: var(--fmc-sup-2); color: var(--fmc-text-2); font-size: .85rem; }
+@media (max-width: 575.98px) {
+	.fmc-views { display: flex; width: 100%; }
+	.fmc-views a { flex: 1 1 0; justify-content: center; }
+	.fmc-period-count { margin-left: 0; }
+}
 
 /* Calendario de lunes a viernes cuando el fin de semana está vacío */
 .fmc-cal.no-weekend .fmc-cal-head, .fmc-cal.no-weekend .fmc-cal-week { grid-template-columns: repeat(5, minmax(0, 1fr)); }

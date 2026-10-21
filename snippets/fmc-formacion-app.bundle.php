@@ -2277,6 +2277,16 @@ final class Lists {
 
 
 
+	public const SUBTITLES = array(
+		PostTypes::ACTION   => 'Cada edición de un diseño: dónde, cuándo, para cuántos y cómo fue.',
+		PostTypes::DESIGN   => 'El catálogo y la mesa de trabajo: los borradores se escriben aquí hasta que la curaduría los da por finalizados.',
+		PostTypes::SPEAKER  => 'Datos personales: solo para quien gestiona acciones. Busque por lo que han impartido, con sus acciones y sus horas.',
+		PostTypes::INCIDENT => 'Cambios pedidos sobre una acción. Se abren desde la propia acción.',
+	);
+
+
+
+
 	public const SITUATION_COLOURS = array(
 		'managing'  => 'secondary',
 		'running'   => 'primary',
@@ -2767,22 +2777,19 @@ final class Lists {
 			) . '">Exportar CSV</a>';
 		}
 
+		if ( PostTypes::ACTION === $type ) {
+			$actions = Calendar::views_html( 'list' ) . ' ' . $actions;
+		}
+
 		$body  = self::counters_html( $tab, self::counters( $type ) );
 		$body .= self::filters_html( $tab, $type );
 		$body .= self::table_html( $type, $q->posts );
 		$body .= self::pager_html( $page, (int) $q->max_num_pages );
 
-		$subtitles = array(
-			PostTypes::ACTION   => 'Cada edición de un diseño: dónde, cuándo, para cuántos y cómo fue.',
-			PostTypes::DESIGN   => 'El catálogo y la mesa de trabajo: los borradores se escriben aquí hasta que la curaduría los da por finalizados.',
-			PostTypes::SPEAKER  => 'Datos personales: solo para quien gestiona acciones. Busque por lo que han impartido, con sus acciones y sus horas.',
-			PostTypes::INCIDENT => 'Cambios pedidos sobre una acción. Se abren desde la propia acción.',
-		);
-
 		return array(
 			'tab'      => $tab,
 			'title'    => $object->labels->name,
-			'subtitle' => $subtitles[ $type ],
+			'subtitle' => self::SUBTITLES[ $type ],
 			'actions'  => $actions,
 			'body'     => $body,
 		);
@@ -2816,7 +2823,7 @@ final class Lists {
 
 	private static function current_filters(): array {
 		$out = array();
-		foreach ( array( 'fmc_s', 'fmc_scope', 'fmc_programme', 'fmc_topic', 'fmc_modality', 'fmc_process', 'fmc_situation', 'fmc_year', 'fmc_type', 'fmc_status', 'fmc_zone', 'fmc_available', 'fmc_resolution', 'fmc_month', 'fmc_speaker', 'fmc_from', 'fmc_to', 'fmc_catalogue', 'fmc_recommended', 'fmc_file', 'fmc_incident', 'fmc_given', 'fmc_sort' ) as $key ) {
+		foreach ( array( 'fmc_s', 'fmc_scope', 'fmc_programme', 'fmc_topic', 'fmc_modality', 'fmc_process', 'fmc_situation', 'fmc_year', 'fmc_type', 'fmc_status', 'fmc_zone', 'fmc_available', 'fmc_resolution', 'fmc_month', 'fmc_speaker', 'fmc_from', 'fmc_to', 'fmc_catalogue', 'fmc_recommended', 'fmc_file', 'fmc_incident', 'fmc_given', 'fmc_sort', 'fmc_view' ) as $key ) {
 			if ( '' !== self::arg( $key ) ) {
 				$out[ $key ] = self::arg( $key );
 			}
@@ -2903,11 +2910,18 @@ final class Lists {
 
 		$out  = '<form class="card card-body mb-3 fmc-filters" method="get" action="' . esc_url( home_url( '/' ) ) . '">';
 		$out .= '<input type="hidden" name="' . esc_attr( Screen::ARG_TAB ) . '" value="' . esc_attr( $tab ) . '">';
-		if ( '' !== self::arg( 'fmc_month' ) ) {
-			$out .= '<input type="hidden" name="fmc_month" value="' . esc_attr( self::arg( 'fmc_month' ) ) . '">';
+
+		foreach ( array( 'fmc_view', 'fmc_month', 'fmc_day' ) as $key ) {
+			if ( '' !== self::arg( $key ) ) {
+				$out .= '<input type="hidden" name="' . esc_attr( $key ) . '" value="' . esc_attr( self::arg( $key ) ) . '">';
+			}
 		}
-		$out .= '<div class="row g-2 align-items-end">' . implode( '', $fields );
-		$out .= '<div class="col-auto"><button class="btn btn-outline-dark" type="submit">Filtrar</button> <a class="btn btn-link" href="' . esc_url( Screen::url( array( Screen::ARG_TAB => $tab ) ) ) . '">Quitar filtros</a></div>';
+		$out  .= '<div class="row g-2 align-items-end">' . implode( '', $fields );
+		$reset = array(
+			Screen::ARG_TAB => $tab,
+			'fmc_view'      => self::arg( 'fmc_view' ),
+		);
+		$out  .= '<div class="col-auto"><button class="btn btn-outline-dark" type="submit">Filtrar</button> <a class="btn btn-link" href="' . esc_url( Screen::url( $reset ) ) . '">Quitar filtros</a></div>';
 		return $out . '</div></form>';
 	}
 
@@ -2944,7 +2958,8 @@ final class Lists {
 
 
 	public static function select( string $name, string $label, array $choices, string $all, bool $search = false ): string {
-		$wide = $search ? 'col-12 col-md-3' : 'col-6 col-md';
+
+		$wide = $search ? 'col-12 col-lg-6' : 'col-6 col-md';
 		$out  = '<div class="' . $wide . '"><label class="form-label small fw-semibold" for="' . esc_attr( $name ) . '">' . esc_html( $label ) . '</label><select class="form-select" id="' . esc_attr( $name ) . '" name="' . esc_attr( $name ) . '"' . ( $search ? ' data-fmc-ts data-placeholder="' . esc_attr( $all ) . '"' : '' ) . '><option value="">' . esc_html( $all ) . '</option>';
 		foreach ( $choices as $value => $text ) {
 			$out .= '<option value="' . esc_attr( (string) $value ) . '"' . selected( self::arg( $name ), (string) $value, false ) . '>' . esc_html( $text ) . '</option>';
@@ -2970,18 +2985,30 @@ final class Lists {
 
 
 	public static function post_choices( string $type ): array {
+		$args = array(
+			'post_type'      => $type,
+			'post_status'    => 'publish',
+			'posts_per_page' => -1,
+			'orderby'        => 'title',
+			'order'          => 'ASC',
+			'no_found_rows'  => true,
+		);
+		if ( PostTypes::DESIGN === $type ) {
+
+
+
+			$args['meta_query'] = array(
+				array(
+					'key'   => D::IN_CATALOGUE,
+					'value' => '1',
+				),
+			);
+		}
 		$out = array();
-		foreach ( get_posts(
-			array(
-				'post_type'      => $type,
-				'post_status'    => PostTypes::DESIGN === $type ? array( 'publish', 'pending', 'draft' ) : 'publish',
-				'posts_per_page' => -1,
-				'orderby'        => 'title',
-				'order'          => 'ASC',
-				'no_found_rows'  => true,
-			)
-		) as $p ) {
-			$out[ $p->ID ] = get_the_title( $p );
+		foreach ( get_posts( $args ) as $p ) {
+
+			$code          = PostTypes::DESIGN === $type ? (string) get_post_meta( $p->ID, D::CODE, true ) : '';
+			$out[ $p->ID ] = ( '' !== $code ? $code . ' · ' : '' ) . get_the_title( $p );
 		}
 		return $out;
 	}
@@ -3404,6 +3431,8 @@ use Fmc\PostType\PostTypes;
 
 
 
+
+
 final class Calendar {
 
 
@@ -3433,7 +3462,20 @@ final class Calendar {
 
 	public static function month(): string {
 		$m = Lists::arg( 'fmc_month' );
-		return preg_match( '/^(\d{4})-(0[1-9]|1[0-2])$/', $m ) ? $m . '-01' : gmdate( 'Y-m-01', (int) current_time( 'timestamp' ) ); 
+		if ( preg_match( '/^(\d{4})-(0[1-9]|1[0-2])$/', $m ) ) {
+			return $m . '-01';
+		}
+
+		return substr( self::day(), 0, 8 ) . '01';
+	}
+
+
+
+
+
+
+	public static function today(): string {
+		return gmdate( 'Y-m-d', (int) current_time( 'timestamp' ) ); 
 	}
 
 
@@ -3461,9 +3503,15 @@ final class Calendar {
 
 
 
+
 	public static function day(): string {
 		$d = Lists::arg( 'fmc_day' );
-		return preg_match( '/^\d{4}-\d{2}-\d{2}$/', $d ) && strtotime( $d ) ? $d : gmdate( 'Y-m-d', (int) current_time( 'timestamp' ) ); 
+		if ( preg_match( '/^\d{4}-\d{2}-\d{2}$/', $d ) && strtotime( $d ) ) {
+			return $d;
+		}
+
+		$m = Lists::arg( 'fmc_month' );
+		return preg_match( '/^(\d{4})-(0[1-9]|1[0-2])$/', $m ) && substr( self::today(), 0, 7 ) !== $m ? $m . '-01' : self::today();
 	}
 
 
@@ -3569,15 +3617,42 @@ final class Calendar {
 
 
 	public static function screen(): array {
-		$view = self::view();
-		if ( 'week' === $view || 'day' === $view ) {
-			$screen = self::days_screen( $view );
-		} else {
-			$screen = self::month_screen( $view );
+		$view   = self::view();
+		$period = 'week' === $view || 'day' === $view ? self::days_screen( $view ) : self::month_screen();
+		$object = get_post_type_object( PostTypes::ACTION );
+		$add    = current_user_can( $object->cap->create_posts ) ? ' <a class="btn btn-primary fmc-abre-panel" href="' . esc_url( Screen::url( array( Screen::ARG_NEW => PostTypes::ACTION ) ) ) . '">+ Añadir acción formativa</a>' : '';
+
+		$csv = array(
+			'fmc_csv'  => '1',
+			'fmc_from' => $period['from'],
+			'fmc_to'   => $period['to'],
+		);
+
+
+		return array(
+			'tab'      => 'actions',
+			'title'    => $object->labels->name,
+			'subtitle' => Lists::SUBTITLES[ PostTypes::ACTION ],
+			'actions'  => self::views_html( $view ) . $add . ' ' . self::nav_link( $csv, 'Exportar CSV' ),
+			'body'     => Lists::filters_html( 'actions', PostTypes::ACTION ) . self::period_html( $period ) . self::legend() . $period['body'],
+		);
+	}
+
+
+
+
+
+
+
+
+
+
+	private static function nav_link( array $args, string $text, string $css = 'btn btn-outline-secondary', array $attr = array() ): string {
+		$more = '';
+		foreach ( $attr as $name => $value ) {
+			$more .= ' ' . $name . '="' . esc_attr( $value ) . '"';
 		}
-		$screen['actions'] = self::views_html( $view ) . ' ' . $screen['actions'] . ( current_user_can( 'edit_fmc_actions' ) ? ' <a class="btn btn-primary ms-2 fmc-abre-panel" href="' . esc_url( Screen::url( array( Screen::ARG_NEW => PostTypes::ACTION ) ) ) . '">+ Añadir acción</a>' : '' );
-		$screen['body']    = Lists::filters_html( 'calendar', PostTypes::ACTION ) . self::legend() . $screen['body'];
-		return $screen + array( 'tab' => 'calendar' );
+		return '<a class="' . esc_attr( $css ) . '" href="' . esc_url( Screen::url( array_merge( self::filters(), array( Screen::ARG_TAB => 'actions' ), $args ) ) ) . '"' . $more . '>' . esc_html( $text ) . '</a>';
 	}
 
 
@@ -3586,25 +3661,13 @@ final class Calendar {
 
 
 
-
-
-	private static function nav_link( array $args, string $text, string $css = 'btn btn-outline-secondary' ): string {
-		return '<a class="' . esc_attr( $css ) . '" href="' . esc_url( Screen::url( array_merge( self::filters(), array( Screen::ARG_TAB => 'calendar' ), $args ) ) ) . '">' . esc_html( $text ) . '</a>';
-	}
-
-
-
-
-
-
-
-	private static function views_html( string $current ): string {
-		$out = '<div class="btn-group me-2" role="group" aria-label="Vista">';
+	public static function views_html( string $current ): string {
+		$out = '<nav class="fmc-views" aria-label="Vista">';
 		foreach ( self::VIEWS as $view => $label ) {
 			$anchor = 'week' === $view || 'day' === $view ? array( 'fmc_day' => self::day() ) : array( 'fmc_month' => substr( self::month(), 0, 7 ) );
-			$out   .= self::nav_link( array( 'fmc_view' => 'month' === $view ? '' : $view ) + $anchor, $label, 'btn ' . ( $view === $current ? 'btn-secondary' : 'btn-outline-secondary' ) );
+			$out   .= self::nav_link( array( 'fmc_view' => 'month' === $view ? '' : $view ) + $anchor, $label, 'fmc-view', $view === $current ? array( 'aria-current' => 'true' ) : array() );
 		}
-		return $out . '</div>';
+		return $out . '</nav>';
 	}
 
 
@@ -3613,25 +3676,35 @@ final class Calendar {
 
 
 
-	private static function month_screen( string $view ): array {
-		$first = self::month();
-		$ts    = (int) strtotime( $first );
-		$title = self::MONTHS[ (int) gmdate( 'n', $ts ) ] . ' de ' . gmdate( 'Y', $ts );
-		$keep  = 'list' === $view ? array( 'fmc_view' => 'list' ) : array();
-		$nav   = '<div class="btn-group">' . self::nav_link( $keep + array( 'fmc_month' => gmdate( 'Y-m', (int) strtotime( '-1 month', $ts ) ) ), '‹' ) . self::nav_link( $keep + array( 'fmc_month' => gmdate( 'Y-m' ) ), 'Hoy' ) . self::nav_link( $keep + array( 'fmc_month' => gmdate( 'Y-m', (int) strtotime( '+1 month', $ts ) ) ), '›' ) . '</div>';
 
+
+
+	private static function period_html( array $period ): string {
+		return '<div class="fmc-period"><div class="fmc-period-nav" role="group" aria-label="Navegar por fechas">'
+			. self::nav_link( $period['prev'], '‹', 'btn btn-light', array( 'title' => 'Periodo anterior' ) )
+			. self::nav_link( $period['next'], '›', 'btn btn-light', array( 'title' => 'Periodo siguiente' ) )
+			. self::nav_link( $period['today'], 'Hoy', 'fmc-period-hoy' )
+			. '</div><h2 class="fmc-period-title">' . esc_html( $period['title'] ) . '</h2><span class="fmc-period-count">' . esc_html( $period['count'] ) . '</span></div>';
+	}
+
+
+
+
+
+
+	private static function month_screen(): array {
+		$first  = self::month();
+		$ts     = (int) strtotime( $first );
 		$by_day = self::by_day( $first );
-		$count  = array_sum( array_map( 'count', $by_day ) );
-		if ( 'list' === $view ) {
-			$body = Lists::table_html( PostTypes::ACTION, array_merge( array(), ...array_values( $by_day ) ) );
-		} else {
-			$body = self::grid( $first, $by_day );
-		}
 		return array(
-			'title'    => 'Calendario de ' . $title,
-			'subtitle' => sprintf( '%d acción(es) empiezan este mes.', $count ),
-			'actions'  => $nav,
-			'body'     => $body,
+			'title' => ucfirst( self::MONTHS[ (int) gmdate( 'n', $ts ) ] ) . ' de ' . gmdate( 'Y', $ts ),
+			'count' => sprintf( '%d acción(es) empiezan este mes.', array_sum( array_map( 'count', $by_day ) ) ),
+			'prev'  => array( 'fmc_month' => gmdate( 'Y-m', (int) strtotime( '-1 month', $ts ) ) ),
+			'next'  => array( 'fmc_month' => gmdate( 'Y-m', (int) strtotime( '+1 month', $ts ) ) ),
+			'today' => array( 'fmc_month' => substr( self::today(), 0, 7 ) ),
+			'from'  => $first,
+			'to'    => gmdate( 'Y-m-t', $ts ),
+			'body'  => self::grid( $first, $by_day ),
 		);
 	}
 
@@ -3651,7 +3724,7 @@ final class Calendar {
 			$body .= '<div' . ( $i > 4 ? ' class="is-weekend"' : '' ) . '>' . esc_html( $d ) . '</div>';
 		}
 		$body .= '</div>';
-		$today = gmdate( 'Y-m-d', (int) current_time( 'timestamp' ) ); 
+		$today = self::today();
 		foreach ( self::weeks( $first ) as $week ) {
 			$body .= '<div class="fmc-cal-week">';
 			foreach ( $week as $i => $day ) {
@@ -3737,26 +3810,38 @@ final class Calendar {
 		$ts    = (int) strtotime( $day );
 		$days  = self::days_of( $view, $day );
 		$from  = $days[0];
+		$to    = (string) end( $days );
 		$step  = 'week' === $view ? '7 days' : '1 day';
-		$keep  = array( 'fmc_view' => $view );
-		$nav   = '<div class="btn-group">' . self::nav_link( $keep + array( 'fmc_day' => gmdate( 'Y-m-d', (int) strtotime( '-' . $step, $ts ) ) ), '‹' ) . self::nav_link( $keep + array( 'fmc_day' => gmdate( 'Y-m-d', (int) current_time( 'timestamp' ) ) ), 'Hoy' ) . self::nav_link( $keep + array( 'fmc_day' => gmdate( 'Y-m-d', (int) strtotime( '+' . $step, $ts ) ) ), '›' ) . '</div>'; 
-		$by    = self::by_range( $days[0], end( $days ) );
-		$today = gmdate( 'Y-m-d', (int) current_time( 'timestamp' ) ); 
+		$by    = self::by_range( $from, $to );
+		$today = self::today();
 
 		$body = '<div class="fmc-days card' . ( 'day' === $view ? ' is-one' : '' ) . '">';
 		foreach ( $days as $d ) {
 			$body .= self::day_html( $d, $by[ $d ] ?? array(), $d === $today );
 		}
 		$body   .= '</div>';
-		$running = self::ongoing( $days[0] );
+		$running = self::ongoing( $from );
 		$body   .= self::running_html( $running );
 
 		$label = (int) substr( $from, 8 ) . ' de ' . self::MONTHS[ (int) gmdate( 'n', (int) strtotime( $from ) ) ] . ' de ' . gmdate( 'Y', (int) strtotime( $from ) );
 		return array(
-			'title'    => 'week' === $view ? 'Calendario de la semana del ' . $label : 'Calendario del ' . mb_strtolower( self::WEEKDAYS[ (int) gmdate( 'N', $ts ) - 1 ] ) . ' ' . $label,
-			'subtitle' => sprintf( '%1$d acción(es) empiezan; %2$d siguen en curso.', array_sum( array_map( 'count', $by ) ), count( $running ) ),
-			'actions'  => $nav,
-			'body'     => $body,
+			'title' => 'week' === $view ? 'Semana del ' . $label : self::WEEKDAYS[ (int) gmdate( 'N', $ts ) - 1 ] . ' ' . $label,
+			'count' => sprintf( '%1$d acción(es) empiezan; %2$d siguen en curso.', array_sum( array_map( 'count', $by ) ), count( $running ) ),
+			'prev'  => array(
+				'fmc_view' => $view,
+				'fmc_day'  => gmdate( 'Y-m-d', (int) strtotime( '-' . $step, $ts ) ),
+			),
+			'next'  => array(
+				'fmc_view' => $view,
+				'fmc_day'  => gmdate( 'Y-m-d', (int) strtotime( '+' . $step, $ts ) ),
+			),
+			'today' => array(
+				'fmc_view' => $view,
+				'fmc_day'  => $today,
+			),
+			'from'  => $from,
+			'to'    => $to,
+			'body'  => $body,
 		);
 	}
 
@@ -4985,11 +5070,7 @@ final class Screen {
 		$tabs    = array();
 		$actions = current_user_can( 'edit_fmc_actions' ) || current_user_can( 'read_private_fmc_actions' );
 		if ( $actions ) {
-			$tabs['calendar'] = array(
-				'label' => 'Calendario',
-				'type'  => PostTypes::ACTION,
-			);
-			$tabs['actions']  = array(
+			$tabs['actions'] = array(
 				'label' => 'Acciones formativas',
 				'type'  => PostTypes::ACTION,
 			);
@@ -5098,7 +5179,8 @@ final class Screen {
 			if ( ! isset( $tabs[ $tab ] ) ) {
 				$tab = (string) array_key_first( $tabs );
 			}
-			$screen = 'calendar' === $tab ? Calendar::screen() : Lists::screen( $tab, $tabs[ $tab ]['type'] );
+
+			$screen = 'actions' === $tab && 'list' !== Calendar::view() ? Calendar::screen() : Lists::screen( $tab, $tabs[ $tab ]['type'] );
 		}
 
 
@@ -5605,13 +5687,22 @@ a.fmc-counter:hover, .fmc-counter.is-active { border-color: var(--fmc-brand); bo
 	.fmc-cal-num { align-self: flex-start; }
 }
 
+/* Las listas con buscador de los filtros, en una línea: un título largo no
+   descuadra la fila. El desplegable lo enseña entero. */
+.fmc-filters .ts-wrapper.single .ts-control { flex-wrap: nowrap; }
+.fmc-filters .ts-wrapper.single .ts-control > .item { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
 /* Tom Select dentro de las fichas */
 .fmc-form .ts-wrapper.multi .ts-control > .item { background: #e7f0fb; border: 1px solid #b6cff0; border-radius: .3rem; color: #1a4f8b; }
 .fmc-form .ts-wrapper.disabled .ts-control { background-color: #f8f9fa; }
 
 /* Panel lateral: el offcanvas de Bootstrap con la ficha dentro */
 body.has-panel { overflow: hidden; }
-.fmc-panel.offcanvas { --bs-offcanvas-width: min(880px, 100vw); background: var(--fmc-soft); }
+.fmc-panel.offcanvas { --bs-offcanvas-width: min(880px, 100vw); --bs-offcanvas-zindex: 100001; z-index: 100001; background: var(--fmc-soft); }
+/* Por encima de la barra de WordPress (z-index 99999), que tapa como tapa la
+   página; y los avisos de SweetAlert2, por encima del panel. */
+.fmc-panel-backdrop { z-index: 100000; }
+.fmc .swal2-container { z-index: 100002; }
 .fmc-panel .offcanvas-header { background: #fff; }
 .fmc-panel .offcanvas-body { padding: 1.25rem; }
 .fmc-panel .offcanvas-body[aria-busy="true"] { opacity: .5; pointer-events: none; }
@@ -5624,6 +5715,26 @@ body.has-panel { overflow: hidden; }
 .fmc-doc-kind + .fmc-doc-kind { border-top: 1px dashed var(--fmc-line); padding-top: .75rem; }
 .fmc-docs .btn-check:checked + .btn-outline-danger { color: #fff; }
 .fmc-docs .list-group-item:has(.btn-check:checked) a { text-decoration: line-through; opacity: .6; }
+
+/* Vistas y periodo, con los colores del registro de visitas: la vista activa,
+   en blanco sobre gris; debajo, las flechas, «Hoy», el periodo y su recuento.
+   La vista activa no cambia de grosor, para que el selector no baile. */
+.fmc-views { display: inline-flex; padding: .2rem; background: var(--fmc-sup-2); border: 1px solid var(--fmc-line); border-radius: .5rem; }
+.fmc-views a { display: inline-flex; align-items: center; min-height: 2.1rem; padding: 0 .8rem; border-radius: .4rem; text-decoration: none; font-size: .85rem; font-weight: 600; color: var(--fmc-brand); }
+.fmc-views a:hover { background: #fff8; }
+.fmc-views a[aria-current] { background: #fff; box-shadow: 0 1px 3px #0003; }
+.fmc-period { display: flex; flex-wrap: wrap; align-items: center; gap: .75rem 1rem; margin: 0 0 1rem; }
+.fmc-period-nav { display: flex; align-items: center; gap: .4rem; }
+.fmc-period-nav .btn { min-width: 2.5rem; min-height: 2.5rem; border: 1px solid var(--fmc-line); border-radius: .5rem; background: #fff; color: var(--fmc-brand); font-weight: 700; }
+.fmc-period-hoy { display: inline-flex; align-items: center; min-height: 2.5rem; padding: 0 .9rem; border: 1px solid var(--fmc-brand); border-radius: 999px; color: var(--fmc-brand); font-weight: 700; font-size: .85rem; text-decoration: none; }
+.fmc-period-hoy:hover { background: var(--fmc-brand-cont); }
+.fmc-period-title { margin: 0; font-size: 1.15rem; font-weight: 700; letter-spacing: -.01em; }
+.fmc-period-count { margin-left: auto; padding: .35rem .7rem; border-radius: 999px; background: var(--fmc-sup-2); color: var(--fmc-text-2); font-size: .85rem; }
+@media (max-width: 575.98px) {
+	.fmc-views { display: flex; width: 100%; }
+	.fmc-views a { flex: 1 1 0; justify-content: center; }
+	.fmc-period-count { margin-left: 0; }
+}
 
 /* Calendario de lunes a viernes cuando el fin de semana está vacío */
 .fmc-cal.no-weekend .fmc-cal-head, .fmc-cal.no-weekend .fmc-cal-week { grid-template-columns: repeat(5, minmax(0, 1fr)); }

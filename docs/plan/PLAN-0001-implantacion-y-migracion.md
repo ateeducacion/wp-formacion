@@ -102,8 +102,8 @@ Hecho tras la primera sesión de la fase 1 (sin publicar todavía):
   aviso de protección de datos (ADR-0011);
 - sustitución de diseños, «Recomendado para» solo con el catálogo y búsqueda
   «Ha impartido» con acciones y horas (ADR-0012);
-- el código del diseño lo pone el aplicativo; calendario por mes, semana, día
-  y lista; filtro por prefijo de expediente; marca y filtro de incidencia
+- el código del diseño lo pone el aplicativo; calendario y listado de
+  acciones en una sola pestaña, por mes, semana, día y lista; filtro por prefijo de expediente; marca y filtro de incidencia
   pendiente; cuadro de competencia digital en el diseño; barra de
   administración para volver de una suplantación; aspecto igualado al de los
   aplicativos hermanos.

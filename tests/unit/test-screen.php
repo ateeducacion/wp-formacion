@@ -180,11 +180,11 @@ class Test_Screen extends WP_UnitTestCase {
 		$this->as_role( 'fmc_curator' );
 		$this->visit();
 
-		$this->assertStringStartsWith( 'document:Calendario de ', $this->route() );
+		$this->assertSame( 'document:Acciones formativas', $this->route() );
 	}
 
 	/**
-	 * Cada pestaña abre su listado.
+	 * Cada pestaña abre su listado; el de acciones es su vista «Lista».
 	 */
 	public function test_each_tab_opens_its_own_list() {
 		$this->as_role( 'fmc_curator' );
@@ -195,7 +195,12 @@ class Test_Screen extends WP_UnitTestCase {
 			'incidents' => 'Incidencias',
 		);
 		foreach ( $expected as $tab => $title ) {
-			$this->visit( array( Screen::ARG_TAB => $tab ) );
+			$this->visit(
+				array(
+					Screen::ARG_TAB => $tab,
+					'fmc_view'      => 'list',
+				)
+			);
 			$this->assertSame( 'document:' . $title, $this->route(), $tab );
 		}
 	}
@@ -206,7 +211,11 @@ class Test_Screen extends WP_UnitTestCase {
 	public function test_an_unknown_or_forbidden_tab_falls_back_to_the_first_allowed() {
 		$this->as_role( 'fmc_curator' );
 		$this->visit( array( Screen::ARG_TAB => 'no-existe' ) );
-		$this->assertStringStartsWith( 'document:Calendario de ', $this->route() );
+		$this->assertSame( 'document:Acciones formativas', $this->route() );
+		// La pestaña del calendario ya no existe: sus enlaces llevan a las acciones,
+		// que se abren en él.
+		$this->visit( array( Screen::ARG_TAB => 'calendar' ) );
+		$this->assertSame( 'document:Acciones formativas', $this->route() );
 
 		// Sin acciones ni ponentes, la única pestaña es la del catálogo.
 		$this->as_role( 'subscriber' );
@@ -255,7 +264,7 @@ class Test_Screen extends WP_UnitTestCase {
 				'fmc_csv'       => '1',
 			)
 		);
-		$this->assertStringStartsWith( 'document:Calendario de ', $this->route() );
+		$this->assertSame( 'document:Acciones formativas', $this->route() );
 	}
 
 	/**
@@ -365,11 +374,11 @@ class Test_Screen extends WP_UnitTestCase {
 	 */
 	public function test_tabs_depend_on_the_role() {
 		$expected = array(
-			'administrator'        => array( 'calendar', 'actions', 'designs', 'speakers', 'incidents' ),
-			'fmc_curator'          => array( 'calendar', 'actions', 'designs', 'speakers', 'incidents' ),
-			'fmc_adviser'          => array( 'calendar', 'actions', 'designs', 'speakers', 'incidents' ),
+			'administrator'        => array( 'actions', 'designs', 'speakers', 'incidents' ),
+			'fmc_curator'          => array( 'actions', 'designs', 'speakers', 'incidents' ),
+			'fmc_adviser'          => array( 'actions', 'designs', 'speakers', 'incidents' ),
 			// El servicio lee acciones e incidencias, pero los ponentes no son cosa suya.
-			'fmc_training_service' => array( 'calendar', 'actions', 'designs', 'incidents' ),
+			'fmc_training_service' => array( 'actions', 'designs', 'incidents' ),
 			'subscriber'           => array( 'designs' ),
 		);
 		foreach ( $expected as $role => $tabs ) {
@@ -523,7 +532,7 @@ class Test_Screen extends WP_UnitTestCase {
 		$this->assertStringContainsString( esc_url( wp_logout_url( home_url( '/' ) ) ), $html );
 		$this->assertStringNotContainsString( '>Escritorio</a>', $html, 'el escritorio es solo de la administración' );
 
-		$this->assertSame( 4, substr_count( $html, 'class="nav-item"' ) );
+		$this->assertSame( 3, substr_count( $html, 'class="nav-item"' ) );
 		$this->assertStringNotContainsString( '>Ponentes</a>', $html );
 		$this->assertSame( 1, substr_count( $html, 'aria-current="page"' ) );
 		$this->assertStringContainsString( 'nav-link active" aria-current="page" href="' . esc_url( Screen::url( array( Screen::ARG_TAB => 'actions' ) ) ) . '">Acciones formativas</a>', $html );
