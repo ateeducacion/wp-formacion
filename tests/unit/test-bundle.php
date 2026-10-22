@@ -129,6 +129,51 @@ class Test_Bundle extends WP_UnitTestCase {
 	}
 
 	/**
+	 * Cada clase va envuelta en su `class_exists()`, con el nombre completo.
+	 *
+	 * Es lo único que el validador de Code Snippets 4 acepta para no dar una
+	 * clase por redeclarada: lee el código sin ejecutarlo, así que no ve la
+	 * guarda `FMC_BUNDLE_LOADED`.
+	 */
+	public function test_every_class_is_wrapped_in_its_class_exists() {
+		$bundle = $this->bundle();
+		preg_match_all( '/^\s*(?:final |abstract )?class (\w+)/m', $bundle, $clases );
+		$this->assertNotEmpty( $clases[1] );
+		foreach ( $clases[1] as $clase ) {
+			$this->assertMatchesRegularExpression(
+				"/if \\( ! class_exists\\( 'Fmc(?:\\\\\\w+)*\\\\{$clase}', false \\) \\) \\{\\s*(?:final |abstract )?class {$clase}\\b/",
+				$bundle,
+				$clase . ' no va envuelta en su class_exists()'
+			);
+		}
+	}
+
+	/**
+	 * El validador de Code Snippets acepta el bundle con el aplicativo ya cargado.
+	 *
+	 * Es lo que pasa al guardar el snippet activo: las clases ya existen, y el
+	 * plugin lee el código antes de evaluarlo otra vez. Desde la versión 4 tiene
+	 * en cuenta el `namespace`, y un `final class MetaTypes` dentro de
+	 * `Fmc\Meta` sin su `class_exists()` le parecía una redeclaración: el
+	 * snippet no se podía guardar.
+	 */
+	public function test_code_snippets_validates_the_bundle_with_the_app_loaded() {
+		// En el entorno de tests el plugin está instalado pero no activo; el
+		// validador es una clase suelta y se carga desde su fichero.
+		$fichero = glob( WP_CONTENT_DIR . '/plugins/code-snippets*/php/Utils/Validator.php' );
+		if ( ! class_exists( 'Code_Snippets\Utils\Validator' ) && $fichero ) {
+			require_once $fichero[0];
+		}
+		if ( ! class_exists( 'Code_Snippets\Utils\Validator' ) ) {
+			$this->markTestSkipped( 'Code Snippets no está instalado, o no trae Utils\Validator.' );
+		}
+		$this->assertTrue( class_exists( 'Fmc\Meta\MetaTypes', false ), 'el aplicativo está cargado, como en el segundo eval()' );
+		$codigo    = (string) preg_replace( '/^<\?php\s*/', '', $this->bundle() );
+		$validador = new Code_Snippets\Utils\Validator( $codigo );
+		$this->assertFalse( $validador->validate() );
+	}
+
+	/**
 	 * Ningún método se llama como una función nativa de PHP.
 	 *
 	 * El validador de Code Snippets busca `function nombre` sin mirar si está

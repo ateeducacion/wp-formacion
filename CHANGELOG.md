@@ -60,6 +60,7 @@ Lo que sale de la primera revisión del aplicativo, el 2026-10-21: el porqué es
 
 ### Corregido
 
+- **El snippet del aplicativo no se podía guardar con Code Snippets 4**, que dice «Cannot redeclare class MetaTypes»: su validador lee el código sin ejecutarlo y no ve la guarda contra la doble carga. Ahora cada clase va en su `class_exists()`, y las interpolaciones `{$…}`, que descuadraban al validador, se escriben sin llaves. `make snippet-check` vuelve a pasar.
 - **«Recomendado para» confundía la posición en la lista con un diseño**: un ponente con dos recomendados contaba como recomendado también para el diseño número 1, porque la búsqueda miraba con `LIKE` dentro de la lista guardada. Ahora la lista se lee en PHP.
 - **El calendario enseñaba a una asesoría los borradores de acciones ajenas**, con su título y su enlace, que el listado sí le escondía: la consulta del calendario se saltaba el filtro de visibilidad.
 

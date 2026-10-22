@@ -77,7 +77,7 @@ foreach ( $order as $rel ) {
 	if ( $rel === $order[0] ) {
 		$code = preg_replace(
 			'/^namespace [^;]+;/m',
-			"$0\n\n// La guarda de acceso directo va AQUÍ y no en la cabecera: antes de un\n// `namespace` no puede haber ninguna sentencia, y el bundle empieza por el\n// suyo. Code Snippets evalúa este código, no lo incluye, así que no hay\n// acceso directo que valga; va igual por si el fichero acaba servido.\ndefined( 'ABSPATH' ) || exit;\n\n// Code Snippets vuelve a evaluar un snippet activo al guardarlo: si el\n// bundle ya se cargó hay que salir, o el segundo eval() muere redeclarando\n// clases. Una constante, porque class_exists() ya es cierto al compilar.\nif ( \\defined( 'FMC_BUNDLE_LOADED' ) ) {\n\treturn;\n}\n\\define( 'FMC_BUNDLE_LOADED', true );",
+			"$0\n\n// La guarda de acceso directo va AQUÍ y no en la cabecera: antes de un\n// `namespace` no puede haber ninguna sentencia, y el bundle empieza por el\n// suyo. Code Snippets evalúa este código, no lo incluye, así que no hay\n// acceso directo que valga; va igual por si el fichero acaba servido.\ndefined( 'ABSPATH' ) || exit;\n\n// Code Snippets vuelve a evaluar un snippet activo al guardarlo: si el\n// bundle ya se cargó hay que salir, o el segundo eval() muere redeclarando\n// clases. Una constante y no class_exists(): las clases van cada una en su\n// propio class_exists(), y esta guarda es la que evita arrancar dos veces.\nif ( \\defined( 'FMC_BUNDLE_LOADED' ) ) {\n\treturn;\n}\n\\define( 'FMC_BUNDLE_LOADED', true );",
 			(string) $code,
 			1,
 			$n
@@ -87,8 +87,140 @@ foreach ( $order as $rel ) {
 			exit( 1 );
 		}
 	}
+	// El validador de Code Snippets se salta el cuerpo de cada clase contando
+	// llaves, y no reconoce el `{` de un `{$x}` dentro de una cadena, pero sí su
+	// `}`: sale de la clase antes de tiempo y toma los métodos que siguen por
+	// funciones repetidas. Dentro de una cadena, `$x` y `$wpdb->posts` valen
+	// igual sin llaves.
+	foreach ( token_get_all( '<?php ' . $code ) as $token ) {
+		if ( is_array( $token ) && in_array( $token[0], array( T_CURLY_OPEN, T_DOLLAR_OPEN_CURLY_BRACES ), true ) ) {
+			fwrite( STDERR, "src/Fmc/{$rel}:{$token[2]}: interpolación con llaves («{\$…}»); escríbala sin llaves o concatenando, o Code Snippets no dejará guardar el bundle.\n" );
+			exit( 1 );
+		}
+	}
 	$body .= "\n// ---- src/Fmc/{$rel} ----\n";
-	$body .= trim( $code ) . "\n";
+	$body .= trim( fmc_guard_classes( (string) $code ) ) . "\n";
+}
+
+/**
+ * Wrap every top-level class of a unit in its own `class_exists()` check.
+ *
+ * Code Snippets, desde la versión 4, valida el código al guardar **leyéndolo**,
+ * sin ejecutarlo, y con el `namespace` en cuenta: ve `final class MetaTypes`
+ * dentro de `Fmc\Meta`, comprueba que `Fmc\Meta\MetaTypes` ya existe —el
+ * snippet está activo— y lo da por redeclarado. No ve la guarda
+ * `FMC_BUNDLE_LOADED`, porque esa decide al ejecutar. Lo único que acepta es
+ * un `class_exists( 'Nombre\Completo' )` escrito en el código: así sabe que la
+ * redeclaración está controlada. Y es una guarda de verdad, no un adorno: la
+ * clase se declara solo si no existe.
+ *
+ * Con el analizador léxico, como `fmc_strip_comments()`: un `{` dentro de una
+ * cadena no abre nada, y `Foo::class` o `new class` no son declaraciones.
+ *
+ * @param string $code One unit of src/Fmc, without its opening tag.
+ * @return string The same code, each class inside its guard.
+ */
+function fmc_guard_classes( string $code ): string {
+	$tokens    = token_get_all( '<?php ' . $code );
+	$count     = count( $tokens );
+	$out       = '';
+	$namespace = '';
+	$depth     = 0;
+	$previous  = null;
+
+	for ( $i = 1; $i < $count; $i++ ) {
+		$token = $tokens[ $i ];
+		if ( 0 === $depth && fmc_token_is( $token, array( T_NAMESPACE ) ) ) {
+			$namespace = fmc_namespace_after( $tokens, $i );
+		}
+		if ( 0 === $depth && fmc_starts_class( $token, $previous ) ) {
+			list( $class, $name, $i ) = fmc_read_class( $tokens, $i );
+			$out                     .= "if ( ! class_exists( '" . ( '' !== $namespace ? $namespace . '\\' : '' ) . $name . "', false ) ) {\n" . $class . "\n}";
+			$previous                 = '}';
+			continue;
+		}
+		$depth += fmc_brace_step( $token );
+		$out   .= is_array( $token ) ? $token[1] : $token;
+		if ( ! fmc_token_is( $token, array( T_WHITESPACE, T_COMMENT, T_DOC_COMMENT ) ) ) {
+			$previous = $token;
+		}
+	}
+	return $out;
+}
+
+/**
+ * Whether a token is one of some kinds.
+ *
+ * @param array|string $token Token.
+ * @param int[]        $kinds Token kinds.
+ * @return bool
+ */
+function fmc_token_is( $token, array $kinds ): bool {
+	return is_array( $token ) && in_array( $token[0], $kinds, true );
+}
+
+/**
+ * How a token moves the brace depth: +1, -1 or 0. `{$x}` in a string opens too.
+ *
+ * @param array|string $token Token.
+ * @return int
+ */
+function fmc_brace_step( $token ): int {
+	if ( '{' === $token || fmc_token_is( $token, array( T_CURLY_OPEN, T_DOLLAR_OPEN_CURLY_BRACES ) ) ) {
+		return 1;
+	}
+	return '}' === $token ? -1 : 0;
+}
+
+/**
+ * Whether a top-level token starts a class declaration (not `Foo::class` nor `new class`).
+ *
+ * @param array|string      $token    Token.
+ * @param array|string|null $previous Previous meaningful token.
+ * @return bool
+ */
+function fmc_starts_class( $token, $previous ): bool {
+	return fmc_token_is( $token, array( T_FINAL, T_ABSTRACT, T_CLASS ) ) && ! fmc_token_is( $previous, array( T_DOUBLE_COLON, T_NEW ) );
+}
+
+/**
+ * The name a `namespace` token declares.
+ *
+ * @param array<int, array|string> $tokens Tokens.
+ * @param int                      $i      Index of the `namespace` token.
+ * @return string
+ */
+function fmc_namespace_after( array $tokens, int $i ): string {
+	$name = '';
+	for ( $j = $i + 1; isset( $tokens[ $j ] ) && ';' !== $tokens[ $j ] && '{' !== $tokens[ $j ]; $j++ ) {
+		$name .= is_array( $tokens[ $j ] ) && T_WHITESPACE !== $tokens[ $j ][0] ? $tokens[ $j ][1] : '';
+	}
+	return trim( $name, '\\' );
+}
+
+/**
+ * A whole class declaration, from its modifier to its closing brace.
+ *
+ * @param array<int, array|string> $tokens Tokens.
+ * @param int                      $i      Index where the declaration starts.
+ * @return array{0:string, 1:string, 2:int} Code, class name, index of the closing brace.
+ */
+function fmc_read_class( array $tokens, int $i ): array {
+	$class = '';
+	$name  = '';
+	$open  = 0;
+	for ( $j = $i; isset( $tokens[ $j ] ); $j++ ) {
+		$part   = $tokens[ $j ];
+		$class .= is_array( $part ) ? $part[1] : $part;
+		if ( '' === $name && fmc_token_is( $part, array( T_STRING ) ) ) {
+			$name = $part[1];
+		}
+		$open += fmc_brace_step( $part );
+		if ( '}' === $part && 0 === $open ) {
+			break;
+		}
+	}
+	return array( $class, $name, $j );
 }
 
 // Los assets viajan dentro del bundle: en producción no hay repositorio en

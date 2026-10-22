@@ -29,6 +29,7 @@ defined( 'ABSPATH' ) || exit;
 
 
 
+
 if ( \defined( 'FMC_BUNDLE_LOADED' ) ) {
 	return;
 }
@@ -42,6 +43,7 @@ if ( \defined( 'FMC_BUNDLE_LOADED' ) ) {
 
 
 
+if ( ! class_exists( 'Fmc\Meta\MetaTypes', false ) ) {
 final class MetaTypes {
 
 	public const STRING = 'string';
@@ -129,6 +131,7 @@ final class MetaTypes {
 		return checkdate( (int) $m[2], (int) $m[3], (int) $m[1] ) ? $value : '';
 	}
 }
+}
 
 
 
@@ -146,6 +149,7 @@ namespace Fmc\Meta;
 
 
 
+if ( ! class_exists( 'Fmc\Meta\DesignMetaKeys', false ) ) {
 final class DesignMetaKeys {
 
 	public const CODE          = 'fmc_code';
@@ -225,6 +229,7 @@ final class DesignMetaKeys {
 		);
 	}
 }
+}
 
 
 
@@ -242,6 +247,7 @@ namespace Fmc\Meta;
 
 
 
+if ( ! class_exists( 'Fmc\Meta\ActionMetaKeys', false ) ) {
 final class ActionMetaKeys {
 
 	public const DESIGN_ID        = 'fmc_design_id';
@@ -391,6 +397,7 @@ final class ActionMetaKeys {
 		);
 	}
 }
+}
 
 
 
@@ -407,6 +414,7 @@ namespace Fmc\Meta;
 
 
 
+if ( ! class_exists( 'Fmc\Meta\SpeakerMetaKeys', false ) ) {
 final class SpeakerMetaKeys {
 
 	public const FIRST_NAME  = 'fmc_first_name';
@@ -468,6 +476,7 @@ final class SpeakerMetaKeys {
 		);
 	}
 }
+}
 
 
 
@@ -485,6 +494,7 @@ namespace Fmc\Meta;
 
 
 
+if ( ! class_exists( 'Fmc\Meta\IncidentMetaKeys', false ) ) {
 final class IncidentMetaKeys {
 
 	public const REASON           = 'fmc_reason';
@@ -517,6 +527,7 @@ final class IncidentMetaKeys {
 		);
 	}
 }
+}
 
 
 
@@ -537,6 +548,7 @@ use Fmc\PostType\PostTypes;
 
 
 
+if ( ! class_exists( 'Fmc\Meta\MetaRegistration', false ) ) {
 final class MetaRegistration {
 
 
@@ -675,6 +687,7 @@ final class MetaRegistration {
 		return current_user_can( 'edit_post', $post_id );
 	}
 }
+}
 
 
 
@@ -691,6 +704,7 @@ namespace Fmc\Domain;
 
 
 
+if ( ! class_exists( 'Fmc\Domain\SchoolYear', false ) ) {
 final class SchoolYear {
 
 
@@ -712,6 +726,7 @@ final class SchoolYear {
 		return $start . '-' . ( $start + 1 );
 	}
 }
+}
 
 
 
@@ -732,6 +747,7 @@ namespace Fmc\Domain;
 
 
 
+if ( ! class_exists( 'Fmc\Domain\DigComp', false ) ) {
 final class DigComp {
 
 
@@ -803,6 +819,7 @@ final class DigComp {
 		return $out;
 	}
 }
+}
 
 
 
@@ -823,6 +840,7 @@ namespace Fmc\PostType;
 
 
 
+if ( ! class_exists( 'Fmc\PostType\PostTypes', false ) ) {
 final class PostTypes {
 
 	public const DESIGN   = 'fmc_design';
@@ -979,6 +997,7 @@ final class PostTypes {
 		}
 	}
 }
+}
 
 
 
@@ -1000,6 +1019,7 @@ use Fmc\PostType\PostTypes;
 
 
 
+if ( ! class_exists( 'Fmc\Taxonomy\Taxonomies', false ) ) {
 final class Taxonomies {
 
 	public const PROGRAMME  = 'fmc_programme';
@@ -1085,6 +1105,7 @@ final class Taxonomies {
 		}
 	}
 }
+}
 
 
 
@@ -1100,6 +1121,7 @@ namespace Fmc\PublicFront;
 
 
 
+if ( ! class_exists( 'Fmc\PublicFront\Assets', false ) ) {
 final class Assets {
 
 
@@ -1143,6 +1165,7 @@ final class Assets {
 		return self::contents( 'css/fmc-app.css' );
 	}
 }
+}
 
 
 
@@ -1176,6 +1199,7 @@ use Fmc\PostType\PostTypes;
 
 
 
+if ( ! class_exists( 'Fmc\PublicFront\Fields', false ) ) {
 final class Fields {
 
 
@@ -1822,6 +1846,7 @@ final class Fields {
 		);
 	}
 }
+}
 
 
 
@@ -1846,6 +1871,7 @@ use Fmc\PostType\PostTypes;
 
 
 
+if ( ! class_exists( 'Fmc\PublicFront\Documents', false ) ) {
 final class Documents {
 
 
@@ -2118,6 +2144,7 @@ final class Documents {
 		return $out;
 	}
 }
+}
 
 
 
@@ -2141,6 +2168,7 @@ use Fmc\PostType\PostTypes;
 
 
 
+if ( ! class_exists( 'Fmc\PublicFront\Speakers', false ) ) {
 final class Speakers {
 
 
@@ -2171,11 +2199,11 @@ final class Speakers {
 		);
 		$join = '';
 		foreach ( $keys as $alias => $key ) {
-			$join .= $wpdb->prepare( " LEFT JOIN {$wpdb->postmeta} AS m_{$alias} ON ( m_{$alias}.post_id = p.ID AND m_{$alias}.meta_key = %s )", $key ); 
+			$join .= $wpdb->prepare( " LEFT JOIN $wpdb->postmeta AS m_$alias ON ( m_$alias.post_id = p.ID AND m_$alias.meta_key = %s )", $key ); 
 		}
-		$cols = implode( ', ', array_map( static fn( $alias ) => "m_{$alias}.meta_value AS {$alias}", array_keys( $keys ) ) );
+		$cols = implode( ', ', array_map( static fn( $alias ) => "m_$alias.meta_value AS $alias", array_keys( $keys ) ) );
 
-		$found = $wpdb->get_results( $wpdb->prepare( "SELECT p.post_title AS title, {$cols} FROM {$wpdb->posts} p {$join} WHERE p.post_type = %s AND p.post_status = 'publish' AND m_speakers.meta_value IS NOT NULL", PostTypes::ACTION ), ARRAY_A );
+		$found = $wpdb->get_results( $wpdb->prepare( "SELECT p.post_title AS title, $cols FROM $wpdb->posts p $join WHERE p.post_type = %s AND p.post_status = 'publish' AND m_speakers.meta_value IS NOT NULL", PostTypes::ACTION ), ARRAY_A );
 
 		$rows = array();
 		foreach ( (array) $found as $r ) {
@@ -2332,6 +2360,7 @@ final class Speakers {
 		);
 	}
 }
+}
 
 
 
@@ -2356,6 +2385,7 @@ use Fmc\Taxonomy\Taxonomies;
 
 
 
+if ( ! class_exists( 'Fmc\PublicFront\Lists', false ) ) {
 final class Lists {
 
 	public const PER_PAGE = 50;
@@ -2420,8 +2450,8 @@ final class Lists {
 		}
 		global $wpdb;
 		$dir                = 'asc' === $order[1] ? 'ASC' : 'DESC';
-		$clauses['join']   .= $wpdb->prepare( " LEFT JOIN {$wpdb->postmeta} AS fmc_sort ON ( fmc_sort.post_id = {$wpdb->posts}.ID AND fmc_sort.meta_key = %s )", (string) $order[0] );
-		$clauses['orderby'] = "( fmc_sort.meta_value IS NULL OR fmc_sort.meta_value = '' ) ASC, fmc_sort.meta_value {$dir}, {$wpdb->posts}.ID {$dir}";
+		$clauses['join']   .= $wpdb->prepare( " LEFT JOIN $wpdb->postmeta AS fmc_sort ON ( fmc_sort.post_id = $wpdb->posts.ID AND fmc_sort.meta_key = %s )", (string) $order[0] );
+		$clauses['orderby'] = "( fmc_sort.meta_value IS NULL OR fmc_sort.meta_value = '' ) ASC, fmc_sort.meta_value $dir, $wpdb->posts.ID $dir";
 		return $clauses;
 	}
 
@@ -2513,7 +2543,7 @@ final class Lists {
 			return $where;
 		}
 		global $wpdb;
-		return $where . $wpdb->prepare( " AND ( {$wpdb->posts}.post_status = 'publish' OR {$wpdb->posts}.post_author = %d )", get_current_user_id() );
+		return $where . $wpdb->prepare( " AND ( $wpdb->posts.post_status = 'publish' OR $wpdb->posts.post_author = %d )", get_current_user_id() );
 	}
 
 
@@ -2536,7 +2566,7 @@ final class Lists {
 		$keys = array_map( 'strval', (array) $query->get( 'fmc_text_keys' ) );
 		$in   = implode( ', ', array_fill( 0, count( $keys ), '%s' ) );
 
-		return $where . $wpdb->prepare( " AND ( {$wpdb->posts}.post_title LIKE %s OR EXISTS ( SELECT 1 FROM {$wpdb->postmeta} fmc_t WHERE fmc_t.post_id = {$wpdb->posts}.ID AND fmc_t.meta_key IN ( {$in} ) AND fmc_t.meta_value LIKE %s ) )", array_merge( array( $like ), $keys, array( $like ) ) );
+		return $where . $wpdb->prepare( " AND ( $wpdb->posts.post_title LIKE %s OR EXISTS ( SELECT 1 FROM $wpdb->postmeta fmc_t WHERE fmc_t.post_id = $wpdb->posts.ID AND fmc_t.meta_key IN ( $in ) AND fmc_t.meta_value LIKE %s ) )", array_merge( array( $like ), $keys, array( $like ) ) );
 	}
 
 
@@ -2547,7 +2577,7 @@ final class Lists {
 	private static function incidents(): array {
 		global $wpdb;
 
-		$rows = $wpdb->get_results( $wpdb->prepare( "SELECT p.post_parent AS action, COUNT(*) AS total, SUM( COALESCE( r.meta_value, 'pending' ) = 'pending' ) AS pending FROM {$wpdb->posts} p LEFT JOIN {$wpdb->postmeta} r ON ( r.post_id = p.ID AND r.meta_key = %s ) WHERE p.post_type = %s AND p.post_status = 'publish' AND p.post_parent > 0 GROUP BY p.post_parent", I::RESOLUTION, PostTypes::INCIDENT ), ARRAY_A );
+		$rows = $wpdb->get_results( $wpdb->prepare( "SELECT p.post_parent AS action, COUNT(*) AS total, SUM( COALESCE( r.meta_value, 'pending' ) = 'pending' ) AS pending FROM $wpdb->posts p LEFT JOIN $wpdb->postmeta r ON ( r.post_id = p.ID AND r.meta_key = %s ) WHERE p.post_type = %s AND p.post_status = 'publish' AND p.post_parent > 0 GROUP BY p.post_parent", I::RESOLUTION, PostTypes::INCIDENT ), ARRAY_A );
 		$out  = array();
 		foreach ( (array) $rows as $r ) {
 			$out[ (int) $r['action'] ] = array(
@@ -3654,6 +3684,7 @@ final class Lists {
 		return is_array( $names ) ? implode( ', ', $names ) : '';
 	}
 }
+}
 
 
 
@@ -3679,6 +3710,7 @@ use Fmc\PostType\PostTypes;
 
 
 
+if ( ! class_exists( 'Fmc\PublicFront\Calendar', false ) ) {
 final class Calendar {
 
 
@@ -4042,7 +4074,7 @@ final class Calendar {
 			return array( $day );
 		}
 		$monday = (int) strtotime( '-' . ( (int) gmdate( 'N', (int) strtotime( $day ) ) - 1 ) . ' days', (int) strtotime( $day ) );
-		return array_map( static fn( $i ) => gmdate( 'Y-m-d', (int) strtotime( "+{$i} days", $monday ) ), range( 0, 6 ) );
+		return array_map( static fn( $i ) => gmdate( 'Y-m-d', (int) strtotime( "+$i days", $monday ) ), range( 0, 6 ) );
 	}
 
 
@@ -4166,6 +4198,7 @@ final class Calendar {
 		return $out . Lists::incident_badge( $post->ID ) . '</a>';
 	}
 }
+}
 
 
 
@@ -4194,6 +4227,7 @@ use Fmc\Taxonomy\Taxonomies;
 
 
 
+if ( ! class_exists( 'Fmc\PublicFront\Editor', false ) ) {
 final class Editor {
 
 
@@ -4456,7 +4490,7 @@ final class Editor {
 
 		global $wpdb;
 
-		$codes  = $wpdb->get_col( $wpdb->prepare( "SELECT meta_value FROM {$wpdb->postmeta} WHERE meta_key = %s", D::CODE ) );
+		$codes  = $wpdb->get_col( $wpdb->prepare( "SELECT meta_value FROM $wpdb->postmeta WHERE meta_key = %s", D::CODE ) );
 		$prefix = D::CODE_PREFIX;
 		$max    = 0;
 		foreach ( $codes as $code ) {
@@ -5265,6 +5299,7 @@ final class Editor {
 		return current_user_can( get_post_type_object( $type )->cap->publish_posts ) ? 'publish' : 'draft';
 	}
 }
+}
 
 
 
@@ -5286,6 +5321,7 @@ use Fmc\PostType\PostTypes;
 
 
 
+if ( ! class_exists( 'Fmc\PublicFront\Screen', false ) ) {
 final class Screen {
 
 	public const ARG_TAB    = 'fmc_tab';
@@ -5879,6 +5915,7 @@ final class Screen {
 		exit;
 	}
 }
+}
 
 
 
@@ -5902,6 +5939,7 @@ use Fmc\PostType\PostTypes;
 
 
 
+if ( ! class_exists( 'Fmc\PublicFront\Catalogue', false ) ) {
 final class Catalogue {
 
 
@@ -6183,6 +6221,7 @@ final class Catalogue {
 		);
 	}
 }
+}
 
 
 
@@ -6208,6 +6247,7 @@ use Fmc\Taxonomy\Taxonomies;
 
 
 
+if ( ! class_exists( 'Fmc\App', false ) ) {
 final class App {
 
 
@@ -6233,6 +6273,7 @@ final class App {
 		Screen::register();
 		Catalogue::register();
 	}
+}
 }
 
 
