@@ -50,11 +50,11 @@ final class Speakers {
 		);
 		$join = '';
 		foreach ( $keys as $alias => $key ) {
-			$join .= $wpdb->prepare( " LEFT JOIN {$wpdb->postmeta} AS m_{$alias} ON ( m_{$alias}.post_id = p.ID AND m_{$alias}.meta_key = %s )", $key ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- alias fijos de esta lista.
+			$join .= $wpdb->prepare( " LEFT JOIN $wpdb->postmeta AS m_$alias ON ( m_$alias.post_id = p.ID AND m_$alias.meta_key = %s )", $key ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- alias fijos de esta lista.
 		}
-		$cols = implode( ', ', array_map( static fn( $alias ) => "m_{$alias}.meta_value AS {$alias}", array_keys( $keys ) ) );
+		$cols = implode( ', ', array_map( static fn( $alias ) => "m_$alias.meta_value AS $alias", array_keys( $keys ) ) );
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- una lectura agregada sin API; las uniones van preparadas arriba.
-		$found = $wpdb->get_results( $wpdb->prepare( "SELECT p.post_title AS title, {$cols} FROM {$wpdb->posts} p {$join} WHERE p.post_type = %s AND p.post_status = 'publish' AND m_speakers.meta_value IS NOT NULL", PostTypes::ACTION ), ARRAY_A );
+		$found = $wpdb->get_results( $wpdb->prepare( "SELECT p.post_title AS title, $cols FROM $wpdb->posts p $join WHERE p.post_type = %s AND p.post_status = 'publish' AND m_speakers.meta_value IS NOT NULL", PostTypes::ACTION ), ARRAY_A );
 
 		$rows = array();
 		foreach ( (array) $found as $r ) {

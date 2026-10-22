@@ -201,8 +201,17 @@ simplemente no llegaría a producción, en silencio.
 **El primer fichero del load-order** tiene que abrir con `namespace`: ahí es
 donde el bundler inyecta la guarda `FMC_BUNDLE_LOADED`, que evita que el
 segundo `eval()` de Code Snippets muera con «Cannot redeclare class». Es una
-constante y no un `class_exists()` a propósito: PHP resuelve pronto las clases
-sin padre y `App` ya existiría en la primera pasada.
+constante y no un `class_exists()` a propósito: es la que impide arrancar el
+aplicativo dos veces.
+
+**Code Snippets 4 valida el código al guardarlo sin ejecutarlo**, así que no ve
+esa guarda: una clase que ya existe le parece redeclarada y no deja guardar el
+snippet. Por eso el empaquetador envuelve cada clase en su
+`if ( ! class_exists( 'Fmc\…\Clase', false ) )`, que es lo que el validador
+acepta. Y por eso tampoco se escriben interpolaciones con llaves (`"{$x}"`,
+`"{$wpdb->posts}"`) en `src/Fmc/`: el validador cuenta llaves para saltarse el
+cuerpo de una clase y esas lo descuadran. Sin llaves (`"$x"`, `"$wpdb->posts"`)
+es lo mismo, y `make bundle` falla si encuentra una.
 
 **El bundle sale sin comentarios**: el empaquetador se los quita con el
 analizador léxico de PHP —no con expresiones regulares— para que el snippet sea

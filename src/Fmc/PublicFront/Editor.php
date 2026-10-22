@@ -287,7 +287,7 @@ final class Editor {
 		// si llega a pasar, un índice único en la meta o un contador en una opción.
 		global $wpdb;
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery -- el mayor código en uso; no hay API para esto.
-		$codes  = $wpdb->get_col( $wpdb->prepare( "SELECT meta_value FROM {$wpdb->postmeta} WHERE meta_key = %s", D::CODE ) );
+		$codes  = $wpdb->get_col( $wpdb->prepare( "SELECT meta_value FROM $wpdb->postmeta WHERE meta_key = %s", D::CODE ) );
 		$prefix = D::CODE_PREFIX;
 		$max    = 0;
 		foreach ( $codes as $code ) {

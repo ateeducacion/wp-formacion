@@ -385,7 +385,7 @@ final class Calendar {
 			return array( $day );
 		}
 		$monday = (int) strtotime( '-' . ( (int) gmdate( 'N', (int) strtotime( $day ) ) - 1 ) . ' days', (int) strtotime( $day ) );
-		return array_map( static fn( $i ) => gmdate( 'Y-m-d', (int) strtotime( "+{$i} days", $monday ) ), range( 0, 6 ) );
+		return array_map( static fn( $i ) => gmdate( 'Y-m-d', (int) strtotime( "+$i days", $monday ) ), range( 0, 6 ) );
 	}
 
 	/**
