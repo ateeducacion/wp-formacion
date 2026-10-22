@@ -11,6 +11,7 @@ function detach() {
 		document.removeEventListener( 'submit', window.fmcApp.onSubmit );
 		document.removeEventListener( 'click', window.fmcApp.onClick );
 		document.removeEventListener( 'click', window.fmcApp.onToolClick );
+		document.removeEventListener( 'click', window.fmcApp.onNoteClick );
 		document.removeEventListener( 'keydown', window.fmcApp.onKey );
 		document.removeEventListener( 'change', window.fmcApp.onChange );
 	}
@@ -69,6 +70,57 @@ describe( 'confirmación antes de enviar', () => {
 	it( 'un formulario sin data-fmc-confirm no se toca', () => {
 		document.body.innerHTML = '<form><button>Guardar</button></form>';
 		expect( submit( document.querySelector( 'form' ) ).defaultPrevented ).toBe( false );
+	} );
+} );
+
+describe( 'dar de baja a un ponente', () => {
+	beforeEach( async () => {
+		delete window.Swal;
+		await load();
+		document.body.innerHTML = '<form id="fmc-baja-9" data-fmc-reason data-fmc-confirm="¿Dar de baja a «Ana»?"><input type="hidden" name="fmc_reason" value=""></form>';
+	} );
+	afterEach( () => {
+		detach();
+		vi.restoreAllMocks();
+		delete window.Swal;
+	} );
+
+	function leave() {
+		const f = document.querySelector( 'form' );
+		f.submit = vi.fn();
+		return f;
+	}
+
+	it( 'pide el motivo en el SweetAlert y lo envía con el formulario', async () => {
+		const f = leave();
+		window.Swal = { fire: vi.fn().mockResolvedValue( { isConfirmed: true, value: '  Pidió que se borrasen sus datos ' } ) };
+		submit( f );
+		await new Promise( ( r ) => setTimeout( r ) );
+		const options = window.Swal.fire.mock.calls[ 0 ][ 0 ];
+		expect( options.input ).toBe( 'textarea' );
+		expect( options.inputValidator( '   ' ) ).toBeTruthy();
+		expect( options.inputValidator( 'Motivo' ) ).toBeNull();
+		expect( f.elements.fmc_reason.value ).toBe( 'Pidió que se borrasen sus datos' );
+		expect( f.submit ).toHaveBeenCalledOnce();
+	} );
+
+	it( 'si se cancela, no se envía', async () => {
+		const f = leave();
+		window.Swal = { fire: vi.fn().mockResolvedValue( { isConfirmed: false } ) };
+		submit( f );
+		await new Promise( ( r ) => setTimeout( r ) );
+		expect( f.submit ).not.toHaveBeenCalled();
+	} );
+
+	it( 'sin SweetAlert, lo pide con prompt(), y sin motivo no envía', () => {
+		const f = leave();
+		vi.spyOn( window, 'prompt' ).mockReturnValue( '   ' );
+		submit( f );
+		expect( f.submit ).not.toHaveBeenCalled();
+		window.prompt.mockReturnValue( 'Ya no colabora' );
+		submit( f );
+		expect( f.elements.fmc_reason.value ).toBe( 'Ya no colabora' );
+		expect( f.submit ).toHaveBeenCalledOnce();
 	} );
 } );
 
@@ -301,5 +353,116 @@ describe( 'el editor enriquecido', () => {
 		document.body.innerHTML = '<textarea data-fmc-rich></textarea>';
 		await load();
 		expect( window.fmcApp.initRich() ).toBe( 0 );
+	} );
+} );
+
+describe( 'los ponentes de la acción', () => {
+	beforeEach( async () => {
+		delete window.Swal;
+		delete window.TomSelect;
+		document.body.innerHTML = '<form><select name="f[fmc_design_id]"><option value="">—</option><option value="7">Uno</option><option value="9">Otro</option></select>'
+			+ '<select multiple name="f[fmc_speakers][]" data-fmc-speakers="f[fmc_design_id]">'
+			+ '<option value="1" data-fmc-for="7,8">★ Zoe</option><option value="2">Ana</option>'
+			+ '<option value="3" data-fmc-off="1" data-fmc-note="De baja &lt;hasta&gt; junio">Bea · No disponible</option></select></form>'
+			+ '<button type="button" data-fmc-note="Solo por la tarde">nota</button>';
+		await load();
+	} );
+	afterEach( () => {
+		detach();
+		delete window.Swal;
+	} );
+
+	function texts() {
+		return Array.prototype.map.call( document.querySelectorAll( '[data-fmc-speakers] option' ), ( o ) => o.textContent );
+	}
+
+	it( 'la estrella sigue al diseño elegido', () => {
+		const design = document.querySelector( 'select[name="f[fmc_design_id]"]' );
+		design.value = '9';
+		design.dispatchEvent( new Event( 'change', { bubbles: true } ) );
+		expect( texts() ).toEqual( [ 'Ana', 'Zoe', 'Bea · No disponible' ] );
+		design.value = '7';
+		design.dispatchEvent( new Event( 'change', { bubbles: true } ) );
+		expect( texts() ).toEqual( [ '★ Zoe', 'Ana', 'Bea · No disponible' ] );
+	} );
+
+	it( 'al elegir el diseño, sus recomendados suben arriba; los demás, por nombre y los no disponibles al final', () => {
+		const list = document.querySelector( '[data-fmc-speakers]' );
+		list.insertAdjacentHTML( 'beforeend', '<option value="4" data-fmc-for="9">Luis</option>' );
+		const design = document.querySelector( 'select[name="f[fmc_design_id]"]' );
+		design.value = '9';
+		design.dispatchEvent( new Event( 'change', { bubbles: true } ) );
+		expect( texts() ).toEqual( [ '★ Luis', 'Ana', 'Zoe', 'Bea · No disponible' ] );
+		design.value = '';
+		design.dispatchEvent( new Event( 'change', { bubbles: true } ) );
+		expect( texts() ).toEqual( [ 'Ana', 'Luis', 'Zoe', 'Bea · No disponible' ] );
+	} );
+
+	it( 'con Tom Select, también cambia su copia de la opción', () => {
+		const ts = { updateOption: vi.fn(), options: { 1: { $order: 0 } }, clearCache: vi.fn() };
+		document.querySelector( '[data-fmc-speakers]' ).tomselect = ts;
+		const design = document.querySelector( 'select[name="f[fmc_design_id]"]' );
+		design.value = '9';
+		design.dispatchEvent( new Event( 'change', { bubbles: true } ) );
+		expect( ts.updateOption ).toHaveBeenCalledWith( '1', expect.objectContaining( { value: '1', text: 'Zoe' } ) );
+		expect( ts.clearCache ).toHaveBeenCalled();
+	} );
+
+	it( 'cada ponente, en dos líneas: nombre con etiquetas y, debajo, isla, cargo y lo impartido', () => {
+		const escape = ( t ) => String( t ).replace( /&/g, '&amp;' ).replace( /</g, '&lt;' ).replace( />/g, '&gt;' ).replace( /"/g, '&quot;' );
+		const [ zoe, ana, bea ] = document.querySelectorAll( '[data-fmc-speakers] option' );
+		Object.assign( zoe.dataset, { fmcName: 'Zoe', fmcZone: 'Norte', fmcRole: 'Docente jubilado', fmcGiven: '3 acción(es)' } );
+
+		const star = window.fmcApp.speakerHtml( { text: '★ Zoe · Norte', $option: zoe }, escape );
+		expect( star ).toContain( 'bi-star-fill' );
+		expect( star ).toContain( '<strong>Zoe</strong> <span class="badge fmc-rec">Recomendado</span>' );
+		expect( star ).toContain( '<div class="small text-secondary">Norte · Docente jubilado · 3 acción(es)</div>' );
+
+		expect( window.fmcApp.speakerHtml( { text: 'Ana', $option: ana }, escape ) ).toBe( '<div class="fmc-person"><div><strong>Ana</strong></div></div>' );
+
+		const off = window.fmcApp.speakerHtml( { text: 'Bea · No disponible', $option: bea }, escape );
+		expect( off ).toContain( '<div class="fmc-person fmc-off">' );
+		expect( off ).toContain( '<span class="badge text-bg-secondary">No disponible</span>' );
+		expect( off ).toContain( 'data-bs-toggle="tooltip" title="De baja &lt;hasta&gt; junio"' );
+
+		expect( window.fmcApp.speakerItem( { text: '★ Zoe · Norte', $option: zoe }, escape ) ).toMatch( /^<div><i class="bi bi-star-fill fmc-star"[^>]*><\/i> Zoe<\/div>$/ );
+	} );
+
+	it( 'Tom Select pinta así solo el selector de ponentes', async () => {
+		const seen = [];
+		window.TomSelect = vi.fn( function ( s, settings ) {
+			s.tomselect = this;
+			seen.push( settings );
+		} );
+		document.querySelectorAll( 'select' ).forEach( ( s ) => s.setAttribute( 'data-fmc-ts', '' ) );
+		window.fmcApp.initSelects();
+		expect( seen[ 0 ].render ).toBeUndefined();
+		expect( seen[ 1 ].render.option ).toBe( window.fmcApp.speakerHtml );
+		expect( seen[ 1 ].render.item ).toBe( window.fmcApp.speakerItem );
+		expect( seen[ 1 ].onDropdownClose ).toBe( window.fmcApp.hideTips );
+	} );
+
+	it( 'un tooltip de Bootstrap, una vez y delegado, para lo que se pinte después', () => {
+		delete document.body.dataset.fmcTips;
+		const Tooltip = vi.fn();
+		window.bootstrap = { Tooltip: Tooltip };
+		expect( window.fmcApp.initTips() ).toBe( true );
+		expect( window.fmcApp.initTips() ).toBe( false );
+		expect( Tooltip ).toHaveBeenCalledOnce();
+		expect( Tooltip ).toHaveBeenCalledWith( document.body, expect.objectContaining( { selector: '[data-bs-toggle="tooltip"]' } ) );
+		delete window.bootstrap;
+		delete document.body.dataset.fmcTips;
+	} );
+
+	it( 'al cerrar el desplegable no queda ningún tooltip abierto', () => {
+		document.body.insertAdjacentHTML( 'beforeend', '<div class="tooltip">x</div>' );
+		window.fmcApp.hideTips();
+		expect( document.querySelector( '.tooltip' ) ).toBeNull();
+	} );
+
+	it( 'el bocadillo se abre entero al pulsarlo', () => {
+		window.Swal = { fire: vi.fn() };
+		document.querySelector( 'button[data-fmc-note]' ).click();
+		expect( window.Swal.fire ).toHaveBeenCalledWith( expect.objectContaining( { title: 'Observaciones', text: 'Solo por la tarde' } ) );
 	} );
 } );

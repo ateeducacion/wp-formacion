@@ -414,7 +414,6 @@ final class SpeakerMetaKeys {
 	public const ID_NUMBER   = 'fmc_id_number';
 	public const PHONE       = 'fmc_phone';
 	public const PROFESSION  = 'fmc_profession';
-	public const ZONE        = 'fmc_zone';
 	public const EMAIL       = 'fmc_email';
 	public const EMAIL_ALT   = 'fmc_email_alt';
 	public const WEBSITE     = 'fmc_website';
@@ -422,6 +421,20 @@ final class SpeakerMetaKeys {
 	public const UNAVAILABLE = 'fmc_unavailable';
 	public const NOTES       = 'fmc_notes';
 	public const RECOMMENDED = 'fmc_recommended_designs';
+
+
+
+
+
+
+
+
+
+	public const PROFESSIONS = array(
+		'teacher'         => 'Docente en activo',
+		'retired_teacher' => 'Docente jubilado',
+		'external'        => 'No docente o externo',
+	);
 
 
 
@@ -442,7 +455,6 @@ final class SpeakerMetaKeys {
 			self::ID_NUMBER    => MetaTypes::STRING,
 			self::PHONE        => MetaTypes::STRING,
 			self::PROFESSION   => MetaTypes::STRING,
-			self::ZONE         => MetaTypes::STRING,
 			self::EMAIL        => MetaTypes::EMAIL,
 			self::EMAIL_ALT    => MetaTypes::EMAIL,
 			self::WEBSITE      => MetaTypes::URL,
@@ -567,6 +579,9 @@ final class MetaRegistration {
 				ActionMetaKeys::PROCESS        => ActionMetaKeys::PROCESSES,
 				ActionMetaKeys::SITUATION      => ActionMetaKeys::SITUATIONS,
 				ActionMetaKeys::TRAINING_PLANS => ActionMetaKeys::TRAINING_PLAN_KINDS,
+			),
+			PostTypes::SPEAKER  => array(
+				SpeakerMetaKeys::PROFESSION => SpeakerMetaKeys::PROFESSIONS,
 			),
 			PostTypes::INCIDENT => array(
 				IncidentMetaKeys::RESOLUTION => IncidentMetaKeys::RESOLUTIONS,
@@ -991,6 +1006,7 @@ final class Taxonomies {
 	public const TOPIC      = 'fmc_topic';
 	public const COMPETENCE = 'fmc_competence';
 	public const SCOPE      = 'fmc_scope';
+	public const ZONE       = 'fmc_zone';
 
 
 
@@ -1024,6 +1040,15 @@ final class Taxonomies {
 				'plural'       => 'Ámbitos',
 				'types'        => array( PostTypes::ACTION ),
 				'hierarchical' => true,
+			),
+
+
+
+			self::ZONE       => array(
+				'singular'     => 'Isla o zona',
+				'plural'       => 'Islas o zonas',
+				'types'        => array( PostTypes::SPEAKER ),
+				'hierarchical' => false,
 			),
 		);
 	}
@@ -1448,7 +1473,7 @@ final class Fields {
 					A::SPEAKERS        => array(
 						'label' => 'Ponentes',
 						'w'     => 'speakers',
-						'help'  => 'Escriba para buscar y añadir; la «×» de cada uno lo quita. Al lado de cada nombre, su isla y las acciones que ha impartido; «★» si se le recomienda para este diseño.',
+						'help'  => 'Escriba para buscar y añadir; la «×» de cada uno lo quita. Al lado de cada nombre, su isla y las acciones que ha impartido; «★» si se le recomienda para el diseño elegido, en gris si no está disponible, y un bocadillo si tiene observaciones.',
 					),
 				),
 			),
@@ -1672,55 +1697,56 @@ final class Fields {
 				'title'  => 'Datos personales',
 				'help'   => 'Los ve quien gestiona acciones formativas; cada asesoría edita las fichas que ha dado de alta.',
 				'fields' => array(
-					S::FIRST_NAME => array(
+					S::FIRST_NAME  => array(
 						'label' => 'Nombre',
 						'w'     => 'text',
 						'col'   => 6,
 						'req'   => true,
 					),
-					S::LAST_NAME  => array(
+					S::LAST_NAME   => array(
 						'label' => 'Apellidos',
 						'w'     => 'text',
 						'col'   => 6,
 						'req'   => true,
 					),
-					S::ID_NUMBER  => array(
+					S::ID_NUMBER   => array(
 						'label' => 'Documento de identidad',
 						'w'     => 'text',
 						'col'   => 4,
 					),
-					S::PHONE      => array(
+					S::PHONE       => array(
 						'label' => 'Teléfono',
 						'w'     => 'text',
 						'col'   => 4,
 					),
-					S::ZONE       => array(
+					'tax:fmc_zone' => array(
 						'label' => 'Isla o zona',
-						'w'     => 'text',
+						'w'     => 'term',
 						'col'   => 4,
 					),
-					S::EMAIL      => array(
+					S::EMAIL       => array(
 						'label' => 'Correo electrónico',
 						'w'     => 'email',
 						'col'   => 6,
 						'req'   => true,
 					),
-					S::EMAIL_ALT  => array(
+					S::EMAIL_ALT   => array(
 						'label' => 'Correo alternativo',
 						'w'     => 'email',
 						'col'   => 6,
 					),
-					S::PROFESSION => array(
-						'label' => 'Profesión',
-						'w'     => 'text',
-						'col'   => 6,
+					S::PROFESSION  => array(
+						'label'   => 'Cargo',
+						'w'       => 'select',
+						'choices' => S::PROFESSIONS,
+						'col'     => 6,
 					),
-					S::WEBSITE    => array(
+					S::WEBSITE     => array(
 						'label' => 'Sitio web',
 						'w'     => 'url',
 						'col'   => 6,
 					),
-					S::ADDRESS    => array(
+					S::ADDRESS     => array(
 						'label' => 'Dirección',
 						'w'     => 'textarea',
 					),
@@ -1733,6 +1759,7 @@ final class Fields {
 					S::UNAVAILABLE => array(
 						'label' => 'No disponible',
 						'w'     => 'checkbox',
+						'help'  => 'Se puede seguir eligiendo para una acción, pero sale en gris y avisado. Diga el porqué en las observaciones.',
 					),
 					S::RECOMMENDED => array(
 						'label' => 'Recomendado para los diseños',
@@ -1742,6 +1769,7 @@ final class Fields {
 					S::NOTES       => array(
 						'label' => 'Observaciones',
 						'w'     => 'textarea',
+						'help'  => 'Salen en un bocadillo junto al nombre, en el listado y al elegir ponentes para una acción.',
 					),
 				),
 			),
@@ -2239,16 +2267,7 @@ final class Speakers {
 		if ( $design <= 0 ) {
 			return array();
 		}
-		return get_posts(
-			array(
-				'post_type'      => PostTypes::SPEAKER,
-				'post_status'    => 'publish',
-				'posts_per_page' => -1,
-				'fields'         => 'ids',
-				'no_found_rows'  => true,
-				'meta_query'     => self::recommended_clause( $design ), 
-			)
-		);
+		return array_keys( array_filter( self::recommended_map(), static fn( $designs ) => in_array( $design, $designs, true ) ) );
 	}
 
 
@@ -2259,16 +2278,58 @@ final class Speakers {
 
 
 
-	public static function recommended_clause( int $design ): array {
-		$clause = array( 'relation' => 'OR' );
-		foreach ( self::lineage( $design ) as $id ) {
-			$clause[] = array(
-				'key'     => S::RECOMMENDED,
-				'value'   => 'i:' . $id . ';',
-				'compare' => 'LIKE',
-			);
+
+
+
+	public static function recommended_map(): array {
+
+		$successors = array();
+		foreach ( self::with_meta( PostTypes::DESIGN, D::REPLACES, 'any' ) as $id ) {
+			foreach ( array_map( 'intval', (array) get_post_meta( $id, D::REPLACES, true ) ) as $old ) {
+				$successors[ $old ][] = $id;
+			}
 		}
-		return $clause;
+		$out = array();
+		foreach ( self::with_meta( PostTypes::SPEAKER, S::RECOMMENDED, 'publish' ) as $speaker ) {
+			$seen = array();
+			$todo = array_map( 'intval', (array) get_post_meta( $speaker, S::RECOMMENDED, true ) );
+			while ( $todo ) {
+				$id = (int) array_shift( $todo );
+				if ( $id <= 0 || isset( $seen[ $id ] ) ) {
+					continue;
+				}
+				$seen[ $id ] = true;
+				$todo        = array_merge( $todo, $successors[ $id ] ?? array() );
+			}
+			if ( $seen ) {
+				$out[ $speaker ] = array_keys( $seen );
+			}
+		}
+		return $out;
+	}
+
+
+
+
+
+
+
+
+
+	private static function with_meta( string $type, string $key, $status ): array {
+		return array_map(
+			'intval',
+			get_posts(
+				array(
+					'post_type'      => $type,
+					'post_status'    => $status,
+					'posts_per_page' => -1,
+					'fields'         => 'ids',
+					'no_found_rows'  => true,
+					'meta_key'       => $key, 
+				)
+			)
+		);
 	}
 }
 
@@ -2287,6 +2348,7 @@ use Fmc\Meta\DesignMetaKeys as D;
 use Fmc\Meta\IncidentMetaKeys as I;
 use Fmc\Meta\SpeakerMetaKeys as S;
 use Fmc\PostType\PostTypes;
+use Fmc\Taxonomy\Taxonomies;
 
 
 
@@ -2649,16 +2711,19 @@ final class Lists {
 
 	private static function speaker_args( array $args, bool $with_state ): array {
 		if ( '' !== self::arg( 'fmc_zone' ) ) {
-			$args['meta_query'][] = array(
-				'key'   => S::ZONE,
-				'value' => self::arg( 'fmc_zone' ),
+			$args['tax_query'][] = array(
+				'taxonomy' => Taxonomies::ZONE,
+				'field'    => 'slug',
+				'terms'    => self::arg( 'fmc_zone' ),
 			);
 		}
+		$args = self::speaker_order( $args );
 
 		if ( absint( self::arg( 'fmc_recommended' ) ) ) {
-			$args['meta_query'][] = Speakers::recommended_clause( absint( self::arg( 'fmc_recommended' ) ) );
+			$wanted           = Speakers::recommended_for( absint( self::arg( 'fmc_recommended' ) ) );
+			$args['post__in'] = array_values( isset( $args['post__in'] ) ? array_intersect( $args['post__in'], $wanted ) : $wanted );
+			$args['post__in'] = $args['post__in'] ? $args['post__in'] : array( 0 );
 		}
-		$args = self::speaker_order( $args );
 		if ( $with_state && self::speaker_trash() ) {
 			$args['post_status'] = 'trash';
 		}
@@ -2733,7 +2798,7 @@ final class Lists {
 		);
 		$key   = static function ( int $id ) use ( $stats, $sort ) {
 			if ( 'zone' === $sort ) {
-				return (string) get_post_meta( $id, S::ZONE, true );
+				return self::terms( $id, Taxonomies::ZONE );
 			}
 			return - (float) ( $stats[ $id ][ 'hours' === $sort ? 'hours' : 'actions' ] ?? 0 );
 		};
@@ -3023,7 +3088,7 @@ final class Lists {
 				$fields[] = self::select( 'fmc_catalogue', 'Catálogo', array( '1' => 'En el catálogo público' ), 'Todos' );
 				break;
 			case PostTypes::SPEAKER:
-				$fields[] = self::select( 'fmc_zone', 'Isla o zona', self::meta_choices( S::ZONE, PostTypes::SPEAKER ), 'Todas' );
+				$fields[] = self::select( 'fmc_zone', 'Isla o zona', self::term_choices( Taxonomies::ZONE ), 'Todas' );
 				$fields[] = self::select(
 					'fmc_available',
 					'Disponibilidad',
@@ -3179,20 +3244,6 @@ final class Lists {
 			$out[ $t->slug ] = $t->name;
 		}
 		return $out;
-	}
-
-
-
-
-
-
-
-
-	private static function meta_choices( string $key, string $type ): array {
-		global $wpdb;
-
-		$values = $wpdb->get_col( $wpdb->prepare( "SELECT DISTINCT pm.meta_value FROM {$wpdb->postmeta} pm JOIN {$wpdb->posts} p ON p.ID = pm.post_id WHERE pm.meta_key = %s AND p.post_type = %s AND pm.meta_value <> '' ORDER BY pm.meta_value", $key, $type ) );
-		return array_combine( $values, $values );
 	}
 
 
@@ -3398,7 +3449,7 @@ final class Lists {
 				$stats = self::speaker_stats();
 				return array(
 					'Contacto'         => static fn( $p ) => $m( $p, S::EMAIL ) . "\n" . $m( $p, S::PHONE ),
-					'Isla o zona'      => static fn( $p ) => $m( $p, S::ZONE ),
+					'Isla o zona'      => static fn( $p ) => self::terms( $p->ID, Taxonomies::ZONE ),
 					'Ha impartido'     => static fn( $p ) => isset( $stats[ $p->ID ] ) ? sprintf( '%d acción(es)', $stats[ $p->ID ]['actions'] ) . "\n" . ( $stats[ $p->ID ]['hours'] + 0 ) . ' h' : '—',
 					'Recomendado para' => static fn( $p ) => implode( "\n", array_map( 'get_the_title', array_slice( array_filter( array_map( 'intval', (array) get_post_meta( $p->ID, S::RECOMMENDED, true ) ) ), 0, 3 ) ) ),
 				);
@@ -3476,10 +3527,28 @@ final class Lists {
 			list( $label, $colour ) = self::DESIGN_STATUSES[ $post->post_status ];
 			return ' <span class="badge rounded-pill text-bg-' . esc_attr( $colour ) . '">' . esc_html( $label ) . '</span>';
 		}
-		if ( PostTypes::SPEAKER === $post->post_type && get_post_meta( $post->ID, S::UNAVAILABLE, true ) ) {
-			return ' <span class="badge rounded-pill text-bg-secondary">No disponible</span>';
+		if ( PostTypes::SPEAKER === $post->post_type ) {
+			return ( get_post_meta( $post->ID, S::UNAVAILABLE, true ) ? ' <span class="badge rounded-pill text-bg-secondary">No disponible</span>' : '' ) . self::note( (string) get_post_meta( $post->ID, S::NOTES, true ) );
 		}
 		return '';
+	}
+
+
+
+
+
+
+
+
+
+
+
+	private static function note( string $notes ): string {
+		$notes = trim( $notes );
+		if ( '' === $notes ) {
+			return '';
+		}
+		return ' <button type="button" class="btn btn-link btn-sm p-0 fmc-note" data-bs-toggle="tooltip" title="' . esc_attr( wp_trim_words( $notes, 40 ) ) . '" aria-label="' . esc_attr( 'Observaciones: ' . $notes ) . '" data-fmc-note="' . esc_attr( $notes ) . '"><i class="bi bi-chat-left-text" aria-hidden="true"></i></button>';
 	}
 
 
@@ -4114,6 +4183,7 @@ use Fmc\Meta\IncidentMetaKeys as I;
 use Fmc\Meta\MetaRegistration;
 use Fmc\Meta\SpeakerMetaKeys as S;
 use Fmc\PostType\PostTypes;
+use Fmc\Taxonomy\Taxonomies;
 
 
 
@@ -4328,8 +4398,12 @@ final class Editor {
 			$body .= '</div></div></fieldset>';
 		}
 
-		if ( $writable ) {
-			$body .= '<div class="fmc-savebar">' . self::buttons( $type, $post ) . '</div>';
+
+
+
+		$leave = PostTypes::SPEAKER === $type && $post && Screen::can_delete( $post );
+		if ( $writable || $leave ) {
+			$body .= '<div class="fmc-savebar d-flex flex-wrap align-items-center gap-2">' . ( $writable ? self::buttons( $type, $post ) : '<span class="text-secondary">Solo lectura: no tiene nada que cambiar aquí.</span>' ) . ( $leave ? Screen::trash_button( $post ) : '' ) . '</div>';
 		} else {
 			$body .= '<p class="text-secondary">Solo lectura: no tiene nada que cambiar aquí.</p>';
 		}
@@ -4338,7 +4412,7 @@ final class Editor {
 		if ( PostTypes::ACTION === $type && $post ) {
 			$body .= self::incidents( $post );
 		}
-		if ( PostTypes::SPEAKER === $type && $post && Screen::can_delete( $post ) ) {
+		if ( $leave ) {
 			$body .= Screen::trash_form( $post );
 		}
 
@@ -4529,9 +4603,12 @@ final class Editor {
 				foreach ( array_diff( $current, array_map( 'strval', array_keys( $choices ) ) ) as $kept ) {
 					$choices[ $kept ] = get_the_title( (int) $kept ) . ' (fuera del catálogo)';
 				}
-				$input = '<input type="hidden" name="' . esc_attr( $name ) . '[]" value=""' . $disabled . '><select class="form-select" multiple data-fmc-ts data-placeholder="Escriba para añadir…" id="' . esc_attr( $id ) . '" name="' . esc_attr( $name ) . '[]"' . $disabled . '>';
+				$people = 'speakers' === $f['w'];
+				$map    = $people ? Speakers::recommended_map() : array();
+				$stats  = $people ? Speakers::stats() : array();
+				$input  = '<input type="hidden" name="' . esc_attr( $name ) . '[]" value=""' . $disabled . '><select class="form-select" multiple data-fmc-ts data-placeholder="Escriba para añadir…"' . ( $people ? ' data-fmc-speakers="f[' . esc_attr( A::DESIGN_ID ) . ']"' : '' ) . ' id="' . esc_attr( $id ) . '" name="' . esc_attr( $name ) . '[]"' . $disabled . '>';
 				foreach ( $choices as $v => $text ) {
-					$input .= '<option value="' . esc_attr( (string) $v ) . '"' . ( in_array( (string) $v, $current, true ) ? ' selected' : '' ) . '>' . esc_html( $text ) . '</option>';
+					$input .= '<option value="' . esc_attr( (string) $v ) . '"' . ( in_array( (string) $v, $current, true ) ? ' selected' : '' ) . ( $people ? self::speaker_data( (int) $v, $map, $stats ) : '' ) . '>' . esc_html( $text ) . '</option>';
 				}
 				$input .= '</select>';
 				break;
@@ -4736,23 +4813,61 @@ final class Editor {
 
 
 
+
 	private static function speaker_choices( array $speakers, int $design ): array {
 		$stats       = Speakers::stats();
 		$recommended = array_flip( Speakers::recommended_for( $design ) );
+		$off         = array();
 		$out         = array();
 		foreach ( $speakers as $p ) {
-			$given         = (int) ( $stats[ $p->ID ]['actions'] ?? 0 );
-			$details       = array_filter( array( (string) get_post_meta( $p->ID, S::ZONE, true ), $given ? sprintf( '%d acción(es)', $given ) : '' ) );
+			$given = (int) ( $stats[ $p->ID ]['actions'] ?? 0 );
+			if ( get_post_meta( $p->ID, S::UNAVAILABLE, true ) ) {
+				$off[ $p->ID ] = true;
+			}
+			$details       = array_filter( array( Lists::terms( $p->ID, Taxonomies::ZONE ), $given ? sprintf( '%d acción(es)', $given ) : '', isset( $off[ $p->ID ] ) ? 'No disponible' : '' ) );
 			$out[ $p->ID ] = ( isset( $recommended[ $p->ID ] ) ? '★ ' : '' ) . get_the_title( $p ) . ( $details ? ' · ' . implode( ' · ', $details ) : '' );
 		}
 
 		uksort(
 			$out,
-			static function ( $a, $b ) use ( $out, $recommended ) {
+			static function ( $a, $b ) use ( $out, $recommended, $off ) {
 				$first = isset( $recommended[ $b ] ) <=> isset( $recommended[ $a ] );
+				$first = 0 !== $first ? $first : isset( $off[ $a ] ) <=> isset( $off[ $b ] );
 				return 0 !== $first ? $first : strcmp( $out[ $a ], $out[ $b ] );
 			}
 		);
+		return $out;
+	}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+	private static function speaker_data( int $speaker, array $map, array $stats ): string {
+		$given = (int) ( $stats[ $speaker ]['actions'] ?? 0 );
+		$data  = array(
+			'name'  => get_the_title( $speaker ),
+			'zone'  => Lists::terms( $speaker, Taxonomies::ZONE ),
+			'role'  => S::PROFESSIONS[ (string) get_post_meta( $speaker, S::PROFESSION, true ) ] ?? '',
+			'given' => $given ? sprintf( '%d acción(es)', $given ) : '',
+			'for'   => implode( ',', $map[ $speaker ] ?? array() ),
+			'off'   => get_post_meta( $speaker, S::UNAVAILABLE, true ) ? '1' : '',
+			'note'  => trim( (string) get_post_meta( $speaker, S::NOTES, true ) ),
+		);
+		$out   = '';
+		foreach ( array_filter( $data, 'strlen' ) as $key => $value ) {
+			$out .= ' data-fmc-' . $key . '="' . esc_attr( $value ) . '"';
+		}
 		return $out;
 	}
 
@@ -5190,6 +5305,8 @@ final class Screen {
 	public const BOOTSTRAP = array(
 		'css'     => 'https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css',
 		'css_sri' => 'sha384-sRIl4kxILFvY47J16cr9ZwB07vP4J8+LH7qKQnuqkuIAvNWLzeN8tE5YBujZqJLB',
+		'js'      => 'https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js',
+		'js_sri'  => 'sha384-FKyoEForCGlyvwx9Hj09JcYn3nv7wiPVlz7YYwJrWVcXK/BmnVDxM+D2scQbITxI',
 	);
 
 
@@ -5479,6 +5596,9 @@ final class Screen {
 		$out .= '<main class="container py-4">' . self::notice() . $screen['body'] . '</main>';
 		$out .= '<footer class="fmc-foot"><div class="container">Aplicativo de formación' . $chrome['footer'] . '</div></footer>';
 
+
+		$out .= '<script src="' . esc_url( self::BOOTSTRAP['js'] ) . '" integrity="' . esc_attr( self::BOOTSTRAP['js_sri'] ) . '" crossorigin="anonymous"></script>';
+
 		$out .= '<script src="' . esc_url( self::TOM_SELECT['js'] ) . '" integrity="' . esc_attr( self::TOM_SELECT['js_sri'] ) . '" crossorigin="anonymous"></script>';
 
 		$out .= '<script src="' . esc_url( self::SWEETALERT['js'] ) . '" integrity="' . esc_attr( self::SWEETALERT['js_sri'] ) . '" crossorigin="anonymous"></script>';
@@ -5663,13 +5783,28 @@ final class Screen {
 
 
 
+
+
+
+
+
 	public static function trash_form( \WP_Post $post ): string {
-		return '<form class="card fmc-section mt-3" method="post" action="' . esc_url( home_url( '/' ) ) . '" data-fmc-confirm="' . esc_attr( '¿Dar de baja a «' . get_the_title( $post ) . '»?' ) . '" data-fmc-confirm-text="Su ficha pasa a la papelera con el motivo y deja de verse en el aplicativo." data-fmc-confirm-button="Dar de baja"><div class="card-body">'
-			. '<h2 class="h6">Dar de baja</h2><p class="text-secondary small">Por ejemplo, si la persona pide que se borren sus datos. Queda en la papelera quién la dio de baja, cuándo y por qué.</p>'
+		return '<form id="fmc-baja-' . esc_attr( (string) $post->ID ) . '" method="post" action="' . esc_url( home_url( '/' ) ) . '" data-fmc-reason data-fmc-confirm="' . esc_attr( '¿Dar de baja a «' . get_the_title( $post ) . '»?' ) . '" data-fmc-confirm-text="Su ficha pasa a la papelera y deja de verse en el aplicativo. Queda quién la dio de baja, cuándo y por qué." data-fmc-confirm-button="Dar de baja">'
 			. wp_nonce_field( 'fmc_delete_' . $post->ID, '_fmc_nonce', true, false )
 			. '<input type="hidden" name="fmc_delete" value="' . esc_attr( (string) $post->ID ) . '">'
-			. '<label class="form-label fw-semibold" for="fmc-reason">Motivo <span class="text-danger" aria-hidden="true">*</span></label><div class="d-flex gap-2"><input class="form-control" id="fmc-reason" name="fmc_reason" required maxlength="500">'
-			. '<button class="btn btn-outline-danger text-nowrap" type="submit">Dar de baja</button></div></div></form>';
+			. '<input type="hidden" name="fmc_reason" value="">'
+			. '<noscript><div class="mt-3"><label class="form-label fw-semibold" for="fmc-reason">Motivo de la baja <span class="text-danger" aria-hidden="true">*</span></label><input class="form-control" id="fmc-reason" name="fmc_reason" required maxlength="500"></div></noscript>'
+			. '</form>';
+	}
+
+
+
+
+
+
+
+	public static function trash_button( \WP_Post $post ): string {
+		return '<button class="btn btn-outline-danger ms-auto" type="submit" form="fmc-baja-' . esc_attr( (string) $post->ID ) . '"><i class="bi bi-person-x" aria-hidden="true"></i> Dar de baja</button>';
 	}
 
 
@@ -6300,6 +6435,8 @@ body.has-panel { overflow: hidden; }
    página; y los avisos de SweetAlert2, por encima del panel. */
 .fmc-panel-backdrop { z-index: 100000; }
 .fmc .swal2-container { z-index: 100002; }
+/* Y los tooltips de las observaciones, que también salen dentro del panel. */
+.fmc .tooltip { --bs-tooltip-zindex: 100003; z-index: 100003; }
 .fmc-panel .offcanvas-header { background: #fff; }
 .fmc-panel .offcanvas-body { padding: 1.25rem; }
 .fmc-panel .offcanvas-body[aria-busy="true"] { opacity: .5; pointer-events: none; }
@@ -6371,6 +6508,17 @@ body.has-panel { overflow: hidden; }
 /* Resumen del perfil de competencia digital */
 .fmc-digcomp { background: var(--fmc-sup-2); box-shadow: none; }
 .fmc-digcomp td { font-size: .85rem; }
+
+/* Ponentes: el no disponible, en gris pero elegible; las observaciones, en un bocadillo. */
+.fmc .fmc-off, .fmc .ts-dropdown .option.fmc-off { opacity: .55; }
+.fmc .fmc-note, .fmc .fmc-note-icon { color: var(--fmc-text-2); }
+.fmc .fmc-note { line-height: 1; vertical-align: baseline; text-decoration: none; }
+.fmc .fmc-note:hover, .fmc .fmc-note:focus { color: var(--fmc-brand); }
+.fmc .fmc-note-icon { margin-left: .35em; cursor: help; }
+.fmc .fmc-person { line-height: 1.35; }
+.fmc .fmc-star { color: #d4a106; margin-right: .3em; }
+.fmc .tooltip-inner { max-width: 320px; text-align: left; white-space: pre-line; }
+.fmc .fmc-rec { background: #fff3cd; color: #7a5a00; font-weight: 600; }
 ',
   'js/fmc-app.js' => '/**
  * Formación: los dos comportamientos del lado del navegador.
@@ -6408,17 +6556,116 @@ body.has-panel { overflow: hidden; }
 			if ( s.tomselect ) {
 				return;
 			}
-			// eslint-disable-next-line no-new
-			new window.TomSelect( s, {
+			const settings = {
 				maxOptions: null,
 				allowEmptyOption: ! s.multiple,
 				hidePlaceholder: true,
 				placeholder: s.dataset.placeholder || \'\',
 				plugins: s.multiple ? [ \'remove_button\' ] : [ \'dropdown_input\' ],
-			} );
+			};
+			if ( s.dataset.fmcSpeakers ) {
+				settings.render = { option: speakerHtml, item: speakerItem };
+				// Las opciones se repintan: un tooltip abierto se quedaría huérfano.
+				settings.onDropdownClose = hideTips;
+			}
+			// eslint-disable-next-line no-new
+			new window.TomSelect( s, settings );
 			n++;
 		} );
 		return n;
+	}
+
+	// Un ponente en la lista, en dos líneas: el nombre con sus etiquetas
+	// (recomendado, no disponible, el bocadillo de las observaciones) y,
+	// debajo, isla, cargo y lo que ha impartido. Recomendado es lo que dice el
+	// texto de la opción, que markRecommended() pone al día con el diseño.
+	function speakerParts( data, escape ) {
+		const set = ( data.$option && data.$option.dataset ) || {};
+		const recommended = /^★ /.test( data.text );
+		return {
+			set: set,
+			name: escape( set.fmcName || data.text.replace( /^★ /, \'\' ) ),
+			star: recommended ? \'<i class="bi bi-star-fill fmc-star" title="Recomendado para este diseño" aria-label="Recomendado"></i> \' : \'\',
+			tags: ( recommended ? \' <span class="badge fmc-rec">Recomendado</span>\' : \'\' ) + ( set.fmcOff ? \' <span class="badge text-bg-secondary">No disponible</span>\' : \'\' ),
+			note: set.fmcNote ? \' <i class="bi bi-chat-left-text fmc-note-icon" data-bs-toggle="tooltip" title="\' + escape( set.fmcNote ) + \'" aria-label="\' + escape( \'Observaciones: \' + set.fmcNote ) + \'"></i>\' : \'\',
+			facts: [ set.fmcZone, set.fmcRole, set.fmcGiven ].filter( Boolean ).map( escape ).join( \' · \' ),
+		};
+	}
+
+	function speakerHtml( data, escape ) {
+		const p = speakerParts( data, escape );
+		return \'<div class="fmc-person\' + ( p.set.fmcOff ? \' fmc-off\' : \'\' ) + \'"><div>\' + p.star + \'<strong>\' + p.name + \'</strong>\' + p.tags + p.note + \'</div>\'
+			+ ( p.facts ? \'<div class="small text-secondary">\' + p.facts + \'</div>\' : \'\' ) + \'</div>\';
+	}
+
+	// El elegido, en la caja: solo la estrella, el nombre y el bocadillo.
+	function speakerItem( data, escape ) {
+		const p = speakerParts( data, escape );
+		return \'<div\' + ( p.set.fmcOff ? \' class="fmc-off"\' : \'\' ) + \'>\' + p.star + p.name + p.note + \'</div>\';
+	}
+
+	// La estrella del recomendado sigue al diseño elegido, sin recargar, y los
+	// recomendados suben arriba del todo; después, por nombre, y los no
+	// disponibles al final, como los ordena el servidor.
+	function markRecommended( form ) {
+		form.querySelectorAll( \'select[data-fmc-speakers]\' ).forEach( function ( s ) {
+			const design = valuesOf( form, s.dataset.fmcSpeakers )[ 0 ] || \'\';
+			const options = Array.prototype.slice.call( s.options );
+			options.forEach( function ( o ) {
+				const wanted = ( o.dataset.fmcFor || \'\' ).split( \',\' );
+				o.textContent = ( design && wanted.indexOf( design ) !== -1 ? \'★ \' : \'\' ) + o.textContent.replace( /^★ /, \'\' );
+			} );
+			const starred = function ( o ) {
+				return /^★ /.test( o.textContent ) ? 1 : 0;
+			};
+			const off = function ( o ) {
+				return o.dataset.fmcOff ? 1 : 0;
+			};
+			options.sort( function ( a, b ) {
+				return ( starred( b ) - starred( a ) ) || ( off( a ) - off( b ) ) || a.textContent.localeCompare( b.textContent, \'es\' );
+			} );
+			options.forEach( function ( o, i ) {
+				s.appendChild( o );
+				if ( s.tomselect ) {
+					s.tomselect.updateOption( o.value, { value: o.value, text: o.textContent, $option: o } );
+					if ( s.tomselect.options[ o.value ] ) {
+						s.tomselect.options[ o.value ].$order = i;
+					}
+				}
+			} );
+			if ( s.tomselect && s.tomselect.clearCache ) {
+				s.tomselect.clearCache();
+			}
+		} );
+	}
+
+	// Un solo tooltip de Bootstrap, delegado: vale para lo que se pinte después,
+	// como las opciones de Tom Select o la ficha del panel lateral.
+	function initTips() {
+		if ( ! window.bootstrap || ! window.bootstrap.Tooltip || document.body.dataset.fmcTips ) {
+			return false;
+		}
+		document.body.dataset.fmcTips = \'1\';
+		// eslint-disable-next-line no-new
+		new window.bootstrap.Tooltip( document.body, { selector: \'[data-bs-toggle="tooltip"]\', container: \'body\' } );
+		return true;
+	}
+
+	function hideTips() {
+		document.querySelectorAll( \'.tooltip\' ).forEach( function ( tip ) {
+			tip.remove();
+		} );
+	}
+
+	function onNoteClick( event ) {
+		const button = event.target.closest ? event.target.closest( \'button[data-fmc-note]\' ) : null;
+		if ( ! button ) {
+			return;
+		}
+		event.preventDefault();
+		if ( window.Swal ) {
+			window.Swal.fire( { title: \'Observaciones\', text: button.dataset.fmcNote, confirmButtonText: \'Cerrar\' } );
+		}
 	}
 
 	function valuesOf( form, name ) {
@@ -6470,6 +6717,9 @@ body.has-panel { overflow: hidden; }
 		const form = target.closest( \'form\' );
 		if ( form ) {
 			applyShow( form );
+			if ( target.name && form.querySelector( \'select[data-fmc-speakers="\' + target.name + \'"]\' ) ) {
+				markRecommended( form );
+			}
 		}
 	}
 
@@ -6533,6 +6783,40 @@ body.has-panel { overflow: hidden; }
 		form.submit();
 	}
 
+	// Dar de baja a un ponente: el motivo se pide en el mismo aviso, y sin
+	// motivo no se envía (el servidor tampoco lo admite, ADR-0011).
+	function askReason( form, question ) {
+		const field = form.querySelector( \'input[name="fmc_reason"]\' );
+		if ( window.Swal && window.Swal.fire ) {
+			return window.Swal.fire( {
+				title: question,
+				text: form.dataset.fmcConfirmText || \'\',
+				icon: \'warning\',
+				input: \'textarea\',
+				inputLabel: \'Motivo\',
+				inputPlaceholder: \'Por ejemplo: ha pedido que se borren sus datos.\',
+				inputAttributes: { maxlength: \'500\', \'aria-label\': \'Motivo de la baja\' },
+				inputValidator: function ( value ) {
+					return value && value.trim() ? null : \'Diga el motivo: sin motivo no hay baja.\';
+				},
+				showCancelButton: true,
+				confirmButtonText: form.dataset.fmcConfirmButton || \'Dar de baja\',
+				cancelButtonText: \'Cancelar\',
+				confirmButtonColor: \'#dc3545\',
+			} ).then( function ( result ) {
+				if ( result && result.isConfirmed ) {
+					field.value = String( result.value ).trim();
+					send( form );
+				}
+			} );
+		}
+		const reason = window.prompt( question + \' Motivo:\' );
+		if ( reason && reason.trim() ) {
+			field.value = reason.trim();
+			send( form );
+		}
+	}
+
 	function onSubmit( event ) {
 		const form = event.target;
 		if ( ! form || ! form.matches || ! form.matches( \'form[data-fmc-confirm]\' ) || form.dataset.fmcConfirmed ) {
@@ -6540,6 +6824,9 @@ body.has-panel { overflow: hidden; }
 		}
 		event.preventDefault();
 		const question = form.dataset.fmcConfirm;
+		if ( \'fmcReason\' in form.dataset ) {
+			return askReason( form, question );
+		}
 		if ( window.Swal && window.Swal.fire ) {
 			return window.Swal.fire( {
 				title: question,
@@ -6803,6 +7090,7 @@ body.has-panel { overflow: hidden; }
 	document.addEventListener( \'submit\', onPanelSubmit );
 	document.addEventListener( \'click\', onClick );
 	document.addEventListener( \'click\', onToolClick );
+	document.addEventListener( \'click\', onNoteClick );
 	document.addEventListener( \'keydown\', onKey );
 	document.addEventListener( \'change\', onChange );
 	if ( \'loading\' === document.readyState ) {
@@ -6810,11 +7098,13 @@ body.has-panel { overflow: hidden; }
 			initSelects();
 			applyShow();
 			initRich();
+			initTips();
 		} );
 	} else {
 		initSelects();
 		applyShow();
 		initRich();
+		initTips();
 	}
 
 	window.fmcApp = {
@@ -6830,6 +7120,11 @@ body.has-panel { overflow: hidden; }
 		openPanel: openPanel,
 		openTool: openTool,
 		onToolClick: onToolClick,
+		onNoteClick: onNoteClick,
+		speakerHtml: speakerHtml,
+		speakerItem: speakerItem,
+		initTips: initTips,
+		hideTips: hideTips,
 		closePanel: closePanel,
 		reload: reload,
 	};

@@ -146,35 +146,68 @@ final class Speakers {
 		if ( $design <= 0 ) {
 			return array();
 		}
-		return get_posts(
-			array(
-				'post_type'      => PostTypes::SPEAKER,
-				'post_status'    => 'publish',
-				'posts_per_page' => -1,
-				'fields'         => 'ids',
-				'no_found_rows'  => true,
-				'meta_query'     => self::recommended_clause( $design ), // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_query -- recomendados de un diseño.
-			)
-		);
+		return array_keys( array_filter( self::recommended_map(), static fn( $designs ) => in_array( $design, $designs, true ) ) );
 	}
 
 	/**
-	 * Meta query: recommended for a design or for one it replaces.
+	 * Designs each speaker is recommended for, the designs that replace them included.
 	 *
-	 * Los diseños se guardan como lista serializada de enteros: `i:<ID>;`.
+	 * Se lee en PHP y no con un `LIKE` sobre la lista serializada: en
+	 * `a:2:{i:0;i:7;i:1;i:9;}` las posiciones (`i:0;`, `i:1;`) se escriben igual
+	 * que los diseños, y un `LIKE 'i:1;'` encontraba el diseño 1 en cualquier
+	 * ponente con dos recomendados. Son pocos ponentes con recomendados, y una
+	 * lista corta de sustituciones.
 	 *
-	 * @param int $design Design ID.
-	 * @return array<string|int, mixed>
+	 * @return array<int, int[]> speaker => design IDs.
 	 */
-	public static function recommended_clause( int $design ): array {
-		$clause = array( 'relation' => 'OR' );
-		foreach ( self::lineage( $design ) as $id ) {
-			$clause[] = array(
-				'key'     => S::RECOMMENDED,
-				'value'   => 'i:' . $id . ';',
-				'compare' => 'LIKE',
-			);
+	public static function recommended_map(): array {
+		// De cada diseño, los que lo sustituyen: la cadena de lineage(), al revés.
+		$successors = array();
+		foreach ( self::with_meta( PostTypes::DESIGN, D::REPLACES, 'any' ) as $id ) {
+			foreach ( array_map( 'intval', (array) get_post_meta( $id, D::REPLACES, true ) ) as $old ) {
+				$successors[ $old ][] = $id;
+			}
 		}
-		return $clause;
+		$out = array();
+		foreach ( self::with_meta( PostTypes::SPEAKER, S::RECOMMENDED, 'publish' ) as $speaker ) {
+			$seen = array();
+			$todo = array_map( 'intval', (array) get_post_meta( $speaker, S::RECOMMENDED, true ) );
+			while ( $todo ) {
+				$id = (int) array_shift( $todo );
+				if ( $id <= 0 || isset( $seen[ $id ] ) ) {
+					continue;
+				}
+				$seen[ $id ] = true;
+				$todo        = array_merge( $todo, $successors[ $id ] ?? array() );
+			}
+			if ( $seen ) {
+				$out[ $speaker ] = array_keys( $seen );
+			}
+		}
+		return $out;
+	}
+
+	/**
+	 * IDs of the posts of a type that have a meta key.
+	 *
+	 * @param string          $type   Post type.
+	 * @param string          $key    Meta key.
+	 * @param string|string[] $status Post status.
+	 * @return int[]
+	 */
+	private static function with_meta( string $type, string $key, $status ): array {
+		return array_map(
+			'intval',
+			get_posts(
+				array(
+					'post_type'      => $type,
+					'post_status'    => $status,
+					'posts_per_page' => -1,
+					'fields'         => 'ids',
+					'no_found_rows'  => true,
+					'meta_key'       => $key, // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_key -- solo los que tienen el dato.
+				)
+			)
+		);
 	}
 }

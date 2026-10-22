@@ -48,3 +48,4 @@ con commit no se reescriben por un cambio de nombre; esta nota lo traduce.
 | [ADR-0012](ADR-0012-un-diseno-puede-sustituir-a-otro-y-los-ponentes-se-buscan-por-lo-impartido.md) | Un diseño puede sustituir a otro, y los ponentes se buscan por lo que han impartido | Propuesta |
 | [ADR-0013](ADR-0013-el-catalogo-publico-es-una-pantalla-del-aplicativo.md) | El catálogo público es una pantalla del aplicativo y publica solo parte del diseño | Propuesta |
 | [ADR-0014](ADR-0014-el-perfil-de-competencia-digital-se-elige-en-elidd-incrustada.md) | El perfil de competencia digital se elige en elidd, incrustada en la ficha | Propuesta |
+| [ADR-0015](ADR-0015-la-isla-del-ponente-es-una-taxonomia-y-el-cargo-una-lista-cerrada.md) | La isla del ponente es una taxonomía y el cargo, una lista cerrada | Propuesta |

@@ -482,7 +482,7 @@ class Test_Screen extends WP_UnitTestCase {
 		$this->assertStringStartsWith( '<!doctype html><html lang="es">', $html );
 		$this->assertStringEndsWith( '</body></html>', $html );
 
-		$this->assertSame( 5, preg_match_all( '/<(?:script|link)\b[^>]*cdn\.jsdelivr\.net[^>]*>/', $html, $tags ) );
+		$this->assertSame( 6, preg_match_all( '/<(?:script|link)\b[^>]*cdn\.jsdelivr\.net[^>]*>/', $html, $tags ) );
 		foreach ( $tags[0] as $tag ) {
 			$this->assertMatchesRegularExpression( '/ integrity="sha384-[A-Za-z0-9+\/]{64}"/', $tag );
 			$this->assertStringContainsString( ' crossorigin="anonymous"', $tag );

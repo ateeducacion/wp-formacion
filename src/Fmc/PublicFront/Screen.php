@@ -37,6 +37,8 @@ final class Screen {
 	public const BOOTSTRAP = array(
 		'css'     => 'https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css',
 		'css_sri' => 'sha384-sRIl4kxILFvY47J16cr9ZwB07vP4J8+LH7qKQnuqkuIAvNWLzeN8tE5YBujZqJLB',
+		'js'      => 'https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js',
+		'js_sri'  => 'sha384-FKyoEForCGlyvwx9Hj09JcYn3nv7wiPVlz7YYwJrWVcXK/BmnVDxM+D2scQbITxI',
 	);
 
 	/**
@@ -325,6 +327,9 @@ final class Screen {
 
 		$out .= '<main class="container py-4">' . self::notice() . $screen['body'] . '</main>';
 		$out .= '<footer class="fmc-foot"><div class="container">Aplicativo de formación' . $chrome['footer'] . '</div></footer>';
+		// Bootstrap trae Popper: los tooltips de las observaciones del ponente.
+		// phpcs:ignore WordPress.WP.EnqueuedResources.NonEnqueuedScript -- documento propio, fuera del tema.
+		$out .= '<script src="' . esc_url( self::BOOTSTRAP['js'] ) . '" integrity="' . esc_attr( self::BOOTSTRAP['js_sri'] ) . '" crossorigin="anonymous"></script>';
 		// phpcs:ignore WordPress.WP.EnqueuedResources.NonEnqueuedScript -- documento propio, fuera del tema.
 		$out .= '<script src="' . esc_url( self::TOM_SELECT['js'] ) . '" integrity="' . esc_attr( self::TOM_SELECT['js_sri'] ) . '" crossorigin="anonymous"></script>';
 		// phpcs:ignore WordPress.WP.EnqueuedResources.NonEnqueuedScript -- documento propio, fuera del tema.
@@ -507,16 +512,31 @@ final class Screen {
 	/**
 	 * The speaker's leave form: a reason is mandatory.
 	 *
+	 * Va fuera de la ficha, porque un formulario no puede ir dentro de otro, y
+	 * lo envía el botón de la barra (`trash_button()`, con `form=`). El motivo
+	 * lo pide `fmc-app.js` en un SweetAlert y lo escribe en el campo oculto;
+	 * sin JavaScript, el campo de `<noscript>` lo pide aquí mismo.
+	 *
 	 * @param \WP_Post $post Speaker.
 	 * @return string
 	 */
 	public static function trash_form( \WP_Post $post ): string {
-		return '<form class="card fmc-section mt-3" method="post" action="' . esc_url( home_url( '/' ) ) . '" data-fmc-confirm="' . esc_attr( '¿Dar de baja a «' . get_the_title( $post ) . '»?' ) . '" data-fmc-confirm-text="Su ficha pasa a la papelera con el motivo y deja de verse en el aplicativo." data-fmc-confirm-button="Dar de baja"><div class="card-body">'
-			. '<h2 class="h6">Dar de baja</h2><p class="text-secondary small">Por ejemplo, si la persona pide que se borren sus datos. Queda en la papelera quién la dio de baja, cuándo y por qué.</p>'
+		return '<form id="fmc-baja-' . esc_attr( (string) $post->ID ) . '" method="post" action="' . esc_url( home_url( '/' ) ) . '" data-fmc-reason data-fmc-confirm="' . esc_attr( '¿Dar de baja a «' . get_the_title( $post ) . '»?' ) . '" data-fmc-confirm-text="Su ficha pasa a la papelera y deja de verse en el aplicativo. Queda quién la dio de baja, cuándo y por qué." data-fmc-confirm-button="Dar de baja">'
 			. wp_nonce_field( 'fmc_delete_' . $post->ID, '_fmc_nonce', true, false )
 			. '<input type="hidden" name="fmc_delete" value="' . esc_attr( (string) $post->ID ) . '">'
-			. '<label class="form-label fw-semibold" for="fmc-reason">Motivo <span class="text-danger" aria-hidden="true">*</span></label><div class="d-flex gap-2"><input class="form-control" id="fmc-reason" name="fmc_reason" required maxlength="500">'
-			. '<button class="btn btn-outline-danger text-nowrap" type="submit">Dar de baja</button></div></div></form>';
+			. '<input type="hidden" name="fmc_reason" value="">'
+			. '<noscript><div class="mt-3"><label class="form-label fw-semibold" for="fmc-reason">Motivo de la baja <span class="text-danger" aria-hidden="true">*</span></label><input class="form-control" id="fmc-reason" name="fmc_reason" required maxlength="500"></div></noscript>'
+			. '</form>';
+	}
+
+	/**
+	 * The red leave button of the speaker's save bar; it sends `trash_form()`.
+	 *
+	 * @param \WP_Post $post Speaker.
+	 * @return string
+	 */
+	public static function trash_button( \WP_Post $post ): string {
+		return '<button class="btn btn-outline-danger ms-auto" type="submit" form="fmc-baja-' . esc_attr( (string) $post->ID ) . '"><i class="bi bi-person-x" aria-hidden="true"></i> Dar de baja</button>';
 	}
 
 	/**

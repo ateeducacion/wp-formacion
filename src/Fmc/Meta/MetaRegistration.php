@@ -60,6 +60,9 @@ final class MetaRegistration {
 				ActionMetaKeys::SITUATION      => ActionMetaKeys::SITUATIONS,
 				ActionMetaKeys::TRAINING_PLANS => ActionMetaKeys::TRAINING_PLAN_KINDS,
 			),
+			PostTypes::SPEAKER  => array(
+				SpeakerMetaKeys::PROFESSION => SpeakerMetaKeys::PROFESSIONS,
+			),
 			PostTypes::INCIDENT => array(
 				IncidentMetaKeys::RESOLUTION => IncidentMetaKeys::RESOLUTIONS,
 			),

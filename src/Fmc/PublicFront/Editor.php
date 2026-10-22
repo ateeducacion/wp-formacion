@@ -14,6 +14,7 @@ use Fmc\Meta\IncidentMetaKeys as I;
 use Fmc\Meta\MetaRegistration;
 use Fmc\Meta\SpeakerMetaKeys as S;
 use Fmc\PostType\PostTypes;
+use Fmc\Taxonomy\Taxonomies;
 
 /**
  * La ficha de edición, como el taller de eventos: tarjetas por sección, ayuda
@@ -228,8 +229,12 @@ final class Editor {
 			$body .= '</div></div></fieldset>';
 		}
 
-		if ( $writable ) {
-			$body .= '<div class="fmc-savebar">' . self::buttons( $type, $post ) . '</div>';
+		// Dar de baja a un ponente va en la misma barra, a la derecha del todo y
+		// lejos de «Guardar»; sale también en solo lectura, porque cualquier
+		// asesoría puede dar de baja la ficha de otra (ADR-0011).
+		$leave = PostTypes::SPEAKER === $type && $post && Screen::can_delete( $post );
+		if ( $writable || $leave ) {
+			$body .= '<div class="fmc-savebar d-flex flex-wrap align-items-center gap-2">' . ( $writable ? self::buttons( $type, $post ) : '<span class="text-secondary">Solo lectura: no tiene nada que cambiar aquí.</span>' ) . ( $leave ? Screen::trash_button( $post ) : '' ) . '</div>';
 		} else {
 			$body .= '<p class="text-secondary">Solo lectura: no tiene nada que cambiar aquí.</p>';
 		}
@@ -238,7 +243,7 @@ final class Editor {
 		if ( PostTypes::ACTION === $type && $post ) {
 			$body .= self::incidents( $post );
 		}
-		if ( PostTypes::SPEAKER === $type && $post && Screen::can_delete( $post ) ) {
+		if ( $leave ) {
 			$body .= Screen::trash_form( $post );
 		}
 
@@ -429,9 +434,12 @@ final class Editor {
 				foreach ( array_diff( $current, array_map( 'strval', array_keys( $choices ) ) ) as $kept ) {
 					$choices[ $kept ] = get_the_title( (int) $kept ) . ' (fuera del catálogo)';
 				}
-				$input = '<input type="hidden" name="' . esc_attr( $name ) . '[]" value=""' . $disabled . '><select class="form-select" multiple data-fmc-ts data-placeholder="Escriba para añadir…" id="' . esc_attr( $id ) . '" name="' . esc_attr( $name ) . '[]"' . $disabled . '>';
+				$people = 'speakers' === $f['w'];
+				$map    = $people ? Speakers::recommended_map() : array();
+				$stats  = $people ? Speakers::stats() : array();
+				$input  = '<input type="hidden" name="' . esc_attr( $name ) . '[]" value=""' . $disabled . '><select class="form-select" multiple data-fmc-ts data-placeholder="Escriba para añadir…"' . ( $people ? ' data-fmc-speakers="f[' . esc_attr( A::DESIGN_ID ) . ']"' : '' ) . ' id="' . esc_attr( $id ) . '" name="' . esc_attr( $name ) . '[]"' . $disabled . '>';
 				foreach ( $choices as $v => $text ) {
-					$input .= '<option value="' . esc_attr( (string) $v ) . '"' . ( in_array( (string) $v, $current, true ) ? ' selected' : '' ) . '>' . esc_html( $text ) . '</option>';
+					$input .= '<option value="' . esc_attr( (string) $v ) . '"' . ( in_array( (string) $v, $current, true ) ? ' selected' : '' ) . ( $people ? self::speaker_data( (int) $v, $map, $stats ) : '' ) . '>' . esc_html( $text ) . '</option>';
 				}
 				$input .= '</select>';
 				break;
@@ -630,7 +638,8 @@ final class Editor {
 
 	/**
 	 * Speakers to choose from, with what helps to choose: island, actions
-	 * given, and a star when recommended for the action's design.
+	 * given, a star when recommended for the action's design, and whether
+	 * they are unavailable.
 	 *
 	 * @param \WP_Post[] $speakers Speakers.
 	 * @param int        $design   Design of the action, if any.
@@ -639,20 +648,57 @@ final class Editor {
 	private static function speaker_choices( array $speakers, int $design ): array {
 		$stats       = Speakers::stats();
 		$recommended = array_flip( Speakers::recommended_for( $design ) );
+		$off         = array();
 		$out         = array();
 		foreach ( $speakers as $p ) {
-			$given         = (int) ( $stats[ $p->ID ]['actions'] ?? 0 );
-			$details       = array_filter( array( (string) get_post_meta( $p->ID, S::ZONE, true ), $given ? sprintf( '%d acción(es)', $given ) : '' ) );
+			$given = (int) ( $stats[ $p->ID ]['actions'] ?? 0 );
+			if ( get_post_meta( $p->ID, S::UNAVAILABLE, true ) ) {
+				$off[ $p->ID ] = true;
+			}
+			$details       = array_filter( array( Lists::terms( $p->ID, Taxonomies::ZONE ), $given ? sprintf( '%d acción(es)', $given ) : '', isset( $off[ $p->ID ] ) ? 'No disponible' : '' ) );
 			$out[ $p->ID ] = ( isset( $recommended[ $p->ID ] ) ? '★ ' : '' ) . get_the_title( $p ) . ( $details ? ' · ' . implode( ' · ', $details ) : '' );
 		}
-		// Los recomendados, primero.
+		// Los recomendados, primero; los que no están disponibles, al final.
 		uksort(
 			$out,
-			static function ( $a, $b ) use ( $out, $recommended ) {
+			static function ( $a, $b ) use ( $out, $recommended, $off ) {
 				$first = isset( $recommended[ $b ] ) <=> isset( $recommended[ $a ] );
+				$first = 0 !== $first ? $first : isset( $off[ $a ] ) <=> isset( $off[ $b ] );
 				return 0 !== $first ? $first : strcmp( $out[ $a ], $out[ $b ] );
 			}
 		);
+		return $out;
+	}
+
+	/**
+	 * Data of a speaker option that `fmc-app.js` reads.
+	 *
+	 * Con ellos pinta cada ponente en dos líneas: el nombre con sus etiquetas
+	 * y, debajo, isla, cargo y lo impartido. `data-fmc-for`: los diseños para
+	 * los que se le recomienda, para que la estrella cambie al elegir otro
+	 * diseño sin recargar la ficha; `data-fmc-off`: no está disponible;
+	 * `data-fmc-note`: sus observaciones, en un bocadillo.
+	 *
+	 * @param int                                         $speaker Speaker ID.
+	 * @param array<int, int[]>                           $map     Speakers::recommended_map().
+	 * @param array<int, array{actions:int, hours:float}> $stats   Speakers::stats().
+	 * @return string
+	 */
+	private static function speaker_data( int $speaker, array $map, array $stats ): string {
+		$given = (int) ( $stats[ $speaker ]['actions'] ?? 0 );
+		$data  = array(
+			'name'  => get_the_title( $speaker ),
+			'zone'  => Lists::terms( $speaker, Taxonomies::ZONE ),
+			'role'  => S::PROFESSIONS[ (string) get_post_meta( $speaker, S::PROFESSION, true ) ] ?? '',
+			'given' => $given ? sprintf( '%d acción(es)', $given ) : '',
+			'for'   => implode( ',', $map[ $speaker ] ?? array() ),
+			'off'   => get_post_meta( $speaker, S::UNAVAILABLE, true ) ? '1' : '',
+			'note'  => trim( (string) get_post_meta( $speaker, S::NOTES, true ) ),
+		);
+		$out   = '';
+		foreach ( array_filter( $data, 'strlen' ) as $key => $value ) {
+			$out .= ' data-fmc-' . $key . '="' . esc_attr( $value ) . '"';
+		}
 		return $out;
 	}
 

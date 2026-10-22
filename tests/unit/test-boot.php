@@ -64,7 +64,7 @@ class Test_Boot extends WP_UnitTestCase {
 	}
 
 	/**
-	 * Y al terminar `init`, los cuatro tipos y las cuatro taxonomías están montados.
+	 * Y al terminar `init`, los cuatro tipos y las cinco taxonomías están montados.
 	 */
 	public function test_boot_registered_the_post_types_and_the_taxonomies() {
 		foreach ( array_keys( PostTypes::definitions() ) as $slug ) {

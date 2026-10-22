@@ -327,7 +327,7 @@ final class Fields {
 					A::SPEAKERS        => array(
 						'label' => 'Ponentes',
 						'w'     => 'speakers',
-						'help'  => 'Escriba para buscar y añadir; la «×» de cada uno lo quita. Al lado de cada nombre, su isla y las acciones que ha impartido; «★» si se le recomienda para este diseño.',
+						'help'  => 'Escriba para buscar y añadir; la «×» de cada uno lo quita. Al lado de cada nombre, su isla y las acciones que ha impartido; «★» si se le recomienda para el diseño elegido, en gris si no está disponible, y un bocadillo si tiene observaciones.',
 					),
 				),
 			),
@@ -551,55 +551,56 @@ final class Fields {
 				'title'  => 'Datos personales',
 				'help'   => 'Los ve quien gestiona acciones formativas; cada asesoría edita las fichas que ha dado de alta.',
 				'fields' => array(
-					S::FIRST_NAME => array(
+					S::FIRST_NAME  => array(
 						'label' => 'Nombre',
 						'w'     => 'text',
 						'col'   => 6,
 						'req'   => true,
 					),
-					S::LAST_NAME  => array(
+					S::LAST_NAME   => array(
 						'label' => 'Apellidos',
 						'w'     => 'text',
 						'col'   => 6,
 						'req'   => true,
 					),
-					S::ID_NUMBER  => array(
+					S::ID_NUMBER   => array(
 						'label' => 'Documento de identidad',
 						'w'     => 'text',
 						'col'   => 4,
 					),
-					S::PHONE      => array(
+					S::PHONE       => array(
 						'label' => 'Teléfono',
 						'w'     => 'text',
 						'col'   => 4,
 					),
-					S::ZONE       => array(
+					'tax:fmc_zone' => array(
 						'label' => 'Isla o zona',
-						'w'     => 'text',
+						'w'     => 'term',
 						'col'   => 4,
 					),
-					S::EMAIL      => array(
+					S::EMAIL       => array(
 						'label' => 'Correo electrónico',
 						'w'     => 'email',
 						'col'   => 6,
 						'req'   => true,
 					),
-					S::EMAIL_ALT  => array(
+					S::EMAIL_ALT   => array(
 						'label' => 'Correo alternativo',
 						'w'     => 'email',
 						'col'   => 6,
 					),
-					S::PROFESSION => array(
-						'label' => 'Profesión',
-						'w'     => 'text',
-						'col'   => 6,
+					S::PROFESSION  => array(
+						'label'   => 'Cargo',
+						'w'       => 'select',
+						'choices' => S::PROFESSIONS,
+						'col'     => 6,
 					),
-					S::WEBSITE    => array(
+					S::WEBSITE     => array(
 						'label' => 'Sitio web',
 						'w'     => 'url',
 						'col'   => 6,
 					),
-					S::ADDRESS    => array(
+					S::ADDRESS     => array(
 						'label' => 'Dirección',
 						'w'     => 'textarea',
 					),
@@ -612,6 +613,7 @@ final class Fields {
 					S::UNAVAILABLE => array(
 						'label' => 'No disponible',
 						'w'     => 'checkbox',
+						'help'  => 'Se puede seguir eligiendo para una acción, pero sale en gris y avisado. Diga el porqué en las observaciones.',
 					),
 					S::RECOMMENDED => array(
 						'label' => 'Recomendado para los diseños',
@@ -621,6 +623,7 @@ final class Fields {
 					S::NOTES       => array(
 						'label' => 'Observaciones',
 						'w'     => 'textarea',
+						'help'  => 'Salen en un bocadillo junto al nombre, en el listado y al elegir ponentes para una acción.',
 					),
 				),
 			),

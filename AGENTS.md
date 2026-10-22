@@ -22,10 +22,10 @@ roles y sus capacidades salen del código, no de su editor—; dónde, lo dice e
 `.env` y **no el repositorio**.
 
 El dominio son cuatro CPT —`fmc_design`, `fmc_action`, `fmc_speaker`,
-`fmc_incident`— y cuatro taxonomías —`fmc_programme`, `fmc_topic`,
-`fmc_competence`, `fmc_scope`—. Qué pide cada uno está en
-[REQ-0001](docs/requisitos/REQ-0001-aplicativo-de-formacion.md) y cómo se llega
-hasta el sitio nuevo, en
+`fmc_incident`— y cinco taxonomías —`fmc_programme`, `fmc_topic`,
+`fmc_competence`, `fmc_scope` y `fmc_zone`, la isla o zona del ponente—.
+Qué pide cada uno está en [REQ-0001](docs/requisitos/REQ-0001-aplicativo-de-formacion.md)
+y cómo se llega hasta el sitio nuevo, en
 [PLAN-0001](docs/plan/PLAN-0001-implantacion-y-migracion.md).
 
 - **NO es un plugin de WordPress** instalable en producción. No crees fichero
@@ -108,7 +108,7 @@ src/Fmc/
 ├── Domain/SchoolYear.php         El curso escolar de una fecha. Puro
 ├── Domain/DigComp.php            El perfil de competencia digital de elidd (su dirección), sus áreas y competencias. Puro
 ├── PostType/PostTypes.php        Los cuatro CPT y qué capacidades tiene cada rol en cada uno
-├── Taxonomy/Taxonomies.php       Programa, temática, competencia digital y ámbito
+├── Taxonomy/Taxonomies.php       Programa, temática, competencia digital, ámbito e isla o zona
 └── PublicFront/                  El aplicativo, en la portada del sitio
     ├── Screen.php                Enrutado (?fmc_tab, ?fmc_edit, ?fmc_new), cabecera y pestañas
     ├── Lists.php                 Contadores, filtros y tabla paginada de cada tipo
@@ -300,7 +300,7 @@ meta y sus valores (`fmc_modality`, `blended`), los roles
 castellano las cadenas, las etiquetas, los rótulos de rol y las URL de las
 páginas, que se comparten y se teclean.
 
-Los términos de `fmc_programme`, `fmc_topic`, `fmc_competence` y `fmc_scope` son **datos**, no
+Los términos de `fmc_programme`, `fmc_topic`, `fmc_competence`, `fmc_scope` y `fmc_zone` son **datos**, no
 identificadores: sus nombres van en castellano y sus slugs, como los escriba
 quien los cree.
 

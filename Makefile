@@ -93,7 +93,7 @@ provision: ## Provisiona: idioma, bundle, snippets, roles, vocabulario y datos d
 	@$(MAKE) sync-snippets
 	@echo "Asegurando los roles del aplicativo..."
 	@$(WP_ENV) run cli wp $(WP_URL) eval-file $(FMC_DEV)/scripts/provision-roles.php
-	@echo "Creando el vocabulario de las cuatro taxonomías..."
+	@echo "Creando el vocabulario de las cinco taxonomías..."
 	@$(WP_ENV) run cli wp $(WP_URL) eval-file $(FMC_DEV)/scripts/setup-vocabulary.php
 	@echo "Usuarios y contenido de prueba (validacion, asesoria, asesoria2, servicio)..."
 	@$(WP_ENV) run cli wp $(WP_URL) eval-file $(FMC_DEV)/scripts/seed-demo.php

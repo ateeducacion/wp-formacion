@@ -24,6 +24,7 @@ final class Taxonomies {
 	public const TOPIC      = 'fmc_topic';
 	public const COMPETENCE = 'fmc_competence';
 	public const SCOPE      = 'fmc_scope';
+	public const ZONE       = 'fmc_zone';
 
 	/**
 	 * Taxonomy => [labels, post types, hierarchical].
@@ -57,6 +58,15 @@ final class Taxonomies {
 				'plural'       => 'Ámbitos',
 				'types'        => array( PostTypes::ACTION ),
 				'hierarchical' => true,
+			),
+			// Dónde está el ponente. Las islas o zonas las crea cada instalación,
+			// como los programas: escritas aquí dirían de quién es el despliegue
+			// (ADR-0015).
+			self::ZONE       => array(
+				'singular'     => 'Isla o zona',
+				'plural'       => 'Islas o zonas',
+				'types'        => array( PostTypes::SPEAKER ),
+				'hierarchical' => false,
 			),
 		);
 	}
