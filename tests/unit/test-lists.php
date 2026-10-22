@@ -14,6 +14,7 @@ use Fmc\PostType\PostTypes;
 use Fmc\PublicFront\Fields;
 use Fmc\PublicFront\Lists;
 use Fmc\PublicFront\Speakers;
+use Fmc\Taxonomy\Taxonomies;
 
 /**
  * Qué filas ve cada cual lo decide la consulta: estos tests leen lo que sale
@@ -483,25 +484,20 @@ class Test_Lists extends WP_UnitTestCase {
 	public function test_speaker_filters_narrow_the_list() {
 		$this->as_role( 'fmc_curator' );
 		$design = $this->post( PostTypes::DESIGN, 'Diseño' );
-		$this->post(
-			PostTypes::SPEAKER,
-			'Ana',
-			array(
-				S::ZONE        => 'Norte',
-				S::RECOMMENDED => array( $design ),
-			)
-		);
-		$this->post(
+		$ana    = $this->post( PostTypes::SPEAKER, 'Ana', array( S::RECOMMENDED => array( $design ) ) );
+		$berta  = $this->post(
 			PostTypes::SPEAKER,
 			'Berta',
 			array(
-				S::ZONE        => 'Sur',
 				S::UNAVAILABLE => true,
+				S::NOTES       => 'De baja hasta junio',
 			)
 		);
+		wp_set_object_terms( $ana, 'Norte', Taxonomies::ZONE );
+		wp_set_object_terms( $berta, 'Sur', Taxonomies::ZONE );
 
 		$cases = array(
-			array( array( 'fmc_zone' => 'Sur' ), array( 'Berta' ) ),
+			array( array( 'fmc_zone' => 'sur' ), array( 'Berta' ) ),
 			array( array( 'fmc_available' => '1' ), array( 'Ana' ) ),
 			array( array( 'fmc_available' => '0' ), array( 'Berta' ) ),
 			array( array( 'fmc_recommended' => (string) $design ), array( 'Ana' ) ),
@@ -513,10 +509,11 @@ class Test_Lists extends WP_UnitTestCase {
 
 		$_GET = array();
 		$body = Lists::screen( 'speakers', PostTypes::SPEAKER )['body'];
-		$this->assertStringContainsString( 'Berta</a> <span class="badge rounded-pill text-bg-secondary">No disponible</span>', $body );
+		$this->assertStringContainsString( 'Berta</a> <span class="badge rounded-pill text-bg-secondary">No disponible</span> <button type="button" class="btn btn-link btn-sm p-0 fmc-note" data-bs-toggle="tooltip" title="De baja hasta junio" aria-label="Observaciones: De baja hasta junio" data-fmc-note="De baja hasta junio">', $body );
 		$this->assertStringContainsString( '<td>Diseño</td>', $body );
-		// Las zonas del desplegable son las que ya tienen los ponentes, sin repetir.
-		$this->assertStringContainsString( '<option value="Norte">Norte</option><option value="Sur">Sur</option></select>', $body );
+		$this->assertStringContainsString( '<td>Sur</td>', $body );
+		// Las islas del desplegable son los términos de la taxonomía (ADR-0015).
+		$this->assertStringContainsString( '<option value="norte">Norte</option><option value="sur">Sur</option></select>', $body );
 	}
 
 	/**
@@ -665,8 +662,8 @@ class Test_Lists extends WP_UnitTestCase {
 		);
 		$this->assertSame( array( 'Segundo', 'Primero', 'Sin código' ), $this->rows( PostTypes::DESIGN ) );
 
-		$this->post( PostTypes::SPEAKER, 'Ana', array( S::ZONE => 'Norte' ) );
-		$this->post( PostTypes::SPEAKER, 'Bea', array( S::ZONE => 'Sur' ) );
+		wp_set_object_terms( $this->post( PostTypes::SPEAKER, 'Ana' ), 'Norte', Taxonomies::ZONE );
+		wp_set_object_terms( $this->post( PostTypes::SPEAKER, 'Bea' ), 'Sur', Taxonomies::ZONE );
 		$_GET = array(
 			'fmc_sort' => 'zone',
 			'fmc_dir'  => 'desc',
@@ -887,8 +884,10 @@ class Test_Lists extends WP_UnitTestCase {
 	 */
 	public function test_speakers_are_found_by_what_they_have_given() {
 		$this->as_role( 'fmc_curator' );
-		$ana  = $this->post( PostTypes::SPEAKER, 'Ana', array( S::ZONE => 'Norte' ) );
-		$luis = $this->post( PostTypes::SPEAKER, 'Luis', array( S::ZONE => 'Este' ) );
+		$ana  = $this->post( PostTypes::SPEAKER, 'Ana' );
+		$luis = $this->post( PostTypes::SPEAKER, 'Luis' );
+		wp_set_object_terms( $ana, 'Norte', Taxonomies::ZONE );
+		wp_set_object_terms( $luis, 'Este', Taxonomies::ZONE );
 		$this->post( PostTypes::SPEAKER, 'Nadie' );
 		$this->post(
 			PostTypes::ACTION,
@@ -951,6 +950,21 @@ class Test_Lists extends WP_UnitTestCase {
 		$this->assertEqualsCanonicalizing( array( $ana, $luis ), Speakers::recommended_for( $new ) );
 		$_GET['fmc_recommended'] = (string) $new;
 		$this->assertEqualsCanonicalizing( array( 'Ana', 'Luis' ), $this->rows( PostTypes::SPEAKER ) );
+		$_GET['fmc_given'] = 'nada que coincida';
+		$this->assertSame( array(), $this->rows( PostTypes::SPEAKER ), 'con otro filtro, los dos a la vez' );
+	}
+
+	/**
+	 * La posición en la lista guardada no cuenta como diseño recomendado.
+	 *
+	 * Serializada, `array( 901, 902 )` es `a:2:{i:0;i:901;i:1;i:902;}`: un
+	 * `LIKE 'i:1;'` daba al ponente por recomendado para el diseño 1.
+	 */
+	public function test_a_list_position_is_not_a_recommended_design() {
+		$this->as_role( 'fmc_curator' );
+		$this->post( PostTypes::SPEAKER, 'Ana', array( S::RECOMMENDED => array( 901, 902 ) ) );
+		$this->assertSame( array(), Speakers::recommended_for( 1 ) );
+		$this->assertSame( array(), Speakers::recommended_for( 0 ) );
 	}
 
 	/**

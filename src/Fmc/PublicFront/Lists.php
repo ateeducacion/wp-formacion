@@ -13,6 +13,7 @@ use Fmc\Meta\DesignMetaKeys as D;
 use Fmc\Meta\IncidentMetaKeys as I;
 use Fmc\Meta\SpeakerMetaKeys as S;
 use Fmc\PostType\PostTypes;
+use Fmc\Taxonomy\Taxonomies;
 
 /**
  * Listados de acciones, diseños, ponentes e incidencias.
@@ -375,16 +376,19 @@ final class Lists {
 	 */
 	private static function speaker_args( array $args, bool $with_state ): array {
 		if ( '' !== self::arg( 'fmc_zone' ) ) {
-			$args['meta_query'][] = array(
-				'key'   => S::ZONE,
-				'value' => self::arg( 'fmc_zone' ),
+			$args['tax_query'][] = array(
+				'taxonomy' => Taxonomies::ZONE,
+				'field'    => 'slug',
+				'terms'    => self::arg( 'fmc_zone' ),
 			);
 		}
+		$args = self::speaker_order( $args );
 		// Recomendado para el diseño o para alguno de los que sustituye (ADR-0012).
 		if ( absint( self::arg( 'fmc_recommended' ) ) ) {
-			$args['meta_query'][] = Speakers::recommended_clause( absint( self::arg( 'fmc_recommended' ) ) );
+			$wanted           = Speakers::recommended_for( absint( self::arg( 'fmc_recommended' ) ) );
+			$args['post__in'] = array_values( isset( $args['post__in'] ) ? array_intersect( $args['post__in'], $wanted ) : $wanted );
+			$args['post__in'] = $args['post__in'] ? $args['post__in'] : array( 0 );
 		}
-		$args = self::speaker_order( $args );
 		if ( $with_state && self::speaker_trash() ) {
 			$args['post_status'] = 'trash';
 		}
@@ -459,7 +463,7 @@ final class Lists {
 		);
 		$key   = static function ( int $id ) use ( $stats, $sort ) {
 			if ( 'zone' === $sort ) {
-				return (string) get_post_meta( $id, S::ZONE, true );
+				return self::terms( $id, Taxonomies::ZONE );
 			}
 			return - (float) ( $stats[ $id ][ 'hours' === $sort ? 'hours' : 'actions' ] ?? 0 );
 		};
@@ -749,7 +753,7 @@ final class Lists {
 				$fields[] = self::select( 'fmc_catalogue', 'Catálogo', array( '1' => 'En el catálogo público' ), 'Todos' );
 				break;
 			case PostTypes::SPEAKER:
-				$fields[] = self::select( 'fmc_zone', 'Isla o zona', self::meta_choices( S::ZONE, PostTypes::SPEAKER ), 'Todas' );
+				$fields[] = self::select( 'fmc_zone', 'Isla o zona', self::term_choices( Taxonomies::ZONE ), 'Todas' );
 				$fields[] = self::select(
 					'fmc_available',
 					'Disponibilidad',
@@ -905,20 +909,6 @@ final class Lists {
 			$out[ $t->slug ] = $t->name;
 		}
 		return $out;
-	}
-
-	/**
-	 * Distinct values of a meta key.
-	 *
-	 * @param string $key  Meta key.
-	 * @param string $type Post type.
-	 * @return array<string, string>
-	 */
-	private static function meta_choices( string $key, string $type ): array {
-		global $wpdb;
-		// phpcs:ignore WordPress.DB.DirectDatabaseQuery -- valores distintos para un desplegable; no hay API.
-		$values = $wpdb->get_col( $wpdb->prepare( "SELECT DISTINCT pm.meta_value FROM {$wpdb->postmeta} pm JOIN {$wpdb->posts} p ON p.ID = pm.post_id WHERE pm.meta_key = %s AND p.post_type = %s AND pm.meta_value <> '' ORDER BY pm.meta_value", $key, $type ) );
-		return array_combine( $values, $values );
 	}
 
 	/**
@@ -1124,7 +1114,7 @@ final class Lists {
 				$stats = self::speaker_stats();
 				return array(
 					'Contacto'         => static fn( $p ) => $m( $p, S::EMAIL ) . "\n" . $m( $p, S::PHONE ),
-					'Isla o zona'      => static fn( $p ) => $m( $p, S::ZONE ),
+					'Isla o zona'      => static fn( $p ) => self::terms( $p->ID, Taxonomies::ZONE ),
 					'Ha impartido'     => static fn( $p ) => isset( $stats[ $p->ID ] ) ? sprintf( '%d acción(es)', $stats[ $p->ID ]['actions'] ) . "\n" . ( $stats[ $p->ID ]['hours'] + 0 ) . ' h' : '—',
 					'Recomendado para' => static fn( $p ) => implode( "\n", array_map( 'get_the_title', array_slice( array_filter( array_map( 'intval', (array) get_post_meta( $p->ID, S::RECOMMENDED, true ) ) ), 0, 3 ) ) ),
 				);
@@ -1202,10 +1192,28 @@ final class Lists {
 			list( $label, $colour ) = self::DESIGN_STATUSES[ $post->post_status ];
 			return ' <span class="badge rounded-pill text-bg-' . esc_attr( $colour ) . '">' . esc_html( $label ) . '</span>';
 		}
-		if ( PostTypes::SPEAKER === $post->post_type && get_post_meta( $post->ID, S::UNAVAILABLE, true ) ) {
-			return ' <span class="badge rounded-pill text-bg-secondary">No disponible</span>';
+		if ( PostTypes::SPEAKER === $post->post_type ) {
+			return ( get_post_meta( $post->ID, S::UNAVAILABLE, true ) ? ' <span class="badge rounded-pill text-bg-secondary">No disponible</span>' : '' ) . self::note( (string) get_post_meta( $post->ID, S::NOTES, true ) );
 		}
 		return '';
+	}
+
+	/**
+	 * The speech bubble with a speaker's notes, as a comment beside the name.
+	 *
+	 * El texto va en `title`, que pinta el tooltip de Bootstrap al pasar el
+	 * ratón (y el del navegador si no hay JavaScript), y en `data-fmc-note`,
+	 * que `fmc-app.js` abre entero al pulsar. Sin observaciones, nada.
+	 *
+	 * @param string $notes Notes.
+	 * @return string
+	 */
+	private static function note( string $notes ): string {
+		$notes = trim( $notes );
+		if ( '' === $notes ) {
+			return '';
+		}
+		return ' <button type="button" class="btn btn-link btn-sm p-0 fmc-note" data-bs-toggle="tooltip" title="' . esc_attr( wp_trim_words( $notes, 40 ) ) . '" aria-label="' . esc_attr( 'Observaciones: ' . $notes ) . '" data-fmc-note="' . esc_attr( $notes ) . '"><i class="bi bi-chat-left-text" aria-hidden="true"></i></button>';
 	}
 
 	/**

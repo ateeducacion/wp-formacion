@@ -34,17 +34,116 @@
 			if ( s.tomselect ) {
 				return;
 			}
-			// eslint-disable-next-line no-new
-			new window.TomSelect( s, {
+			const settings = {
 				maxOptions: null,
 				allowEmptyOption: ! s.multiple,
 				hidePlaceholder: true,
 				placeholder: s.dataset.placeholder || '',
 				plugins: s.multiple ? [ 'remove_button' ] : [ 'dropdown_input' ],
-			} );
+			};
+			if ( s.dataset.fmcSpeakers ) {
+				settings.render = { option: speakerHtml, item: speakerItem };
+				// Las opciones se repintan: un tooltip abierto se quedaría huérfano.
+				settings.onDropdownClose = hideTips;
+			}
+			// eslint-disable-next-line no-new
+			new window.TomSelect( s, settings );
 			n++;
 		} );
 		return n;
+	}
+
+	// Un ponente en la lista, en dos líneas: el nombre con sus etiquetas
+	// (recomendado, no disponible, el bocadillo de las observaciones) y,
+	// debajo, isla, cargo y lo que ha impartido. Recomendado es lo que dice el
+	// texto de la opción, que markRecommended() pone al día con el diseño.
+	function speakerParts( data, escape ) {
+		const set = ( data.$option && data.$option.dataset ) || {};
+		const recommended = /^★ /.test( data.text );
+		return {
+			set: set,
+			name: escape( set.fmcName || data.text.replace( /^★ /, '' ) ),
+			star: recommended ? '<i class="bi bi-star-fill fmc-star" title="Recomendado para este diseño" aria-label="Recomendado"></i> ' : '',
+			tags: ( recommended ? ' <span class="badge fmc-rec">Recomendado</span>' : '' ) + ( set.fmcOff ? ' <span class="badge text-bg-secondary">No disponible</span>' : '' ),
+			note: set.fmcNote ? ' <i class="bi bi-chat-left-text fmc-note-icon" data-bs-toggle="tooltip" title="' + escape( set.fmcNote ) + '" aria-label="' + escape( 'Observaciones: ' + set.fmcNote ) + '"></i>' : '',
+			facts: [ set.fmcZone, set.fmcRole, set.fmcGiven ].filter( Boolean ).map( escape ).join( ' · ' ),
+		};
+	}
+
+	function speakerHtml( data, escape ) {
+		const p = speakerParts( data, escape );
+		return '<div class="fmc-person' + ( p.set.fmcOff ? ' fmc-off' : '' ) + '"><div>' + p.star + '<strong>' + p.name + '</strong>' + p.tags + p.note + '</div>'
+			+ ( p.facts ? '<div class="small text-secondary">' + p.facts + '</div>' : '' ) + '</div>';
+	}
+
+	// El elegido, en la caja: solo la estrella, el nombre y el bocadillo.
+	function speakerItem( data, escape ) {
+		const p = speakerParts( data, escape );
+		return '<div' + ( p.set.fmcOff ? ' class="fmc-off"' : '' ) + '>' + p.star + p.name + p.note + '</div>';
+	}
+
+	// La estrella del recomendado sigue al diseño elegido, sin recargar, y los
+	// recomendados suben arriba del todo; después, por nombre, y los no
+	// disponibles al final, como los ordena el servidor.
+	function markRecommended( form ) {
+		form.querySelectorAll( 'select[data-fmc-speakers]' ).forEach( function ( s ) {
+			const design = valuesOf( form, s.dataset.fmcSpeakers )[ 0 ] || '';
+			const options = Array.prototype.slice.call( s.options );
+			options.forEach( function ( o ) {
+				const wanted = ( o.dataset.fmcFor || '' ).split( ',' );
+				o.textContent = ( design && wanted.indexOf( design ) !== -1 ? '★ ' : '' ) + o.textContent.replace( /^★ /, '' );
+			} );
+			const starred = function ( o ) {
+				return /^★ /.test( o.textContent ) ? 1 : 0;
+			};
+			const off = function ( o ) {
+				return o.dataset.fmcOff ? 1 : 0;
+			};
+			options.sort( function ( a, b ) {
+				return ( starred( b ) - starred( a ) ) || ( off( a ) - off( b ) ) || a.textContent.localeCompare( b.textContent, 'es' );
+			} );
+			options.forEach( function ( o, i ) {
+				s.appendChild( o );
+				if ( s.tomselect ) {
+					s.tomselect.updateOption( o.value, { value: o.value, text: o.textContent, $option: o } );
+					if ( s.tomselect.options[ o.value ] ) {
+						s.tomselect.options[ o.value ].$order = i;
+					}
+				}
+			} );
+			if ( s.tomselect && s.tomselect.clearCache ) {
+				s.tomselect.clearCache();
+			}
+		} );
+	}
+
+	// Un solo tooltip de Bootstrap, delegado: vale para lo que se pinte después,
+	// como las opciones de Tom Select o la ficha del panel lateral.
+	function initTips() {
+		if ( ! window.bootstrap || ! window.bootstrap.Tooltip || document.body.dataset.fmcTips ) {
+			return false;
+		}
+		document.body.dataset.fmcTips = '1';
+		// eslint-disable-next-line no-new
+		new window.bootstrap.Tooltip( document.body, { selector: '[data-bs-toggle="tooltip"]', container: 'body' } );
+		return true;
+	}
+
+	function hideTips() {
+		document.querySelectorAll( '.tooltip' ).forEach( function ( tip ) {
+			tip.remove();
+		} );
+	}
+
+	function onNoteClick( event ) {
+		const button = event.target.closest ? event.target.closest( 'button[data-fmc-note]' ) : null;
+		if ( ! button ) {
+			return;
+		}
+		event.preventDefault();
+		if ( window.Swal ) {
+			window.Swal.fire( { title: 'Observaciones', text: button.dataset.fmcNote, confirmButtonText: 'Cerrar' } );
+		}
 	}
 
 	function valuesOf( form, name ) {
@@ -96,6 +195,9 @@
 		const form = target.closest( 'form' );
 		if ( form ) {
 			applyShow( form );
+			if ( target.name && form.querySelector( 'select[data-fmc-speakers="' + target.name + '"]' ) ) {
+				markRecommended( form );
+			}
 		}
 	}
 
@@ -159,6 +261,40 @@
 		form.submit();
 	}
 
+	// Dar de baja a un ponente: el motivo se pide en el mismo aviso, y sin
+	// motivo no se envía (el servidor tampoco lo admite, ADR-0011).
+	function askReason( form, question ) {
+		const field = form.querySelector( 'input[name="fmc_reason"]' );
+		if ( window.Swal && window.Swal.fire ) {
+			return window.Swal.fire( {
+				title: question,
+				text: form.dataset.fmcConfirmText || '',
+				icon: 'warning',
+				input: 'textarea',
+				inputLabel: 'Motivo',
+				inputPlaceholder: 'Por ejemplo: ha pedido que se borren sus datos.',
+				inputAttributes: { maxlength: '500', 'aria-label': 'Motivo de la baja' },
+				inputValidator: function ( value ) {
+					return value && value.trim() ? null : 'Diga el motivo: sin motivo no hay baja.';
+				},
+				showCancelButton: true,
+				confirmButtonText: form.dataset.fmcConfirmButton || 'Dar de baja',
+				cancelButtonText: 'Cancelar',
+				confirmButtonColor: '#dc3545',
+			} ).then( function ( result ) {
+				if ( result && result.isConfirmed ) {
+					field.value = String( result.value ).trim();
+					send( form );
+				}
+			} );
+		}
+		const reason = window.prompt( question + ' Motivo:' );
+		if ( reason && reason.trim() ) {
+			field.value = reason.trim();
+			send( form );
+		}
+	}
+
 	function onSubmit( event ) {
 		const form = event.target;
 		if ( ! form || ! form.matches || ! form.matches( 'form[data-fmc-confirm]' ) || form.dataset.fmcConfirmed ) {
@@ -166,6 +302,9 @@
 		}
 		event.preventDefault();
 		const question = form.dataset.fmcConfirm;
+		if ( 'fmcReason' in form.dataset ) {
+			return askReason( form, question );
+		}
 		if ( window.Swal && window.Swal.fire ) {
 			return window.Swal.fire( {
 				title: question,
@@ -429,6 +568,7 @@
 	document.addEventListener( 'submit', onPanelSubmit );
 	document.addEventListener( 'click', onClick );
 	document.addEventListener( 'click', onToolClick );
+	document.addEventListener( 'click', onNoteClick );
 	document.addEventListener( 'keydown', onKey );
 	document.addEventListener( 'change', onChange );
 	if ( 'loading' === document.readyState ) {
@@ -436,11 +576,13 @@
 			initSelects();
 			applyShow();
 			initRich();
+			initTips();
 		} );
 	} else {
 		initSelects();
 		applyShow();
 		initRich();
+		initTips();
 	}
 
 	window.fmcApp = {
@@ -456,6 +598,11 @@
 		openPanel: openPanel,
 		openTool: openTool,
 		onToolClick: onToolClick,
+		onNoteClick: onNoteClick,
+		speakerHtml: speakerHtml,
+		speakerItem: speakerItem,
+		initTips: initTips,
+		hideTips: hideTips,
 		closePanel: closePanel,
 		reload: reload,
 	};

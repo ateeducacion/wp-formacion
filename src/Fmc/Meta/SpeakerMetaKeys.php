@@ -20,7 +20,6 @@ final class SpeakerMetaKeys {
 	public const ID_NUMBER   = 'fmc_id_number';
 	public const PHONE       = 'fmc_phone';
 	public const PROFESSION  = 'fmc_profession';
-	public const ZONE        = 'fmc_zone';
 	public const EMAIL       = 'fmc_email';
 	public const EMAIL_ALT   = 'fmc_email_alt';
 	public const WEBSITE     = 'fmc_website';
@@ -28,6 +27,20 @@ final class SpeakerMetaKeys {
 	public const UNAVAILABLE = 'fmc_unavailable';
 	public const NOTES       = 'fmc_notes';
 	public const RECOMMENDED = 'fmc_recommended_designs';
+
+	/**
+	 * Closed list of the speaker's position (ADR-0015).
+	 *
+	 * Corta a propósito: en el sistema anterior era texto libre y acabó con
+	 * «Docente», «profesora», «Maestro» y «Profesor Secundaria jubilado» para
+	 * decir lo mismo. Lo que importa al elegir es si está en activo, si se ha
+	 * jubilado o si viene de fuera.
+	 */
+	public const PROFESSIONS = array(
+		'teacher'         => 'Docente en activo',
+		'retired_teacher' => 'Docente jubilado',
+		'external'        => 'No docente o externo',
+	);
 
 	/**
 	 * Why, who and when a speaker went to the trash (ADR-0011).
@@ -48,7 +61,6 @@ final class SpeakerMetaKeys {
 			self::ID_NUMBER    => MetaTypes::STRING,
 			self::PHONE        => MetaTypes::STRING,
 			self::PROFESSION   => MetaTypes::STRING,
-			self::ZONE         => MetaTypes::STRING,
 			self::EMAIL        => MetaTypes::EMAIL,
 			self::EMAIL_ALT    => MetaTypes::EMAIL,
 			self::WEBSITE      => MetaTypes::URL,

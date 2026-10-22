@@ -11,6 +11,7 @@ use Fmc\Meta\IncidentMetaKeys as I;
 use Fmc\Meta\MetaRegistration;
 use Fmc\Meta\SpeakerMetaKeys;
 use Fmc\PostType\PostTypes;
+use Fmc\Taxonomy\Taxonomies;
 use Fmc\PublicFront\Documents;
 use Fmc\PublicFront\Editor;
 use Fmc\PublicFront\Screen;
@@ -593,25 +594,53 @@ class Test_Editor_Render extends WP_UnitTestCase {
 	}
 
 	/**
-	 * Al elegir ponentes: su isla, lo que han dado y una estrella si se les
-	 * recomienda para el diseño de la acción, y estos primero.
+	 * Al elegir ponentes: su isla, lo que han dado, una estrella si se les
+	 * recomienda para el diseño de la acción, y estos primero; quien no está
+	 * disponible, al final y marcado, pero se puede elegir.
 	 */
 	public function test_the_speaker_choices_help_to_choose() {
 		$curator = $this->as_role( 'fmc_curator' );
 		$design  = $this->post( PostTypes::DESIGN, $curator );
 		$zoe     = $this->post( PostTypes::SPEAKER, $curator, 'publish', 'Zoe' );
 		$ana     = $this->post( PostTypes::SPEAKER, $curator, 'publish', 'Ana' );
+		$bea     = $this->post( PostTypes::SPEAKER, $curator, 'publish', 'Bea' );
 		update_post_meta( $zoe, SpeakerMetaKeys::RECOMMENDED, array( $design ) );
-		update_post_meta( $ana, SpeakerMetaKeys::ZONE, 'Norte' );
+		wp_set_object_terms( $ana, 'Norte', Taxonomies::ZONE );
+		update_post_meta( $bea, SpeakerMetaKeys::UNAVAILABLE, true );
+		update_post_meta( $bea, SpeakerMetaKeys::NOTES, 'De baja hasta junio' );
 		$action = $this->post( PostTypes::ACTION, $curator );
 		update_post_meta( $action, A::DESIGN_ID, $design );
 		update_post_meta( $action, A::SPEAKERS, array( $ana ) );
 
+		$body    = $this->screen_of( $action )['body'];
 		$options = array();
-		foreach ( $this->find( $this->screen_of( $action )['body'], '//select[@name="f[' . A::SPEAKERS . '][]"]/option' ) as $option ) {
+		foreach ( $this->find( $body, '//select[@name="f[' . A::SPEAKERS . '][]"]/option' ) as $option ) {
 			$options[] = $option->textContent; // phpcs:ignore WordPress.NamingConventions.ValidVariableName.UsedPropertyNotSnakeCase -- DOM.
 		}
-		$this->assertSame( array( '★ Zoe', 'Ana · Norte · 1 acción(es)' ), $options );
+		$this->assertSame( array( '★ Zoe', 'Ana · Norte · 1 acción(es)', 'Bea · No disponible' ), $options );
+
+		// Lo que lee fmc-app.js: el diseño del que depende la estrella, para
+		// qué diseños se recomienda a cada cual, quién no está y sus observaciones.
+		$this->assertCount( 1, $this->find( $body, '//select[@data-fmc-speakers="f[' . A::DESIGN_ID . ']"]' ) );
+		$this->assertCount( 1, $this->find( $body, '//option[@value="' . $zoe . '"][@data-fmc-for="' . $design . '"]' ) );
+		$this->assertCount( 1, $this->find( $body, '//option[@value="' . $bea . '"][@data-fmc-off="1"][@data-fmc-note="De baja hasta junio"]' ) );
+		$this->assertCount( 1, $this->find( $body, '//option[@value="' . $ana . '"][@data-fmc-name="Ana"][@data-fmc-zone="Norte"][@data-fmc-given="1 acción(es)"]' ) );
+		$this->assertCount( 0, $this->find( $body, '//option[@value="' . $ana . '"][@data-fmc-off or @data-fmc-note or @data-fmc-for]' ) );
+	}
+
+	/**
+	 * La ficha del ponente: el cargo es una lista cerrada y la isla, un término.
+	 */
+	public function test_the_speaker_position_and_zone_are_chosen_from_a_list() {
+		$curator = $this->as_role( 'fmc_curator' );
+		wp_insert_term( 'Norte', Taxonomies::ZONE );
+		$speaker = $this->post( PostTypes::SPEAKER, $curator, 'publish', 'Ana' );
+		update_post_meta( $speaker, SpeakerMetaKeys::PROFESSION, 'retired_teacher' );
+
+		$body = $this->screen_of( $speaker )['body'];
+		$this->assertCount( 1, $this->find( $body, '//select[@name="f[' . SpeakerMetaKeys::PROFESSION . ']"]/option[@value="retired_teacher"][@selected]' ) );
+		$this->assertSame( 'Docente jubilado', SpeakerMetaKeys::PROFESSIONS['retired_teacher'] );
+		$this->assertCount( 1, $this->find( $body, '//select[@name="f[tax:' . Taxonomies::ZONE . ']"]/option[.="Norte"]' ) );
 	}
 
 	/**

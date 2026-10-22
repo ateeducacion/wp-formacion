@@ -1,7 +1,7 @@
 <?php
 /**
  * Snippet Name: FMC — Vocabulario base del aplicativo (una sola vez)
- * Description: Deja creados los términos de las cuatro taxonomías del aplicativo: ámbitos, programas, temáticas y áreas de competencia digital. Idempotente: crea el término que falta por su slug y no toca el que ya está. En producción se pega en Code Snippets como snippet de ejecución única; en local lo llama `make provision`.
+ * Description: Deja creados los términos de las cinco taxonomías del aplicativo: ámbitos, programas, temáticas, áreas de competencia digital e islas o zonas de los ponentes. Idempotente: crea el término que falta por su slug y no toca el que ya está. En producción se pega en Code Snippets como snippet de ejecución única; en local lo llama `make provision`.
  *
  * Tiene que existir antes que nada `fmc_scope`: es el ámbito que acota quién
  * ve y quién edita cada acción, y sin términos nadie puede tener ámbito.
@@ -19,7 +19,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 /**
- * Base vocabulary of the four taxonomies: taxonomy => (slug => name).
+ * Base vocabulary of the five taxonomies: taxonomy => (slug => name).
  *
  * @return array<string, array<string, string>>
  */
@@ -55,11 +55,17 @@ function fmc_base_vocabulary(): array {
 			'seguridad'    => 'Seguridad',
 			'problemas'    => 'Resolución de problemas',
 		),
+		// Ficticias, como los ámbitos: las islas o zonas reales las crea cada
+		// instalación (ADR-0015).
+		'fmc_zone'       => array(
+			'zona-1' => 'Zona 1',
+			'zona-2' => 'Zona 2',
+		),
 	);
 }
 
 /**
- * Create the missing terms of the four taxonomies.
+ * Create the missing terms of the five taxonomies.
  *
  * @return void
  * @throws RuntimeException If a taxonomy is not registered or a term cannot be created.

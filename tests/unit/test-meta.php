@@ -10,6 +10,7 @@ use Fmc\Meta\DesignMetaKeys;
 use Fmc\Meta\IncidentMetaKeys;
 use Fmc\Meta\MetaRegistration;
 use Fmc\Meta\MetaTypes;
+use Fmc\Meta\SpeakerMetaKeys;
 use Fmc\PostType\PostTypes;
 
 /**
@@ -49,6 +50,8 @@ class Test_Meta extends WP_UnitTestCase {
 		$this->assertSame( 'blended', MetaRegistration::sanitize( PostTypes::DESIGN, DesignMetaKeys::MODALITY, 'blended' ) );
 		$this->assertSame( '', MetaRegistration::sanitize( PostTypes::DESIGN, DesignMetaKeys::MODALITY, 'mixta' ) );
 		$this->assertSame( '', MetaRegistration::sanitize( PostTypes::ACTION, ActionMetaKeys::SITUATION, 'lo que sea' ) );
+		$this->assertSame( 'retired_teacher', MetaRegistration::sanitize( PostTypes::SPEAKER, SpeakerMetaKeys::PROFESSION, 'retired_teacher' ) );
+		$this->assertSame( '', MetaRegistration::sanitize( PostTypes::SPEAKER, SpeakerMetaKeys::PROFESSION, 'Profesor de Secundaria' ) );
 	}
 
 	/**

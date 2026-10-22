@@ -28,6 +28,10 @@ Lo que sale de la primera revisión del aplicativo, el 2026-10-21: el porqué es
 
 ### Cambiado
 
+- **La isla y el cargo del ponente se eligen de una lista** ([ADR-0015](docs/adr/ADR-0015-la-isla-del-ponente-es-una-taxonomia-y-el-cargo-una-lista-cerrada.md)). La isla o zona es una taxonomía nueva, `fmc_zone`, cuyas islas crea cada instalación. El cargo tiene tres opciones: docente en activo, docente jubilado y no docente o externo.
+- **Ponentes no disponibles, en gris**: al elegir los ponentes de una acción se pueden seguir añadiendo, pero salen en gris, marcados y al final de la lista.
+- **Observaciones del ponente en un bocadillo**, junto al nombre: en el listado se leen al pasar el ratón y enteras al pulsarlo, y también al elegir ponentes para una acción.
+- **La estrella del ponente recomendado sigue al diseño**: cambia al elegir otro diseño en la acción, sin guardar ni recargar.
 - **El título de la acción es el de su diseño** ([ADR-0009](docs/adr/ADR-0009-la-accion-lleva-el-titulo-de-su-diseno.md)): se pone al crearla y al cambiarle el diseño, y no se edita. Las acciones que ya tienen otro título lo conservan. El subtítulo se ve debajo del título en el listado, en el calendario y en la cabecera de la ficha, nunca en su lugar.
 - **El código del diseño lo pone el aplicativo**: el siguiente al más alto, con el mismo prefijo. Nadie lo edita.
 - **Toda asesoría consulta cualquier ponente** ([ADR-0011](docs/adr/ADR-0011-los-ponentes-son-un-directorio-compartido-con-baja-motivada.md)), documento de identidad incluido, de solo lectura. Cada una sigue editando solo los que dio de alta.
@@ -56,6 +60,7 @@ Lo que sale de la primera revisión del aplicativo, el 2026-10-21: el porqué es
 
 ### Corregido
 
+- **«Recomendado para» confundía la posición en la lista con un diseño**: un ponente con dos recomendados contaba como recomendado también para el diseño número 1, porque la búsqueda miraba con `LIKE` dentro de la lista guardada. Ahora la lista se lee en PHP.
 - **El calendario enseñaba a una asesoría los borradores de acciones ajenas**, con su título y su enlace, que el listado sí le escondía: la consulta del calendario se saltaba el filtro de visibilidad.
 
 ### Añadido

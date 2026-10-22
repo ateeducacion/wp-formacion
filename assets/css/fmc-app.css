@@ -196,6 +196,8 @@ body.has-panel { overflow: hidden; }
    página; y los avisos de SweetAlert2, por encima del panel. */
 .fmc-panel-backdrop { z-index: 100000; }
 .fmc .swal2-container { z-index: 100002; }
+/* Y los tooltips de las observaciones, que también salen dentro del panel. */
+.fmc .tooltip { --bs-tooltip-zindex: 100003; z-index: 100003; }
 .fmc-panel .offcanvas-header { background: #fff; }
 .fmc-panel .offcanvas-body { padding: 1.25rem; }
 .fmc-panel .offcanvas-body[aria-busy="true"] { opacity: .5; pointer-events: none; }
@@ -267,3 +269,14 @@ body.has-panel { overflow: hidden; }
 /* Resumen del perfil de competencia digital */
 .fmc-digcomp { background: var(--fmc-sup-2); box-shadow: none; }
 .fmc-digcomp td { font-size: .85rem; }
+
+/* Ponentes: el no disponible, en gris pero elegible; las observaciones, en un bocadillo. */
+.fmc .fmc-off, .fmc .ts-dropdown .option.fmc-off { opacity: .55; }
+.fmc .fmc-note, .fmc .fmc-note-icon { color: var(--fmc-text-2); }
+.fmc .fmc-note { line-height: 1; vertical-align: baseline; text-decoration: none; }
+.fmc .fmc-note:hover, .fmc .fmc-note:focus { color: var(--fmc-brand); }
+.fmc .fmc-note-icon { margin-left: .35em; cursor: help; }
+.fmc .fmc-person { line-height: 1.35; }
+.fmc .fmc-star { color: #d4a106; margin-right: .3em; }
+.fmc .tooltip-inner { max-width: 320px; text-align: left; white-space: pre-line; }
+.fmc .fmc-rec { background: #fff3cd; color: #7a5a00; font-weight: 600; }

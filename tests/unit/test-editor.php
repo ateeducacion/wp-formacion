@@ -263,7 +263,11 @@ class Test_Editor extends WP_UnitTestCase {
 			$this->assertTrue( Screen::can_delete( $speaker ), $role );
 			$this->assertStringNotContainsString( 'fmc_delete', Lists::row_buttons( $speaker ), $role );
 			$form = Editor::screen( $speaker->ID, '' )['body'];
-			$this->assertStringContainsString( 'name="fmc_reason" required', $form, $role );
+			// El botón rojo de la barra envía el formulario de la baja, que va fuera de la ficha.
+			$this->assertStringContainsString( '<button class="btn btn-outline-danger ms-auto" type="submit" form="fmc-baja-' . $speaker->ID . '">', $form, $role );
+			$this->assertStringContainsString( '<form id="fmc-baja-' . $speaker->ID . '" method="post"', $form, $role );
+			$this->assertStringContainsString( 'data-fmc-reason data-fmc-confirm=', $form, $role );
+			$this->assertStringContainsString( 'name="fmc_reason" required', $form, $role . ': sin JavaScript, el motivo se pide en la página' );
 			$this->assertStringContainsString( 'Datos personales.', $form, 'el aviso de protección de datos' );
 		}
 		// La asesoría la abre para consultarla, pero no edita la ficha de otro.
