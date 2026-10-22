@@ -8,7 +8,7 @@ lee de la cabecera superior y la escribe en el `@version` del bundle.
 `make release` crea el tag y la release en GitHub; el despliegue de los snippets
 en el sitio de destino se hace después.
 
-## [Sin publicar]
+## [0.0.4] — 2026-10-22
 
 Lo que sale de la primera revisión del aplicativo, el 2026-10-21: el porqué está en el §9 de [REQ-0001](docs/requisitos/REQ-0001-aplicativo-de-formacion.md) y en las ADR de la 0009 a la 0012.
 
@@ -16,7 +16,7 @@ Lo que sale de la primera revisión del aplicativo, el 2026-10-21: el porqué es
 
 - **Ponentes por lo que han impartido** ([ADR-0012](docs/adr/ADR-0012-un-diseno-puede-sustituir-a-otro-y-los-ponentes-se-buscan-por-lo-impartido.md)): filtro «Ha impartido» por palabra clave sobre los títulos y subtítulos de sus acciones, combinable con el prefijo del expediente y las fechas de inicio. Cada ponente dice cuántas acciones y cuántas horas ha impartido, y el listado se ordena por acciones, horas o zona.
 - **Un diseño puede sustituir a otros** ([ADR-0012](docs/adr/ADR-0012-un-diseno-puede-sustituir-a-otro-y-los-ponentes-se-buscan-por-lo-impartido.md)): los ponentes recomendados para el diseño sustituido cuentan como recomendados para el nuevo, y el viejo sigue consultable como histórico.
-- **Baja motivada de ponentes** ([ADR-0011](docs/adr/ADR-0011-los-ponentes-son-un-directorio-compartido-con-baja-motivada.md)): asesoría y validación mandan a la papelera cualquier ponente diciendo por qué, y queda quién, cuándo y el motivo. La validación y la administración ven la papelera, con el motivo, desde el listado.
+- **Baja motivada de ponentes** ([ADR-0011](docs/adr/ADR-0011-los-ponentes-son-un-directorio-compartido-con-baja-motivada.md)): asesoría y validación mandan a la papelera cualquier ponente diciendo por qué, y queda quién, cuándo y el motivo. Se hace con el botón rojo «Dar de baja» de la barra de guardar, que pide el motivo en un aviso. La validación y la administración ven la papelera, con el motivo, desde el listado.
 - **Aviso de protección de datos** en la ficha del ponente. El texto legal lo pone quien despliega con el filtro `fmc_privacy_notice`.
 - **Calendario por semana y por día**, además de por mes. Calendario y listado de acciones pasan a ser una sola pestaña, «Acciones formativas», que se abre en el calendario; el listado de siempre es su vista «Lista». La cabecera es la misma en todas las vistas, para que nada se mueva al cambiar, y el periodo —flechas, «Hoy», título y recuento— va debajo de los filtros. Cambiar de vista conserva la fecha. Todas las vistas exportan a CSV; desde el calendario, lo que empieza en el periodo que se ve. Los enlaces viejos a la pestaña del calendario siguen llevando a él.
 - **Listado de acciones: «Expediente empieza por»**, y la búsqueda de texto también encuentra por número de expediente. Con las fechas de inicio y el CSV, da lo que hoy se filtra a mano en una hoja de cálculo.
@@ -29,9 +29,9 @@ Lo que sale de la primera revisión del aplicativo, el 2026-10-21: el porqué es
 ### Cambiado
 
 - **La isla y el cargo del ponente se eligen de una lista** ([ADR-0015](docs/adr/ADR-0015-la-isla-del-ponente-es-una-taxonomia-y-el-cargo-una-lista-cerrada.md)). La isla o zona es una taxonomía nueva, `fmc_zone`, cuyas islas crea cada instalación. El cargo tiene tres opciones: docente en activo, docente jubilado y no docente o externo.
-- **Ponentes no disponibles, en gris**: al elegir los ponentes de una acción se pueden seguir añadiendo, pero salen en gris, marcados y al final de la lista.
-- **Observaciones del ponente en un bocadillo**, junto al nombre: en el listado se leen al pasar el ratón y enteras al pulsarlo, y también al elegir ponentes para una acción.
-- **La estrella del ponente recomendado sigue al diseño**: cambia al elegir otro diseño en la acción, sin guardar ni recargar.
+- **Al elegir los ponentes de una acción**, cada uno ocupa dos líneas: el nombre con «★ Recomendado» o «No disponible», y debajo su isla, su cargo y lo que ha impartido. Los no disponibles se pueden seguir añadiendo, pero salen en gris y al final de la lista.
+- **Observaciones del ponente en un bocadillo**, junto al nombre, con un tooltip de Bootstrap: en el listado se leen al pasar el ratón y enteras al pulsarlo, y también al elegir ponentes para una acción. Para el tooltip se carga el JavaScript de Bootstrap 5.3.8, desde jsDelivr con SRI.
+- **Los ponentes recomendados siguen al diseño**: al elegir o cambiar el diseño de la acción, su estrella se pone al día y suben los primeros de la lista, sin guardar ni recargar.
 - **El título de la acción es el de su diseño** ([ADR-0009](docs/adr/ADR-0009-la-accion-lleva-el-titulo-de-su-diseno.md)): se pone al crearla y al cambiarle el diseño, y no se edita. Las acciones que ya tienen otro título lo conservan. El subtítulo se ve debajo del título en el listado, en el calendario y en la cabecera de la ficha, nunca en su lugar.
 - **El código del diseño lo pone el aplicativo**: el siguiente al más alto, con el mismo prefijo. Nadie lo edita.
 - **Toda asesoría consulta cualquier ponente** ([ADR-0011](docs/adr/ADR-0011-los-ponentes-son-un-directorio-compartido-con-baja-motivada.md)), documento de identidad incluido, de solo lectura. Cada una sigue editando solo los que dio de alta.
@@ -43,8 +43,12 @@ Lo que sale de la primera revisión del aplicativo, el 2026-10-21: el porqué es
 - **En la lista de acciones, el expediente va debajo del título**: una columna menos, y «Ámbito y centro» tiene más sitio.
 - **Ponentes sin tarjetas de recuento**: no tienen estados que contar. Encima de la tabla sale cuántos encuentran los filtros y, para la validación, el enlace a la papelera y de vuelta.
 - **La asesoría abre cualquier acción publicada** desde el calendario o el listado, de solo lectura; sigue editando solo las suyas.
-- **Al elegir ponentes en una acción**, cada nombre lleva su isla y cuántas acciones ha impartido, y una «★» y el primer puesto si se le recomienda para el diseño de la acción.
 - El aspecto del aplicativo —cabecera, pestañas, menú de usuario, pie y paleta— se iguala al de los aplicativos hermanos. `fmc_chrome` admite una pieza más, `brand`, para el logotipo y el nombre de la organización delante del del aplicativo.
+
+### Corregido
+
+- **El snippet del aplicativo no se podía guardar con Code Snippets 4**, que dice «Cannot redeclare class MetaTypes»: su validador lee el código sin ejecutarlo y no ve la guarda contra la doble carga. Ahora cada clase va en su `class_exists()`, y las interpolaciones `{$…}`, que descuadraban al validador, se escriben sin llaves. `make snippet-check` vuelve a pasar.
+- **«Recomendado para» confundía la posición en la lista con un diseño**: un ponente con dos recomendados contaba como recomendado también para el diseño número 1, porque la búsqueda miraba con `LIKE` dentro de la lista guardada. Ahora la lista se lee en PHP.
 
 ### Eliminado
 
@@ -55,13 +59,12 @@ Lo que sale de la primera revisión del aplicativo, el 2026-10-21: el porqué es
 ### Pendiente antes de desplegar
 
 - Un snippet del despliegue que conteste al filtro `fmc_privacy_notice` con el texto legal del tratamiento de datos. Sin él, la ficha del ponente enseña un texto genérico.
+- **Las islas o zonas** se crean en el destino (`fmc_zone`), y los ponentes que ya estén allí pasan su isla del campo de texto antiguo al término, y su profesión libre a uno de los tres cargos. Hasta entonces salen sin isla ni cargo, y guardar una ficha deja el cargo vacío.
 
 ## [0.0.3] — 2026-10-07
 
 ### Corregido
 
-- **El snippet del aplicativo no se podía guardar con Code Snippets 4**, que dice «Cannot redeclare class MetaTypes»: su validador lee el código sin ejecutarlo y no ve la guarda contra la doble carga. Ahora cada clase va en su `class_exists()`, y las interpolaciones `{$…}`, que descuadraban al validador, se escriben sin llaves. `make snippet-check` vuelve a pasar.
-- **«Recomendado para» confundía la posición en la lista con un diseño**: un ponente con dos recomendados contaba como recomendado también para el diseño número 1, porque la búsqueda miraba con `LIKE` dentro de la lista guardada. Ahora la lista se lee en PHP.
 - **El calendario enseñaba a una asesoría los borradores de acciones ajenas**, con su título y su enlace, que el listado sí le escondía: la consulta del calendario se saltaba el filtro de visibilidad.
 
 ### Añadido
