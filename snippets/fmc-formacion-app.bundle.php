@@ -269,6 +269,7 @@ final class ActionMetaKeys {
 	public const FUNDED_BY        = 'fmc_funded_by';
 	public const VIDEOCONFERENCE  = 'fmc_videoconference';
 	public const VENUE_CENTRE     = 'fmc_venue_centre';
+	public const VENUE_CODE       = 'fmc_venue_centre_code';
 	public const PLACES           = 'fmc_places';
 	public const MODALITY         = 'fmc_modality';
 	public const HOURS_ONSITE     = 'fmc_hours_onsite';
@@ -421,6 +422,7 @@ final class ActionMetaKeys {
 			self::FUNDED_BY        => MetaTypes::STRING,
 			self::VIDEOCONFERENCE  => MetaTypes::BOOL,
 			self::VENUE_CENTRE     => MetaTypes::STRING,
+			self::VENUE_CODE       => MetaTypes::STRING,
 			self::PLACES           => MetaTypes::INT,
 			self::MODALITY         => MetaTypes::STRING,
 			self::HOURS_ONSITE     => MetaTypes::NUMBER,
@@ -1662,6 +1664,793 @@ final class Advisers {
 
 
 
+namespace Fmc\Centre;
+
+
+
+
+
+
+
+
+
+if ( ! class_exists( 'Fmc\Centre\CentreCatalogue', false ) ) {
+final class CentreCatalogue {
+
+	public const OPTION_CATALOGUE = 'fmc_centres_catalogue';
+
+	public const OPTION_STATUS = 'fmc_centres_catalogue_status';
+
+
+
+
+
+
+	public static function all(): array {
+		$raw = get_option( self::OPTION_CATALOGUE, array() );
+		return is_array( $raw ) ? $raw : array();
+	}
+
+
+
+
+
+
+	public static function all_active(): array {
+		$all = self::all();
+		$out = array();
+		foreach ( $all as $code => $centre ) {
+			if ( ! empty( $centre['active'] ) ) {
+				$out[ $code ] = $centre;
+			}
+		}
+		return $out;
+	}
+
+
+
+
+
+
+	public static function active_options(): array {
+		$active = self::all_active();
+		$out    = array();
+		foreach ( $active as $code => $centre ) {
+			$name = isset( $centre['name'] ) ? trim( (string) $centre['name'] ) : '';
+			if ( '' !== $name ) {
+				$out[ (string) $code ] = $name;
+			}
+		}
+
+		uasort(
+			$out,
+			static function ( string $a, string $b ): int {
+				return strcoll( $a, $b );
+			}
+		);
+
+		return $out;
+	}
+
+
+
+
+
+
+
+	public static function find( string $code ): ?array {
+		$code = trim( $code );
+		if ( '' === $code ) {
+			return null;
+		}
+		$all = self::all();
+		return isset( $all[ $code ] ) && is_array( $all[ $code ] ) ? $all[ $code ] : null;
+	}
+
+
+
+
+
+
+
+
+
+
+
+	public static function label( string $code, string $name = '' ): string {
+		if ( '' === $name ) {
+			$name = (string) ( self::find( $code )['name'] ?? '' );
+		}
+		return '' === $code ? $name : trim( $name . ' (' . $code . ')' );
+	}
+
+
+
+
+
+
+
+	public static function is_active( string $code ): bool {
+		$centre = self::find( $code );
+		return null !== $centre && ! empty( $centre['active'] );
+	}
+
+
+
+
+
+
+	public static function status(): array {
+		$defaults = array(
+			'schema_version'       => 0,
+			'sha256'               => '',
+			'catalogue_updated_at' => '',
+			'last_checked_at'      => '',
+			'last_success_at'      => '',
+			'last_error'           => '',
+			'record_count'         => 0,
+			'active_count'         => 0,
+		);
+
+		$raw = get_option( self::OPTION_STATUS, array() );
+		if ( ! is_array( $raw ) ) {
+			return $defaults;
+		}
+
+		return array_merge( $defaults, $raw );
+	}
+
+
+
+
+
+
+	public static function total(): int {
+		return count( self::all() );
+	}
+
+
+
+
+
+
+	public static function active_count(): int {
+		return count( self::all_active() );
+	}
+}
+}
+
+
+
+
+
+
+
+
+namespace Fmc\Centre;
+
+use RuntimeException;
+
+
+
+
+
+
+
+
+if ( ! class_exists( 'Fmc\Centre\CentreCatalogueSync', false ) ) {
+final class CentreCatalogueSync {
+
+	public const OPTION_MANIFEST_URL = 'fmc_centres_manifest_url';
+
+	public const OPTION_CATALOGUE_URL = 'fmc_centres_catalogue_url';
+
+	public const OPTION_LOCK = 'fmc_centres_sync_lock';
+
+	public const LOCK_TTL = 300;
+
+	public const CRON_HOOK = 'fmc_centres_cron_sync';
+
+	public const HTTP_TIMEOUT = 30;
+
+
+
+
+
+
+	public static function register_cron(): void {
+		add_action( self::CRON_HOOK, array( self::class, 'cron_sync' ) );
+
+		if ( ! wp_next_scheduled( self::CRON_HOOK ) ) {
+			wp_schedule_event( time() + 3600, 'daily', self::CRON_HOOK );
+		}
+	}
+
+
+
+
+
+
+	public static function cron_sync(): void {
+		try {
+			self::sync( false );
+		} catch ( RuntimeException $e ) {
+
+			unset( $e );
+		}
+	}
+
+
+
+
+
+
+
+	public static function is_valid_https_url( string $url ): bool {
+		$url = trim( $url );
+		if ( '' === $url ) {
+			return false;
+		}
+		$scheme = wp_parse_url( $url, PHP_URL_SCHEME );
+		$host   = wp_parse_url( $url, PHP_URL_HOST );
+		return 'https' === strtolower( (string) $scheme ) && '' !== trim( (string) $host );
+	}
+
+
+
+
+
+
+	public static function manifest_url(): string {
+		$url = '';
+		if ( defined( 'FMC_CENTRES_MANIFEST_URL' ) ) {
+			$url = (string) FMC_CENTRES_MANIFEST_URL;
+		}
+		if ( '' === $url ) {
+			$url = (string) get_option( self::OPTION_MANIFEST_URL, '' );
+		}
+
+
+
+
+
+		$filtered = apply_filters( 'fmc_centres_manifest_url', $url );
+		return is_string( $filtered ) ? trim( $filtered ) : '';
+	}
+
+
+
+
+
+
+
+	public static function catalogue_url( string $manifest_url = '' ): string {
+		$url = '';
+		if ( defined( 'FMC_CENTRES_CATALOGUE_URL' ) ) {
+			$url = (string) FMC_CENTRES_CATALOGUE_URL;
+		}
+		if ( '' === $url ) {
+			$url = (string) get_option( self::OPTION_CATALOGUE_URL, '' );
+		}
+		if ( '' === $url && '' !== $manifest_url ) {
+			$dir = dirname( $manifest_url );
+			if ( 'http:' === $dir || 'https:' === $dir ) {
+				$dir = $manifest_url;
+			}
+			$url = trailingslashit( $dir ) . 'centros.min.json';
+		}
+
+
+
+
+
+		$filtered = apply_filters( 'fmc_centres_catalogue_url', $url );
+		return is_string( $filtered ) ? trim( $filtered ) : '';
+	}
+
+
+
+
+
+
+
+
+
+
+	public static function acquire_lock() {
+		$token   = wp_generate_password( 32, false );
+		$payload = array(
+			'token' => $token,
+			'time'  => time(),
+		);
+
+		wp_cache_delete( self::OPTION_LOCK, 'options' );
+		wp_cache_delete( 'notoptions', 'options' );
+
+		if ( add_option( self::OPTION_LOCK, $payload, '', 'no' ) ) {
+			return $token;
+		}
+
+		$current = get_option( self::OPTION_LOCK );
+		if ( is_array( $current ) && isset( $current['time'] ) ) {
+			$elapsed = time() - (int) $current['time'];
+			if ( $elapsed > self::LOCK_TTL ) {
+				global $wpdb;
+
+				$deleted = $wpdb->query(
+					$wpdb->prepare(
+						"DELETE FROM $wpdb->options WHERE option_name = %s AND option_value = %s",
+						self::OPTION_LOCK,
+						maybe_serialize( $current )
+					)
+				);
+
+				if ( $deleted ) {
+					wp_cache_delete( self::OPTION_LOCK, 'options' );
+					wp_cache_delete( 'notoptions', 'options' );
+
+					if ( add_option( self::OPTION_LOCK, $payload, '', 'no' ) ) {
+						return $token;
+					}
+				}
+			}
+		}
+
+		return false;
+	}
+
+
+
+
+
+
+
+	public static function release_lock( string $token ): bool {
+		wp_cache_delete( self::OPTION_LOCK, 'options' );
+		$current = get_option( self::OPTION_LOCK );
+		if ( is_array( $current ) && isset( $current['token'] ) && hash_equals( (string) $current['token'], $token ) ) {
+			global $wpdb;
+
+			$deleted = $wpdb->query(
+				$wpdb->prepare(
+					"DELETE FROM $wpdb->options WHERE option_name = %s AND option_value = %s",
+					self::OPTION_LOCK,
+					maybe_serialize( $current )
+				)
+			);
+			if ( $deleted ) {
+				wp_cache_delete( self::OPTION_LOCK, 'options' );
+				wp_cache_delete( 'notoptions', 'options' );
+				return true;
+			}
+		}
+		return false;
+	}
+
+
+
+
+
+
+
+
+	public static function sync( bool $force = false ): array {
+		$token = self::acquire_lock();
+		if ( false === $token ) {
+			throw new RuntimeException( 'Hay otra sincronización de centros en curso. Espere a que finalice.' );
+		}
+
+		$status = CentreCatalogue::status();
+
+		try {
+			$manifest_url = self::manifest_url();
+			if ( ! self::is_valid_https_url( $manifest_url ) ) {
+				throw new RuntimeException( 'URL de manifest de centros inválida o no utiliza HTTPS.' );
+			}
+
+
+			$manifest = self::manifest( self::download( $manifest_url, 'manifest.json', self::HTTP_TIMEOUT ) );
+
+
+			if ( ! $force && $manifest['sha256'] === $status['sha256'] && ! empty( $status['sha256'] ) && CentreCatalogue::total() > 0 ) {
+				$status['last_checked_at'] = current_time( 'mysql' );
+				$status['last_error']      = '';
+				update_option( CentreCatalogue::OPTION_STATUS, $status, false );
+
+				return array(
+					'status'  => 'unchanged',
+					'sha256'  => $manifest['sha256'],
+					'records' => $status['record_count'],
+					'active'  => $status['active_count'],
+				);
+			}
+
+
+			$catalogue_url = self::catalogue_url( $manifest_url );
+			if ( ! self::is_valid_https_url( $catalogue_url ) ) {
+				throw new RuntimeException( 'URL del catálogo de centros inválida o no utiliza HTTPS.' );
+			}
+			$body = self::download( $catalogue_url, 'centros.min.json', 45 );
+
+
+			if ( ! hash_equals( $manifest['sha256'], hash( 'sha256', $body ) ) ) {
+				throw new RuntimeException( 'El hash SHA-256 del archivo descargado no coincide con el declarado en manifest.json.' );
+			}
+
+
+			$indexed      = self::catalogue( $body, $manifest['records'] );
+			$active_count = count( array_filter( array_column( $indexed, 'active' ) ) );
+
+
+			update_option( CentreCatalogue::OPTION_CATALOGUE, $indexed, false );
+
+			$status = array(
+				'schema_version'       => 1,
+				'sha256'               => $manifest['sha256'],
+				'catalogue_updated_at' => $manifest['updated_at'],
+				'last_checked_at'      => current_time( 'mysql' ),
+				'last_success_at'      => current_time( 'mysql' ),
+				'last_error'           => '',
+				'record_count'         => count( $indexed ),
+				'active_count'         => $active_count,
+			);
+			update_option( CentreCatalogue::OPTION_STATUS, $status, false );
+
+			return array(
+				'status'  => 'updated',
+				'sha256'  => $manifest['sha256'],
+				'records' => count( $indexed ),
+				'active'  => $active_count,
+			);
+		} catch ( RuntimeException $e ) {
+			$status['last_checked_at'] = current_time( 'mysql' );
+			$status['last_error']      = $e->getMessage();
+			update_option( CentreCatalogue::OPTION_STATUS, $status, false );
+
+			throw $e;
+		} finally {
+			self::release_lock( $token );
+		}
+	}
+
+
+
+
+
+
+
+
+
+
+	private static function download( string $url, string $name, int $timeout ): string {
+		$response = wp_safe_remote_get(
+			$url,
+			array(
+				'timeout'    => $timeout,
+				'sslverify'  => true,
+				'user-agent' => 'WordPress/Fmc',
+			)
+		);
+
+		if ( is_wp_error( $response ) ) {
+
+			throw new RuntimeException( 'Error al descargar ' . $name . ': ' . $response->get_error_message() );
+		}
+
+		$code = wp_remote_retrieve_response_code( $response );
+		if ( 200 !== $code ) {
+
+			throw new RuntimeException( sprintf( 'El servidor devolvió HTTP %d al solicitar %s.', $code, $name ) );
+		}
+
+		return wp_remote_retrieve_body( $response );
+	}
+
+
+
+
+
+
+
+
+	private static function manifest( string $body ): array {
+		$manifest = json_decode( $body, true );
+		if ( ! is_array( $manifest ) ) {
+			throw new RuntimeException( 'El archivo manifest.json no contiene un JSON válido.' );
+		}
+
+		if ( empty( $manifest['schema_version'] ) || 1 !== (int) $manifest['schema_version'] ) {
+			throw new RuntimeException( 'Versión de esquema incompatible en manifest.json.' );
+		}
+
+		$file = $manifest['files']['centros.min.json'] ?? array();
+		if ( empty( $file['sha256'] ) ) {
+			throw new RuntimeException( 'El manifest.json no declara la entrada de centros.min.json con su sha256.' );
+		}
+
+		return array(
+			'sha256'     => trim( (string) $file['sha256'] ),
+			'records'    => (int) ( $file['records'] ?? 0 ),
+			'updated_at' => isset( $manifest['catalogue_updated_at'] ) && is_scalar( $manifest['catalogue_updated_at'] ) ? trim( (string) $manifest['catalogue_updated_at'] ) : '',
+		);
+	}
+
+
+
+
+
+
+
+
+
+	private static function catalogue( string $body, int $expected ): array {
+		$items = json_decode( $body, true );
+		if ( ! is_array( $items ) ) {
+			throw new RuntimeException( 'El archivo centros.min.json no contiene un array JSON válido.' );
+		}
+
+		if ( $expected > 0 && count( $items ) !== $expected ) {
+			$msg = sprintf( 'El número de registros (%d) no coincide con el declarado en el manifest (%d).', count( $items ), $expected );
+
+			throw new RuntimeException( $msg );
+		}
+
+		$indexed = array();
+		foreach ( $items as $idx => $item ) {
+			$centre = self::record( $item, (int) $idx );
+			if ( isset( $indexed[ $centre['code'] ] ) ) {
+				$msg = sprintf( 'Código oficial duplicado en centros.min.json: "%s".', $centre['code'] );
+
+				throw new RuntimeException( $msg );
+			}
+			$indexed[ $centre['code'] ] = $centre;
+		}
+		return $indexed;
+	}
+
+
+
+
+
+
+
+
+
+	private static function record( $item, int $idx ): array {
+		if ( ! is_array( $item ) ) {
+			$msg = sprintf( 'Registro en posición %d no es un objeto válido.', $idx );
+
+			throw new RuntimeException( $msg );
+		}
+
+		$text = static fn( string $key ): string => isset( $item[ $key ] ) && is_scalar( $item[ $key ] ) ? trim( (string) $item[ $key ] ) : '';
+		$code = $text( 'code' );
+		if ( 1 !== preg_match( '/^\d{8}$/', $code ) ) {
+			$msg = sprintf( 'Código de centro inválido en registro %d (debe tener exactamente 8 dígitos): "%s".', $idx, $code );
+
+			throw new RuntimeException( $msg );
+		}
+
+		if ( '' === $text( 'name' ) ) {
+			$msg = sprintf( 'Denominación vacía para el centro con código "%s".', $code );
+
+			throw new RuntimeException( $msg );
+		}
+
+		if ( ! isset( $item['active'] ) || ! is_bool( $item['active'] ) ) {
+			$msg = sprintf( 'El campo "active" debe ser booleano para el centro con código "%s".', $code );
+
+			throw new RuntimeException( $msg );
+		}
+
+		return array(
+			'code'         => $code,
+			'name'         => $text( 'name' ),
+			'island'       => $text( 'island' ),
+			'municipality' => $text( 'municipality' ),
+			'type'         => $text( 'type' ),
+			'active'       => $item['active'],
+		);
+	}
+}
+}
+
+
+
+
+
+
+
+
+namespace Fmc\Centre;
+
+use RuntimeException;
+
+
+
+
+
+
+
+
+
+if ( ! class_exists( 'Fmc\Centre\CentreSettings', false ) ) {
+final class CentreSettings {
+
+
+
+
+	public const PAGE = 'fmc-centros';
+
+
+
+
+	public const ACTION = 'fmc_centres_sync';
+
+
+
+
+	public const CAP = 'fmc_manage_app';
+
+
+
+
+
+
+	public static function register(): void {
+		add_action( 'admin_menu', array( self::class, 'menu' ) );
+		add_action( 'admin_post_' . self::ACTION, array( self::class, 'handle' ) );
+	}
+
+
+
+
+
+
+	public static function menu(): void {
+		add_options_page( 'Centros educativos', 'Centros educativos', self::CAP, self::PAGE, array( self::class, 'render' ) );
+	}
+
+
+
+
+
+
+
+	public static function url( string $outcome = '' ): string {
+		$args = array( 'page' => self::PAGE );
+		if ( '' !== $outcome ) {
+			$args['fmc_centres'] = $outcome;
+		}
+		return add_query_arg( $args, admin_url( 'options-general.php' ) );
+	}
+
+
+
+
+
+
+	public static function handle(): void {
+		if ( ! current_user_can( self::CAP ) ) {
+			wp_die( esc_html( 'No tiene permiso para gestionar el catálogo de centros.' ), '', array( 'response' => 403 ) );
+		}
+		check_admin_referer( self::ACTION );
+
+		$url = isset( $_POST['manifest_url'] ) ? (string) wp_unslash( $_POST['manifest_url'] ) : null;
+		wp_safe_redirect( self::url( self::submit( $url ) ) );
+		exit;
+	}
+
+
+
+
+
+
+
+
+
+
+	public static function submit( ?string $url ): string {
+		if ( null !== $url ) {
+			$url = esc_url_raw( trim( $url ) );
+			if ( '' !== $url && ! CentreCatalogueSync::is_valid_https_url( $url ) ) {
+				return 'bad_url';
+			}
+			update_option( CentreCatalogueSync::OPTION_MANIFEST_URL, $url, false );
+		}
+		if ( '' === CentreCatalogueSync::manifest_url() ) {
+			return 'no_source';
+		}
+		try {
+			return CentreCatalogueSync::sync( true )['status'];
+		} catch ( RuntimeException $e ) {
+
+			unset( $e );
+			return 'error';
+		}
+	}
+
+
+
+
+
+
+	public static function render(): void {
+		if ( ! current_user_can( self::CAP ) ) {
+			wp_die( esc_html( 'No tiene permiso para gestionar el catálogo de centros.' ), '', array( 'response' => 403 ) );
+		}
+		$status  = CentreCatalogue::status();
+		$total   = CentreCatalogue::total();
+		$active  = CentreCatalogue::active_count();
+		$stored  = (string) get_option( CentreCatalogueSync::OPTION_MANIFEST_URL, '' );
+		$source  = CentreCatalogueSync::manifest_url();
+		$notices = array(
+			'updated'   => array( 'success', sprintf( 'Catálogo actualizado: %d centros, %d activos.', $total, $active ) ),
+			'unchanged' => array( 'success', 'El catálogo ya estaba al día.' ),
+			'error'     => array( 'error', 'No se ha podido actualizar el catálogo: ' . $status['last_error'] . ' Se sigue usando el que había.' ),
+			'bad_url'   => array( 'error', 'La dirección tiene que empezar por https://. No se ha guardado.' ),
+			'no_source' => array( 'warning', 'Falta la dirección del listado de centros: sin ella no se descarga nada.' ),
+		);
+
+		$outcome = isset( $_GET['fmc_centres'] ) ? sanitize_key( wp_unslash( $_GET['fmc_centres'] ) ) : '';
+		$rows    = array(
+			'Centros'                       => sprintf( '%d, de ellos %d activos', $total, $active ),
+			'Fecha del catálogo'            => $status['catalogue_updated_at'],
+			'Última comprobación'           => $status['last_checked_at'],
+			'Última actualización correcta' => $status['last_success_at'],
+			'Último error'                  => $status['last_error'],
+		);
+		?>
+		<div class="wrap">
+			<h1>Centros educativos</h1>
+			<p class="description" style="max-width:46rem">
+				El centro donde se imparte una acción se elige de este catálogo, por su código.
+				Se copia de su fuente una vez al día; aquí se puede actualizar sin esperar.
+				Si una actualización falla, se sigue usando la última copia buena.
+			</p>
+			<?php if ( isset( $notices[ $outcome ] ) ) : ?>
+				<div class="notice notice-<?php echo esc_attr( $notices[ $outcome ][0] ); ?> is-dismissible"><p><?php echo esc_html( $notices[ $outcome ][1] ); ?></p></div>
+			<?php endif; ?>
+
+			<table class="widefat striped" style="max-width:46rem">
+				<tbody>
+				<?php foreach ( $rows as $label => $value ) : ?>
+					<tr>
+						<th scope="row" style="width:40%"><?php echo esc_html( $label ); ?></th>
+						<td><?php echo esc_html( '' !== (string) $value ? (string) $value : '—' ); ?></td>
+					</tr>
+				<?php endforeach; ?>
+				</tbody>
+			</table>
+
+			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" style="max-width:46rem;margin-top:1.5rem">
+				<input type="hidden" name="action" value="<?php echo esc_attr( self::ACTION ); ?>">
+				<?php wp_nonce_field( self::ACTION ); ?>
+				<p>
+					<label for="fmc-manifest-url"><strong>Dirección del <code>manifest.json</code></strong></label><br>
+					<input type="url" class="large-text code" id="fmc-manifest-url" name="manifest_url" value="<?php echo esc_attr( $stored ); ?>" placeholder="https://…/manifest.json">
+				</p>
+				<p class="description">
+					El catálogo, <code>centros.min.json</code>, se busca junto a él.
+					<?php if ( '' !== $source && $source !== $stored ) : ?>
+						Este sitio la tiene fijada por configuración, y manda sobre la de aquí: <code><?php echo esc_html( $source ); ?></code>.
+					<?php endif; ?>
+				</p>
+				<?php submit_button( 'Guardar y actualizar ahora', 'secondary' ); ?>
+			</form>
+		</div>
+		<?php
+	}
+}
+}
+
+
+
+
+
+
+
+
 namespace Fmc\PublicFront;
 
 
@@ -2043,9 +2832,10 @@ final class Fields {
 						'w'     => 'adviser',
 						'col'   => 6,
 					),
-					A::VENUE_CENTRE    => array(
+
+					A::VENUE_CODE      => array(
 						'label' => 'Centro donde se imparte',
-						'w'     => 'text',
+						'w'     => 'centre',
 						'col'   => 8,
 					),
 					A::VIDEOCONFERENCE => array(
@@ -3062,6 +3852,7 @@ final class Speakers {
 
 namespace Fmc\PublicFront;
 
+use Fmc\Centre\CentreCatalogue;
 use Fmc\Domain\SchoolYear;
 use Fmc\Domain\Situation;
 use Fmc\Meta\ActionMetaKeys as A;
@@ -4275,6 +5066,8 @@ final class Lists {
 				return implode( ', ', array_map( 'get_the_title', array_filter( array_map( 'intval', (array) $value ) ) ) );
 			case 'adviser':
 				return $value ? (string) get_the_author_meta( 'display_name', (int) $value ) : '';
+			case 'centre':
+				return CentreCatalogue::label( (string) $value, (string) get_post_meta( $post->ID, A::VENUE_CENTRE, true ) );
 			case 'rich':
 			case 'textarea':
 				return trim( wp_strip_all_tags( (string) $value ) );
@@ -5113,6 +5906,7 @@ final class Calendar {
 
 namespace Fmc\PublicFront;
 
+use Fmc\Centre\CentreCatalogue;
 use Fmc\Meta\ActionMetaKeys as A;
 use Fmc\Meta\DesignMetaKeys as D;
 use Fmc\Domain\DigComp;
@@ -5540,6 +6334,9 @@ final class Editor {
 		if ( $can && 'adviser' === $f['w'] && array() === Advisers::choices() ) {
 			$help .= '<div class="form-text">Aún no hay ninguna asesoría con cuenta en el aplicativo: la administración las da de alta en «Usuarios», con el rol «Asesoría de formación».</div>';
 		}
+		if ( 'centre' === $f['w'] ) {
+			$help .= self::centre_help( (int) ( $f['post'] ?? 0 ), is_string( $value ) ? $value : '', $can );
+		}
 		if ( $can && ! empty( $f['add'] ) && current_user_can( get_post_type_object( $f['add'] )->cap->create_posts ) ) {
 			$help .= '<div class="form-text"><a href="' . esc_url(
 				Screen::url(
@@ -5565,6 +6362,7 @@ final class Editor {
 			case 'term':
 			case 'design':
 			case 'adviser':
+			case 'centre':
 				$choices = self::choices( $f, $key );
 				$current = is_array( $value ) ? (string) ( $value[0] ?? '' ) : (string) $value;
 
@@ -5739,6 +6537,9 @@ final class Editor {
 		if ( 'adviser' === $f['w'] ) {
 			return Advisers::choices();
 		}
+		if ( 'centre' === $f['w'] ) {
+			return self::centre_choices( (string) ( $f['stored'] ?? '' ), (int) ( $f['post'] ?? 0 ) );
+		}
 		$type = 'speakers' === $f['w'] ? PostTypes::SPEAKER : PostTypes::DESIGN;
 
 
@@ -5753,6 +6554,50 @@ final class Editor {
 
 		unset( $out[ (int) ( $f['post'] ?? 0 ) ] );
 		return $out;
+	}
+
+
+
+
+
+
+
+
+
+
+
+	private static function centre_choices( string $stored, int $action ): array {
+		$out = array();
+		foreach ( CentreCatalogue::active_options() as $code => $name ) {
+			$out[ $code ] = CentreCatalogue::label( (string) $code, $name );
+		}
+		if ( '' !== $stored && ! isset( $out[ $stored ] ) ) {
+			$out[ $stored ] = CentreCatalogue::label( $stored, (string) get_post_meta( $action, A::VENUE_CENTRE, true ) ) . ' — ya no está activo';
+		}
+		return $out;
+	}
+
+
+
+
+
+
+
+
+
+
+
+
+	private static function centre_help( int $action, string $code, bool $can ): string {
+		$help   = '';
+		$legacy = '' === $code && $action ? (string) get_post_meta( $action, A::VENUE_CENTRE, true ) : '';
+		if ( '' !== $legacy ) {
+			$help .= '<div class="form-text">Escrito a mano en el sistema anterior: «' . esc_html( $legacy ) . '».' . ( $can ? ' Elija el centro de la lista para sustituirlo.' : '' ) . '</div>';
+		}
+		if ( $can && 0 === CentreCatalogue::active_count() ) {
+			$help .= '<div class="form-text">El catálogo de centros está vacío: la administración lo actualiza en «Ajustes → Centros educativos».</div>';
+		}
+		return $help;
 	}
 
 
@@ -6079,6 +6924,7 @@ final class Editor {
 
 		$was_start     = $post ? (string) get_post_meta( $post->ID, A::START, true ) : '';
 		$was_situation = $post ? (string) get_post_meta( $post->ID, A::SITUATION, true ) : '';
+		$was_venue     = $post ? (string) get_post_meta( $post->ID, A::VENUE_CODE, true ) : '';
 
 		$archiving = PostTypes::DESIGN === $type && PostTypes::ARCHIVED === self::next_status( $type, $post, $status );
 		foreach ( $fields as $key => $f ) {
@@ -6232,6 +7078,9 @@ final class Editor {
 		if ( PostTypes::ACTION === $type && 'postponed' === $was_situation && (string) get_post_meta( $id, A::START, true ) !== $was_start ) {
 			delete_post_meta( $id, A::SITUATION );
 		}
+		if ( PostTypes::ACTION === $type && array_key_exists( A::VENUE_CODE, $values ) ) {
+			self::venue_name( $id, (string) $values[ A::VENUE_CODE ], $was_venue );
+		}
 
 		$problems = array();
 		if ( PostTypes::DESIGN === $type && ( $files || $remove ) ) {
@@ -6248,6 +7097,28 @@ final class Editor {
 			'errors'   => array(),
 			'problems' => $problems,
 		);
+	}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+	private static function venue_name( int $action, string $code, string $was ): void {
+		$centre = CentreCatalogue::find( $code );
+		if ( null !== $centre ) {
+			update_post_meta( $action, A::VENUE_CENTRE, $centre['name'] );
+		} elseif ( '' === $code && '' !== $was ) {
+			delete_post_meta( $action, A::VENUE_CENTRE );
+		}
 	}
 
 
@@ -6362,6 +7233,10 @@ final class Editor {
 			$w = $fields[ $key ]['w'];
 			if ( 'adviser' === $w && '' !== $value && ! isset( Advisers::choices()[ absint( $value ) ] ) && absint( $value ) !== absint( self::value( $post, $key ) ) ) {
 				$errors[ $key ] = 'La asesoría elegida no es una cuenta de asesoría de este sitio.';
+				continue;
+			}
+			if ( 'centre' === $w && '' !== $value && ! CentreCatalogue::is_active( (string) $value ) && (string) self::value( $post, $key ) !== $value ) {
+				$errors[ $key ] = 'El centro elegido no está en el catálogo de centros activos.';
 				continue;
 			}
 			if ( ! in_array( $w, array( 'design', 'designs', 'speakers' ), true ) || '' === $value || array() === $value ) {
@@ -7470,6 +8345,8 @@ final class Catalogue {
 
 namespace Fmc;
 
+use Fmc\Centre\CentreCatalogueSync;
+use Fmc\Centre\CentreSettings;
 use Fmc\Meta\MetaRegistration;
 use Fmc\PostType\PostTypes;
 use Fmc\PublicFront\Catalogue;
@@ -7504,6 +8381,9 @@ final class App {
 		add_action( 'init', array( Taxonomies::class, 'register' ), 9 );
 		Taxonomies::hooks();
 		Advisers::hooks();
+
+		CentreCatalogueSync::register_cron();
+		CentreSettings::register();
 		add_action( 'init', array( PostTypes::class, 'register' ), 10 );
 		add_action( 'init', array( PostTypes::class, 'grant_caps_to_roles' ), 11 );
 		add_filter( 'map_meta_cap', array( PostTypes::class, 'lock_archived' ), 10, 4 );

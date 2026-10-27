@@ -61,6 +61,7 @@ sus números de formulario, de campo y de vista— está en `.local/`.
 | Una incidencia que recibe el identificador de la acción por la URL | `fmc_incident` cuelga de su acción por `post_parent`, y lo fija el aplicativo (ADR-0007) |
 | Los ponentes, con NIF y teléfono, en un formulario que alimenta listados | CPT `fmc_speaker`, no público y fuera de REST |
 | El curso escolar, un shortcode que se evalúa al guardar | Se deduce de la fecha de inicio: `Domain/SchoolYear` |
+| El centro donde se imparte, de una lista de centros copiada a mano o escrito a mano | El código del catálogo de centros, que se pone al día solo (ADR-0021) |
 
 **La matrícula no es de este aplicativo** (ADR-0005): la lleva el sistema de
 gestión del servicio de formación. Aquí se registra la acción, sus plazos, su
@@ -112,6 +113,9 @@ src/Fmc/
 ├── PostType/PostTypes.php        Los cuatro CPT, el estado «Histórico» y qué capacidades tiene cada rol en cada uno
 ├── Taxonomy/Taxonomies.php       Programa, temática, competencia digital, ámbito e isla o zona
 ├── User/Advisers.php             Las cuentas de asesoría del sitio y su tipo (TIC, STEAM…), en el perfil del escritorio
+├── Centre/CentreCatalogue.php    La copia local del catálogo de centros: código, nombre y si está activo (ADR-0021)
+├── Centre/CentreCatalogueSync.php  La pone al día desde su fuente, una vez al día, comprobando el SHA-256 del manifest
+├── Centre/CentreSettings.php     «Ajustes → Centros educativos»: la fuente, el estado de la copia y «Actualizar ahora»
 └── PublicFront/                  El aplicativo, en la portada del sitio
     ├── Screen.php                Enrutado (?fmc_tab, ?fmc_edit, ?fmc_new), cabecera y pestañas
     ├── Lists.php                 Contadores, filtros y tabla paginada de cada tipo
