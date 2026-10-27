@@ -10,7 +10,7 @@ apuntan aquí.
 ## Qué es este proyecto (y qué NO es)
 
 **Formación** es el repositorio de trabajo de un aplicativo que gestiona la
-formación del profesorado de un área: los **diseños de curso** (el catálogo), las
+formación del profesorado de un área: los **diseños de acciones formativas** (el catálogo), las
 **acciones formativas** que se imparten a partir de ellos, sus **ponentes** y
 las **incidencias** que se abren sobre una acción. Es hermano del aplicativo de
 eventos (`wp-eventos`) y **hereda entera su plataforma**: el mismo entorno, el
@@ -52,8 +52,9 @@ sus números de formulario, de campo y de vista— está en `.local/`.
 | Hoy en producción | Aquí |
 |---|---|
 | Un formulario de diseño de curso cuyas entradas son el catálogo | CPT `fmc_design`, público; la descripción en `post_content` |
+| El histórico marcado en el tipo («Histórico-curso») | Un estado del diseño, «Histórico» (`fmc_archived`): sale de toda elección y de lo que ve la asesoría (ADR-0016) |
 | Una casilla «Opciones» que mezcla *está en el catálogo*, *diseño finalizado* y *pertenece a tal programa* | El estado es el `post_status` (ADR-0004); el catálogo, una meta; el programa, un término de `fmc_programme` (ADR-0003) |
-| «Diseño finalizado» lo marca quien sea que vea la casilla | Solo la validación publica: la asesoría no tiene `publish_fmc_designs` ni `edit_published_fmc_designs` |
+| «Diseño finalizado» lo marca quien sea que vea la casilla | Solo la validación escribe y publica diseños: la asesoría los consulta finalizados, de solo lectura (ADR-0017) |
 | Un formulario de acción formativa enorme, con campos «obsoletos» dentro | CPT `fmc_action` que apunta a su diseño (`fmc_design_id`) y guarda solo lo suyo; los totales se suman, no se teclean |
 | Tres listas de «asumida por» que repiten los mismos programas | Quién paga es `fmc_funded_by` (lista cerrada); de qué programa, un término |
 | Campos que solo rellena el servicio de formación, escondidos a los demás por la vista | Permiso por campo en el servidor: `auth_callback` de la meta (ADR-0006) |
@@ -107,7 +108,7 @@ src/Fmc/
 ├── Meta/MetaRegistration.php     register_post_meta con tipo, lista cerrada y permiso por campo
 ├── Domain/SchoolYear.php         El curso escolar de una fecha. Puro
 ├── Domain/DigComp.php            El perfil de competencia digital de elidd (su dirección), sus áreas y competencias. Puro
-├── PostType/PostTypes.php        Los cuatro CPT y qué capacidades tiene cada rol en cada uno
+├── PostType/PostTypes.php        Los cuatro CPT, el estado «Histórico» y qué capacidades tiene cada rol en cada uno
 ├── Taxonomy/Taxonomies.php       Programa, temática, competencia digital, ámbito e isla o zona
 └── PublicFront/                  El aplicativo, en la portada del sitio
     ├── Screen.php                Enrutado (?fmc_tab, ?fmc_edit, ?fmc_new), cabecera y pestañas
@@ -226,8 +227,13 @@ resultado — un `declare(strict_types=1)` es legal por fichero y **fatal** al
 concatenar. Por eso también está prohibido.
 
 **Permisos**: quién hace qué con cada tipo está en un único mapa,
-`PostTypes::role_caps()`, y quién escribe cada campo, en
-`MetaRegistration::guarded()` (ADR-0006). Esconder algo en el listado con
+`PostTypes::role_caps()`; lo que un rol deja de tener, en
+`PostTypes::revoked_caps()` —y, si lo daba el snippet de roles, en su
+`fmc_revoked_role_caps()`—, porque el reparto no quita nada más (ADR-0017); y
+quién escribe cada campo, en `MetaRegistration::guarded()` (ADR-0006). Los
+diseños que no están finalizados solo los lee quien los escribe, y un
+histórico está cerrado como un finalizado: los dos filtros de `map_meta_cap`
+están en `PostTypes` (ADR-0016). Esconder algo en el listado con
 `pre_get_posts` o en la pantalla con CSS **no es protegerlo** —es exactamente el
 agujero del sistema anterior—: quedan abiertos el enlace directo a
 `post.php?post=N`, la edición rápida, la REST API y las acciones en bloque. La
@@ -280,7 +286,8 @@ por ámbito (`fmc_scope`) llega con el guardián `Access/`, en la fase 2 del pla
   (`course`, `one_off`, `e_learning`, `self_paced`, `in_classroom`) y las
   modalidades viven en `Meta/DesignMetaKeys.php`; quién paga, el proceso y la
   situación de la acción, en `Meta/ActionMetaKeys.php`. «Histórico» **no** es un
-  tipo: se deduce de las fechas. La lección del sistema anterior es que una
+  tipo: en el diseño es un estado, `fmc_archived` (ADR-0016); en la acción, se
+  deduce de las fechas. La lección del sistema anterior es que una
   lista abierta acaba teniendo «Curso» e «Histórico-curso» a la vez (ADR-0003).
 
 ### Idiomas

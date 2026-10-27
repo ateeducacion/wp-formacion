@@ -72,7 +72,7 @@ function fmc_seed_post( array $post, array $meta, array $terms = array() ): int 
 	return $id;
 }
 
-fmc_seed_user( 'validacion', 'fmc_curator', 'Validación de ejemplo' );
+$fmc_curator = fmc_seed_user( 'validacion', 'fmc_curator', 'Validación de ejemplo' );
 $fmc_adviser = fmc_seed_user( 'asesoria', 'fmc_adviser', 'Asesoría de ejemplo' );
 fmc_seed_user( 'asesoria2', 'fmc_adviser', 'Asesoría de ejemplo 2' );
 fmc_seed_user( 'servicio', 'fmc_training_service', 'Servicio de formación de ejemplo' );
@@ -87,7 +87,7 @@ $fmc_design = fmc_seed_post(
 		'post_author'  => $fmc_adviser,
 	),
 	array(
-		DesignMetaKeys::CODE         => 'A1',
+		DesignMetaKeys::CODE         => 'A001',
 		DesignMetaKeys::TYPE         => 'course',
 		DesignMetaKeys::MODALITY     => 'blended',
 		DesignMetaKeys::HOURS_ONSITE => 8,
@@ -106,11 +106,29 @@ fmc_seed_post(
 		'post_name'   => 'demo-diseno-borrador',
 		'post_title'  => 'Robótica educativa (borrador)',
 		'post_status' => 'pending',
-		'post_author' => $fmc_adviser,
+		'post_author' => $fmc_curator,
 	),
 	array(
 		DesignMetaKeys::TYPE     => 'one_off',
 		DesignMetaKeys::MODALITY => 'onsite',
+	)
+);
+
+// Lo que ya no se imparte se queda, como histórico (ADR-0016).
+fmc_seed_post(
+	array(
+		'post_type'    => PostTypes::DESIGN,
+		'post_name'    => 'demo-diseno-historico',
+		'post_title'   => 'Pizarra digital en el aula',
+		'post_content' => '<p>Diseño de demostración que ya no se imparte.</p>',
+		'post_status'  => PostTypes::ARCHIVED,
+		'post_author'  => $fmc_curator,
+	),
+	array(
+		DesignMetaKeys::CODE         => 'A002',
+		DesignMetaKeys::TYPE         => 'course',
+		DesignMetaKeys::MODALITY     => 'onsite',
+		DesignMetaKeys::HOURS_ONSITE => 10,
 	)
 );
 

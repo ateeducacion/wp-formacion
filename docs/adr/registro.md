@@ -6,7 +6,7 @@ date: 2026-09-30
 related:
   issues: []
   prs: []
-  adrs: [ADR-0001, ADR-0002, ADR-0003, ADR-0004, ADR-0005, ADR-0006, ADR-0007, ADR-0008, ADR-0009, ADR-0010, ADR-0011, ADR-0012, ADR-0013, ADR-0014]
+  adrs: [ADR-0001, ADR-0002, ADR-0003, ADR-0004, ADR-0005, ADR-0006, ADR-0007, ADR-0008, ADR-0009, ADR-0010, ADR-0011, ADR-0012, ADR-0013, ADR-0014, ADR-0015, ADR-0016, ADR-0017]
   sdds: []
 supersedes: []
 superseded_by: []
@@ -27,6 +27,9 @@ de eventos no se copian aquí: las enumera la [ADR-0002](ADR-0002-se-hereda-la-p
 
 De la ADR-0009 a la ADR-0014 salen de la primera revisión del aplicativo con
 la validación, el 2026-10-21; su material también está en `.local/`.
+
+La ADR-0016 y la ADR-0017 salen de la segunda revisión, el 2026-10-27, que
+también deja adendas en la ADR-0004, la ADR-0012 y la ADR-0015.
 
 El perfil que estas ADR llaman «curaduría» se llama hoy **validación**: da los
 diseños por finalizados (rol `fmc_curator`, «Validación de formación»). Las ADR
@@ -49,3 +52,5 @@ con commit no se reescriben por un cambio de nombre; esta nota lo traduce.
 | [ADR-0013](ADR-0013-el-catalogo-publico-es-una-pantalla-del-aplicativo.md) | El catálogo público es una pantalla del aplicativo y publica solo parte del diseño | Propuesta |
 | [ADR-0014](ADR-0014-el-perfil-de-competencia-digital-se-elige-en-elidd-incrustada.md) | El perfil de competencia digital se elige en elidd, incrustada en la ficha | Propuesta |
 | [ADR-0015](ADR-0015-la-isla-del-ponente-es-una-taxonomia-y-el-cargo-una-lista-cerrada.md) | La isla del ponente es una taxonomía y el cargo, una lista cerrada | Propuesta |
+| [ADR-0016](ADR-0016-lo-que-ya-no-se-imparte-es-un-estado-del-diseno.md) | Lo que ya no se imparte es un estado del diseño: «Histórico» | Propuesta |
+| [ADR-0017](ADR-0017-la-asesoria-consulta-los-disenos-finalizados-y-no-los-escribe.md) | La asesoría consulta los diseños finalizados y no los escribe | Propuesta |

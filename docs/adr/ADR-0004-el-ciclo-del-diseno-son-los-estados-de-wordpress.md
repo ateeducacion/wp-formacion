@@ -73,3 +73,26 @@ curaduría es siempre el área (REQ-0001 §8).
 ### Neutras
 
 - Un diseño devuelto a borrador deja de verse en el catálogo mientras tanto.
+
+## Adenda — 2026-10-27: un estado más y la asesoría ya no escribe diseños
+
+En la segunda revisión con la validación, el 2026-10-27, cambian dos cosas.
+La idea de esta ADR se mantiene: el ciclo son estados de WordPress y lo
+aplican las capacidades.
+
+- **Un estado más.** Lo que ya no se imparte pasa a «Histórico»
+  (`fmc_archived`). Está cerrado como un finalizado, y solo lo mueve quien
+  finaliza
+  ([ADR-0016](ADR-0016-lo-que-ya-no-se-imparte-es-un-estado-del-diseno.md)).
+- **La asesoría no escribe diseños.** La frase «La asesoría tiene
+  `edit_fmc_designs` y `delete_fmc_designs`» deja de regir: los consulta,
+  solo finalizados y de solo lectura
+  ([ADR-0017](ADR-0017-la-asesoria-consulta-los-disenos-finalizados-y-no-los-escribe.md)).
+  Con eso queda contestada la pregunta de quién valida: el área, que en el
+  aplicativo es la validación.
+- **Deja de ser «cero código de estado».** Hay un estado registrado y dos
+  filtros de `map_meta_cap`: uno cierra el histórico como un finalizado y el
+  otro no deja leer lo que no está finalizado a quien no puede editarlo
+  (`PostTypes::lock_archived()` y `PostTypes::hide_unfinished()`).
+
+Asistencia de IA: Claude Code (claude-opus-5-5).

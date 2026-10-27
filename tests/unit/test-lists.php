@@ -13,6 +13,7 @@ use Fmc\Meta\SpeakerMetaKeys as S;
 use Fmc\PostType\PostTypes;
 use Fmc\PublicFront\Fields;
 use Fmc\PublicFront\Lists;
+use Fmc\PublicFront\Screen;
 use Fmc\PublicFront\Speakers;
 use Fmc\Taxonomy\Taxonomies;
 
@@ -169,13 +170,13 @@ class Test_Lists extends WP_UnitTestCase {
 		$counters = $this->counters( $screen['body'] );
 
 		$this->assertSame( 'actions', $screen['tab'] );
-		$this->assertSame( 'Acciones formativas', $screen['title'] );
+		$this->assertSame( 'Planificación de acciones formativas', $screen['title'] );
 		$this->assertSame( 3, $counters['En total'] );
 		$this->assertSame( 2, $counters['Realizada'] );
 		$this->assertSame( 1, $counters['Impartiéndose'] );
 		$this->assertSame( 0, $counters['Cancelada'] );
 		$this->assertStringContainsString( 'text-bg-success">Realizada</span>', $screen['body'] );
-		$this->assertStringContainsString( '+ Añadir acción formativa', $screen['actions'] );
+		$this->assertStringContainsString( '+ Agendar acción formativa', $screen['actions'] );
 	}
 
 	/**
@@ -228,9 +229,10 @@ class Test_Lists extends WP_UnitTestCase {
 	}
 
 	/**
-	 * La asesoría ve lo publicado y lo suyo; la validación, todo.
+	 * La asesoría ve lo finalizado, y nada más: ni lo suyo de antes ni el
+	 * histórico (ADR-0017); la validación, todo lo vigente.
 	 */
-	public function test_an_adviser_only_sees_published_designs_and_her_own() {
+	public function test_an_adviser_only_sees_finalised_designs() {
 		$other = self::factory()->user->create( array( 'role' => 'fmc_adviser' ) );
 		$this->post( PostTypes::DESIGN, 'Ajeno publicado', array(), array( 'post_author' => $other ) );
 		$this->post(
@@ -253,10 +255,19 @@ class Test_Lists extends WP_UnitTestCase {
 			)
 		);
 
-		$this->assertSame( array( 'Ajeno publicado', 'Mío en revisión' ), $this->rows( PostTypes::DESIGN ) );
-		$counters = $this->counters( Lists::screen( 'designs', PostTypes::DESIGN )['body'] );
-		$this->assertSame( 2, $counters['En total'] );
-		$this->assertSame( 0, $counters['Borrador'] );
+		$this->post( PostTypes::DESIGN, 'Histórico', array(), array( 'post_status' => PostTypes::ARCHIVED ) );
+
+		$this->assertSame( array( 'Ajeno publicado' ), $this->rows( PostTypes::DESIGN ) );
+		$screen = Lists::screen( 'designs', PostTypes::DESIGN );
+		$this->assertSame( array(), $this->counters( $screen['body'] ), 'sin estados que contar' );
+		$this->assertStringContainsString( '<p class="fmc-found">1 diseño(s) finalizado(s)</p>', $screen['body'] );
+		$this->assertSame( Lists::SUBTITLE_DESIGN_READER . ' Desde la ficha se agenda una acción.', $screen['subtitle'] );
+		$this->assertStringNotContainsString( 'name="fmc_status"', $screen['body'] );
+		$this->assertStringNotContainsString( 'fmc_new=', $screen['actions'], 'no da de alta diseños' );
+		// Pedir otro estado no le enseña nada más.
+		$_GET['fmc_status'] = PostTypes::ARCHIVED;
+		$this->assertSame( array( 'Ajeno publicado' ), $this->rows( PostTypes::DESIGN ) );
+		unset( $_GET['fmc_status'] );
 
 		$this->as_role( 'fmc_curator' );
 		$this->assertSame( array( 'Ajeno en borrador', 'Ajeno publicado', 'Mío en revisión' ), $this->rows( PostTypes::DESIGN ) );
@@ -270,6 +281,7 @@ class Test_Lists extends WP_UnitTestCase {
 		$this->post( PostTypes::DESIGN, 'A', array(), array( 'post_status' => 'draft' ) );
 		$this->post( PostTypes::DESIGN, 'B', array(), array( 'post_status' => 'pending' ) );
 		$this->post( PostTypes::DESIGN, 'C' );
+		$this->post( PostTypes::DESIGN, 'D', array(), array( 'post_status' => PostTypes::ARCHIVED ) );
 
 		$body = Lists::screen( 'designs', PostTypes::DESIGN )['body'];
 		$this->assertStringContainsString( 'A</a> <span class="badge rounded-pill text-bg-secondary">Borrador</span>', $body );
@@ -277,16 +289,21 @@ class Test_Lists extends WP_UnitTestCase {
 		$this->assertStringContainsString( 'C</a> <span class="badge rounded-pill text-bg-success">Finalizado</span>', $body );
 		$this->assertSame(
 			array(
-				'En total'    => 3,
+				'Vigentes'    => 3,
 				'Borrador'    => 1,
 				'En revisión' => 1,
 				'Finalizado'  => 1,
+				'Histórico'   => 1,
 			),
 			$this->counters( $body )
 		);
+		$this->assertStringNotContainsString( '>D</a>', $body, 'el histórico, solo en su contador' );
 
 		$_GET['fmc_status'] = 'pending';
 		$this->assertSame( array( 'B' ), $this->rows( PostTypes::DESIGN ) );
+		$_GET['fmc_status'] = PostTypes::ARCHIVED;
+		$this->assertSame( array( 'D' ), $this->rows( PostTypes::DESIGN ) );
+		$this->assertStringContainsString( 'D</a> <span class="badge rounded-pill text-bg-dark">Histórico</span>', Lists::screen( 'designs', PostTypes::DESIGN )['body'] );
 		// Un estado que no es de la lista no filtra.
 		$_GET['fmc_status'] = 'trash';
 		$this->assertSame( array( 'A', 'B', 'C' ), $this->rows( PostTypes::DESIGN ) );
@@ -362,7 +379,7 @@ class Test_Lists extends WP_UnitTestCase {
 		$this->assertStringContainsString( '<td>8 + 12 h</td>', $body );
 		$this->assertStringContainsString( '<td>Comunicación</td>', $body );
 		$this->assertStringContainsString( '<td>Programa uno</td>', $body );
-		$this->assertStringContainsString( '+ Añadir diseño de curso', Lists::screen( 'designs', PostTypes::DESIGN )['actions'] );
+		$this->assertStringContainsString( '+ Añadir diseño', Lists::screen( 'designs', PostTypes::DESIGN )['actions'] );
 	}
 
 	/**
@@ -699,14 +716,15 @@ class Test_Lists extends WP_UnitTestCase {
 	}
 
 	/**
-	 * En el filtro de diseños solo entran los del catálogo, con su código
-	 * delante para buscar por él (ADR-0012).
+	 * En el filtro de diseños solo entran los finalizados, con su código
+	 * delante para buscar por él (ADR-0012, ADR-0016).
 	 */
-	public function test_design_choices_are_the_catalogue_with_their_code() {
+	public function test_design_choices_are_the_finalised_with_their_code() {
 		$this->as_role( 'fmc_curator' );
 		$this->post( PostTypes::DESIGN, 'C borrador', array( D::IN_CATALOGUE => '1' ), array( 'post_status' => 'draft' ) );
-		$this->post( PostTypes::DESIGN, 'B histórico' );
-		$listed = $this->post(
+		$this->post( PostTypes::DESIGN, 'B histórico', array( D::IN_CATALOGUE => '1' ), array( 'post_status' => PostTypes::ARCHIVED ) );
+		$outside = $this->post( PostTypes::DESIGN, 'E fuera del catálogo' );
+		$listed  = $this->post(
 			PostTypes::DESIGN,
 			'A en el catálogo',
 			array(
@@ -714,12 +732,13 @@ class Test_Lists extends WP_UnitTestCase {
 				D::CODE         => 'A7',
 			)
 		);
-		$plain  = $this->post( PostTypes::DESIGN, 'D sin código', array( D::IN_CATALOGUE => '1' ) );
+		$plain   = $this->post( PostTypes::DESIGN, 'D sin código', array( D::IN_CATALOGUE => '1' ) );
 
 		$this->assertSame(
 			array(
-				$listed => 'A7 · A en el catálogo',
-				$plain  => 'D sin código',
+				$listed  => 'A7 · A en el catálogo',
+				$plain   => 'D sin código',
+				$outside => 'E fuera del catálogo',
 			),
 			Lists::post_choices( PostTypes::DESIGN )
 		);
@@ -889,7 +908,7 @@ class Test_Lists extends WP_UnitTestCase {
 		wp_set_object_terms( $ana, 'Norte', Taxonomies::ZONE );
 		wp_set_object_terms( $luis, 'Este', Taxonomies::ZONE );
 		$this->post( PostTypes::SPEAKER, 'Nadie' );
-		$this->post(
+		$first  = $this->post(
 			PostTypes::ACTION,
 			'Robótica educativa',
 			array(
@@ -899,7 +918,7 @@ class Test_Lists extends WP_UnitTestCase {
 				A::START        => '2026-10-01',
 			)
 		);
-		$this->post(
+		$second = $this->post(
 			PostTypes::ACTION,
 			'Robótica avanzada',
 			array(
@@ -920,7 +939,23 @@ class Test_Lists extends WP_UnitTestCase {
 		$_GET['fmc_given'] = 'ROBOTICA';
 		$this->assertSame( array( 'Luis', 'Ana' ), $this->rows( PostTypes::SPEAKER ), 'quien más ha dado, primero; sin acentos ni mayúsculas' );
 		$body = Lists::screen( 'speakers', PostTypes::SPEAKER )['body'];
-		$this->assertStringContainsString( '<td>2 acción(es)<div class="small text-secondary">30 h</div></td>', $body );
+		$this->assertStringContainsString( '" aria-expanded="false">2 acción(es)</a><div class="small text-secondary">30 h</div>', $body );
+		// Al pulsar, sus acciones, la más reciente primero, cada una a su ficha; la cancelada no cuenta.
+		$given = $this->menu( $body, $luis );
+		$this->assertSame( array( '01/10/2026 Robótica educativa', '01/10/2025 Robótica avanzada', 'Todas sus acciones, en el listado' ), array_keys( $given ) );
+		$this->assertSame( Screen::url( array( Screen::ARG_EDIT => $first ) ), $given['01/10/2026 Robótica educativa'] );
+		$this->assertSame( Screen::url( array( Screen::ARG_EDIT => $second ) ), $given['01/10/2025 Robótica avanzada'] );
+		$this->assertSame(
+			Screen::url(
+				array(
+					Screen::ARG_TAB => 'actions',
+					'fmc_view'      => 'list',
+					'fmc_speaker'   => $luis,
+				)
+			),
+			$given['Todas sus acciones, en el listado']
+		);
+		$this->assertSame( array( '01/10/2026 Robótica educativa', 'Todas sus acciones, en el listado' ), array_keys( $this->menu( $body, $ana ) ) );
 
 		$_GET['fmc_file'] = 'XX4';
 		$this->assertSame( array( 'Ana', 'Luis' ), $this->rows( PostTypes::SPEAKER ) );
@@ -931,6 +966,58 @@ class Test_Lists extends WP_UnitTestCase {
 
 		$_GET = array( 'fmc_sort' => 'hours' );
 		$this->assertSame( array( 'Luis', 'Ana', 'Nadie' ), $this->rows( PostTypes::SPEAKER ), 'sin filtro, todos' );
+	}
+
+	/**
+	 * The links of a speaker's «Ha impartido» menu: text => URL.
+	 *
+	 * @param string $body    List HTML.
+	 * @param int    $speaker Speaker ID.
+	 * @return array<string, string>
+	 */
+	private function menu( string $body, int $speaker ): array {
+		$dom = new DOMDocument();
+		libxml_use_internal_errors( true );
+		$dom->loadHTML( '<?xml encoding="UTF-8"><body>' . $body . '</body>' );
+		libxml_clear_errors();
+		$out  = array();
+		$path = new DOMXPath( $dom );
+		foreach ( $path->query( '//tr[.//a[contains(@href, "fmc_edit=' . $speaker . '")]]//div[contains(@class, "fmc-given-menu")]/a' ) as $link ) {
+			$out[ trim( preg_replace( '/\s+/', ' ', $link->textContent ) ) ] = $link->getAttribute( 'href' ); // phpcs:ignore WordPress.NamingConventions.ValidVariableName.UsedPropertyNotSnakeCase -- DOM.
+		}
+		return $out;
+	}
+
+	/**
+	 * Buscar por palabras encuentra también a quien se recomienda para un
+	 * diseño con ellas, aunque aún no lo haya impartido; con el expediente o
+	 * la fecha, solo cuenta lo impartido.
+	 */
+	public function test_speakers_are_found_by_what_they_are_recommended_for() {
+		$this->as_role( 'fmc_curator' );
+		$drones = $this->post( PostTypes::DESIGN, 'Drones en el aula', array( D::CODE => 'A188' ) );
+		$ana    = $this->post( PostTypes::SPEAKER, 'Ana', array( S::RECOMMENDED => array( $drones ) ) );
+		$luis   = $this->post( PostTypes::SPEAKER, 'Luis' );
+		$this->post( PostTypes::SPEAKER, 'Nadie' );
+		$this->post(
+			PostTypes::ACTION,
+			'Vuelo de drones',
+			array(
+				A::SPEAKERS     => array( $luis ),
+				A::HOURS_ONSITE => 4,
+				A::FILE_NUMBER  => 'XX1',
+			)
+		);
+
+		$_GET['fmc_given'] = 'drones';
+		$this->assertSame( array( 'Luis', 'Ana' ), $this->rows( PostTypes::SPEAKER ), 'lo impartido primero, luego lo recomendado' );
+		$_GET['fmc_given'] = 'a188';
+		$this->assertSame( array( 'Ana' ), $this->rows( PostTypes::SPEAKER ), 'también por el código del diseño' );
+		$_GET['fmc_given'] = 'drones';
+		$_GET['fmc_file']  = 'XX';
+		$this->assertSame( array( 'Luis' ), $this->rows( PostTypes::SPEAKER ) );
+		$this->assertSame( array(), Speakers::recommended_matching( '  ' ) );
+		$this->assertSame( array( $ana ), Speakers::recommended_matching( 'AULA drones' ) );
 	}
 
 	/**
@@ -997,5 +1084,55 @@ class Test_Lists extends WP_UnitTestCase {
 		$this->as_role( 'fmc_adviser' );
 		$this->assertStringNotContainsString( 'papelera', Lists::screen( 'speakers', PostTypes::SPEAKER )['body'] );
 		$this->assertStringNotContainsString( 'Pidió que se borrasen', Lists::screen( 'speakers', PostTypes::SPEAKER )['body'] );
+	}
+
+	/**
+	 * La búsqueda por lo recomendado no delata el título de lo que no se puede
+	 * leer, ni el filtro «Recomendado para» acepta un diseño así.
+	 */
+	public function test_the_recommended_search_respects_what_the_viewer_reads() {
+		$this->as_role( 'fmc_curator' );
+		$old   = $this->post( PostTypes::DESIGN, 'Drones antiguo' );
+		$draft = $this->post( PostTypes::DESIGN, 'Drones secretos', array( D::REPLACES => array( $old ) ), array( 'post_status' => 'draft' ) );
+		$ana   = $this->post( PostTypes::SPEAKER, 'Ana', array( S::RECOMMENDED => array( $old ) ) );
+		$this->post( PostTypes::SPEAKER, 'Luis' );
+
+		$this->assertSame( array( $ana ), Speakers::recommended_matching( 'secretos' ), 'la validación lee el borrador' );
+
+		$this->as_role( 'fmc_adviser' );
+		$this->assertSame( array(), Speakers::recommended_matching( 'secretos' ) );
+		$this->assertSame( array( $ana ), Speakers::recommended_matching( 'antiguo' ) );
+		$_GET['fmc_recommended'] = (string) $draft;
+		$this->assertSame( array( 'Ana', 'Luis' ), $this->rows( PostTypes::SPEAKER ), 'un diseño que no puede leer no filtra' );
+		unset( $_GET['fmc_recommended'] );
+	}
+
+	/**
+	 * Lo recomendado y lo sustituido se leen con su estado, y lo que no se
+	 * puede leer no sale; «En el catálogo» solo si de verdad sale en él.
+	 */
+	public function test_design_titles_carry_their_status() {
+		$this->as_role( 'fmc_curator' );
+		$final = $this->post( PostTypes::DESIGN, 'Vigente', array( D::IN_CATALOGUE => '1' ) );
+		$old   = $this->post(
+			PostTypes::DESIGN,
+			'Viejo',
+			array(
+				D::IN_CATALOGUE => '1',
+				D::CODE         => 'A9',
+			),
+			array( 'post_status' => PostTypes::ARCHIVED )
+		);
+		$other = $this->post( PostTypes::ACTION, 'Una acción' );
+
+		$speaker            = get_post( $this->post( PostTypes::SPEAKER, 'Ana', array( S::RECOMMENDED => array( $final, $old, $other, 0 ) ) ) );
+		$titles             = static fn(): string => Lists::plain( $speaker, S::RECOMMENDED, array( 'w' => 'designs' ) );
+		$this->assertSame( 'Vigente, Viejo (Histórico)', $titles() );
+		$_GET['fmc_status'] = PostTypes::ARCHIVED;
+		$this->assertStringContainsString( '<td>A9</td>', Lists::screen( 'designs', PostTypes::DESIGN )['body'], 'un histórico no está en el catálogo' );
+		unset( $_GET['fmc_status'] );
+
+		$this->as_role( 'fmc_adviser' );
+		$this->assertSame( 'Vigente', $titles() );
 	}
 }

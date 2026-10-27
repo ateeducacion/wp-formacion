@@ -71,6 +71,7 @@ class Test_Catalogue extends WP_UnitTestCase {
 		);
 		$this->design( 'Finalizado fuera' );
 		$this->design( 'Borrador marcado', array( D::IN_CATALOGUE => '1' ), 'draft' );
+		$this->design( 'Histórico marcado', array( D::IN_CATALOGUE => '1' ), PostTypes::ARCHIVED );
 		$this->design(
 			'Taller',
 			array(
@@ -129,12 +130,13 @@ class Test_Catalogue extends WP_UnitTestCase {
 
 	/**
 	 * Lo que no está en el catálogo no tiene ficha: ni un finalizado fuera de
-	 * él, ni un borrador, ni algo que no es un diseño.
+	 * él, ni un borrador, ni un histórico, ni algo que no es un diseño.
 	 */
 	public function test_a_course_outside_the_catalogue_is_not_found() {
 		$ids = array(
 			$this->design( 'Fuera' ),
 			$this->design( 'Borrador', array( D::IN_CATALOGUE => '1' ), 'draft' ),
+			$this->design( 'Histórico', array( D::IN_CATALOGUE => '1' ), PostTypes::ARCHIVED ),
 			self::factory()->post->create( array( 'post_title' => 'Una entrada' ) ),
 		);
 		foreach ( $ids as $id ) {

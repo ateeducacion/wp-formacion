@@ -28,6 +28,16 @@ use Fmc\Taxonomy\Taxonomies;
 final class Editor {
 
 	/**
+	 * Option with the last design code given, so a deleted one is not given again.
+	 */
+	public const CODE_OPTION = 'fmc_design_code_last';
+
+	/**
+	 * Private meta: the designs a design has already sent to the archive by replacing them.
+	 */
+	public const ARCHIVED_META = '_fmc_replaced_archived';
+
+	/**
 	 * Nonce action for a post (0 when new).
 	 *
 	 * @param string $type Post type.
@@ -43,7 +53,9 @@ final class Editor {
 	 *
 	 * Los ponentes son datos personales: abrirlos pide poder gestionarlos, no
 	 * basta con que estén publicados. Quien los gestiona abre cualquiera, para
-	 * consultarlo, aunque solo edite los suyos (ADR-0011).
+	 * consultarlo, aunque solo edite los suyos (ADR-0011). De los diseños, quien
+	 * no los escribe abre los finalizados y nada más, ni por su dirección
+	 * (ADR-0017).
 	 *
 	 * @param \WP_Post $post Post.
 	 * @return bool
@@ -54,7 +66,7 @@ final class Editor {
 		}
 		switch ( $post->post_type ) {
 			case PostTypes::DESIGN:
-				return current_user_can( 'read_post', $post->ID );
+				return 'publish' === $post->post_status && current_user_can( 'read_post', $post->ID );
 			case PostTypes::ACTION:
 				// La que sale en el calendario se puede abrir para verla; se edita si es tuya.
 				return 'publish' === $post->post_status && ( current_user_can( 'read_private_fmc_actions' ) || current_user_can( 'edit_fmc_actions' ) );
@@ -170,9 +182,10 @@ final class Editor {
 		$writable = false;
 		$parent   = $post ? (int) $post->post_parent : absint( $values['_parent'] ?? Lists::arg( Screen::ARG_PARENT ) );
 
-		// Una acción nueva desde un diseño (`fmc_design`): trae su modalidad y sus horas.
+		// Una acción nueva desde un diseño (`fmc_design`): trae su modalidad y sus
+		// horas. Solo si está finalizado: de otro, ni el título (ADR-0016).
 		$from = absint( Lists::arg( 'fmc_design' ) );
-		if ( ! $post && PostTypes::ACTION === $type && $from && PostTypes::DESIGN === get_post_type( $from ) ) {
+		if ( ! $post && PostTypes::ACTION === $type && $from && PostTypes::DESIGN === get_post_type( $from ) && 'publish' === get_post_status( $from ) ) {
 			$values += array(
 				A::DESIGN_ID    => $from,
 				A::MODALITY     => get_post_meta( $from, D::MODALITY, true ),
@@ -223,7 +236,11 @@ final class Editor {
 				$writable = $writable || $can;
 				$value    = array_key_exists( $key, $values ) ? $values[ $key ] : self::value( $post, $key );
 				$shown    = self::shown( $field, static fn( $k ) => array_key_exists( $k, $values ) ? $values[ $k ] : self::value( $post, $k ) );
-				$field   += array( 'design' => (int) ( array_key_exists( A::DESIGN_ID, $values ) ? $values[ A::DESIGN_ID ] : self::value( $post, A::DESIGN_ID ) ) );
+				$field   += array(
+					'design' => (int) ( array_key_exists( A::DESIGN_ID, $values ) ? $values[ A::DESIGN_ID ] : self::value( $post, A::DESIGN_ID ) ),
+					'post'   => $id,
+					'stored' => self::value( $post, $key ),
+				);
 				$body    .= 'docs' === $field['w'] ? self::docs( $post, $can ) : self::field( $type, $key, $field, $value, $can, isset( $errors[ $key ] ), $shown );
 			}
 			$body .= '</div></div></fieldset>';
@@ -250,7 +267,7 @@ final class Editor {
 		$badges = $post ? Lists::badge( $post ) : '';
 		return array(
 			'tab'      => $tab,
-			'back'     => '<a class="small" href="' . esc_url( Screen::url( array( Screen::ARG_TAB => $tab ) ) ) . '">← ' . esc_html( $object->labels->name ) . '</a>',
+			'back'     => '<a class="small" href="' . esc_url( Screen::url( array( Screen::ARG_TAB => $tab ) ) ) . '">← ' . esc_html( Screen::TITLES[ $tab ] ?? $object->labels->name ) . '</a>',
 			'title'    => $post ? Lists::title( $post ) : $object->labels->new_item,
 			// El subtítulo de la acción se añade al título, debajo (ADR-0009).
 			'subtitle' => $post && PostTypes::ACTION === $type ? (string) get_post_meta( $post->ID, A::SUBTITLE, true ) : '',
@@ -278,25 +295,38 @@ final class Editor {
 	}
 
 	/**
-	 * The next design code: the highest number in use plus one, same prefix.
+	 * The next design code: a letter and three digits, after the highest in use.
+	 *
+	 * Tras el `A999` viene el `B001`. Los números que se pierden al borrar un
+	 * diseño no se reutilizan, aunque se borre para siempre: el último que se
+	 * dio queda en una opción (`CODE_OPTION`). Un código ya ha podido salir en
+	 * un documento, y debe seguir diciendo de qué diseño se trata.
 	 *
 	 * @return string
 	 */
 	public static function next_code(): string {
 		// ponytail: dos altas en el mismo segundo podrían llevarse el mismo código;
-		// si llega a pasar, un índice único en la meta o un contador en una opción.
+		// si llega a pasar, un índice único en la meta.
 		global $wpdb;
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery -- el mayor código en uso; no hay API para esto.
-		$codes  = $wpdb->get_col( $wpdb->prepare( "SELECT meta_value FROM $wpdb->postmeta WHERE meta_key = %s", D::CODE ) );
-		$prefix = D::CODE_PREFIX;
-		$max    = 0;
+		$codes   = $wpdb->get_col( $wpdb->prepare( "SELECT meta_value FROM $wpdb->postmeta WHERE meta_key = %s", D::CODE ) );
+		$codes[] = (string) get_option( self::CODE_OPTION, '' );
+		$prefix  = D::CODE_PREFIX;
+		$max     = 0;
 		foreach ( $codes as $code ) {
-			if ( preg_match( '/^([A-Za-z]*)(\d+)$/', trim( (string) $code ), $m ) && (int) $m[2] > $max ) {
+			if ( ! preg_match( '/^([A-Za-z])(\d+)$/', trim( (string) $code ), $m ) ) {
+				continue;
+			}
+			$letter = strtoupper( $m[1] );
+			if ( strcmp( $letter, $prefix ) > 0 || ( $letter === $prefix && (int) $m[2] > $max ) ) {
+				$prefix = $letter;
 				$max    = (int) $m[2];
-				$prefix = $m[1];
 			}
 		}
-		return $prefix . ( $max + 1 );
+		if ( $max >= 999 && 'Z' !== $prefix ) {
+			return chr( ord( $prefix ) + 1 ) . '001';
+		}
+		return $prefix . str_pad( (string) ( $max + 1 ), 3, '0', STR_PAD_LEFT );
 	}
 
 	/**
@@ -320,7 +350,7 @@ final class Editor {
 							'fmc_design'    => $post->ID,
 						)
 					)
-				) . '">Crear una acción con este diseño</a> ';
+				) . '">Agendar una acción con este diseño</a> ';
 			}
 			// Solo lo que está en el catálogo tiene ficha pública.
 			if ( Catalogue::is_listed( $post ) ) {
@@ -335,7 +365,8 @@ final class Editor {
 	}
 
 	/**
-	 * Save buttons: the design ones move it through its cycle (ADR-0004).
+	 * Save buttons: the design ones move it through its cycle (ADR-0004,
+	 * ADR-0016). Solo la validación finaliza, pasa a histórico y lo recupera.
 	 *
 	 * @param string        $type Post type.
 	 * @param \WP_Post|null $post Post.
@@ -351,16 +382,19 @@ final class Editor {
 		}
 		$status = $post ? $post->post_status : 'draft';
 		$out    = '';
-		if ( 'publish' !== $status ) {
+		if ( ! in_array( $status, array( 'publish', PostTypes::ARCHIVED ), true ) ) {
 			$out .= $button( 'draft', 'Guardar borrador', 'btn-outline-primary' );
 			$out .= $button( 'pending', 'Mandar a revisión', 'pending' === $status ? 'btn-outline-warning' : 'btn-warning' );
 		}
-		if ( current_user_can( 'publish_fmc_designs' ) ) {
-			$out .= 'publish' === $status
-				? $button( 'publish', 'Guardar', 'btn-primary' ) . $button( 'draft', 'Devolver a borrador', 'btn-outline-secondary' )
-				: $button( 'publish', 'Dar por finalizado', 'btn-success' );
+		if ( ! current_user_can( 'publish_fmc_designs' ) ) {
+			return $out;
 		}
-		return $out;
+		if ( PostTypes::ARCHIVED === $status ) {
+			return $out . $button( PostTypes::ARCHIVED, 'Guardar', 'btn-primary' ) . $button( 'publish', 'Recuperar del histórico', 'btn-outline-success' );
+		}
+		return $out . ( 'publish' === $status
+			? $button( 'publish', 'Guardar', 'btn-primary' ) . $button( 'draft', 'Devolver a borrador', 'btn-outline-secondary' ) . $button( PostTypes::ARCHIVED, 'Pasar a histórico', 'btn-outline-dark' )
+			: $button( 'publish', 'Dar por finalizado', 'btn-success' ) );
 	}
 
 	/**
@@ -387,6 +421,10 @@ final class Editor {
 		}
 		// «Añadir ponente nuevo no incluido en la lista», como en el formulario
 		// anterior: se abre en otra pestaña y luego se elige aquí.
+		// Sin cuentas de asesoría, la lista sale vacía: que se sepa por qué.
+		if ( $can && 'adviser' === $f['w'] && array() === self::advisers() ) {
+			$help .= '<div class="form-text">Aún no hay ninguna asesoría con cuenta en el aplicativo: la administración las da de alta en «Usuarios», con el rol «Asesoría de formación».</div>';
+		}
 		if ( $can && ! empty( $f['add'] ) && current_user_can( get_post_type_object( $f['add'] )->cap->create_posts ) ) {
 			$help .= '<div class="form-text"><a href="' . esc_url(
 				Screen::url(
@@ -414,6 +452,13 @@ final class Editor {
 			case 'adviser':
 				$choices = self::choices( $f, $key );
 				$current = is_array( $value ) ? (string) ( $value[0] ?? '' ) : (string) $value;
+				// El diseño guardado de una acción antigua se conserva aunque ya no
+				// se ofrezca; uno que llegue por la dirección o el formulario, no. Su
+				// título no descubre nada: la acción se llama como él (ADR-0009).
+				$kept = absint( $current );
+				if ( 'design' === $f['w'] && $kept && ! isset( $choices[ $kept ] ) && absint( $f['stored'] ?? 0 ) === $kept && PostTypes::DESIGN === get_post_type( $kept ) ) {
+					$choices[ $kept ] = self::design_label( get_post( $kept ) );
+				}
 				// Las listas largas llevan buscador (Tom Select); las cortas, el select de siempre.
 				$search = count( $choices ) > 10 ? ' data-fmc-ts data-placeholder="Escriba para buscar…"' : '';
 				$input  = '<select class="form-select' . $invalid . '" id="' . esc_attr( $id ) . '" name="' . esc_attr( $name ) . '"' . $search . $disabled . '><option value="">—</option>';
@@ -430,9 +475,11 @@ final class Editor {
 				// hace que quitarlos todos también se guarde.
 				$choices = self::choices( $f, $key );
 				$current = array_map( 'strval', array_filter( (array) $value ) );
-				// Lo ya elegido se conserva aunque la lista ya no lo ofrezca (un diseño histórico).
+				// Lo ya guardado se conserva aunque la lista ya no lo ofrezca (un diseño histórico).
+				$stored  = array_map( 'strval', array_filter( (array) ( $f['stored'] ?? array() ) ) );
+				$current = array_values( array_intersect( $current, array_merge( array_map( 'strval', array_keys( $choices ) ), $stored ) ) );
 				foreach ( array_diff( $current, array_map( 'strval', array_keys( $choices ) ) ) as $kept ) {
-					$choices[ $kept ] = get_the_title( (int) $kept ) . ' (fuera del catálogo)';
+					$choices[ $kept ] = 'speakers' === $f['w'] ? get_the_title( (int) $kept ) : self::kept_label( (int) $kept );
 				}
 				$people = 'speakers' === $f['w'];
 				$map    = $people ? Speakers::recommended_map() : array();
@@ -572,19 +619,50 @@ final class Editor {
 		if ( 'adviser' === $f['w'] ) {
 			return self::advisers();
 		}
-		$type  = 'speakers' === $f['w'] ? PostTypes::SPEAKER : PostTypes::DESIGN;
-		$query = self::posts_query( $type, ! empty( $f['catalogue'] ) );
+		$type = 'speakers' === $f['w'] ? PostTypes::SPEAKER : PostTypes::DESIGN;
+		// El diseño de una acción, como los recomendados, ha de estar finalizado:
+		// un borrador aún no se imparte (ADR-0016).
+		$query = self::posts_query( $type, ! empty( $f['active'] ) || 'design' === $f['w'] );
 		if ( PostTypes::SPEAKER === $type ) {
 			return self::speaker_choices( get_posts( $query ), (int) ( $f['design'] ?? 0 ) );
 		}
 		$out = array();
 		foreach ( get_posts( $query ) as $p ) {
-			$code          = (string) get_post_meta( $p->ID, D::CODE, true );
-			$kind          = D::TYPES[ (string) get_post_meta( $p->ID, D::TYPE, true ) ] ?? '';
-			$notes         = array_filter( array( $kind, 'publish' !== $p->post_status ? Lists::DESIGN_STATUSES[ $p->post_status ][0] ?? '' : '' ) );
-			$out[ $p->ID ] = ( '' !== $code ? $code . ' · ' : '' ) . get_the_title( $p ) . ( $notes ? ' (' . implode( ', ', $notes ) . ')' : '' );
+			$out[ $p->ID ] = self::design_label( $p );
 		}
+		// Un diseño no se sustituye a sí mismo.
+		unset( $out[ (int) ( $f['post'] ?? 0 ) ] );
 		return $out;
+	}
+
+	/**
+	 * A design kept in a field though no longer offered, as the viewer may see it.
+	 *
+	 * A quien no puede leerlo —un histórico o un borrador, para la asesoría—
+	 * no se le dice ni el título (ADR-0017).
+	 *
+	 * @param int $id Design ID.
+	 * @return string
+	 */
+	private static function kept_label( int $id ): string {
+		$post = get_post( $id );
+		if ( ! $post instanceof \WP_Post || PostTypes::DESIGN !== $post->post_type || ! current_user_can( 'read_post', $id ) ) {
+			return 'Un diseño que ya no se ofrece';
+		}
+		return self::design_label( $post );
+	}
+
+	/**
+	 * A design as a choice: code, title, type and, unless finalised, its status.
+	 *
+	 * @param \WP_Post $p Design.
+	 * @return string
+	 */
+	private static function design_label( \WP_Post $p ): string {
+		$code  = (string) get_post_meta( $p->ID, D::CODE, true );
+		$kind  = D::TYPES[ (string) get_post_meta( $p->ID, D::TYPE, true ) ] ?? '';
+		$notes = array_filter( array( $kind, 'publish' !== $p->post_status ? Lists::DESIGN_STATUSES[ $p->post_status ][0] ?? '' : '' ) );
+		return ( '' !== $code ? $code . ' · ' : '' ) . get_the_title( $p ) . ( $notes ? ' (' . implode( ', ', $notes ) . ')' : '' );
 	}
 
 	/**
@@ -609,14 +687,19 @@ final class Editor {
 	/**
 	 * The query of the posts a field chooses from.
 	 *
-	 * @param string $type      Post type.
-	 * @param bool   $catalogue Only designs in the public catalogue.
+	 * Un diseño que sustituye a otros puede sustituir a uno histórico: esa
+	 * lista lleva todos los estados, para quien escribe diseños. Las demás, y
+	 * para quien solo los consulta, solo lo finalizado.
+	 *
+	 * @param string $type   Post type.
+	 * @param bool   $active Only finalised designs.
 	 * @return array<string, mixed>
 	 */
-	private static function posts_query( string $type, bool $catalogue ): array {
-		$query = array(
+	private static function posts_query( string $type, bool $active ): array {
+		$all = PostTypes::DESIGN === $type && ! $active && current_user_can( 'edit_others_fmc_designs' );
+		return array(
 			'post_type'        => $type,
-			'post_status'      => PostTypes::DESIGN === $type && ! $catalogue ? array( 'publish', 'pending', 'draft' ) : 'publish',
+			'post_status'      => $all ? array( 'publish', 'pending', 'draft', PostTypes::ARCHIVED ) : 'publish',
 			'posts_per_page'   => -1,
 			'orderby'          => 'title',
 			'order'            => 'ASC',
@@ -624,16 +707,6 @@ final class Editor {
 			'suppress_filters' => false,
 			'no_found_rows'    => true,
 		);
-		if ( $catalogue ) {
-			// phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_query -- solo los diseños del catálogo.
-			$query['meta_query'] = array(
-				array(
-					'key'   => D::IN_CATALOGUE,
-					'value' => '1',
-				),
-			);
-		}
-		return $query;
 	}
 
 	/**
@@ -901,6 +974,8 @@ final class Editor {
 		$values   = array();
 		$errors   = array();
 		$writable = array();
+		// Lo que pasa a histórico no se completa: ni obligatorios ni título único.
+		$archiving = PostTypes::DESIGN === $type && PostTypes::ARCHIVED === self::next_status( $type, $post, $status );
 		foreach ( $fields as $key => $f ) {
 			if ( 'docs' === $f['w'] || ! self::can_write( $type, $key, $id ) ) {
 				continue;
@@ -915,9 +990,11 @@ final class Editor {
 			$values[ $key ] = $value;
 		}
 
+		$errors = self::check_choices( $fields, $values, $post );
+
 		// Lo que se deja en blanco en la acción se toma del diseño, como hacía el
 		// formulario anterior al elegir la acción formativa.
-		if ( PostTypes::ACTION === $type && ! empty( $values[ A::DESIGN_ID ] ) ) {
+		if ( PostTypes::ACTION === $type && ! empty( $values[ A::DESIGN_ID ] ) && ! isset( $errors[ A::DESIGN_ID ] ) ) {
 			$design = (int) $values[ A::DESIGN_ID ];
 			if ( isset( $values[ A::MODALITY ] ) && '' === $values[ A::MODALITY ] ) {
 				$values[ A::MODALITY ] = (string) get_post_meta( $design, D::MODALITY, true );
@@ -939,8 +1016,13 @@ final class Editor {
 				$values[ $key ] = is_array( $value ) ? array() : '';
 				continue;
 			}
+			if ( isset( $errors[ $key ] ) ) {
+				continue;
+			}
 			$empty = '' === $value || array() === $value;
-			if ( ! empty( $f['req'] ) && $empty && ! ( 'post_title' === $key && PostTypes::ACTION === $type ) ) {
+			// Un número obligatorio sin mínimo propio, como las horas, no vale cero.
+			$missing = $empty || ( 'number' === $f['w'] && ! isset( $f['min'] ) && (float) $value <= 0 );
+			if ( ! empty( $f['req'] ) && $missing && ! $archiving && ! ( 'post_title' === $key && PostTypes::ACTION === $type ) ) {
 				$errors[ $key ] = 'Falta rellenar «' . $f['label'] . '».';
 				continue;
 			}
@@ -948,7 +1030,9 @@ final class Editor {
 				$errors[ $key ] = '«' . $f['label'] . '» tiene que estar entre ' . (int) ( $f['min'] ?? 0 ) . ' y ' . (int) $f['max'] . '.';
 				continue;
 			}
-			if ( ! $empty && ! empty( $f['unique'] ) && self::taken( $type, $key, (string) $value, $id ) ) {
+			// El diseño que se sustituye puede llevar el mismo título que el nuevo.
+			$others = PostTypes::DESIGN === $type ? array_map( 'intval', (array) $read( D::REPLACES ) ) : array();
+			if ( ! $empty && ! empty( $f['unique'] ) && ! $archiving && self::taken( $type, $key, (string) $value, $id, $others ) ) {
 				$errors[ $key ] = 'Ya hay otro con ese valor en «' . $f['label'] . '».';
 			}
 		}
@@ -985,6 +1069,7 @@ final class Editor {
 		// El código del diseño lo pone el aplicativo, la primera vez que se guarda.
 		if ( PostTypes::DESIGN === $type && ( ! $post || '' === (string) get_post_meta( $post->ID, D::CODE, true ) ) ) {
 			$values[ D::CODE ] = self::next_code();
+			update_option( self::CODE_OPTION, $values[ D::CODE ], false );
 		}
 		if ( PostTypes::SPEAKER === $type && isset( $values['fmc_last_name'] ) ) {
 			$postarr['post_title'] = trim( $values['fmc_last_name'] . ', ' . $values['fmc_first_name'], ', ' );
@@ -1033,6 +1118,9 @@ final class Editor {
 		if ( PostTypes::DESIGN === $type && ( $files || $remove ) ) {
 			$problems = Documents::apply( $id, $files, $remove );
 		}
+		if ( PostTypes::DESIGN === $type && 'publish' === get_post_status( $id ) ) {
+			self::archive_replaced( $id );
+		}
 
 		return array(
 			'outcome'  => $post ? 'saved' : 'created',
@@ -1044,22 +1132,105 @@ final class Editor {
 	}
 
 	/**
+	 * Send to the archive the designs a finalised design replaces (ADR-0016).
+	 *
+	 * Cada uno, una vez: lo que ya se pasó queda apuntado en `ARCHIVED_META`, y
+	 * uno que se recupera a mano del histórico no vuelve a él al guardar el
+	 * nuevo, ni al finalizarlo otra vez. Mientras el nuevo no está finalizado,
+	 * el viejo sigue en uso. Solo lo hace quien finaliza; lo que no puede
+	 * editar no se toca, y lo que ya es histórico o está en la papelera se
+	 * queda como está.
+	 *
+	 * @param int $design Finalised design.
+	 * @return void
+	 */
+	private static function archive_replaced( int $design ): void {
+		if ( ! current_user_can( 'publish_fmc_designs' ) ) {
+			return;
+		}
+		$done = array_map( 'intval', (array) get_post_meta( $design, self::ARCHIVED_META, true ) );
+		foreach ( array_diff( array_map( 'intval', (array) get_post_meta( $design, D::REPLACES, true ) ), $done ) as $old ) {
+			$post = get_post( $old );
+			if ( $old === $design || ! $post instanceof \WP_Post || PostTypes::DESIGN !== $post->post_type || ! current_user_can( 'edit_post', $old ) ) {
+				continue;
+			}
+			if ( in_array( $post->post_status, Lists::DESIGN_CURRENT, true ) ) {
+				wp_update_post(
+					array(
+						'ID'          => $old,
+						'post_status' => PostTypes::ARCHIVED,
+					)
+				);
+			}
+			$done[] = $old;
+		}
+		update_post_meta( $design, self::ARCHIVED_META, array_values( array_filter( $done ) ) );
+	}
+
+	/**
+	 * The designs and speakers chosen exist and may be chosen.
+	 *
+	 * La lista de la pantalla no protege nada: el formulario puede llegar con
+	 * cualquier identificador. El diseño de una acción y «Recomendado para» han
+	 * de ser diseños finalizados; «Sustituye a», un diseño que quien guarda
+	 * puede leer; un ponente, un ponente publicado. Lo que ya estaba guardado se
+	 * conserva aunque haya dejado de cumplirlo (ADR-0016).
+	 *
+	 * @param array<string, array<string, mixed>> $fields Fields of the type.
+	 * @param array<string, mixed>                $values Submitted values; unknown ones are dropped.
+	 * @param \WP_Post|null                       $post   Post being saved.
+	 * @return array<string, string> Field key => what is wrong with it.
+	 */
+	private static function check_choices( array $fields, array &$values, ?\WP_Post $post ): array {
+		$errors = array();
+		foreach ( $values as $key => $value ) {
+			$w = $fields[ $key ]['w'];
+			if ( ! in_array( $w, array( 'design', 'designs', 'speakers' ), true ) || '' === $value || array() === $value ) {
+				continue;
+			}
+			$type   = 'speakers' === $w ? PostTypes::SPEAKER : PostTypes::DESIGN;
+			$active = 'designs' !== $w || ! empty( $fields[ $key ]['active'] );
+			$stored = array_map( 'intval', (array) self::value( $post, $key ) );
+			$ok     = static function ( int $id ) use ( $type, $active, $stored ): bool {
+				$p = get_post( $id );
+				if ( in_array( $id, $stored, true ) ) {
+					return true;
+				}
+				if ( ! $p instanceof \WP_Post || $type !== $p->post_type ) {
+					return false;
+				}
+				return $active ? 'publish' === $p->post_status : 'trash' !== $p->post_status && current_user_can( 'read_post', $id );
+			};
+			if ( 'design' === $w ) {
+				if ( ! $ok( absint( $value ) ) ) {
+					$errors[ $key ] = 'El diseño elegido no está finalizado: solo se agenda una acción con un diseño finalizado.';
+				}
+				continue;
+			}
+			$values[ $key ] = array_values( array_filter( (array) $value, static fn( $v ) => $ok( absint( $v ) ) ) );
+		}
+		return $errors;
+	}
+
+	/**
 	 * Whether another post of the type already holds a value.
 	 *
-	 * @param string $type  Post type.
-	 * @param string $key   Field key: `post_title` or a meta key.
-	 * @param string $value Value.
-	 * @param int    $id    Post being saved, which does not count.
+	 * @param string $type   Post type.
+	 * @param string $key    Field key: `post_title` or a meta key.
+	 * @param string $value  Value.
+	 * @param int    $id     Post being saved, which does not count.
+	 * @param int[]  $others Other posts that do not count either.
 	 * @return bool
 	 */
-	public static function taken( string $type, string $key, string $value, int $id ): bool {
+	public static function taken( string $type, string $key, string $value, int $id, array $others = array() ): bool {
+		// Un histórico no cuenta: la versión nueva de un curso puede llevar su título.
 		$args = array(
 			'post_type'      => $type,
 			'post_status'    => array( 'publish', 'pending', 'draft', 'private' ),
 			'posts_per_page' => 1,
 			'fields'         => 'ids',
 			'no_found_rows'  => true,
-			'post__not_in'   => array( $id ), // phpcs:ignore WordPressVIPMinimum.Performance.WPQueryParams.PostNotIn_post__not_in -- una sola fila.
+			'post__not_in'   => array_merge( array( $id ), $others ), // phpcs:ignore WordPressVIPMinimum.Performance.WPQueryParams.PostNotIn_post__not_in -- una sola fila.
 		);
 		if ( 'post_title' === $key ) {
 			$args['title'] = $value;
@@ -1085,10 +1256,12 @@ final class Editor {
 	public static function next_status( string $type, ?\WP_Post $post, string $requested ): string {
 		$current = $post ? $post->post_status : '';
 		if ( PostTypes::DESIGN === $type ) {
-			if ( 'publish' === $requested && ! current_user_can( 'publish_fmc_designs' ) ) {
+			// Finalizar, pasar a histórico y sacar de él, solo la validación.
+			$moves = in_array( $requested, array( 'publish', PostTypes::ARCHIVED ), true ) || ( PostTypes::ARCHIVED === $current && '' !== $requested );
+			if ( $moves && ! current_user_can( 'publish_fmc_designs' ) ) {
 				return '' !== $current ? $current : 'draft';
 			}
-			return in_array( $requested, array( 'draft', 'pending', 'publish' ), true ) ? $requested : ( '' !== $current ? $current : 'draft' );
+			return in_array( $requested, array( 'draft', 'pending', 'publish', PostTypes::ARCHIVED ), true ) ? $requested : ( '' !== $current ? $current : 'draft' );
 		}
 		if ( '' !== $current ) {
 			return $current;

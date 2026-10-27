@@ -51,6 +51,10 @@ class Test_Meta extends WP_UnitTestCase {
 		$this->assertSame( '', MetaRegistration::sanitize( PostTypes::DESIGN, DesignMetaKeys::MODALITY, 'mixta' ) );
 		$this->assertSame( '', MetaRegistration::sanitize( PostTypes::ACTION, ActionMetaKeys::SITUATION, 'lo que sea' ) );
 		$this->assertSame( 'retired_teacher', MetaRegistration::sanitize( PostTypes::SPEAKER, SpeakerMetaKeys::PROFESSION, 'retired_teacher' ) );
+		// Cada etapa del docente es un valor de la lista (adenda de la ADR-0015).
+		foreach ( array( 'primary_teacher', 'secondary_teacher', 'vocational_teacher', 'language_teacher', 'teacher' ) as $stage ) {
+			$this->assertSame( $stage, MetaRegistration::sanitize( PostTypes::SPEAKER, SpeakerMetaKeys::PROFESSION, $stage ) );
+		}
 		$this->assertSame( '', MetaRegistration::sanitize( PostTypes::SPEAKER, SpeakerMetaKeys::PROFESSION, 'Profesor de Secundaria' ) );
 	}
 

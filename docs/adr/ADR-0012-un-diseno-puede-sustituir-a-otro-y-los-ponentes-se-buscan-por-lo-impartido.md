@@ -158,3 +158,28 @@ la búsqueda por palabra clave, **no** un vínculo entre diseños: no se guarda.
   como otra relación junto a `fmc_replaces`, con su propia ADR.
 - La zona por la que se ordena es la del ponente (`fmc_zone`), no la de las
   acciones que ha impartido.
+
+## Adenda — 2026-10-27: lo sustituido pasa a histórico, y se busca también por lo recomendado
+
+En la segunda revisión con la validación, el 2026-10-27:
+
+- **Piezas 1 y 2.** La
+  [ADR-0016](ADR-0016-lo-que-ya-no-se-imparte-es-un-estado-del-diseno.md) las
+  corrige. Al finalizar un diseño, los que sustituye pasan a histórico, en vez
+  de quedarse como estaban. Y «Recomendado para» ofrece los diseños **finalizados**, estén
+  o no en el catálogo público. La casilla del catálogo deja de significar
+  «histórico».
+- **Pieza 3.** El filtro pasa a llamarse «Impartido o recomendado». Con solo
+  palabras —sin expediente ni fecha, que son de las acciones—, encuentra
+  también a quien se recomienda para un diseño cuyo título o código las
+  lleva, contando la cadena de sustituciones (`Speakers::recommended_matching()`).
+  Así se encuentra, por tema, a un ponente que aún no ha impartido nada, si se
+  le recomienda para algo: se atenúa lo que la Opción 3 decía en contra.
+- **Lo impartido, una a una.** En el listado, «N acción(es)» abre un menú con
+  las más recientes de las que cuentan con los filtros puestos. Cada una lleva
+  a su ficha, y un enlace final lleva al listado de acciones filtrado por ese
+  ponente (`Lists::given_html()`, `Speakers::given()`). Se pidió porque lo
+  impartido y lo recomendado no siempre coinciden, y las dos cosas ayudan a
+  decidir a quién llamar.
+
+Asistencia de IA: Claude Code (claude-opus-5-5).

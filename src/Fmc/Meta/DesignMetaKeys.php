@@ -12,7 +12,8 @@ namespace Fmc\Meta;
  *
  * La descripción va en `post_content`; el título, en `post_title`. El estado
  * del diseño **no es una meta**: es el `post_status` de WordPress —borrador,
- * pendiente de revisión, finalizado (`publish`)— (ADR-0004).
+ * pendiente de revisión, finalizado (`publish`)— (ADR-0004), más uno propio
+ * para lo que ya no se imparte, «Histórico» (ADR-0016).
  */
 final class DesignMetaKeys {
 
@@ -43,7 +44,7 @@ final class DesignMetaKeys {
 	public const CODE_PREFIX = 'A';
 
 	/**
-	 * Training types. «Histórico» is not a type: it follows from the dates.
+	 * Training types. «Histórico» is not a type: it is a design status (ADR-0016).
 	 */
 	public const TYPES = array(
 		'course'       => 'Curso',

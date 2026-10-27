@@ -33,13 +33,18 @@ final class SpeakerMetaKeys {
 	 *
 	 * Corta a propósito: en el sistema anterior era texto libre y acabó con
 	 * «Docente», «profesora», «Maestro» y «Profesor Secundaria jubilado» para
-	 * decir lo mismo. Lo que importa al elegir es si está en activo, si se ha
-	 * jubilado o si viene de fuera.
+	 * decir lo mismo. Lo que importa al elegir es si está en activo, y en qué
+	 * etapa, si se ha jubilado o si viene de fuera. `teacher` es el docente en
+	 * activo del que no consta la etapa: el sistema anterior no la pedía.
 	 */
 	public const PROFESSIONS = array(
-		'teacher'         => 'Docente en activo',
-		'retired_teacher' => 'Docente jubilado',
-		'external'        => 'No docente o externo',
+		'primary_teacher'    => 'Docente de infantil y primaria',
+		'secondary_teacher'  => 'Docente de secundaria y bachillerato',
+		'vocational_teacher' => 'Docente de formación profesional',
+		'language_teacher'   => 'Docente de escuela oficial de idiomas',
+		'teacher'            => 'Docente en activo, sin etapa indicada',
+		'retired_teacher'    => 'Docente jubilado',
+		'external'           => 'No docente o externo',
 	);
 
 	/**

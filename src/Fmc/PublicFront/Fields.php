@@ -29,6 +29,8 @@ use Fmc\PostType\PostTypes;
  * Las reglas del formulario anterior van aparte, en {@see rules()}: `min` y
  * `max`, `unique` (no se repite en otro del mismo tipo) y `show` (el campo solo
  * cuenta si otro tiene uno de esos valores; si no, se oculta y se guarda vacío).
+ * Un campo con `req` y `show` es obligatorio solo cuando se ve. `active`, en
+ * una lista de diseños, ofrece solo los finalizados (ADR-0016).
  */
 final class Fields {
 
@@ -80,12 +82,16 @@ final class Fields {
 				D::PRACTICE     => $rich,
 				D::TIMING       => $rich,
 				D::NOTES        => $rich,
+				// Las horas de cada parte, obligatorias cuando la modalidad la
+				// tiene: una mixta pide las dos.
 				D::HOURS_ONSITE => array(
 					'max'  => 200,
+					'req'  => true,
 					'show' => array( D::MODALITY => $onsite ),
 				),
 				D::HOURS_ONLINE => array(
 					'max'  => 200,
+					'req'  => true,
 					'show' => array( D::MODALITY => $online ),
 				),
 			),
@@ -117,8 +123,9 @@ final class Fields {
 			),
 			PostTypes::SPEAKER  => array(
 				S::ID_NUMBER   => array( 'unique' => true ),
-				// Solo los diseños del catálogo: los históricos ya no se imparten.
-				S::RECOMMENDED => array( 'catalogue' => true ),
+				// Solo los finalizados: un borrador aún no se imparte y un
+				// histórico ya no (ADR-0016).
+				S::RECOMMENDED => array( 'active' => true ),
 			),
 			PostTypes::INCIDENT => array(
 				I::RESOLUTION_NOTES => array( 'show' => array( I::RESOLUTION => array( 'approved', 'denied' ) ) ),
@@ -152,7 +159,7 @@ final class Fields {
 				'help'   => 'Cómo se llama el diseño y de qué tipo es. El código lo asigna el aplicativo y no cambia.',
 				'fields' => array(
 					'post_title'    => array(
-						'label' => 'Título del curso',
+						'label' => 'Título',
 						'w'     => 'text',
 						'req'   => true,
 						'help'  => 'Tal y como sale en el catálogo. Empiece por «Curso:» o «APU:» si así se viene haciendo.',
@@ -192,7 +199,7 @@ final class Fields {
 						'label' => 'Sale en el catálogo público',
 						'w'     => 'checkbox',
 						'col'   => 4,
-						'help'  => 'Aparte de estar finalizado. Fuera del catálogo, es histórico: ya no se recomienda a ponentes.',
+						'help'  => 'Solo sale si, además, está finalizado. Lo que ya no se imparte no se quita de aquí: se pasa a histórico.',
 					),
 				),
 			),
@@ -214,7 +221,7 @@ final class Fields {
 						'label' => 'Sustituye a',
 						'w'     => 'designs',
 						'col'   => 6,
-						'help'  => 'Los diseños que este deja en histórico: sus ponentes recomendados pasan a serlo de este.',
+						'help'  => 'Al dar este por finalizado, los que sustituye pasan a histórico y sus ponentes recomendados pasan a este diseño.',
 					),
 					// Las áreas antiguas ya no se rellenan: manda el perfil del marco
 					// de referencia, y de él sale el resumen (ver Editor).
@@ -296,7 +303,7 @@ final class Fields {
 						'label' => 'Diseño',
 						'w'     => 'design',
 						'req'   => true,
-						'help'  => 'La acción lleva el título del diseño, y no se cambia.',
+						'help'  => 'Solo los diseños finalizados. La acción lleva el título del diseño, y no se cambia.',
 					),
 					A::SUBTITLE        => array(
 						'label' => 'Subtítulo',
@@ -618,7 +625,7 @@ final class Fields {
 					S::RECOMMENDED => array(
 						'label' => 'Recomendado para los diseños',
 						'w'     => 'designs',
-						'help'  => 'Escriba para buscar y añadir; la «×» de cada uno lo quita. Solo se ofrecen los diseños del catálogo.',
+						'help'  => 'Escriba para buscar y añadir; la «×» de cada uno lo quita. Solo se ofrecen los diseños finalizados: ni borradores ni históricos.',
 					),
 					S::NOTES       => array(
 						'label' => 'Observaciones',

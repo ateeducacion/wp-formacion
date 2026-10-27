@@ -8,6 +8,46 @@ lee de la cabecera superior y la escribe en el `@version` del bundle.
 `make release` crea el tag y la release en GitHub; el despliegue de los snippets
 en el sitio de destino se hace después.
 
+## [0.0.5] — 2026-10-27
+
+Lo que sale de la segunda revisión del aplicativo, el 2026-10-27: el porqué está en el §10 de [REQ-0001](docs/requisitos/REQ-0001-aplicativo-de-formacion.md), en la [ADR-0016](docs/adr/ADR-0016-lo-que-ya-no-se-imparte-es-un-estado-del-diseno.md) y la [ADR-0017](docs/adr/ADR-0017-la-asesoria-consulta-los-disenos-finalizados-y-no-los-escribe.md), y en las adendas de la 0004, la 0012 y la 0015.
+
+### Añadido
+
+- **Estado «Histórico» para los diseños** ([ADR-0016](docs/adr/ADR-0016-lo-que-ya-no-se-imparte-es-un-estado-del-diseno.md)): lo que ya no se imparte se pasa a histórico desde la ficha, y se recupera de él
+- Un diseño histórico no sale en el catálogo público ni se puede elegir, y en el listado de diseños tiene su propio contador, aparte de los vigentes
+- Solo la validación pasa un diseño a histórico o lo recupera
+- **Lo que ha impartido cada ponente, acción por acción**: en el listado, «N acción(es)» abre un menú con las más recientes, cada una a su ficha, y el enlace al listado de acciones de ese ponente
+- **Buscar ponentes por lo que se les recomienda**: el filtro «Impartido o recomendado» encuentra también a quien se recomienda para un diseño con esas palabras en el título o en el código, aunque todavía no lo haya impartido
+- **Si no hay ninguna cuenta de asesoría**, la ficha de la acción dice por qué «Asesoría responsable» sale vacía
+
+### Cambiado
+
+- **El aplicativo se llama «Planificador de formación»**, y sus pestañas, «Planificación de acciones formativas» (el calendario) y «Diseño de acciones formativas»
+- En el escritorio de WordPress, el menú de los diseños pasa a llamarse «Diseños de acciones formativas»
+- El botón de alta de una acción dice «Agendar acción formativa», y en la ficha del diseño, «Agendar una acción con este diseño»
+- **La asesoría consulta los diseños y no los escribe** ([ADR-0017](docs/adr/ADR-0017-la-asesoria-consulta-los-disenos-finalizados-y-no-los-escribe.md)): ve solo los finalizados, en la misma ficha de solo lectura y con sus documentos
+- La asesoría no abre borradores ni históricos, tampoco tecleando la dirección
+- La asesoría deja de poder subir ficheros: ya no sube documentos de diseño, y con ese permiso veía en la mediateca los de todos los diseños
+- En un sitio ya desplegado, las capacidades de escribir diseños se le quitan a la asesoría en cuanto se despliega esta versión, sin hacer nada más
+- **Solo se elige lo finalizado**: el diseño de una acción y «Recomendado para» ofrecen los diseños finalizados, estén o no en el catálogo público
+- Lo que ya estaba elegido se conserva, con su estado al lado
+- El guardado también lo comprueba: una acción con un diseño sin finalizar no se guarda, aunque el formulario llegue con él
+- Pasar un diseño a histórico no pide completar los campos obligatorios
+- **Al finalizar un diseño, los que sustituye pasan a histórico**, en vez de quedarse como estaban; «Sustituye a» lo explica en la ficha
+- Cada diseño sustituido pasa a histórico una sola vez: si se recupera a mano, no vuelve a él
+- El diseño nuevo puede llevar el mismo título que el que sustituye
+- **Las horas del diseño son obligatorias según la modalidad**: presencial, las presenciales; en línea, las en línea; mixta, las dos
+- **El código del diseño lleva tres cifras**, y tras el `A999` viene el `B001`
+- El número de un diseño borrado no vuelve a darse, aunque se borre definitivamente
+- **El cargo del ponente distingue la etapa**: infantil y primaria, secundaria y bachillerato, formación profesional, escuela oficial de idiomas, o docente en activo sin etapa indicada
+
+### Pendiente antes de desplegar
+
+- **Volver a importar** con el importador de `.local/`, que ahora trae lo histórico del sistema anterior como «Histórico» y el cargo por etapa
+- **El logotipo** de quien despliega va en `brand` del filtro `fmc_chrome`, en el snippet de despliegue
+- **Desplegar también el snippet de roles**, que es el que le quita a la asesoría el permiso de subir ficheros
+
 ## [0.0.4] — 2026-10-22
 
 Lo que sale de la primera revisión del aplicativo, el 2026-10-21: el porqué está en el §9 de [REQ-0001](docs/requisitos/REQ-0001-aplicativo-de-formacion.md) y en las ADR de la 0009 a la 0012.

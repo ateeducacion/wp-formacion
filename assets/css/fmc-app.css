@@ -280,3 +280,11 @@ body.has-panel { overflow: hidden; }
 .fmc .fmc-star { color: #d4a106; margin-right: .3em; }
 .fmc .tooltip-inner { max-width: 320px; text-align: left; white-space: pre-line; }
 .fmc .fmc-rec { background: #fff3cd; color: #7a5a00; font-weight: 600; }
+
+/* «Ha impartido» del ponente: el recuento abre un menú con sus acciones. La
+   posición es fija para que la tabla, que recorta lo que sobresale, no lo corte. */
+.fmc .fmc-given-toggle { text-decoration: none; white-space: nowrap; }
+.fmc .fmc-given-toggle:hover, .fmc .fmc-given-toggle:focus { text-decoration: underline; }
+.fmc .fmc-given-menu { min-width: 20rem; max-width: min(32rem, 90vw); max-height: 60vh; overflow-y: auto; font-size: .9rem; }
+.fmc .fmc-given-menu .dropdown-item { white-space: normal; }
+.fmc .fmc-given-date { color: var(--fmc-text-2); font-variant-numeric: tabular-nums; margin-right: .35em; }
