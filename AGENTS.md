@@ -110,6 +110,7 @@ src/Fmc/
 ├── Domain/DigComp.php            El perfil de competencia digital de elidd (su dirección), sus áreas y competencias. Puro
 ├── PostType/PostTypes.php        Los cuatro CPT, el estado «Histórico» y qué capacidades tiene cada rol en cada uno
 ├── Taxonomy/Taxonomies.php       Programa, temática, competencia digital, ámbito e isla o zona
+├── User/Advisers.php             Las cuentas de asesoría del sitio y su tipo (TIC, STEAM…), en el perfil del escritorio
 └── PublicFront/                  El aplicativo, en la portada del sitio
     ├── Screen.php                Enrutado (?fmc_tab, ?fmc_edit, ?fmc_new), cabecera y pestañas
     ├── Lists.php                 Contadores, filtros y tabla paginada de cada tipo

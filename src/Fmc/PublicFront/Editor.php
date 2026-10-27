@@ -15,6 +15,7 @@ use Fmc\Meta\MetaRegistration;
 use Fmc\Meta\SpeakerMetaKeys as S;
 use Fmc\PostType\PostTypes;
 use Fmc\Taxonomy\Taxonomies;
+use Fmc\User\Advisers;
 
 /**
  * La ficha de edición, como el taller de eventos: tarjetas por sección, ayuda
@@ -422,7 +423,7 @@ final class Editor {
 		// «Añadir ponente nuevo no incluido en la lista», como en el formulario
 		// anterior: se abre en otra pestaña y luego se elige aquí.
 		// Sin cuentas de asesoría, la lista sale vacía: que se sepa por qué.
-		if ( $can && 'adviser' === $f['w'] && array() === self::advisers() ) {
+		if ( $can && 'adviser' === $f['w'] && array() === Advisers::choices() ) {
 			$help .= '<div class="form-text">Aún no hay ninguna asesoría con cuenta en el aplicativo: la administración las da de alta en «Usuarios», con el rol «Asesoría de formación».</div>';
 		}
 		if ( $can && ! empty( $f['add'] ) && current_user_can( get_post_type_object( $f['add'] )->cap->create_posts ) ) {
@@ -622,7 +623,7 @@ final class Editor {
 			return $out;
 		}
 		if ( 'adviser' === $f['w'] ) {
-			return self::advisers();
+			return Advisers::choices();
 		}
 		$type = 'speakers' === $f['w'] ? PostTypes::SPEAKER : PostTypes::DESIGN;
 		// El diseño de una acción, como los recomendados, ha de estar finalizado:
@@ -668,25 +669,6 @@ final class Editor {
 		$kind  = D::TYPES[ (string) get_post_meta( $p->ID, D::TYPE, true ) ] ?? '';
 		$notes = array_filter( array( $kind, 'publish' !== $p->post_status ? Lists::DESIGN_STATUSES[ $p->post_status ][0] ?? '' : '' ) );
 		return ( '' !== $code ? $code . ' · ' : '' ) . get_the_title( $p ) . ( $notes ? ' (' . implode( ', ', $notes ) . ')' : '' );
-	}
-
-	/**
-	 * The people who can be the adviser of an action.
-	 *
-	 * @return array<int, string>
-	 */
-	private static function advisers(): array {
-		$out = array();
-		foreach ( get_users(
-			array(
-				'role__in' => array( 'fmc_adviser', 'fmc_curator' ),
-				'orderby'  => 'display_name',
-				'fields'   => array( 'ID', 'display_name' ),
-			)
-		) as $u ) {
-			$out[ (int) $u->ID ] = $u->display_name;
-		}
-		return $out;
 	}
 
 	/**
@@ -1249,6 +1231,10 @@ final class Editor {
 		$errors = array();
 		foreach ( $values as $key => $value ) {
 			$w = $fields[ $key ]['w'];
+			if ( 'adviser' === $w && '' !== $value && ! isset( Advisers::choices()[ absint( $value ) ] ) && absint( $value ) !== absint( self::value( $post, $key ) ) ) {
+				$errors[ $key ] = 'La asesoría elegida no es una cuenta de asesoría de este sitio.';
+				continue;
+			}
 			if ( ! in_array( $w, array( 'design', 'designs', 'speakers' ), true ) || '' === $value || array() === $value ) {
 				continue;
 			}

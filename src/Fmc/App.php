@@ -13,6 +13,7 @@ use Fmc\PublicFront\Catalogue;
 use Fmc\PublicFront\Lists;
 use Fmc\PublicFront\Screen;
 use Fmc\Taxonomy\Taxonomies;
+use Fmc\User\Advisers;
 
 /**
  * Wires hooks for the modular training application.
@@ -38,6 +39,7 @@ final class App {
 
 		add_action( 'init', array( Taxonomies::class, 'register' ), 9 );
 		Taxonomies::hooks();
+		Advisers::hooks();
 		add_action( 'init', array( PostTypes::class, 'register' ), 10 );
 		add_action( 'init', array( PostTypes::class, 'grant_caps_to_roles' ), 11 );
 		add_filter( 'map_meta_cap', array( PostTypes::class, 'lock_archived' ), 10, 4 );

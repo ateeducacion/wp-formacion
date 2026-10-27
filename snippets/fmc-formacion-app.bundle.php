@@ -1387,6 +1387,168 @@ final class Taxonomies {
 
 
 
+namespace Fmc\User;
+
+
+
+
+
+
+
+
+
+
+if ( ! class_exists( 'Fmc\User\Advisers', false ) ) {
+final class Advisers {
+
+
+
+
+	public const KIND = 'fmc_adviser_kind';
+
+
+
+
+	public const KINDS = array(
+		'ict'   => 'TIC',
+		'steam' => 'STEAM',
+		'other' => 'Otra',
+	);
+
+
+
+
+	public const ROLES = array( 'fmc_adviser', 'fmc_curator' );
+
+
+
+
+
+
+	public static function hooks(): void {
+		add_action( 'show_user_profile', array( self::class, 'profile_field' ) );
+		add_action( 'edit_user_profile', array( self::class, 'profile_field' ) );
+		add_action( 'personal_options_update', array( self::class, 'save_profile' ) );
+		add_action( 'edit_user_profile_update', array( self::class, 'save_profile' ) );
+		add_filter( 'manage_users_columns', array( self::class, 'kind_column' ) );
+		add_filter( 'manage_users_custom_column', array( self::class, 'kind_cell' ), 10, 3 );
+	}
+
+
+
+
+
+
+
+	public static function kind( int $user_id ): string {
+		$kind = (string) get_user_option( self::KIND, $user_id );
+		return isset( self::KINDS[ $kind ] ) ? $kind : '';
+	}
+
+
+
+
+
+
+	public static function choices(): array {
+		$out = array();
+		foreach ( get_users(
+			array(
+				'role__in' => self::ROLES,
+				'orderby'  => 'display_name',
+				'fields'   => array( 'ID', 'display_name' ),
+			)
+		) as $u ) {
+			$kind                = self::kind( (int) $u->ID );
+			$out[ (int) $u->ID ] = $u->display_name . ( '' !== $kind ? ' · ' . self::KINDS[ $kind ] : '' );
+		}
+		return $out;
+	}
+
+
+
+
+
+
+
+	public static function of_kind( string $kind ): array {
+		return array_values( array_filter( array_keys( self::choices() ), static fn( int $id ): bool => self::kind( $id ) === $kind ) );
+	}
+
+
+
+
+
+
+
+	public static function profile_field( $user ): void {
+		if ( ! current_user_can( 'promote_users' ) ) {
+			return;
+		}
+		$kind = self::kind( (int) $user->ID );
+		echo '<h2>Formación</h2><table class="form-table" role="presentation"><tr><th><label for="fmc-adviser-kind">Tipo de asesoría</label></th><td>';
+		wp_nonce_field( 'fmc_adviser_kind', '_fmc_adviser_nonce' );
+		echo '<select id="fmc-adviser-kind" name="fmc_adviser_kind"><option value="">—</option>';
+		foreach ( self::KINDS as $value => $label ) {
+			echo '<option value="' . esc_attr( $value ) . '"' . selected( $kind, $value, false ) . '>' . esc_html( $label ) . '</option>';
+		}
+		echo '</select><p class="description">Si la cuenta es de una asesoría, de qué tipo es en este sitio. Sale junto a su nombre al elegir la asesoría responsable de una acción.</p></td></tr></table>';
+	}
+
+
+
+
+
+
+
+	public static function save_profile( $user_id ): void {
+		if ( ! isset( $_POST['_fmc_adviser_nonce'] ) || ! wp_verify_nonce( sanitize_key( wp_unslash( $_POST['_fmc_adviser_nonce'] ) ), 'fmc_adviser_kind' ) || ! current_user_can( 'promote_users' ) || ! current_user_can( 'edit_user', (int) $user_id ) ) {
+			return;
+		}
+		$kind = isset( $_POST['fmc_adviser_kind'] ) ? sanitize_key( wp_unslash( $_POST['fmc_adviser_kind'] ) ) : '';
+		if ( isset( self::KINDS[ $kind ] ) ) {
+			update_user_option( (int) $user_id, self::KIND, $kind );
+		} else {
+			delete_user_option( (int) $user_id, self::KIND );
+		}
+	}
+
+
+
+
+
+
+
+	public static function kind_column( $columns ): array {
+		$columns[ self::KIND ] = 'Asesoría';
+		return (array) $columns;
+	}
+
+
+
+
+
+
+
+
+
+	public static function kind_cell( $output, $column, $user_id ): string {
+		if ( self::KIND !== $column ) {
+			return (string) $output;
+		}
+		$kind = self::kind( (int) $user_id );
+		return '' !== $kind ? esc_html( self::KINDS[ $kind ] ) : '—';
+	}
+}
+}
+
+
+
+
+
+
+
+
 namespace Fmc\PublicFront;
 
 
@@ -2781,6 +2943,7 @@ use Fmc\Meta\IncidentMetaKeys as I;
 use Fmc\Meta\SpeakerMetaKeys as S;
 use Fmc\PostType\PostTypes;
 use Fmc\Taxonomy\Taxonomies;
+use Fmc\User\Advisers;
 
 
 
@@ -3074,6 +3237,16 @@ final class Lists {
 				$term( 'fmc_programme', self::arg( 'fmc_programme' ) );
 				$meta( A::MODALITY, self::arg( 'fmc_modality' ) );
 				$meta( A::PROCESS, self::arg( 'fmc_process' ) );
+
+				$meta( A::ADVISER, absint( self::arg( 'fmc_adviser' ) ) ? (string) absint( self::arg( 'fmc_adviser' ) ) : '' );
+				if ( isset( Advisers::KINDS[ self::arg( 'fmc_adviser_kind' ) ] ) ) {
+					$of_kind              = Advisers::of_kind( self::arg( 'fmc_adviser_kind' ) );
+					$args['meta_query'][] = array(
+						'key'     => A::ADVISER,
+						'value'   => $of_kind ? $of_kind : array( 0 ),
+						'compare' => 'IN',
+					);
+				}
 
 				if ( isset( D::TYPES[ self::arg( 'fmc_type' ) ] ) ) {
 					$designs              = get_posts(
@@ -3539,7 +3712,7 @@ final class Lists {
 
 	private static function current_filters(): array {
 		$out = array();
-		foreach ( array( 'fmc_s', 'fmc_scope', 'fmc_programme', 'fmc_topic', 'fmc_modality', 'fmc_process', 'fmc_situation', 'fmc_year', 'fmc_type', 'fmc_status', 'fmc_zone', 'fmc_available', 'fmc_resolution', 'fmc_month', 'fmc_speaker', 'fmc_from', 'fmc_to', 'fmc_catalogue', 'fmc_recommended', 'fmc_file', 'fmc_incident', 'fmc_given', 'fmc_sort', 'fmc_dir', 'fmc_view' ) as $key ) {
+		foreach ( array( 'fmc_s', 'fmc_scope', 'fmc_programme', 'fmc_topic', 'fmc_modality', 'fmc_process', 'fmc_situation', 'fmc_year', 'fmc_type', 'fmc_status', 'fmc_zone', 'fmc_available', 'fmc_resolution', 'fmc_month', 'fmc_speaker', 'fmc_from', 'fmc_to', 'fmc_catalogue', 'fmc_recommended', 'fmc_file', 'fmc_incident', 'fmc_given', 'fmc_sort', 'fmc_dir', 'fmc_view', 'fmc_adviser', 'fmc_adviser_kind' ) as $key ) {
 			if ( '' !== self::arg( $key ) ) {
 				$out[ $key ] = self::arg( $key );
 			}
@@ -3571,6 +3744,8 @@ final class Lists {
 				$fields[] = self::select( 'fmc_process', 'Estado', A::PROCESSES, 'Todos' );
 				$fields[] = self::select( 'fmc_situation', 'Situación', A::SITUATIONS, 'Todas' );
 				$fields[] = self::select( 'fmc_speaker', 'Ponente', self::post_choices( PostTypes::SPEAKER ), 'Todos', true );
+				$fields[] = self::select( 'fmc_adviser', 'Asesoría', Advisers::choices(), 'Todas', true );
+				$fields[] = self::select( 'fmc_adviser_kind', 'Tipo de asesoría', Advisers::KINDS, 'Todos' );
 				$fields[] = self::select(
 					'fmc_incident',
 					'Incidencias',
@@ -4749,6 +4924,7 @@ use Fmc\Meta\MetaRegistration;
 use Fmc\Meta\SpeakerMetaKeys as S;
 use Fmc\PostType\PostTypes;
 use Fmc\Taxonomy\Taxonomies;
+use Fmc\User\Advisers;
 
 
 
@@ -5157,7 +5333,7 @@ final class Editor {
 
 
 
-		if ( $can && 'adviser' === $f['w'] && array() === self::advisers() ) {
+		if ( $can && 'adviser' === $f['w'] && array() === Advisers::choices() ) {
 			$help .= '<div class="form-text">Aún no hay ninguna asesoría con cuenta en el aplicativo: la administración las da de alta en «Usuarios», con el rol «Asesoría de formación».</div>';
 		}
 		if ( $can && ! empty( $f['add'] ) && current_user_can( get_post_type_object( $f['add'] )->cap->create_posts ) ) {
@@ -5357,7 +5533,7 @@ final class Editor {
 			return $out;
 		}
 		if ( 'adviser' === $f['w'] ) {
-			return self::advisers();
+			return Advisers::choices();
 		}
 		$type = 'speakers' === $f['w'] ? PostTypes::SPEAKER : PostTypes::DESIGN;
 
@@ -5403,25 +5579,6 @@ final class Editor {
 		$kind  = D::TYPES[ (string) get_post_meta( $p->ID, D::TYPE, true ) ] ?? '';
 		$notes = array_filter( array( $kind, 'publish' !== $p->post_status ? Lists::DESIGN_STATUSES[ $p->post_status ][0] ?? '' : '' ) );
 		return ( '' !== $code ? $code . ' · ' : '' ) . get_the_title( $p ) . ( $notes ? ' (' . implode( ', ', $notes ) . ')' : '' );
-	}
-
-
-
-
-
-
-	private static function advisers(): array {
-		$out = array();
-		foreach ( get_users(
-			array(
-				'role__in' => array( 'fmc_adviser', 'fmc_curator' ),
-				'orderby'  => 'display_name',
-				'fields'   => array( 'ID', 'display_name' ),
-			)
-		) as $u ) {
-			$out[ (int) $u->ID ] = $u->display_name;
-		}
-		return $out;
 	}
 
 
@@ -5984,6 +6141,10 @@ final class Editor {
 		$errors = array();
 		foreach ( $values as $key => $value ) {
 			$w = $fields[ $key ]['w'];
+			if ( 'adviser' === $w && '' !== $value && ! isset( Advisers::choices()[ absint( $value ) ] ) && absint( $value ) !== absint( self::value( $post, $key ) ) ) {
+				$errors[ $key ] = 'La asesoría elegida no es una cuenta de asesoría de este sitio.';
+				continue;
+			}
 			if ( ! in_array( $w, array( 'design', 'designs', 'speakers' ), true ) || '' === $value || array() === $value ) {
 				continue;
 			}
@@ -7031,6 +7192,7 @@ use Fmc\PublicFront\Catalogue;
 use Fmc\PublicFront\Lists;
 use Fmc\PublicFront\Screen;
 use Fmc\Taxonomy\Taxonomies;
+use Fmc\User\Advisers;
 
 
 
@@ -7057,6 +7219,7 @@ final class App {
 
 		add_action( 'init', array( Taxonomies::class, 'register' ), 9 );
 		Taxonomies::hooks();
+		Advisers::hooks();
 		add_action( 'init', array( PostTypes::class, 'register' ), 10 );
 		add_action( 'init', array( PostTypes::class, 'grant_caps_to_roles' ), 11 );
 		add_filter( 'map_meta_cap', array( PostTypes::class, 'lock_archived' ), 10, 4 );

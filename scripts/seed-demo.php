@@ -74,6 +74,8 @@ function fmc_seed_post( array $post, array $meta, array $terms = array() ): int 
 
 $fmc_curator = fmc_seed_user( 'validacion', 'fmc_curator', 'Validación de ejemplo' );
 $fmc_adviser = fmc_seed_user( 'asesoria', 'fmc_adviser', 'Asesoría de ejemplo' );
+// El tipo de la asesoría, en su perfil y por sitio (ADR-0019).
+update_user_option( $fmc_adviser, 'fmc_adviser_kind', 'ict' );
 fmc_seed_user( 'asesoria2', 'fmc_adviser', 'Asesoría de ejemplo 2' );
 fmc_seed_user( 'servicio', 'fmc_training_service', 'Servicio de formación de ejemplo' );
 

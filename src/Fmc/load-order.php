@@ -26,6 +26,7 @@ return array(
 	'Domain/DigComp.php',
 	'PostType/PostTypes.php',
 	'Taxonomy/Taxonomies.php',
+	'User/Advisers.php',
 	'PublicFront/Assets.php',
 	'PublicFront/Fields.php',
 	'PublicFront/Documents.php',

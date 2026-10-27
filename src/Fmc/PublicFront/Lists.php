@@ -14,6 +14,7 @@ use Fmc\Meta\IncidentMetaKeys as I;
 use Fmc\Meta\SpeakerMetaKeys as S;
 use Fmc\PostType\PostTypes;
 use Fmc\Taxonomy\Taxonomies;
+use Fmc\User\Advisers;
 
 /**
  * Listados de acciones, diseños, ponentes e incidencias.
@@ -306,6 +307,16 @@ final class Lists {
 				$term( 'fmc_programme', self::arg( 'fmc_programme' ) );
 				$meta( A::MODALITY, self::arg( 'fmc_modality' ) );
 				$meta( A::PROCESS, self::arg( 'fmc_process' ) );
+				// Por la asesoría responsable, o por las de un tipo (ADR-0019).
+				$meta( A::ADVISER, absint( self::arg( 'fmc_adviser' ) ) ? (string) absint( self::arg( 'fmc_adviser' ) ) : '' );
+				if ( isset( Advisers::KINDS[ self::arg( 'fmc_adviser_kind' ) ] ) ) {
+					$of_kind              = Advisers::of_kind( self::arg( 'fmc_adviser_kind' ) );
+					$args['meta_query'][] = array(
+						'key'     => A::ADVISER,
+						'value'   => $of_kind ? $of_kind : array( 0 ),
+						'compare' => 'IN',
+					);
+				}
 				// El tipo es del diseño: se filtra por los diseños de ese tipo.
 				if ( isset( D::TYPES[ self::arg( 'fmc_type' ) ] ) ) {
 					$designs              = get_posts(
@@ -771,7 +782,7 @@ final class Lists {
 	 */
 	private static function current_filters(): array {
 		$out = array();
-		foreach ( array( 'fmc_s', 'fmc_scope', 'fmc_programme', 'fmc_topic', 'fmc_modality', 'fmc_process', 'fmc_situation', 'fmc_year', 'fmc_type', 'fmc_status', 'fmc_zone', 'fmc_available', 'fmc_resolution', 'fmc_month', 'fmc_speaker', 'fmc_from', 'fmc_to', 'fmc_catalogue', 'fmc_recommended', 'fmc_file', 'fmc_incident', 'fmc_given', 'fmc_sort', 'fmc_dir', 'fmc_view' ) as $key ) {
+		foreach ( array( 'fmc_s', 'fmc_scope', 'fmc_programme', 'fmc_topic', 'fmc_modality', 'fmc_process', 'fmc_situation', 'fmc_year', 'fmc_type', 'fmc_status', 'fmc_zone', 'fmc_available', 'fmc_resolution', 'fmc_month', 'fmc_speaker', 'fmc_from', 'fmc_to', 'fmc_catalogue', 'fmc_recommended', 'fmc_file', 'fmc_incident', 'fmc_given', 'fmc_sort', 'fmc_dir', 'fmc_view', 'fmc_adviser', 'fmc_adviser_kind' ) as $key ) {
 			if ( '' !== self::arg( $key ) ) {
 				$out[ $key ] = self::arg( $key );
 			}
@@ -803,6 +814,8 @@ final class Lists {
 				$fields[] = self::select( 'fmc_process', 'Estado', A::PROCESSES, 'Todos' );
 				$fields[] = self::select( 'fmc_situation', 'Situación', A::SITUATIONS, 'Todas' );
 				$fields[] = self::select( 'fmc_speaker', 'Ponente', self::post_choices( PostTypes::SPEAKER ), 'Todos', true );
+				$fields[] = self::select( 'fmc_adviser', 'Asesoría', Advisers::choices(), 'Todas', true );
+				$fields[] = self::select( 'fmc_adviser_kind', 'Tipo de asesoría', Advisers::KINDS, 'Todos' );
 				$fields[] = self::select(
 					'fmc_incident',
 					'Incidencias',

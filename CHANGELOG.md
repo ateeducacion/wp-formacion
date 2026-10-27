@@ -20,6 +20,9 @@ Lo que sale de la segunda revisión del aplicativo, el 2026-10-27: el porqué es
 - **Lo que ha impartido cada ponente, acción por acción**: en el listado, «N acción(es)» abre un menú con las más recientes, cada una a su ficha, y el enlace al listado de acciones de ese ponente
 - **Buscar ponentes por lo que se les recomienda**: el filtro «Impartido o recomendado» encuentra también a quien se recomienda para un diseño con esas palabras en el título o en el código, aunque todavía no lo haya impartido
 - **Si no hay ninguna cuenta de asesoría**, la ficha de la acción dice por qué «Asesoría responsable» sale vacía
+- **Tipo de asesoría** ([ADR-0019](docs/adr/ADR-0019-la-asesoria-es-una-cuenta-del-sitio-con-su-tipo.md)): TIC, STEAM u otra, en el perfil del usuario del escritorio, que pone la administración; se guarda por sitio
+- Al elegir la asesoría responsable de una acción, cada cuenta lleva su tipo al lado, y el guardado comprueba que es una cuenta de asesoría del sitio
+- El listado y el calendario de acciones se filtran por asesoría y por tipo de asesoría
 - **El programa se imputa solo** ([ADR-0018](docs/adr/ADR-0018-el-servicio-imputa-la-accion-al-programa-activo-de-su-diseno.md)): si la acción la asume el servicio de formación, su programa es el programa activo que cubre el diseño
 - Si el diseño no está en ningún programa activo, la acción no se guarda con el servicio de formación y se avisa de que la asume el centro
 - Los programas llevan una casilla «Activo» en el escritorio de WordPress, que marca la administración
@@ -54,6 +57,7 @@ Lo que sale de la segunda revisión del aplicativo, el 2026-10-27: el porqué es
 - **Desplegar también el snippet de roles**, que es el que le quita a la asesoría el permiso de subir ficheros
 - **Marcar los programas activos** en el escritorio de WordPress: la migración no marca ninguno
 - **Revisar el mapa de temáticas** viejas a nuevas, que es provisional, antes de importar
+- **Poner el tipo de asesoría** en el perfil de cada cuenta de asesoría
 
 ## [0.0.4] — 2026-10-22
 
