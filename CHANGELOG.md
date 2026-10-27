@@ -27,6 +27,12 @@ Lo que sale de la segunda revisión del aplicativo, el 2026-10-27: el porqué es
 - Si el diseño no está en ningún programa activo, la acción no se guarda con el servicio de formación y se avisa de que la asume el centro
 - Los programas llevan una casilla «Activo» en el escritorio de WordPress, que marca la administración
 - Cada despliegue pone sus nombres a las opciones de «Asumida por» con el filtro `fmc_funders`
+- **La situación de la acción se calcula** ([ADR-0020](docs/adr/ADR-0020-la-situacion-se-calcula-y-la-accion-se-entrega.md)): en blanco hasta que empieza, «Impartiéndose» en sus fechas y «Realizada» cuando pasan
+- **La incidencia dice qué pide**: un cambio, aplazar la acción, con sus fechas nuevas, o cancelarla; al enviarla, la acción queda aplazada o cancelada, y una aplazada vuelve a ir por sus fechas cuando se le ponen las nuevas
+- Al abrir una incidencia se avisa por correo a quien dice el despliegue con el filtro `fmc_incident_recipients`
+- Una acción cancelada no cuenta horas, ni en lo impartido de los ponentes ni en la ficha ni en el CSV
+- **La acción se guarda en borrador o se entrega**: el borrador sale marcado en el calendario y solo lo ven quien lo escribe y quien gestiona; entregada, la asesoría ya no la cambia y pide los cambios con una incidencia
+- El listado de acciones se filtra por borrador o entregada, y el CSV lleva la situación
 - **Cada temática dice lo que engloba**: al pasar por ella en el selector y debajo de la elegida, con la descripción del término
 
 ### Cambiado
@@ -45,6 +51,8 @@ Lo que sale de la segunda revisión del aplicativo, el 2026-10-27: el porqué es
 - **Al finalizar un diseño, los que sustituye pasan a histórico**, en vez de quedarse como estaban; «Sustituye a» lo explica en la ficha
 - Cada diseño sustituido pasa a histórico una sola vez: si se recupera a mano, no vuelve a él
 - El diseño nuevo puede llevar el mismo título que el que sustituye
+- **El expediente lo pone solo el servicio de formación**: la validación deja de poder escribirlo, también en los sitios ya desplegados
+- La ficha de la acción ya no tiene proceso, situación tecleada, negociado ni responsable del servicio
 - **Las horas del diseño son obligatorias según la modalidad**: presencial, las presenciales; en línea, las en línea; mixta, las dos
 - **El código del diseño lleva tres cifras**, y tras el `A999` viene el `B001`
 - El número de un diseño borrado no vuelve a darse, aunque se borre definitivamente
@@ -58,6 +66,7 @@ Lo que sale de la segunda revisión del aplicativo, el 2026-10-27: el porqué es
 - **Marcar los programas activos** en el escritorio de WordPress: la migración no marca ninguno
 - **Revisar el mapa de temáticas** viejas a nuevas, que es provisional, antes de importar
 - **Poner el tipo de asesoría** en el perfil de cada cuenta de asesoría
+- **Poner los destinatarios del aviso de incidencias** con el filtro `fmc_incident_recipients` en el snippet de despliegue
 
 ## [0.0.4] — 2026-10-22
 

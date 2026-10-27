@@ -107,6 +107,7 @@ src/Fmc/
 ├── Meta/IncidentMetaKeys.php     Claves de la incidencia y sus resoluciones
 ├── Meta/MetaRegistration.php     register_post_meta con tipo, lista cerrada y permiso por campo
 ├── Domain/SchoolYear.php         El curso escolar de una fecha. Puro
+├── Domain/Situation.php          La situación de una acción: de sus fechas y de lo que deja una incidencia. Puro
 ├── Domain/DigComp.php            El perfil de competencia digital de elidd (su dirección), sus áreas y competencias. Puro
 ├── PostType/PostTypes.php        Los cuatro CPT, el estado «Histórico» y qué capacidades tiene cada rol en cada uno
 ├── Taxonomy/Taxonomies.php       Programa, temática, competencia digital, ámbito e isla o zona

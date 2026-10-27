@@ -6,7 +6,7 @@ date: 2026-09-30
 related:
   issues: []
   prs: []
-  adrs: [ADR-0002, ADR-0003, ADR-0004, ADR-0005, ADR-0006, ADR-0007, ADR-0008, ADR-0009, ADR-0010, ADR-0011, ADR-0012, ADR-0013, ADR-0014, ADR-0015, ADR-0016, ADR-0017, ADR-0018, ADR-0019]
+  adrs: [ADR-0002, ADR-0003, ADR-0004, ADR-0005, ADR-0006, ADR-0007, ADR-0008, ADR-0009, ADR-0010, ADR-0011, ADR-0012, ADR-0013, ADR-0014, ADR-0015, ADR-0016, ADR-0017, ADR-0018, ADR-0019, ADR-0020]
   sdds: []
 supersedes: []
 superseded_by: []
@@ -195,9 +195,15 @@ en parte, lo dicen.
 6. ¿Cuál es el protocolo de incidencias y cancelaciones entre asesoría,
    validación y servicio de formación? Quién abre, quién cierra, y cómo una
    cancelación tramitada en el sistema de gestión del servicio llega también
-   aquí.
+   aquí. *Contestada el 2026-10-27:* la incidencia la abre la asesoría, aquí y
+   en el sistema de gestión del servicio; aplazar o cancelar cambia la
+   situación de la acción, una cancelada no cuenta horas, y se avisa por
+   correo (ADR-0020, §10).
 7. La sección «Estado» de la acción —expediente, situación y campos del
    servicio—, ¿se le oculta a la asesoría o se le enseña de solo lectura?
+   *Contestada el 2026-10-27:* la situación se calcula, el proceso y el
+   personal del servicio salen, y el expediente lo pone solo el servicio
+   (ADR-0020, §10).
 8. ¿Las asesorías pasan a ser una lista cerrada, y el centro donde se imparte
    se rellena por su código? *En parte, el 2026-10-27:* la asesoría sigue
    siendo la cuenta del sitio, y su tipo (TIC, STEAM u otra) va en su perfil
@@ -315,6 +321,7 @@ datos migrados. El material de la reunión está en `.local/`.
 | Lo que ya no se imparte pasa a un estado propio, «Histórico». Sale del listado de vigentes, del catálogo público y de toda elección. Al finalizar un diseño, los que sustituye pasan a histórico. «Recomendado para» y el diseño de una acción ofrecen solo los finalizados | La migración traía lo histórico como borrador o como finalizado. «Fuera del catálogo» no es lo mismo que «histórico». Un borrador no se imparte | RF-3, RF-4, RF-6, RF-7, RF-15, RF-17 | [ADR-0016](../adr/ADR-0016-lo-que-ya-no-se-imparte-es-un-estado-del-diseno.md) |
 | Si la acción la asume el servicio de formación, su programa es el activo que cubre el diseño; si no hay ninguno, la asume el centro. Los programas llevan una casilla «Activo». Los nombres de «Asumida por» los pone cada despliegue | Respuesta de la validación en la issue #27: quien agenda no tiene que saber de qué programa sale el dinero | RF-8, RF-14 | [ADR-0018](../adr/ADR-0018-el-servicio-imputa-la-accion-al-programa-activo-de-su-diseno.md) |
 | La asesoría responsable sigue siendo una cuenta del sitio, que la administración da de alta; su tipo (TIC, STEAM u otra) va en su perfil del escritorio, por sitio, y sale al elegirla. Las acciones se filtran por asesoría y por tipo | Respuesta de la validación en la issue #25. Un directorio aparte duplicaría el alta y la baja de cuentas, que ya hace la administración | RF-8, RF-14 | [ADR-0019](../adr/ADR-0019-la-asesoria-es-una-cuenta-del-sitio-con-su-tipo.md) |
+| La situación de la acción se calcula de sus fechas, y una incidencia que pide aplazarla o cancelarla la deja así. La acción se guarda en borrador o se entrega, y entregada la asesoría ya no la edita: los cambios, por incidencia, que avisa por correo. Una cancelada no cuenta horas. El expediente lo pone solo el servicio, y el proceso, el negociado y el responsable salen | Respuestas de la validación en las issues #24 y #23 | RF-9, RF-10, RF-13, RF-14, RF-18 | [ADR-0020](../adr/ADR-0020-la-situacion-se-calcula-y-la-accion-se-entrega.md) |
 | La asesoría no escribe diseños ni sube ficheros. Los consulta, solo los finalizados, en la misma ficha de solo lectura y con sus documentos. Ni borradores ni histórico, tampoco por la dirección | Los diseños los hace el área. La asesoría los necesita para saber de qué va un curso antes de agendarlo. Se pidió una sola ficha y no dos | RF-3 | [ADR-0017](../adr/ADR-0017-la-asesoria-consulta-los-disenos-finalizados-y-no-los-escribe.md) |
 
 Y tres adendas: la ADR-0004 recoge las dos decisiones; la ADR-0012, la

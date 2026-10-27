@@ -275,7 +275,8 @@ class Test_Calendar extends WP_UnitTestCase {
 			'Robótica',
 			'2026-03-10',
 			array(
-				A::SITUATION    => 'running',
+				// Impartiéndose: empezó y aún no ha acabado (ADR-0020).
+				A::END          => '2099-12-31',
 				A::FUNDED_BY    => 'area',
 				A::REPLICAS     => 2,
 				A::DESIGN_ID    => $design,
@@ -301,13 +302,14 @@ class Test_Calendar extends WP_UnitTestCase {
 
 	/**
 	 * A una acción a medias le falta diseño, plazas o modalidad: lleva la
-	 * cinta de incompleta y, sin situación ni quién paga, ni color ni punto.
+	 * cinta de incompleta y, sin situación —aún no ha empezado— ni quién paga,
+	 * ni color ni punto. Si es un borrador, se dice.
 	 */
 	public function test_an_incomplete_card_is_flagged_and_has_no_colour() {
 		$this->as_role( 'fmc_curator' );
 		$id = $this->action(
 			'A medias',
-			'2026-03-10',
+			'2099-03-10',
 			array(
 				A::FUNDED_BY    => 'none',
 				A::REPLICAS     => 1,
@@ -326,6 +328,15 @@ class Test_Calendar extends WP_UnitTestCase {
 		$this->assertStringNotContainsString( 'En: ', $card );
 		// Sin coste y sin programa, no hay línea de financiación.
 		$this->assertSame( 1, substr_count( $card, 'fmc-ev-meta' ) );
+		wp_update_post(
+			array(
+				'ID'          => $id,
+				'post_status' => 'draft',
+			)
+		);
+		$draft = Calendar::card( get_post( $id ) );
+		$this->assertStringContainsString( 'fmc-sit-none is-draft', $draft );
+		$this->assertStringContainsString( '<span class="fmc-ev-meta">Borrador, sin entregar</span>', $draft );
 	}
 
 	/**

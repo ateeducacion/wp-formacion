@@ -286,14 +286,30 @@ class Test_Editor_Render extends WP_UnitTestCase {
 	 */
 	public function test_action_fields_are_split_between_adviser_and_service() {
 		$adviser = $this->as_role( 'fmc_adviser' );
-		$action  = $this->post( PostTypes::ACTION, $adviser );
+		$action  = $this->post( PostTypes::ACTION, $adviser, 'draft' );
 
 		$body = $this->screen_of( $action )['body'];
 		$this->assertTrue( $this->disabled( $body, A::FILE_NUMBER ) );
-		$this->assertTrue( $this->disabled( $body, A::SITUATION ) );
+		$this->assertSame( 0, $this->find( $body, '//*[@name="f[' . A::SITUATION . ']"]' )->length, 'la situación no se teclea' );
+		$this->assertSame( 0, $this->find( $body, '//*[@name="f[' . A::PROCESS . ']"]' )->length, 'ni el proceso' );
 		$this->assertFalse( $this->disabled( $body, A::PLACES ) );
 		$this->assertStringContainsString( 'Lo rellena el servicio de formación.', $body );
 		$this->assertStringContainsString( '¿No está en la lista?', $body, 'puede crear ponentes' );
+		$this->assertSame(
+			array(
+				'Guardar borrador' => 'draft',
+				'Entregar'         => 'publish',
+			),
+			$this->buttons( $body )
+		);
+		$this->assertStringContainsString( 'Una vez entregada ya no podrá cambiarla', $body );
+
+		// Entregada, la asesoría ya no la cambia, pero abre incidencias sobre ella (ADR-0020).
+		wp_publish_post( $action );
+		$screen = $this->screen_of( $action );
+		$this->assertTrue( $this->disabled( $screen['body'], A::PLACES ) );
+		$this->assertSame( array(), $this->buttons( $screen['body'] ) );
+		$this->assertStringContainsString( 'Abrir una incidencia', $screen['body'] );
 
 		$this->as_role( 'fmc_training_service' );
 		$body = $this->screen_of( $action )['body'];
@@ -398,7 +414,13 @@ class Test_Editor_Render extends WP_UnitTestCase {
 		$this->assertSame( (string) $design, $this->find( $body, '//select[@name="f[fmc_design_id]"]/option[@selected]' )->item( 0 )->getAttribute( 'value' ) );
 		$this->assertSame( 'blended', $this->find( $body, '//select[@name="f[fmc_modality]"]/option[@selected]' )->item( 0 )->getAttribute( 'value' ) );
 		$this->assertSame( '9', $this->find( $body, '//input[@name="f[fmc_hours_onsite]"]' )->item( 0 )->getAttribute( 'value' ) );
-		$this->assertSame( array( 'Guardar' => '' ), $this->buttons( $body ) );
+		$this->assertSame(
+			array(
+				'Guardar borrador' => 'draft',
+				'Entregar'         => 'publish',
+			),
+			$this->buttons( $body )
+		);
 	}
 
 	/**

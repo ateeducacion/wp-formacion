@@ -790,7 +790,7 @@ class Test_Editor_Save extends WP_UnitTestCase {
 		$this->assertSame( 0, $this->count_of( PostTypes::ACTION ) );
 		$this->assertSame( 'invalid', Editor::apply( PostTypes::ACTION, 0, $this->action_fields( array( A::DESIGN_ID => (string) $this->post( PostTypes::SPEAKER, $adviser ) ) ), '', 0 )['outcome'], 'ni otra cosa que un diseño' );
 
-		$action = $this->post( PostTypes::ACTION, $adviser );
+		$action = $this->post( PostTypes::ACTION, $adviser, 'draft' );
 		update_post_meta( $action, A::DESIGN_ID, $old );
 		$this->assertSame( 'saved', Editor::apply( PostTypes::ACTION, $action, $this->action_fields( array( A::DESIGN_ID => (string) $old ) ), '', 0 )['outcome'] );
 		$this->assertSame( 'invalid', Editor::apply( PostTypes::ACTION, $action, $this->action_fields( array( A::DESIGN_ID => (string) $draft ) ), '', 0 )['outcome'], 'cambiarlo a un borrador, no' );

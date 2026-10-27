@@ -195,6 +195,8 @@ final class PostTypes {
 	public static function role_caps(): array {
 		$all = array( 'edit', 'edit_others', 'edit_private', 'edit_published', 'publish', 'read_private', 'delete', 'delete_others', 'delete_private', 'delete_published' );
 		$own = array( 'edit', 'edit_published', 'publish', 'delete' );
+		// La acción entregada ya no la edita quien la entregó: los cambios, por incidencia (ADR-0020).
+		$deliver = array( 'edit', 'publish', 'delete' );
 
 		return array(
 			'administrator'        => array_fill_keys( array_keys( self::definitions() ), $all ),
@@ -202,7 +204,7 @@ final class PostTypes {
 			'fmc_adviser'          => array(
 				// Los diseños los consulta, finalizados, y no los escribe (ADR-0017).
 				self::DESIGN   => array(),
-				self::ACTION   => $own,
+				self::ACTION   => $deliver,
 				// Los ponentes son un directorio compartido: edita los suyos, pero
 				// cualquier ficha se puede dar de baja con motivo (ADR-0011).
 				self::SPEAKER  => array_merge( $own, array( 'delete_others', 'delete_published' ) ),
@@ -227,8 +229,11 @@ final class PostTypes {
 	 */
 	public static function revoked_caps(): array {
 		return array(
-			// La asesoría ya no escribe diseños (ADR-0017).
-			'fmc_adviser' => array( 'edit_fmc_designs', 'delete_fmc_designs' ),
+			// La asesoría ya no escribe diseños (ADR-0017), ni edita la acción
+			// que ha entregado (ADR-0020).
+			'fmc_adviser' => array( 'edit_fmc_designs', 'delete_fmc_designs', 'edit_published_fmc_actions' ),
+			// El expediente, solo el servicio de formación (ADR-0020).
+			'fmc_curator' => array( self::CAP_SERVICE_FIELDS ),
 		);
 	}
 
@@ -257,7 +262,7 @@ final class PostTypes {
 
 		$extra = array(
 			'administrator'        => array( self::CAP_SERVICE_FIELDS, self::CAP_RESOLVE ),
-			'fmc_curator'          => array( self::CAP_SERVICE_FIELDS, self::CAP_RESOLVE ),
+			'fmc_curator'          => array( self::CAP_RESOLVE ),
 			'fmc_training_service' => array( self::CAP_SERVICE_FIELDS, self::CAP_RESOLVE ),
 		);
 		foreach ( $extra as $slug => $caps ) {

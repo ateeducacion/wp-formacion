@@ -102,7 +102,7 @@ a.fmc-counter:hover, .fmc-counter.is-active { border-color: var(--fmc-brand); bo
 /* Leyenda y colores de la situación */
 .fmc-legend { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem; }
 .fmc-chip { display: inline-flex; align-items: center; gap: .3rem; font-size: .78rem; padding: .15rem .55rem; border-radius: 1rem; background: #fff; border: 2px solid var(--fmc-line); }
-.fmc-sit-managing { --sit: #adb5bd; }
+.fmc-ev.is-draft { border-style: dashed; border-left-style: solid; background: var(--fmc-soft); }
 .fmc-sit-running { --sit: #0d6efd; }
 .fmc-sit-done { --sit: #198754; }
 .fmc-sit-postponed { --sit: #e0a800; }

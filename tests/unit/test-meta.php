@@ -66,6 +66,7 @@ class Test_Meta extends WP_UnitTestCase {
 		$action = self::factory()->post->create(
 			array(
 				'post_type'   => PostTypes::ACTION,
+				'post_status' => 'draft',
 				'post_author' => $owner,
 			)
 		);
@@ -223,20 +224,27 @@ class Test_Meta extends WP_UnitTestCase {
 	}
 
 	/**
-	 * El permiso registrado por campo: la validación escribe los campos del servicio, la asesoría no.
+	 * El permiso registrado por campo: los campos del servicio, la administración
+	 * sí; ni la validación (ADR-0020) ni la asesoría.
 	 */
 	public function test_the_registered_auth_callback_guards_service_fields() {
 		$owner  = self::factory()->user->create( array( 'role' => 'fmc_adviser' ) );
 		$action = self::factory()->post->create(
 			array(
 				'post_type'   => PostTypes::ACTION,
+				'post_status' => 'draft',
 				'post_author' => $owner,
 			)
 		);
 
-		wp_set_current_user( self::factory()->user->create( array( 'role' => 'fmc_curator' ) ) );
+		wp_set_current_user( self::factory()->user->create( array( 'role' => 'administrator' ) ) );
 		foreach ( array_keys( MetaRegistration::guarded()[ PostTypes::ACTION ] ) as $key ) {
 			$this->assertTrue( current_user_can( 'edit_post_meta', $action, $key ), $key );
+		}
+
+		wp_set_current_user( self::factory()->user->create( array( 'role' => 'fmc_curator' ) ) );
+		foreach ( array_keys( MetaRegistration::guarded()[ PostTypes::ACTION ] ) as $key ) {
+			$this->assertFalse( current_user_can( 'edit_post_meta', $action, $key ), $key );
 		}
 
 		wp_set_current_user( $owner );

@@ -352,6 +352,7 @@ final class ActionMetaKeys {
 
 
 
+
 	public const PROCESSES = array(
 		'draft'     => 'En borrador',
 		'paid'      => 'Pagada por el centro',
@@ -363,12 +364,37 @@ final class ActionMetaKeys {
 
 
 	public const SITUATIONS = array(
-		'managing'  => 'Gestionándose',
 		'running'   => 'Impartiéndose',
 		'done'      => 'Realizada',
 		'postponed' => 'Aplazada',
 		'cancelled' => 'Cancelada',
 	);
+
+
+
+
+	public const DELIVERY = array(
+		'draft'   => 'Borrador',
+		'publish' => 'Entregada',
+	);
+
+
+
+
+
+
+
+
+
+
+	public static function situation( int $action ): string {
+		return \Fmc\Domain\Situation::of(
+			(string) get_post_meta( $action, self::START, true ),
+			(string) get_post_meta( $action, self::END, true ),
+			(string) get_post_meta( $action, self::SITUATION, true ),
+			current_time( 'Y-m-d' )
+		);
+	}
 
 
 
@@ -530,6 +556,7 @@ namespace Fmc\Meta;
 
 
 
+
 if ( ! class_exists( 'Fmc\Meta\IncidentMetaKeys', false ) ) {
 final class IncidentMetaKeys {
 
@@ -538,6 +565,26 @@ final class IncidentMetaKeys {
 	public const HAS_COST         = 'fmc_has_cost';
 	public const RESOLUTION       = 'fmc_resolution';
 	public const RESOLUTION_NOTES = 'fmc_resolution_notes';
+	public const REQUEST          = 'fmc_request';
+	public const NEW_START        = 'fmc_new_start';
+	public const NEW_END          = 'fmc_new_end';
+
+
+
+
+	public const REQUESTS = array(
+		'change'   => 'Un cambio en la acción',
+		'postpone' => 'Aplazarla',
+		'cancel'   => 'Cancelarla',
+	);
+
+
+
+
+	public const SITUATION_OF = array(
+		'postpone' => 'postponed',
+		'cancel'   => 'cancelled',
+	);
 
 
 
@@ -560,6 +607,9 @@ final class IncidentMetaKeys {
 			self::HAS_COST         => MetaTypes::BOOL,
 			self::RESOLUTION       => MetaTypes::STRING,
 			self::RESOLUTION_NOTES => MetaTypes::TEXT,
+			self::REQUEST          => MetaTypes::STRING,
+			self::NEW_START        => MetaTypes::DATE,
+			self::NEW_END          => MetaTypes::DATE,
 		);
 	}
 }
@@ -633,6 +683,7 @@ final class MetaRegistration {
 			),
 			PostTypes::INCIDENT => array(
 				IncidentMetaKeys::RESOLUTION => IncidentMetaKeys::RESOLUTIONS,
+				IncidentMetaKeys::REQUEST    => IncidentMetaKeys::REQUESTS,
 			),
 		);
 	}
@@ -760,6 +811,63 @@ final class SchoolYear {
 		}
 		$start = (int) $m[2] >= self::FIRST_MONTH ? (int) $m[1] : (int) $m[1] - 1;
 		return $start . '-' . ( $start + 1 );
+	}
+}
+}
+
+
+
+
+
+
+
+
+namespace Fmc\Domain;
+
+
+
+
+
+
+
+
+
+if ( ! class_exists( 'Fmc\Domain\Situation', false ) ) {
+final class Situation {
+
+
+
+
+	public const SET_BY_INCIDENT = array( 'postponed', 'cancelled' );
+
+
+
+
+
+
+
+
+
+
+	public static function of( string $start, string $end, string $stored, string $today ): string {
+		if ( in_array( $stored, self::SET_BY_INCIDENT, true ) ) {
+			return $stored;
+		}
+		if ( ! self::is_date( $start ) || $today < $start ) {
+			return '';
+		}
+		$last = self::is_date( $end ) && $end >= $start ? $end : $start;
+		return $today <= $last ? 'running' : 'done';
+	}
+
+
+
+
+
+
+
+	private static function is_date( string $value ): bool {
+		return 1 === preg_match( '/^\d{4}-\d{2}-\d{2}$/', $value );
 	}
 }
 }
@@ -1056,13 +1164,15 @@ final class PostTypes {
 		$all = array( 'edit', 'edit_others', 'edit_private', 'edit_published', 'publish', 'read_private', 'delete', 'delete_others', 'delete_private', 'delete_published' );
 		$own = array( 'edit', 'edit_published', 'publish', 'delete' );
 
+		$deliver = array( 'edit', 'publish', 'delete' );
+
 		return array(
 			'administrator'        => array_fill_keys( array_keys( self::definitions() ), $all ),
 			'fmc_curator'          => array_fill_keys( array_keys( self::definitions() ), $all ),
 			'fmc_adviser'          => array(
 
 				self::DESIGN   => array(),
-				self::ACTION   => $own,
+				self::ACTION   => $deliver,
 
 
 				self::SPEAKER  => array_merge( $own, array( 'delete_others', 'delete_published' ) ),
@@ -1088,7 +1198,10 @@ final class PostTypes {
 	public static function revoked_caps(): array {
 		return array(
 
-			'fmc_adviser' => array( 'edit_fmc_designs', 'delete_fmc_designs' ),
+
+			'fmc_adviser' => array( 'edit_fmc_designs', 'delete_fmc_designs', 'edit_published_fmc_actions' ),
+
+			'fmc_curator' => array( self::CAP_SERVICE_FIELDS ),
 		);
 	}
 
@@ -1117,7 +1230,7 @@ final class PostTypes {
 
 		$extra = array(
 			'administrator'        => array( self::CAP_SERVICE_FIELDS, self::CAP_RESOLVE ),
-			'fmc_curator'          => array( self::CAP_SERVICE_FIELDS, self::CAP_RESOLVE ),
+			'fmc_curator'          => array( self::CAP_RESOLVE ),
 			'fmc_training_service' => array( self::CAP_SERVICE_FIELDS, self::CAP_RESOLVE ),
 		);
 		foreach ( $extra as $slug => $caps ) {
@@ -1734,6 +1847,9 @@ final class Fields {
 			),
 			PostTypes::INCIDENT => array(
 				I::RESOLUTION_NOTES => array( 'show' => array( I::RESOLUTION => array( 'approved', 'denied' ) ) ),
+
+				I::NEW_START        => array( 'show' => array( I::REQUEST => array( 'postpone' ) ) ),
+				I::NEW_END          => array( 'show' => array( I::REQUEST => array( 'postpone' ) ) ),
 			),
 		);
 	}
@@ -2104,35 +2220,14 @@ final class Fields {
 			),
 			array(
 				'title'  => 'Estado',
-				'help'   => 'El proceso lo lleva quien gestiona la acción; la situación, el expediente y el personal del servicio, el servicio de formación.',
+
+				'help'   => 'La situación la pone el aplicativo: impartiéndose en sus fechas y realizada cuando pasan; una incidencia la aplaza o la cancela. El expediente lo pone el servicio de formación.',
 				'fields' => array(
-					A::PROCESS         => array(
-						'label'   => 'Proceso',
-						'w'       => 'select',
-						'choices' => A::PROCESSES,
-						'col'     => 6,
-					),
-					A::SITUATION       => array(
-						'label'   => 'Situación',
-						'w'       => 'select',
-						'choices' => A::SITUATIONS,
-						'col'     => 6,
-					),
 					A::FILE_NUMBER     => array(
 						'label' => 'Expediente',
 						'w'     => 'text',
-						'col'   => 4,
-						'help'  => 'Solo cuando se haya creado en el sistema de gestión.',
-					),
-					A::SERVICE_OFFICER => array(
-						'label' => 'Negociado del servicio',
-						'w'     => 'text',
-						'col'   => 4,
-					),
-					A::SERVICE_MANAGER => array(
-						'label' => 'Responsable del servicio',
-						'w'     => 'text',
-						'col'   => 4,
+						'col'   => 6,
+						'help'  => 'Cuando el servicio de formación la haya creado en su sistema de gestión.',
 					),
 					A::COMPANY_TECH    => array(
 						'label' => 'Técnico de la empresa',
@@ -2254,19 +2349,36 @@ final class Fields {
 		return array(
 			array(
 				'title'  => 'La incidencia',
-				'help'   => 'Una vez enviada ya no se puede cambiar: si hay que corregirla, se abre otra.',
+				'help'   => 'Una vez enviada ya no se puede cambiar: si hay que corregirla, se abre otra. Si pide aplazar o cancelar la acción, la acción queda aplazada o cancelada al enviarla.',
 				'fields' => array(
-					I::REASON   => array(
+					I::REQUEST   => array(
+						'label'   => 'Qué se pide',
+						'w'       => 'radio',
+						'choices' => I::REQUESTS,
+						'req'     => true,
+					),
+					I::NEW_START => array(
+						'label' => 'Nueva fecha de inicio',
+						'w'     => 'date',
+						'col'   => 6,
+						'help'  => 'Si ya se sabe.',
+					),
+					I::NEW_END   => array(
+						'label' => 'Nueva fecha de fin',
+						'w'     => 'date',
+						'col'   => 6,
+					),
+					I::REASON    => array(
 						'label' => 'Motivos',
 						'w'     => 'textarea',
 						'req'   => true,
 					),
-					I::PROPOSAL => array(
+					I::PROPOSAL  => array(
 						'label' => 'Cambios que se proponen',
 						'w'     => 'textarea',
 						'req'   => true,
 					),
-					I::HAS_COST => array(
+					I::HAS_COST  => array(
 						'label' => 'El cambio conlleva coste',
 						'w'     => 'checkbox',
 						'help'  => 'Con coste es, por ejemplo, duplicar el curso; sin coste, cambiar ponente, fechas o número de plazas.',
@@ -2937,6 +3049,7 @@ final class Speakers {
 namespace Fmc\PublicFront;
 
 use Fmc\Domain\SchoolYear;
+use Fmc\Domain\Situation;
 use Fmc\Meta\ActionMetaKeys as A;
 use Fmc\Meta\DesignMetaKeys as D;
 use Fmc\Meta\IncidentMetaKeys as I;
@@ -2975,7 +3088,6 @@ final class Lists {
 
 
 	public const SITUATION_COLOURS = array(
-		'managing'  => 'secondary',
 		'running'   => 'primary',
 		'done'      => 'success',
 		'postponed' => 'warning',
@@ -3236,7 +3348,10 @@ final class Lists {
 				$term( 'fmc_scope', self::arg( 'fmc_scope' ) );
 				$term( 'fmc_programme', self::arg( 'fmc_programme' ) );
 				$meta( A::MODALITY, self::arg( 'fmc_modality' ) );
-				$meta( A::PROCESS, self::arg( 'fmc_process' ) );
+
+				if ( isset( A::DELIVERY[ self::arg( 'fmc_status' ) ] ) ) {
+					$args['post_status'] = self::arg( 'fmc_status' );
+				}
 
 				$meta( A::ADVISER, absint( self::arg( 'fmc_adviser' ) ) ? (string) absint( self::arg( 'fmc_adviser' ) ) : '' );
 				if ( isset( Advisers::KINDS[ self::arg( 'fmc_adviser_kind' ) ] ) ) {
@@ -3285,8 +3400,8 @@ final class Lists {
 						);
 					}
 				}
-				if ( $with_state ) {
-					$meta( A::SITUATION, self::arg( 'fmc_situation' ) );
+				if ( $with_state && isset( A::SITUATIONS[ self::arg( 'fmc_situation' ) ] ) ) {
+					$args['meta_query'][] = self::situation_clause( self::arg( 'fmc_situation' ) );
 				}
 				$year = self::arg( 'fmc_year' );
 				if ( preg_match( '/^(\d{4})-\d{4}$/', $year, $m ) ) {
@@ -3328,6 +3443,73 @@ final class Lists {
 				break;
 		}
 		return self::sorted( $type, $args );
+	}
+
+
+
+
+
+
+
+
+
+
+
+	private static function situation_clause( string $key ): array {
+		if ( in_array( $key, Situation::SET_BY_INCIDENT, true ) ) {
+			return array(
+				'key'   => A::SITUATION,
+				'value' => $key,
+			);
+		}
+		$today  = current_time( 'Y-m-d' );
+		$date   = static fn( string $meta, string $compare ): array => array(
+			'key'     => $meta,
+			'value'   => $today,
+			'compare' => $compare,
+			'type'    => 'DATE',
+		);
+		$open   = array(
+			'relation' => 'OR',
+			array(
+				'key'     => A::SITUATION,
+				'compare' => 'NOT EXISTS',
+			),
+			array(
+				'key'     => A::SITUATION,
+				'value'   => Situation::SET_BY_INCIDENT,
+				'compare' => 'NOT IN',
+			),
+		);
+		$no_end = array(
+			'key'     => A::END,
+			'compare' => 'NOT EXISTS',
+		);
+		$until  = 'running' === $key
+			? array(
+				'relation' => 'OR',
+				$date( A::END, '>=' ),
+				array(
+					'relation' => 'AND',
+					$no_end,
+					$date( A::START, '=' ),
+				),
+			)
+			: array(
+				'relation' => 'OR',
+				$date( A::END, '<' ),
+				array(
+					'relation' => 'AND',
+					$no_end,
+					$date( A::START, '<' ),
+				),
+			);
+		return array(
+			'relation' => 'AND',
+			$open,
+			$date( A::START, '<=' ),
+			$until,
+		);
 	}
 
 
@@ -3548,17 +3730,9 @@ final class Lists {
 						'fmc_situation',
 						$key,
 						array(
-							'meta_query' => array_merge( 
-								$base['meta_query'],
-								array(
-									array(
-										'key'   => A::SITUATION,
-										'value' => $key,
-									),
-								)
-							),
+							'meta_query' => array_merge( $base['meta_query'], array( self::situation_clause( $key ) ) ), 
 						),
-					); 
+					);
 				}
 				break;
 			case PostTypes::DESIGN:
@@ -3741,7 +3915,7 @@ final class Lists {
 				$fields[] = self::select( 'fmc_programme', 'Programa', self::term_choices( 'fmc_programme' ), 'Todos' );
 				$fields[] = self::select( 'fmc_modality', 'Modalidad', D::MODALITIES, 'Todas' );
 				$fields[] = self::select( 'fmc_type', 'Tipo', D::TYPES, 'Todos' );
-				$fields[] = self::select( 'fmc_process', 'Estado', A::PROCESSES, 'Todos' );
+				$fields[] = self::select( 'fmc_status', 'Estado', A::DELIVERY, 'Todos' );
 				$fields[] = self::select( 'fmc_situation', 'Situación', A::SITUATIONS, 'Todas' );
 				$fields[] = self::select( 'fmc_speaker', 'Ponente', self::post_choices( PostTypes::SPEAKER ), 'Todos', true );
 				$fields[] = self::select( 'fmc_adviser', 'Asesoría', Advisers::choices(), 'Todas', true );
@@ -4030,7 +4204,7 @@ final class Lists {
 			$head[] = $f['label'];
 		}
 		if ( PostTypes::ACTION === $type ) {
-			$head = array_merge( $head, array( 'Tipo de formación', 'Curso escolar', 'Horas totales' ) );
+			$head = array_merge( $head, array( 'Tipo de formación', 'Curso escolar', 'Horas totales', 'Situación' ) );
 		}
 
 		nocache_headers();
@@ -4040,15 +4214,19 @@ final class Lists {
 		fwrite( $out, "\xEF\xBB\xBF" ); 
 		fputcsv( $out, $head, ';' );
 		foreach ( get_posts( $args + array( 'suppress_filters' => false ) ) as $post ) {
-			$row = array_merge( array( $post->ID, get_post_status_object( $post->post_status )->label ?? $post->post_status ), $titled ? array( get_the_title( $post ) ) : array() );
+			$state = PostTypes::ACTION === $type ? ( A::DELIVERY[ $post->post_status ] ?? $post->post_status ) : ( get_post_status_object( $post->post_status )->label ?? $post->post_status );
+			$row   = array_merge( array( $post->ID, $state ), $titled ? array( get_the_title( $post ) ) : array() );
 			foreach ( $fields as $key => $f ) {
 				$row[] = self::plain( $post, $key, $f );
 			}
 			if ( PostTypes::ACTION === $type ) {
-				$n     = static fn( string $k ): float => (float) get_post_meta( $post->ID, $k, true );
-				$row[] = D::TYPES[ (string) get_post_meta( (int) get_post_meta( $post->ID, A::DESIGN_ID, true ), D::TYPE, true ) ] ?? '';
-				$row[] = SchoolYear::of( (string) get_post_meta( $post->ID, A::START, true ) );
-				$row[] = ( $n( A::HOURS_ONSITE ) + $n( A::HOURS_ONLINE ) ) * max( 1, (int) $n( A::REPLICAS ) );
+				$n         = static fn( string $k ): float => (float) get_post_meta( $post->ID, $k, true );
+				$row[]     = D::TYPES[ (string) get_post_meta( (int) get_post_meta( $post->ID, A::DESIGN_ID, true ), D::TYPE, true ) ] ?? '';
+				$row[]     = SchoolYear::of( (string) get_post_meta( $post->ID, A::START, true ) );
+				$situation = A::situation( $post->ID );
+
+				$row[] = 'cancelled' === $situation ? 0 : ( $n( A::HOURS_ONSITE ) + $n( A::HOURS_ONLINE ) ) * max( 1, (int) $n( A::REPLICAS ) );
+				$row[] = A::SITUATIONS[ $situation ] ?? '';
 			}
 			fputcsv( $out, $row, ';' );
 		}
@@ -4110,7 +4288,7 @@ final class Lists {
 					'Ponentes'        => static fn( $p ) => implode( "\n", array_map( 'get_the_title', array_filter( array_map( 'intval', (array) get_post_meta( $p->ID, A::SPEAKERS, true ) ) ) ) ),
 					'Tipo y horas'    => static fn( $p ) => ( D::TYPES[ (string) get_post_meta( (int) $m( $p, A::DESIGN_ID ), D::TYPE, true ) ] ?? '' ) . "\n" . trim( ( D::MODALITIES[ $m( $p, A::MODALITY ) ] ?? '' ) . ' · ' . self::hours( $m( $p, A::HOURS_ONSITE ), $m( $p, A::HOURS_ONLINE ) ), ' ·' ),
 					'Fechas'          => static fn( $p ) => self::dates( $m( $p, A::START ), $m( $p, A::END ) ) . "\n" . wp_trim_words( $m( $p, A::SCHEDULE ), 12 ),
-					'Estado'          => static fn( $p ) => ( A::PROCESSES[ $m( $p, A::PROCESS ) ] ?? '' ) . "\n" . SchoolYear::of( $m( $p, A::START ) ),
+					'Estado'          => static fn( $p ) => ( A::DELIVERY[ $p->post_status ] ?? '' ) . "\n" . SchoolYear::of( $m( $p, A::START ) ),
 				);
 			case PostTypes::DESIGN:
 				return array(
@@ -4222,7 +4400,7 @@ final class Lists {
 		$label = ( $edit ? 'Editar' : 'Ver' ) . ' «' . self::title( $post ) . '»';
 		$out   = '<a class="btn btn-sm btn-outline-primary fmc-icon fmc-abre-panel" title="' . esc_attr( $edit ? 'Editar' : 'Ver' ) . '" aria-label="' . esc_attr( $label ) . '" href="' . esc_url( Screen::url( array( Screen::ARG_EDIT => $post->ID ) ) ) . '"><i class="bi ' . ( $edit ? 'bi-pencil' : 'bi-eye' ) . '" aria-hidden="true"></i></a>';
 
-		if ( PostTypes::ACTION === $post->post_type && $edit && current_user_can( 'edit_fmc_incidents' ) ) {
+		if ( PostTypes::ACTION === $post->post_type && Editor::can_open_incident( $post->ID ) ) {
 			$out .= ' <a class="btn btn-sm btn-outline-secondary fmc-icon fmc-abre-panel" title="Abrir una incidencia" aria-label="' . esc_attr( 'Abrir una incidencia sobre «' . self::title( $post ) . '»' ) . '" href="' . esc_url(
 				Screen::url(
 					array(
@@ -4257,8 +4435,9 @@ final class Lists {
 
 	public static function badge( \WP_Post $post ): string {
 		if ( PostTypes::ACTION === $post->post_type ) {
-			$s = (string) get_post_meta( $post->ID, A::SITUATION, true );
-			return ( isset( A::SITUATIONS[ $s ] ) ? ' <span class="badge rounded-pill text-bg-' . esc_attr( self::SITUATION_COLOURS[ $s ] ) . '">' . esc_html( A::SITUATIONS[ $s ] ) . '</span>' : '' ) . self::incident_badge( $post->ID );
+			$s = A::situation( $post->ID );
+			return ( 'draft' === $post->post_status ? ' <span class="badge rounded-pill text-bg-light border">Borrador</span>' : '' )
+				. ( isset( A::SITUATIONS[ $s ] ) ? ' <span class="badge rounded-pill text-bg-' . esc_attr( self::SITUATION_COLOURS[ $s ] ) . '">' . esc_html( A::SITUATIONS[ $s ] ) . '</span>' : '' ) . self::incident_badge( $post->ID );
 		}
 		if ( PostTypes::DESIGN === $post->post_type && isset( self::DESIGN_STATUSES[ $post->post_status ] ) ) {
 			list( $label, $colour ) = self::DESIGN_STATUSES[ $post->post_status ];
@@ -4873,13 +5052,13 @@ final class Calendar {
 
 	public static function card( \WP_Post $post ): string {
 		$m          = static fn( string $key ): string => (string) get_post_meta( $post->ID, $key, true );
-		$situation  = $m( A::SITUATION );
+		$situation  = A::situation( $post->ID );
 		$funded     = $m( A::FUNDED_BY );
 		$replicas   = (int) $m( A::REPLICAS );
 		$incomplete = ! $m( A::DESIGN_ID ) || ! $m( A::PLACES ) || ! $m( A::MODALITY );
 
 		$dot = isset( self::FUNDER_COLOURS[ $funded ] ) && 'none' !== $funded ? '<i class="fmc-dot" style="background:' . esc_attr( self::FUNDER_COLOURS[ $funded ] ) . '" title="' . esc_attr( 'Asume: ' . A::funders()[ $funded ] ) . '"></i>' : '';
-		$out = '<a class="fmc-ev fmc-abre-panel fmc-sit-' . esc_attr( '' !== $situation ? $situation : 'none' ) . '" href="' . esc_url( Screen::url( array( Screen::ARG_EDIT => $post->ID ) ) ) . '" title="' . esc_attr( get_the_title( $post ) ) . '">';
+		$out = '<a class="fmc-ev fmc-abre-panel fmc-sit-' . esc_attr( '' !== $situation ? $situation : 'none' ) . ( 'draft' === $post->post_status ? ' is-draft' : '' ) . '" href="' . esc_url( Screen::url( array( Screen::ARG_EDIT => $post->ID ) ) ) . '" title="' . esc_attr( get_the_title( $post ) ) . '">';
 		if ( $replicas > 1 ) {
 			$out .= '<span class="fmc-ribbon">×' . esc_html( (string) $replicas ) . '</span>';
 		}
@@ -4887,7 +5066,11 @@ final class Calendar {
 			$out .= '<span class="fmc-ribbon is-warn" title="Datos incompletos">!</span>';
 		}
 		$out .= '<span class="fmc-ev-title">' . esc_html( get_the_title( $post ) ) . '</span>';
-		$sub  = $m( A::SUBTITLE );
+
+		if ( 'draft' === $post->post_status ) {
+			$out .= '<span class="fmc-ev-meta">Borrador, sin entregar</span>';
+		}
+		$sub = $m( A::SUBTITLE );
 		if ( '' !== $sub ) {
 			$out .= '<span class="fmc-ev-meta">' . esc_html( $sub ) . '</span>';
 		}
@@ -5037,7 +5220,7 @@ final class Editor {
 			return self::denied();
 		}
 		$parent = absint( Lists::arg( Screen::ARG_PARENT ) );
-		if ( PostTypes::INCIDENT === $new_type && ( PostTypes::ACTION !== get_post_type( $parent ) || ! current_user_can( 'edit_post', $parent ) ) ) {
+		if ( PostTypes::INCIDENT === $new_type && ! self::can_open_incident( $parent ) ) {
 			return self::denied();
 		}
 		return self::render( $new_type, null, array(), array() );
@@ -5288,6 +5471,13 @@ final class Editor {
 		if ( PostTypes::INCIDENT === $type && ! $post ) {
 			return $button( 'publish', 'Enviar la incidencia', 'btn-primary' );
 		}
+
+
+		if ( PostTypes::ACTION === $type && ( ! $post || 'publish' !== $post->post_status ) && current_user_can( 'publish_fmc_actions' ) ) {
+			$owner = ! current_user_can( 'edit_others_fmc_actions' );
+			return $button( 'draft', 'Guardar borrador', 'btn-outline-primary' ) . $button( 'publish', 'Entregar', 'btn-primary' )
+				. ( $owner ? '<span class="form-text m-0">Una vez entregada ya no podrá cambiarla: los cambios se piden con una incidencia.</span>' : '' );
+		}
 		if ( PostTypes::DESIGN !== $type ) {
 			return $button( '', 'Guardar', 'btn-primary' );
 		}
@@ -5417,7 +5607,7 @@ final class Editor {
 					$input .= '<div class="form-check"><input class="form-check-input" type="' . ( $multi ? 'checkbox' : 'radio' ) . '" id="' . esc_attr( $cid ) . '" name="' . esc_attr( $name . ( $multi ? '[]' : '' ) ) . '" value="' . esc_attr( (string) $v ) . '"' . ( in_array( (string) $v, $current, true ) ? ' checked' : '' ) . $disabled . '><label class="form-check-label" for="' . esc_attr( $cid ) . '">' . esc_html( $text ) . '</label></div>';
 				}
 				$input .= '</div>';
-				$label  = '<span class="form-label fw-semibold d-block">' . esc_html( $f['label'] ) . '</span>';
+				$label  = '<span class="form-label fw-semibold d-block">' . esc_html( $f['label'] ) . ( ! empty( $f['req'] ) ? ' <span class="text-danger" aria-hidden="true">*</span>' : '' ) . '</span>';
 				break;
 			default:
 				$types = array(
@@ -5737,7 +5927,8 @@ final class Editor {
 
 		$items = array(
 			'Curso escolar' => \Fmc\Domain\SchoolYear::of( (string) get_post_meta( $post->ID, A::START, true ) ),
-			'Horas totales' => $hours ? ( $hours + 0 ) . ' h' . ( $replicas > 1 ? ' (' . ( $hours * $replicas + 0 ) . ' h con el desdoble)' : '' ) : '',
+
+			'Horas totales' => 'cancelled' === A::situation( $post->ID ) ? 'Cancelada' : ( $hours ? ( $hours + 0 ) . ' h' . ( $replicas > 1 ? ' (' . ( $hours * $replicas + 0 ) . ' h con el desdoble)' : '' ) : '' ),
 			'Ponentes'      => (string) count( array_filter( (array) get_post_meta( $post->ID, A::SPEAKERS, true ) ) ),
 		);
 		$out   = '<div class="fmc-counters mb-4">';
@@ -5765,7 +5956,7 @@ final class Editor {
 			)
 		);
 		$out  = '<section class="card fmc-section mt-2"><div class="card-body"><div class="d-flex align-items-center mb-2"><h2 class="h5 me-auto mb-0">Incidencias</h2>';
-		if ( current_user_can( 'edit_post', $post->ID ) && current_user_can( 'edit_fmc_incidents' ) ) {
+		if ( self::can_open_incident( $post->ID ) ) {
 			$out .= '<a class="btn btn-outline-primary btn-sm" href="' . esc_url(
 				Screen::url(
 					array(
@@ -5872,6 +6063,9 @@ final class Editor {
 		$errors   = array();
 		$writable = array();
 
+		$was_start     = $post ? (string) get_post_meta( $post->ID, A::START, true ) : '';
+		$was_situation = $post ? (string) get_post_meta( $post->ID, A::SITUATION, true ) : '';
+
 		$archiving = PostTypes::DESIGN === $type && PostTypes::ARCHIVED === self::next_status( $type, $post, $status );
 		foreach ( $fields as $key => $f ) {
 			if ( 'docs' === $f['w'] || ! self::can_write( $type, $key, $id ) ) {
@@ -5940,7 +6134,7 @@ final class Editor {
 		if ( array() === $writable ) {
 			return $denied;
 		}
-		if ( PostTypes::INCIDENT === $type && ! $id && ( PostTypes::ACTION !== get_post_type( $parent_id ) || ! current_user_can( 'edit_post', $parent_id ) ) ) {
+		if ( PostTypes::INCIDENT === $type && ! $id && ! self::can_open_incident( $parent_id ) ) {
 			return $denied;
 		}
 		if ( $errors ) {
@@ -6012,6 +6206,17 @@ final class Editor {
 		}
 		if ( ! $post && PostTypes::INCIDENT === $type && ! isset( $values[ I::RESOLUTION ] ) ) {
 			update_post_meta( $id, I::RESOLUTION, 'pending' );
+		}
+
+
+		if ( ! $post && PostTypes::INCIDENT === $type && isset( I::SITUATION_OF[ (string) ( $values[ I::REQUEST ] ?? '' ) ] ) ) {
+			update_post_meta( $parent_id, A::SITUATION, I::SITUATION_OF[ (string) $values[ I::REQUEST ] ] );
+		}
+		if ( ! $post && PostTypes::INCIDENT === $type ) {
+			self::notify_incident( $id );
+		}
+		if ( PostTypes::ACTION === $type && 'postponed' === $was_situation && (string) get_post_meta( $id, A::START, true ) !== $was_start ) {
+			delete_post_meta( $id, A::SITUATION );
 		}
 
 		$problems = array();
@@ -6223,10 +6428,75 @@ final class Editor {
 			}
 			return in_array( $requested, array( 'draft', 'pending', 'publish', PostTypes::ARCHIVED ), true ) ? $requested : ( '' !== $current ? $current : 'draft' );
 		}
+		if ( PostTypes::ACTION === $type ) {
+
+			if ( 'publish' === $requested && current_user_can( 'publish_fmc_actions' ) ) {
+				return 'publish';
+			}
+			if ( 'draft' === $requested && ( 'publish' !== $current || current_user_can( 'edit_others_fmc_actions' ) ) ) {
+				return 'draft';
+			}
+			return '' !== $current ? $current : 'draft';
+		}
 		if ( '' !== $current ) {
 			return $current;
 		}
 		return current_user_can( get_post_type_object( $type )->cap->publish_posts ) ? 'publish' : 'draft';
+	}
+
+
+
+
+
+
+
+
+
+
+
+
+	public static function notify_incident( int $incident ): bool {
+		$action = (int) get_post_field( 'post_parent', $incident );
+		$to     = array_values( array_filter( array_map( 'sanitize_email', (array) apply_filters( 'fmc_incident_recipients', array(), $incident, $action ) ), 'is_email' ) );
+		if ( array() === $to ) {
+			return false;
+		}
+		$m     = static fn( string $key ): string => (string) get_post_meta( $incident, $key, true );
+		$lines = array(
+			'Acción: ' . get_the_title( $action ),
+			'Expediente: ' . (string) get_post_meta( $action, A::FILE_NUMBER, true ),
+			'Qué se pide: ' . ( I::REQUESTS[ $m( I::REQUEST ) ] ?? '' ),
+			'Nuevas fechas: ' . trim( Lists::dates( $m( I::NEW_START ), $m( I::NEW_END ) ) ),
+			'Abierta por: ' . get_the_author_meta( 'display_name', (int) get_post_field( 'post_author', $incident ) ),
+			'',
+			'Motivos:',
+			$m( I::REASON ),
+			'',
+			'Cambios que se proponen:',
+			$m( I::PROPOSAL ),
+			'',
+			'Coste: ' . ( $m( I::HAS_COST ) ? 'con coste' : 'sin coste' ),
+			'',
+			Screen::url( array( Screen::ARG_EDIT => $incident ) ),
+		);
+		$lines = array_filter( $lines, static fn( $line ) => ! preg_match( '/: $/', (string) $line ) );
+		return (bool) wp_mail( $to, 'Incidencia: ' . wp_strip_all_tags( get_the_title( $action ) ), implode( "\n", $lines ) );
+	}
+
+
+
+
+
+
+
+
+
+
+	public static function can_open_incident( int $action ): bool {
+		if ( PostTypes::ACTION !== get_post_type( $action ) || ( 'publish' !== get_post_status( $action ) && ! current_user_can( 'edit_post', $action ) ) ) {
+			return false;
+		}
+		return current_user_can( 'edit_fmc_incidents' ) && ( current_user_can( 'edit_post', $action ) || get_current_user_id() === (int) get_post_field( 'post_author', $action ) );
 	}
 }
 }
@@ -7341,7 +7611,7 @@ a.fmc-counter:hover, .fmc-counter.is-active { border-color: var(--fmc-brand); bo
 /* Leyenda y colores de la situación */
 .fmc-legend { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem; }
 .fmc-chip { display: inline-flex; align-items: center; gap: .3rem; font-size: .78rem; padding: .15rem .55rem; border-radius: 1rem; background: #fff; border: 2px solid var(--fmc-line); }
-.fmc-sit-managing { --sit: #adb5bd; }
+.fmc-ev.is-draft { border-style: dashed; border-left-style: solid; background: var(--fmc-soft); }
 .fmc-sit-running { --sit: #0d6efd; }
 .fmc-sit-done { --sit: #198754; }
 .fmc-sit-postponed { --sit: #e0a800; }

@@ -127,7 +127,7 @@ final class Editor {
 			return self::denied();
 		}
 		$parent = absint( Lists::arg( Screen::ARG_PARENT ) );
-		if ( PostTypes::INCIDENT === $new_type && ( PostTypes::ACTION !== get_post_type( $parent ) || ! current_user_can( 'edit_post', $parent ) ) ) {
+		if ( PostTypes::INCIDENT === $new_type && ! self::can_open_incident( $parent ) ) {
 			return self::denied();
 		}
 		return self::render( $new_type, null, array(), array() );
@@ -378,6 +378,13 @@ final class Editor {
 		if ( PostTypes::INCIDENT === $type && ! $post ) {
 			return $button( 'publish', 'Enviar la incidencia', 'btn-primary' );
 		}
+		// La acción se guarda en borrador o se entrega; entregada, quien la
+		// entregó ya no la cambia: los cambios, por incidencia (ADR-0020).
+		if ( PostTypes::ACTION === $type && ( ! $post || 'publish' !== $post->post_status ) && current_user_can( 'publish_fmc_actions' ) ) {
+			$owner = ! current_user_can( 'edit_others_fmc_actions' );
+			return $button( 'draft', 'Guardar borrador', 'btn-outline-primary' ) . $button( 'publish', 'Entregar', 'btn-primary' )
+				. ( $owner ? '<span class="form-text m-0">Una vez entregada ya no podrá cambiarla: los cambios se piden con una incidencia.</span>' : '' );
+		}
 		if ( PostTypes::DESIGN !== $type ) {
 			return $button( '', 'Guardar', 'btn-primary' );
 		}
@@ -507,7 +514,7 @@ final class Editor {
 					$input .= '<div class="form-check"><input class="form-check-input" type="' . ( $multi ? 'checkbox' : 'radio' ) . '" id="' . esc_attr( $cid ) . '" name="' . esc_attr( $name . ( $multi ? '[]' : '' ) ) . '" value="' . esc_attr( (string) $v ) . '"' . ( in_array( (string) $v, $current, true ) ? ' checked' : '' ) . $disabled . '><label class="form-check-label" for="' . esc_attr( $cid ) . '">' . esc_html( $text ) . '</label></div>';
 				}
 				$input .= '</div>';
-				$label  = '<span class="form-label fw-semibold d-block">' . esc_html( $f['label'] ) . '</span>';
+				$label  = '<span class="form-label fw-semibold d-block">' . esc_html( $f['label'] ) . ( ! empty( $f['req'] ) ? ' <span class="text-danger" aria-hidden="true">*</span>' : '' ) . '</span>';
 				break;
 			default:
 				$types = array(
@@ -827,7 +834,8 @@ final class Editor {
 		// Las cifras de matrícula y certificación las lleva el servicio de formación (ADR-0010).
 		$items = array(
 			'Curso escolar' => \Fmc\Domain\SchoolYear::of( (string) get_post_meta( $post->ID, A::START, true ) ),
-			'Horas totales' => $hours ? ( $hours + 0 ) . ' h' . ( $replicas > 1 ? ' (' . ( $hours * $replicas + 0 ) . ' h con el desdoble)' : '' ) : '',
+			// Una cancelada no se imparte: sus horas no cuentan (ADR-0020).
+			'Horas totales' => 'cancelled' === A::situation( $post->ID ) ? 'Cancelada' : ( $hours ? ( $hours + 0 ) . ' h' . ( $replicas > 1 ? ' (' . ( $hours * $replicas + 0 ) . ' h con el desdoble)' : '' ) : '' ),
 			'Ponentes'      => (string) count( array_filter( (array) get_post_meta( $post->ID, A::SPEAKERS, true ) ) ),
 		);
 		$out   = '<div class="fmc-counters mb-4">';
@@ -855,7 +863,7 @@ final class Editor {
 			)
 		);
 		$out  = '<section class="card fmc-section mt-2"><div class="card-body"><div class="d-flex align-items-center mb-2"><h2 class="h5 me-auto mb-0">Incidencias</h2>';
-		if ( current_user_can( 'edit_post', $post->ID ) && current_user_can( 'edit_fmc_incidents' ) ) {
+		if ( self::can_open_incident( $post->ID ) ) {
 			$out .= '<a class="btn btn-outline-primary btn-sm" href="' . esc_url(
 				Screen::url(
 					array(
@@ -961,6 +969,9 @@ final class Editor {
 		$values   = array();
 		$errors   = array();
 		$writable = array();
+		// Lo que la acción era antes de guardar: una aplazada sale de ahí con fechas nuevas.
+		$was_start     = $post ? (string) get_post_meta( $post->ID, A::START, true ) : '';
+		$was_situation = $post ? (string) get_post_meta( $post->ID, A::SITUATION, true ) : '';
 		// Lo que pasa a histórico no se completa: ni obligatorios ni título único.
 		$archiving = PostTypes::DESIGN === $type && PostTypes::ARCHIVED === self::next_status( $type, $post, $status );
 		foreach ( $fields as $key => $f ) {
@@ -1030,7 +1041,7 @@ final class Editor {
 		if ( array() === $writable ) {
 			return $denied;
 		}
-		if ( PostTypes::INCIDENT === $type && ! $id && ( PostTypes::ACTION !== get_post_type( $parent_id ) || ! current_user_can( 'edit_post', $parent_id ) ) ) {
+		if ( PostTypes::INCIDENT === $type && ! $id && ! self::can_open_incident( $parent_id ) ) {
 			return $denied;
 		}
 		if ( $errors ) {
@@ -1102,6 +1113,17 @@ final class Editor {
 		}
 		if ( ! $post && PostTypes::INCIDENT === $type && ! isset( $values[ I::RESOLUTION ] ) ) {
 			update_post_meta( $id, I::RESOLUTION, 'pending' );
+		}
+		// Pedir aplazarla o cancelarla la deja así al enviar la incidencia; una
+		// aplazada vuelve a ir por sus fechas cuando se le ponen las nuevas (ADR-0020).
+		if ( ! $post && PostTypes::INCIDENT === $type && isset( I::SITUATION_OF[ (string) ( $values[ I::REQUEST ] ?? '' ) ] ) ) {
+			update_post_meta( $parent_id, A::SITUATION, I::SITUATION_OF[ (string) $values[ I::REQUEST ] ] );
+		}
+		if ( ! $post && PostTypes::INCIDENT === $type ) {
+			self::notify_incident( $id );
+		}
+		if ( PostTypes::ACTION === $type && 'postponed' === $was_situation && (string) get_post_meta( $id, A::START, true ) !== $was_start ) {
+			delete_post_meta( $id, A::SITUATION );
 		}
 
 		$problems = array();
@@ -1313,9 +1335,74 @@ final class Editor {
 			}
 			return in_array( $requested, array( 'draft', 'pending', 'publish', PostTypes::ARCHIVED ), true ) ? $requested : ( '' !== $current ? $current : 'draft' );
 		}
+		if ( PostTypes::ACTION === $type ) {
+			// Entregar pide poder publicar; volver a borrador lo entregado, editar lo ajeno.
+			if ( 'publish' === $requested && current_user_can( 'publish_fmc_actions' ) ) {
+				return 'publish';
+			}
+			if ( 'draft' === $requested && ( 'publish' !== $current || current_user_can( 'edit_others_fmc_actions' ) ) ) {
+				return 'draft';
+			}
+			return '' !== $current ? $current : 'draft';
+		}
 		if ( '' !== $current ) {
 			return $current;
 		}
 		return current_user_can( get_post_type_object( $type )->cap->publish_posts ) ? 'publish' : 'draft';
+	}
+
+	/**
+	 * Mail a new incident to who follows them (ADR-0020).
+	 *
+	 * La gestión de la incidencia queda aquí, y se avisa por correo a quien la
+	 * tiene que llevar. A quién, lo dice cada despliegue con el filtro
+	 * `fmc_incident_recipients`, vacío por defecto: sin destinatarios, no se
+	 * manda nada.
+	 *
+	 * @param int $incident Incident ID.
+	 * @return bool Whether a mail was sent.
+	 */
+	public static function notify_incident( int $incident ): bool {
+		$action = (int) get_post_field( 'post_parent', $incident );
+		$to     = array_values( array_filter( array_map( 'sanitize_email', (array) apply_filters( 'fmc_incident_recipients', array(), $incident, $action ) ), 'is_email' ) );
+		if ( array() === $to ) {
+			return false;
+		}
+		$m     = static fn( string $key ): string => (string) get_post_meta( $incident, $key, true );
+		$lines = array(
+			'Acción: ' . get_the_title( $action ),
+			'Expediente: ' . (string) get_post_meta( $action, A::FILE_NUMBER, true ),
+			'Qué se pide: ' . ( I::REQUESTS[ $m( I::REQUEST ) ] ?? '' ),
+			'Nuevas fechas: ' . trim( Lists::dates( $m( I::NEW_START ), $m( I::NEW_END ) ) ),
+			'Abierta por: ' . get_the_author_meta( 'display_name', (int) get_post_field( 'post_author', $incident ) ),
+			'',
+			'Motivos:',
+			$m( I::REASON ),
+			'',
+			'Cambios que se proponen:',
+			$m( I::PROPOSAL ),
+			'',
+			'Coste: ' . ( $m( I::HAS_COST ) ? 'con coste' : 'sin coste' ),
+			'',
+			Screen::url( array( Screen::ARG_EDIT => $incident ) ),
+		);
+		$lines = array_filter( $lines, static fn( $line ) => ! preg_match( '/: $/', (string) $line ) );
+		return (bool) wp_mail( $to, 'Incidencia: ' . wp_strip_all_tags( get_the_title( $action ) ), implode( "\n", $lines ) );
+	}
+
+	/**
+	 * Whether the current user may open an incident on an action.
+	 *
+	 * Quien puede editarla, o quien la entregó: entregada ya no la edita, y es
+	 * por la incidencia por donde pide los cambios (ADR-0007, ADR-0020).
+	 *
+	 * @param int $action Action ID.
+	 * @return bool
+	 */
+	public static function can_open_incident( int $action ): bool {
+		if ( PostTypes::ACTION !== get_post_type( $action ) || ( 'publish' !== get_post_status( $action ) && ! current_user_can( 'edit_post', $action ) ) ) {
+			return false;
+		}
+		return current_user_can( 'edit_fmc_incidents' ) && ( current_user_can( 'edit_post', $action ) || get_current_user_id() === (int) get_post_field( 'post_author', $action ) );
 	}
 }

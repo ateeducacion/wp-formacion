@@ -6,7 +6,7 @@ date: 2026-09-30
 related:
   issues: []
   prs: []
-  adrs: [ADR-0001, ADR-0002, ADR-0003, ADR-0004, ADR-0005, ADR-0006, ADR-0007, ADR-0008, ADR-0009, ADR-0010, ADR-0011, ADR-0012, ADR-0013, ADR-0014, ADR-0015, ADR-0016, ADR-0017, ADR-0018, ADR-0019]
+  adrs: [ADR-0001, ADR-0002, ADR-0003, ADR-0004, ADR-0005, ADR-0006, ADR-0007, ADR-0008, ADR-0009, ADR-0010, ADR-0011, ADR-0012, ADR-0013, ADR-0014, ADR-0015, ADR-0016, ADR-0017, ADR-0018, ADR-0019, ADR-0020]
   sdds: []
 supersedes: []
 superseded_by: []
@@ -30,8 +30,8 @@ la validación, el 2026-10-21; su material también está en `.local/`.
 
 La ADR-0016 y la ADR-0017 salen de la segunda revisión, el 2026-10-27, que
 también deja adendas en la ADR-0004, la ADR-0012 y la ADR-0015. La ADR-0018
-sale de la respuesta de la validación en la issue #27, y la ADR-0019, de la de
-la issue #25, el mismo día.
+sale de la respuesta de la validación en la issue #27, la ADR-0019, de la de
+la issue #25, y la ADR-0020, de las de la #24 y la #23, el mismo día.
 
 El perfil que estas ADR llaman «curaduría» se llama hoy **validación**: da los
 diseños por finalizados (rol `fmc_curator`, «Validación de formación»). Las ADR
@@ -58,3 +58,4 @@ con commit no se reescriben por un cambio de nombre; esta nota lo traduce.
 | [ADR-0017](ADR-0017-la-asesoria-consulta-los-disenos-finalizados-y-no-los-escribe.md) | La asesoría consulta los diseños finalizados y no los escribe | Propuesta |
 | [ADR-0018](ADR-0018-el-servicio-imputa-la-accion-al-programa-activo-de-su-diseno.md) | Lo que asume el servicio de formación se imputa al programa activo del diseño | Propuesta |
 | [ADR-0019](ADR-0019-la-asesoria-es-una-cuenta-del-sitio-con-su-tipo.md) | La asesoría es una cuenta del sitio, con su tipo en el perfil | Propuesta |
+| [ADR-0020](ADR-0020-la-situacion-se-calcula-y-la-accion-se-entrega.md) | La situación de la acción se calcula, y la acción se entrega | Propuesta |
