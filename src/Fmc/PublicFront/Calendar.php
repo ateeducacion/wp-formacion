@@ -459,7 +459,7 @@ final class Calendar {
 		foreach ( A::SITUATIONS as $key => $label ) {
 			$out .= '<span class="fmc-chip fmc-sit-' . esc_attr( $key ) . '">' . esc_html( $label ) . '</span>';
 		}
-		foreach ( A::FUNDERS as $key => $label ) {
+		foreach ( A::funders() as $key => $label ) {
 			if ( 'none' === $key ) {
 				continue;
 			}
@@ -482,7 +482,7 @@ final class Calendar {
 		$replicas   = (int) $m( A::REPLICAS );
 		$incomplete = ! $m( A::DESIGN_ID ) || ! $m( A::PLACES ) || ! $m( A::MODALITY );
 
-		$dot = isset( self::FUNDER_COLOURS[ $funded ] ) && 'none' !== $funded ? '<i class="fmc-dot" style="background:' . esc_attr( self::FUNDER_COLOURS[ $funded ] ) . '" title="' . esc_attr( 'Asume: ' . A::FUNDERS[ $funded ] ) . '"></i>' : '';
+		$dot = isset( self::FUNDER_COLOURS[ $funded ] ) && 'none' !== $funded ? '<i class="fmc-dot" style="background:' . esc_attr( self::FUNDER_COLOURS[ $funded ] ) . '" title="' . esc_attr( 'Asume: ' . A::funders()[ $funded ] ) . '"></i>' : '';
 		$out = '<a class="fmc-ev fmc-abre-panel fmc-sit-' . esc_attr( '' !== $situation ? $situation : 'none' ) . '" href="' . esc_url( Screen::url( array( Screen::ARG_EDIT => $post->ID ) ) ) . '" title="' . esc_attr( get_the_title( $post ) ) . '">';
 		if ( $replicas > 1 ) {
 			$out .= '<span class="fmc-ribbon">×' . esc_html( (string) $replicas ) . '</span>';
@@ -504,7 +504,7 @@ final class Calendar {
 		// escribía entero en cada acción, aquí en una línea.
 		$programmes = Lists::terms( $post->ID, 'fmc_programme' );
 		if ( '' !== $dot || '' !== $programmes ) {
-			$out .= '<span class="fmc-ev-meta">' . $dot . esc_html( trim( ( A::FUNDERS[ $funded ] ?? '' ) . ( '' !== $programmes ? ' · ' . $programmes : '' ), ' ·' ) ) . '</span>';
+			$out .= '<span class="fmc-ev-meta">' . $dot . esc_html( trim( ( A::funders()[ $funded ] ?? '' ) . ( '' !== $programmes ? ' · ' . $programmes : '' ), ' ·' ) ) . '</span>';
 		}
 		return $out . Lists::incident_badge( $post->ID ) . '</a>';
 	}

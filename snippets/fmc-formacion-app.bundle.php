@@ -322,6 +322,36 @@ final class ActionMetaKeys {
 
 
 
+
+	public const PROGRAMME_FUNDER = 'service';
+
+
+
+
+	public const FALLBACK_FUNDER = 'centre';
+
+
+
+
+
+
+
+
+
+
+
+	public static function funders(): array {
+		$names = (array) apply_filters( 'fmc_funders', self::FUNDERS );
+		$out   = array();
+		foreach ( self::FUNDERS as $key => $label ) {
+			$out[ $key ] = isset( $names[ $key ] ) && is_string( $names[ $key ] ) && '' !== trim( $names[ $key ] ) ? $names[ $key ] : $label;
+		}
+		return $out;
+	}
+
+
+
+
 	public const PROCESSES = array(
 		'draft'     => 'En borrador',
 		'paid'      => 'Pagada por el centro',
@@ -1120,6 +1150,7 @@ final class PostTypes {
 
 namespace Fmc\Taxonomy;
 
+use Fmc\Meta\ActionMetaKeys;
 use Fmc\PostType\PostTypes;
 
 
@@ -1139,6 +1170,11 @@ final class Taxonomies {
 	public const COMPETENCE = 'fmc_competence';
 	public const SCOPE      = 'fmc_scope';
 	public const ZONE       = 'fmc_zone';
+
+
+
+
+	public const ACTIVE = 'fmc_active';
 
 
 
@@ -1215,6 +1251,131 @@ final class Taxonomies {
 				)
 			);
 		}
+
+		register_term_meta(
+			self::PROGRAMME,
+			self::ACTIVE,
+			array(
+				'type'              => 'boolean',
+				'single'            => true,
+				'show_in_rest'      => false,
+				'sanitize_callback' => static fn( $value ): bool => (bool) $value,
+				'auth_callback'     => static fn(): bool => current_user_can( 'fmc_manage_app' ),
+			)
+		);
+	}
+
+
+
+
+
+
+
+
+
+	public static function hooks(): void {
+		add_action( self::PROGRAMME . '_add_form_fields', array( self::class, 'add_active_field' ) );
+		add_action( self::PROGRAMME . '_edit_form_fields', array( self::class, 'edit_active_field' ) );
+		add_action( 'created_' . self::PROGRAMME, array( self::class, 'save_active' ) );
+		add_action( 'edited_' . self::PROGRAMME, array( self::class, 'save_active' ) );
+		add_filter( 'manage_edit-' . self::PROGRAMME . '_columns', array( self::class, 'active_column' ) );
+		add_filter( 'manage_' . self::PROGRAMME . '_custom_column', array( self::class, 'active_cell' ), 10, 3 );
+	}
+
+
+
+
+
+
+	public static function active_programmes(): array {
+		$ids = get_terms(
+			array(
+				'taxonomy'   => self::PROGRAMME,
+				'hide_empty' => false,
+				'fields'     => 'ids',
+				'meta_query' => array( 
+					array(
+						'key'   => self::ACTIVE,
+						'value' => '1',
+					),
+				),
+			)
+		);
+		return is_array( $ids ) ? array_map( 'intval', $ids ) : array();
+	}
+
+
+
+
+
+
+	public static function add_active_field(): void {
+		wp_nonce_field( 'fmc_programme_active', '_fmc_programme_nonce' );
+		echo '<div class="form-field"><label><input type="checkbox" name="fmc_active" value="1"> Activo</label><p>' . esc_html( self::active_help() ) . '</p></div>';
+	}
+
+
+
+
+
+
+
+	public static function edit_active_field( $term ): void {
+		echo '<tr class="form-field"><th scope="row">Activo</th><td>';
+		wp_nonce_field( 'fmc_programme_active', '_fmc_programme_nonce' );
+		echo '<label><input type="checkbox" name="fmc_active" value="1"' . checked( (bool) get_term_meta( $term->term_id, self::ACTIVE, true ), true, false ) . '> Activo</label><p class="description">' . esc_html( self::active_help() ) . '</p></td></tr>';
+	}
+
+
+
+
+
+
+	private static function active_help(): string {
+		return sprintf( 'Mientras está activo, las acciones de los diseños de este programa que asuma «%s» se le imputan solas.', ActionMetaKeys::funders()[ ActionMetaKeys::PROGRAMME_FUNDER ] );
+	}
+
+
+
+
+
+
+
+	public static function save_active( $term_id ): void {
+		if ( ! isset( $_POST['_fmc_programme_nonce'] ) || ! wp_verify_nonce( sanitize_key( wp_unslash( $_POST['_fmc_programme_nonce'] ) ), 'fmc_programme_active' ) || ! current_user_can( 'fmc_manage_app' ) ) {
+			return;
+		}
+		if ( ! empty( $_POST['fmc_active'] ) ) {
+			update_term_meta( (int) $term_id, self::ACTIVE, '1' );
+		} else {
+			delete_term_meta( (int) $term_id, self::ACTIVE );
+		}
+	}
+
+
+
+
+
+
+
+	public static function active_column( $columns ): array {
+		$columns['fmc_active'] = 'Activo';
+		return (array) $columns;
+	}
+
+
+
+
+
+
+
+
+
+	public static function active_cell( $content, $column, $term_id ): string {
+		if ( 'fmc_active' !== $column ) {
+			return (string) $content;
+		}
+		return get_term_meta( (int) $term_id, self::ACTIVE, true ) ? 'Sí' : '—';
 	}
 }
 }
@@ -1492,7 +1653,7 @@ final class Fields {
 					'tax:fmc_programme' => array(
 						'label' => 'Programas',
 						'w'     => 'terms',
-						'help'  => 'El programa o proyecto para el que se crea. Puede ser más de uno.',
+						'help'  => sprintf( 'Los programas o proyectos que cubren este diseño. Puede ser más de uno. Mientras un programa esté activo, las acciones de este diseño que asuma «%s» se le imputan.', A::funders()[ A::PROGRAMME_FUNDER ] ),
 					),
 					'tax:fmc_topic'     => array(
 						'label' => 'Temática',
@@ -1576,6 +1737,7 @@ final class Fields {
 
 
 	private static function action(): array {
+		$funders = A::funders();
 		return array(
 			array(
 				'title'  => 'La acción',
@@ -1622,18 +1784,20 @@ final class Fields {
 			),
 			array(
 				'title'  => 'Financiación',
-				'help'   => 'Quién la paga y con cargo a qué programa. Si la paga el servicio de formación con fondos de un programa, elija el servicio y el programa: es lo que le dice qué expediente ponerle.',
+
+				'help'   => sprintf( 'Quién la paga y con cargo a qué programa. Si la asume «%1$s», el programa se pone solo al guardar: el programa activo que cubre el diseño. Si el diseño no está en ninguno, la asume «%2$s».', $funders[ A::PROGRAMME_FUNDER ], $funders[ A::FALLBACK_FUNDER ] ),
 				'fields' => array(
 					A::FUNDED_BY        => array(
 						'label'   => 'Asumida por',
 						'w'       => 'select',
-						'choices' => A::FUNDERS,
+						'choices' => $funders,
 						'col'     => 6,
 					),
 					'tax:fmc_programme' => array(
 						'label' => 'Con cargo al programa',
 						'w'     => 'terms',
 						'col'   => 6,
+						'help'  => sprintf( 'Con «%s», lo pone el aplicativo.', $funders[ A::PROGRAMME_FUNDER ] ),
 					),
 					A::STRATEGIC_LINE   => array(
 						'label' => 'Línea estratégica',
@@ -4516,7 +4680,7 @@ final class Calendar {
 		foreach ( A::SITUATIONS as $key => $label ) {
 			$out .= '<span class="fmc-chip fmc-sit-' . esc_attr( $key ) . '">' . esc_html( $label ) . '</span>';
 		}
-		foreach ( A::FUNDERS as $key => $label ) {
+		foreach ( A::funders() as $key => $label ) {
 			if ( 'none' === $key ) {
 				continue;
 			}
@@ -4539,7 +4703,7 @@ final class Calendar {
 		$replicas   = (int) $m( A::REPLICAS );
 		$incomplete = ! $m( A::DESIGN_ID ) || ! $m( A::PLACES ) || ! $m( A::MODALITY );
 
-		$dot = isset( self::FUNDER_COLOURS[ $funded ] ) && 'none' !== $funded ? '<i class="fmc-dot" style="background:' . esc_attr( self::FUNDER_COLOURS[ $funded ] ) . '" title="' . esc_attr( 'Asume: ' . A::FUNDERS[ $funded ] ) . '"></i>' : '';
+		$dot = isset( self::FUNDER_COLOURS[ $funded ] ) && 'none' !== $funded ? '<i class="fmc-dot" style="background:' . esc_attr( self::FUNDER_COLOURS[ $funded ] ) . '" title="' . esc_attr( 'Asume: ' . A::funders()[ $funded ] ) . '"></i>' : '';
 		$out = '<a class="fmc-ev fmc-abre-panel fmc-sit-' . esc_attr( '' !== $situation ? $situation : 'none' ) . '" href="' . esc_url( Screen::url( array( Screen::ARG_EDIT => $post->ID ) ) ) . '" title="' . esc_attr( get_the_title( $post ) ) . '">';
 		if ( $replicas > 1 ) {
 			$out .= '<span class="fmc-ribbon">×' . esc_html( (string) $replicas ) . '</span>';
@@ -4561,7 +4725,7 @@ final class Calendar {
 
 		$programmes = Lists::terms( $post->ID, 'fmc_programme' );
 		if ( '' !== $dot || '' !== $programmes ) {
-			$out .= '<span class="fmc-ev-meta">' . $dot . esc_html( trim( ( A::FUNDERS[ $funded ] ?? '' ) . ( '' !== $programmes ? ' · ' . $programmes : '' ), ' ·' ) ) . '</span>';
+			$out .= '<span class="fmc-ev-meta">' . $dot . esc_html( trim( ( A::funders()[ $funded ] ?? '' ) . ( '' !== $programmes ? ' · ' . $programmes : '' ), ' ·' ) ) . '</span>';
 		}
 		return $out . Lists::incident_badge( $post->ID ) . '</a>';
 	}
@@ -5032,11 +5196,16 @@ final class Editor {
 				}
 
 				$search = count( $choices ) > 10 ? ' data-fmc-ts data-placeholder="Escriba para buscar…"' : '';
-				$input  = '<select class="form-select' . $invalid . '" id="' . esc_attr( $id ) . '" name="' . esc_attr( $name ) . '"' . $search . $disabled . '><option value="">—</option>';
+
+				$hints = 0 === strpos( $key, 'tax:' ) ? self::term_hints( substr( $key, 4 ) ) : array();
+				$input = '<select class="form-select' . $invalid . '" id="' . esc_attr( $id ) . '" name="' . esc_attr( $name ) . '"' . $search . ( $hints ? ' data-fmc-hints' : '' ) . $disabled . '><option value="">—</option>';
 				foreach ( $choices as $v => $text ) {
-					$input .= '<option value="' . esc_attr( (string) $v ) . '"' . selected( $current, (string) $v, false ) . '>' . esc_html( $text ) . '</option>';
+					$input .= '<option value="' . esc_attr( (string) $v ) . '"' . selected( $current, (string) $v, false ) . ( isset( $hints[ $v ] ) ? ' data-fmc-hint="' . esc_attr( $hints[ $v ] ) . '"' : '' ) . '>' . esc_html( $text ) . '</option>';
 				}
 				$input .= '</select>';
+				if ( $hints ) {
+					$input .= '<div class="form-text fmc-hint" data-fmc-hint-for="' . esc_attr( $id ) . '">' . esc_html( $hints[ (int) $current ] ?? '' ) . '</div>';
+				}
 				break;
 			case 'speakers':
 			case 'designs':
@@ -5575,6 +5744,9 @@ final class Editor {
 				$values[ A::HOURS_ONLINE ] = (string) get_post_meta( $design, D::HOURS_ONLINE, true );
 			}
 		}
+		if ( PostTypes::ACTION === $type && ! isset( $errors[ A::DESIGN_ID ] ) ) {
+			$errors += self::impute_programme( $values, $post );
+		}
 
 
 		$read = static function ( string $k ) use ( &$values, $post ) {
@@ -5736,6 +5908,62 @@ final class Editor {
 			$done[] = $old;
 		}
 		update_post_meta( $design, self::ARCHIVED_META, array_values( array_filter( $done ) ) );
+	}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+	private static function impute_programme( array &$values, ?\WP_Post $post ): array {
+		$read   = static fn( string $key ) => array_key_exists( $key, $values ) ? $values[ $key ] : self::value( $post, $key );
+		$funder = (string) $read( A::FUNDED_BY );
+		$design = (int) $read( A::DESIGN_ID );
+		if ( A::PROGRAMME_FUNDER !== $funder || ! $design ) {
+			return array();
+		}
+		if ( $post && (string) self::value( $post, A::FUNDED_BY ) === $funder && (int) self::value( $post, A::DESIGN_ID ) === $design ) {
+			return array();
+		}
+		$terms   = wp_get_object_terms( $design, Taxonomies::PROGRAMME, array( 'fields' => 'ids' ) );
+		$covered = array_values( array_intersect( is_array( $terms ) ? array_map( 'intval', $terms ) : array(), Taxonomies::active_programmes() ) );
+		if ( array() === $covered ) {
+			$names = A::funders();
+			return array( A::FUNDED_BY => sprintf( 'El diseño no está en ningún programa activo, así que no la puede asumir «%1$s»: la asume «%2$s».', $names[ A::PROGRAMME_FUNDER ], $names[ A::FALLBACK_FUNDER ] ) );
+		}
+		$values[ 'tax:' . Taxonomies::PROGRAMME ] = array_map( 'strval', $covered );
+		return array();
+	}
+
+
+
+
+
+
+
+	private static function term_hints( string $taxonomy ): array {
+		$terms = get_terms(
+			array(
+				'taxonomy'   => $taxonomy,
+				'hide_empty' => false,
+			)
+		);
+		$out   = array();
+		foreach ( is_array( $terms ) ? $terms : array() as $t ) {
+			$text = trim( wp_strip_all_tags( (string) $t->description ) );
+			if ( '' !== $text ) {
+				$out[ (int) $t->term_id ] = $text;
+			}
+		}
+		return $out;
 	}
 
 
@@ -6822,6 +7050,7 @@ final class App {
 		$booted = true;
 
 		add_action( 'init', array( Taxonomies::class, 'register' ), 9 );
+		Taxonomies::hooks();
 		add_action( 'init', array( PostTypes::class, 'register' ), 10 );
 		add_action( 'init', array( PostTypes::class, 'grant_caps_to_roles' ), 11 );
 		add_filter( 'map_meta_cap', array( PostTypes::class, 'lock_archived' ), 10, 4 );
@@ -7178,6 +7407,9 @@ body.has-panel { overflow: hidden; }
 				// Las opciones se repintan: un tooltip abierto se quedaría huérfano.
 				settings.onDropdownClose = hideTips;
 			}
+			if ( s.hasAttribute( \'data-fmc-hints\' ) ) {
+				settings.render = { option: hintHtml };
+			}
 			// eslint-disable-next-line no-new
 			new window.TomSelect( s, settings );
 			n++;
@@ -7212,6 +7444,23 @@ body.has-panel { overflow: hidden; }
 	function speakerItem( data, escape ) {
 		const p = speakerParts( data, escape );
 		return \'<div\' + ( p.set.fmcOff ? \' class="fmc-off"\' : \'\' ) + \'>\' + p.star + p.name + p.note + \'</div>\';
+	}
+
+	// Un término con lo que significa: el nombre, y al pasar por él, su
+	// descripción (`data-fmc-hint`), como un bocadillo del navegador.
+	function hintHtml( data, escape ) {
+		const hint = ( data.$option && data.$option.dataset && data.$option.dataset.fmcHint ) || \'\';
+		return \'<div\' + ( hint ? \' title="\' + escape( hint ) + \'"\' : \'\' ) + \'>\' + escape( data.text ) + \'</div>\';
+	}
+
+	// Debajo del elegido, lo que significa; cambia al elegir otro.
+	function showHint( select ) {
+		const box = select.id ? document.querySelector( \'.fmc-hint[data-fmc-hint-for="\' + select.id + \'"]\' ) : null;
+		if ( ! box ) {
+			return;
+		}
+		const option = select.options[ select.selectedIndex ];
+		box.textContent = ( option && option.dataset.fmcHint ) || \'\';
 	}
 
 	// La estrella del recomendado sigue al diseño elegido, sin recargar, y los
@@ -7323,6 +7572,9 @@ body.has-panel { overflow: hidden; }
 				} );
 				label.textContent = names.length ? \'Se subirá al guardar: \' + names.join( \', \' ) : \'\';
 			}
+		}
+		if ( target.hasAttribute && target.hasAttribute( \'data-fmc-hints\' ) ) {
+			showHint( target );
 		}
 		const form = target.closest( \'form\' );
 		if ( form ) {
@@ -7732,6 +7984,7 @@ body.has-panel { overflow: hidden; }
 		onToolClick: onToolClick,
 		onNoteClick: onNoteClick,
 		speakerHtml: speakerHtml,
+		hintHtml: hintHtml,
 		speakerItem: speakerItem,
 		initTips: initTips,
 		hideTips: hideTips,

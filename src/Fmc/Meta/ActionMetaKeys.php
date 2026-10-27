@@ -85,6 +85,36 @@ final class ActionMetaKeys {
 	);
 
 	/**
+	 * The funder that charges the action to a programme: the active one that
+	 * covers its design (ADR-0018).
+	 */
+	public const PROGRAMME_FUNDER = 'service';
+
+	/**
+	 * The funder that pays when the design is in no active programme.
+	 */
+	public const FALLBACK_FUNDER = 'centre';
+
+	/**
+	 * Who pays, with the names the deployment gives them.
+	 *
+	 * Las claves son del código; los nombres, de cada instalación, que los
+	 * cambia con el filtro `fmc_funders` sin decir en el repositorio de quién es
+	 * el despliegue (ADR-0002). Solo se cambia el nombre: una clave que no está
+	 * en `FUNDERS` no entra.
+	 *
+	 * @return array<string, string>
+	 */
+	public static function funders(): array {
+		$names = (array) apply_filters( 'fmc_funders', self::FUNDERS );
+		$out   = array();
+		foreach ( self::FUNDERS as $key => $label ) {
+			$out[ $key ] = isset( $names[ $key ] ) && is_string( $names[ $key ] ) && '' !== trim( $names[ $key ] ) ? $names[ $key ] : $label;
+		}
+		return $out;
+	}
+
+	/**
 	 * Administrative process, in order.
 	 */
 	public const PROCESSES = array(

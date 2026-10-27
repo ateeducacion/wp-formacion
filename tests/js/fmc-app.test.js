@@ -139,6 +139,30 @@ describe( 'Tom Select', () => {
 		detach();
 	} );
 
+	it( 'las opciones con significado lo enseñan al pasar, y debajo el del elegido', async () => {
+		const TomSelect = vi.fn( function ( s ) {
+			s.tomselect = this;
+		} );
+		window.TomSelect = TomSelect;
+		document.body.innerHTML = '<form><select id="f-t" data-fmc-ts data-fmc-hints><option value="">—</option><option value="1" data-fmc-hint="Robots y <3D>">Robótica</option><option value="2">Sin descripción</option></select><div class="fmc-hint" data-fmc-hint-for="f-t"></div></form>';
+		await load();
+		const render = TomSelect.mock.calls[ 0 ][ 1 ].render.option;
+		const escape = ( s ) => s.replace( /</g, '&lt;' ).replace( />/g, '&gt;' );
+		const options = document.querySelectorAll( 'option' );
+		expect( render( { text: 'Robótica', $option: options[ 1 ] }, escape ) ).toBe( '<div title="Robots y &lt;3D&gt;">Robótica</div>' );
+		expect( render( { text: 'Sin descripción', $option: options[ 2 ] }, escape ) ).toBe( '<div>Sin descripción</div>' );
+
+		const s = document.querySelector( 'select' );
+		s.value = '1';
+		s.dispatchEvent( new Event( 'change', { bubbles: true } ) );
+		expect( document.querySelector( '.fmc-hint' ).textContent ).toBe( 'Robots y <3D>' );
+		s.value = '2';
+		s.dispatchEvent( new Event( 'change', { bubbles: true } ) );
+		expect( document.querySelector( '.fmc-hint' ).textContent ).toBe( '' );
+		delete window.TomSelect;
+		detach();
+	} );
+
 	it( 'sin Tom Select, los select se quedan como están', async () => {
 		delete window.TomSelect;
 		await load();

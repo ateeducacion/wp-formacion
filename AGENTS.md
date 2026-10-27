@@ -56,7 +56,7 @@ sus números de formulario, de campo y de vista— está en `.local/`.
 | Una casilla «Opciones» que mezcla *está en el catálogo*, *diseño finalizado* y *pertenece a tal programa* | El estado es el `post_status` (ADR-0004); el catálogo, una meta; el programa, un término de `fmc_programme` (ADR-0003) |
 | «Diseño finalizado» lo marca quien sea que vea la casilla | Solo la validación escribe y publica diseños: la asesoría los consulta finalizados, de solo lectura (ADR-0017) |
 | Un formulario de acción formativa enorme, con campos «obsoletos» dentro | CPT `fmc_action` que apunta a su diseño (`fmc_design_id`) y guarda solo lo suyo; los totales se suman, no se teclean |
-| Tres listas de «asumida por» que repiten los mismos programas | Quién paga es `fmc_funded_by` (lista cerrada); de qué programa, un término |
+| Tres listas de «asumida por» que repiten los mismos programas | Quién paga es `fmc_funded_by` (lista cerrada, con los nombres del despliegue por `fmc_funders`); de qué programa, un término, que si paga el servicio es el activo del diseño (ADR-0018) |
 | Campos que solo rellena el servicio de formación, escondidos a los demás por la vista | Permiso por campo en el servidor: `auth_callback` de la meta (ADR-0006) |
 | Una incidencia que recibe el identificador de la acción por la URL | `fmc_incident` cuelga de su acción por `post_parent`, y lo fija el aplicativo (ADR-0007) |
 | Los ponentes, con NIF y teléfono, en un formulario que alimenta listados | CPT `fmc_speaker`, no público y fuera de REST |

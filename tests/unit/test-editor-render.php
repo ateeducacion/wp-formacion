@@ -786,4 +786,35 @@ class Test_Editor_Render extends WP_UnitTestCase {
 		$this->as_role( 'fmc_adviser' );
 		$this->assertSame( array( $old => 'Un diseño que ya no se ofrece' ), $options() );
 	}
+
+	/**
+	 * Cada temática dice lo que engloba: al pasar por la opción, y debajo de la elegida.
+	 */
+	public function test_a_topic_says_what_it_covers() {
+		$curator = $this->as_role( 'fmc_curator' );
+		$robots  = self::factory()->term->create(
+			array(
+				'taxonomy'    => Taxonomies::TOPIC,
+				'name'        => 'Robótica',
+				'description' => '<p>Programación y <strong>robots</strong>.</p>',
+			)
+		);
+		self::factory()->term->create(
+			array(
+				'taxonomy'    => Taxonomies::TOPIC,
+				'name'        => 'Sin descripción',
+				'description' => '',
+			)
+		);
+		$design = $this->post( PostTypes::DESIGN, $curator, 'draft' );
+		wp_set_object_terms( $design, array( $robots ), Taxonomies::TOPIC );
+
+		$body = $this->screen_of( $design )['body'];
+
+		$this->assertTrue( $this->find( $body, '//select[@name="f[tax:fmc_topic]"]' )->item( 0 )->hasAttribute( 'data-fmc-hints' ) );
+		$this->assertSame( 'Programación y robots.', $this->find( $body, '//option[.="Robótica"]' )->item( 0 )->getAttribute( 'data-fmc-hint' ) );
+		$this->assertFalse( $this->find( $body, '//option[.="Sin descripción"]' )->item( 0 )->hasAttribute( 'data-fmc-hint' ) );
+		$this->assertSame( 'Programación y robots.', $this->find( $body, '//div[@data-fmc-hint-for="f-tax-fmc_topic"]' )->item( 0 )->textContent );
+		$this->assertSame( 0, $this->find( $this->screen_of( $this->post( PostTypes::SPEAKER, $curator ) )['body'], '//select[@data-fmc-hints]' )->length, 'sin descripciones, nada' );
+	}
 }

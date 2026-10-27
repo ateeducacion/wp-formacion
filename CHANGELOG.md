@@ -20,6 +20,11 @@ Lo que sale de la segunda revisión del aplicativo, el 2026-10-27: el porqué es
 - **Lo que ha impartido cada ponente, acción por acción**: en el listado, «N acción(es)» abre un menú con las más recientes, cada una a su ficha, y el enlace al listado de acciones de ese ponente
 - **Buscar ponentes por lo que se les recomienda**: el filtro «Impartido o recomendado» encuentra también a quien se recomienda para un diseño con esas palabras en el título o en el código, aunque todavía no lo haya impartido
 - **Si no hay ninguna cuenta de asesoría**, la ficha de la acción dice por qué «Asesoría responsable» sale vacía
+- **El programa se imputa solo** ([ADR-0018](docs/adr/ADR-0018-el-servicio-imputa-la-accion-al-programa-activo-de-su-diseno.md)): si la acción la asume el servicio de formación, su programa es el programa activo que cubre el diseño
+- Si el diseño no está en ningún programa activo, la acción no se guarda con el servicio de formación y se avisa de que la asume el centro
+- Los programas llevan una casilla «Activo» en el escritorio de WordPress, que marca la administración
+- Cada despliegue pone sus nombres a las opciones de «Asumida por» con el filtro `fmc_funders`
+- **Cada temática dice lo que engloba**: al pasar por ella en el selector y debajo de la elegida, con la descripción del término
 
 ### Cambiado
 
@@ -47,6 +52,8 @@ Lo que sale de la segunda revisión del aplicativo, el 2026-10-27: el porqué es
 - **Volver a importar** con el importador de `.local/`, que ahora trae lo histórico del sistema anterior como «Histórico» y el cargo por etapa
 - **El logotipo** de quien despliega va en `brand` del filtro `fmc_chrome`, en el snippet de despliegue
 - **Desplegar también el snippet de roles**, que es el que le quita a la asesoría el permiso de subir ficheros
+- **Marcar los programas activos** en el escritorio de WordPress: la migración no marca ninguno
+- **Revisar el mapa de temáticas** viejas a nuevas, que es provisional, antes de importar
 
 ## [0.0.4] — 2026-10-22
 
