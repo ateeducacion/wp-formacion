@@ -248,7 +248,7 @@ class Test_Editor_Render extends WP_UnitTestCase {
 		$this->assertStringNotContainsString( 'Agendar una acción', $old['actions'], 'un histórico ya no se imparte' );
 		$this->assertStringContainsString( 'Finalizado', $screen['badges'] );
 		$this->assertStringContainsString( 'Agendar una acción con este diseño', $screen['actions'] );
-		$this->assertStringContainsString( 'fmc_design=' . $done, $screen['actions'] );
+		$this->assertStringContainsString( Screen::ARG_DESIGN . '=' . $done, $screen['actions'] );
 		// Finalizado pero fuera del catálogo: no tiene ficha pública que ver.
 		$this->assertStringNotContainsString( 'Ver en el catálogo', $screen['actions'] );
 		update_post_meta( $done, D::IN_CATALOGUE, '1' );
@@ -391,7 +391,7 @@ class Test_Editor_Render extends WP_UnitTestCase {
 		update_post_meta( $design, D::MODALITY, 'blended' );
 		update_post_meta( $design, D::HOURS_ONSITE, 9 );
 		update_post_meta( $design, D::HOURS_ONLINE, 3 );
-		$_GET['fmc_design'] = (string) $design;
+		$_GET[ Screen::ARG_DESIGN ] = (string) $design;
 
 		$body = Editor::screen( 0, PostTypes::ACTION )['body'];
 
@@ -745,7 +745,7 @@ class Test_Editor_Render extends WP_UnitTestCase {
 	}
 
 	/**
-	 * `?fmc_design=` solo precarga un diseño finalizado: de un borrador o un
+	 * `?fmc_diseno=` solo precarga un diseño finalizado: de un borrador o un
 	 * histórico no sale ni el título.
 	 */
 	public function test_only_a_finalised_design_is_prefilled() {
@@ -755,8 +755,8 @@ class Test_Editor_Render extends WP_UnitTestCase {
 		$this->as_role( 'fmc_adviser' );
 
 		foreach ( array( $draft, $old ) as $design ) {
-			$_GET['fmc_design'] = (string) $design;
-			$body               = Editor::screen( 0, PostTypes::ACTION )['body'];
+			$_GET[ Screen::ARG_DESIGN ] = (string) $design;
+			$body                       = Editor::screen( 0, PostTypes::ACTION )['body'];
 			$this->assertSame( 0, $this->find( $body, '//select[@name="f[fmc_design_id]"]/option[@selected]' )->length );
 			$this->assertStringNotContainsString( 'secreto', $body );
 		}

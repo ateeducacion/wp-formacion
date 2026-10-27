@@ -4919,7 +4919,7 @@ final class Editor {
 
 
 
-		$from = absint( Lists::arg( 'fmc_design' ) );
+		$from = absint( Lists::arg( Screen::ARG_DESIGN ) );
 		if ( ! $post && PostTypes::ACTION === $type && $from && PostTypes::DESIGN === get_post_type( $from ) && 'publish' === get_post_status( $from ) ) {
 			$values += array(
 				A::DESIGN_ID    => $from,
@@ -5081,8 +5081,8 @@ final class Editor {
 				$out .= '<a class="btn btn-primary btn-sm fmc-abre-panel" title="Nueva acción formativa" href="' . esc_url(
 					Screen::url(
 						array(
-							Screen::ARG_NEW => PostTypes::ACTION,
-							'fmc_design'    => $post->ID,
+							Screen::ARG_NEW    => PostTypes::ACTION,
+							Screen::ARG_DESIGN => $post->ID,
 						)
 					)
 				) . '">Agendar una acción con este diseño</a> ';
@@ -6097,6 +6097,12 @@ final class Screen {
 	public const ARG_EDIT   = 'fmc_edit';
 	public const ARG_NEW    = 'fmc_new';
 	public const ARG_PARENT = 'fmc_parent';
+
+
+
+
+
+	public const ARG_DESIGN = 'fmc_diseno';
 	public const ARG_NOTICE = 'fmc_notice';
 
 
@@ -7358,6 +7364,9 @@ body.has-panel { overflow: hidden; }
 .fmc .fmc-given-menu { min-width: 20rem; max-width: min(32rem, 90vw); max-height: 60vh; overflow-y: auto; font-size: .9rem; }
 .fmc .fmc-given-menu .dropdown-item { white-space: normal; }
 .fmc .fmc-given-date { color: var(--fmc-text-2); font-variant-numeric: tabular-nums; margin-right: .35em; }
+
+/* Lo que significa un término, debajo del elegido: cada parte en su línea. */
+.fmc .fmc-hint { white-space: pre-line; }
 ',
   'js/fmc-app.js' => '/**
  * Formación: los dos comportamientos del lado del navegador.

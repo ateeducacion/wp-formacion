@@ -182,9 +182,9 @@ final class Editor {
 		$writable = false;
 		$parent   = $post ? (int) $post->post_parent : absint( $values['_parent'] ?? Lists::arg( Screen::ARG_PARENT ) );
 
-		// Una acción nueva desde un diseño (`fmc_design`): trae su modalidad y sus
+		// Una acción nueva desde un diseño (`fmc_diseno`): trae su modalidad y sus
 		// horas. Solo si está finalizado: de otro, ni el título (ADR-0016).
-		$from = absint( Lists::arg( 'fmc_design' ) );
+		$from = absint( Lists::arg( Screen::ARG_DESIGN ) );
 		if ( ! $post && PostTypes::ACTION === $type && $from && PostTypes::DESIGN === get_post_type( $from ) && 'publish' === get_post_status( $from ) ) {
 			$values += array(
 				A::DESIGN_ID    => $from,
@@ -346,8 +346,8 @@ final class Editor {
 				$out .= '<a class="btn btn-primary btn-sm fmc-abre-panel" title="Nueva acción formativa" href="' . esc_url(
 					Screen::url(
 						array(
-							Screen::ARG_NEW => PostTypes::ACTION,
-							'fmc_design'    => $post->ID,
+							Screen::ARG_NEW    => PostTypes::ACTION,
+							Screen::ARG_DESIGN => $post->ID,
 						)
 					)
 				) . '">Agendar una acción con este diseño</a> ';

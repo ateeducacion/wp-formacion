@@ -24,6 +24,12 @@ final class Screen {
 	public const ARG_EDIT   = 'fmc_edit';
 	public const ARG_NEW    = 'fmc_new';
 	public const ARG_PARENT = 'fmc_parent';
+
+	/**
+	 * The design of a new action. No es `fmc_design`: ese es el de la consulta
+	 * del tipo de contenido, y WordPress buscaría un diseño con ese nombre.
+	 */
+	public const ARG_DESIGN = 'fmc_diseno';
 	public const ARG_NOTICE = 'fmc_notice';
 
 	/**
