@@ -57,4 +57,4 @@ con commit no se reescriben por un cambio de nombre; esta nota lo traduce.
 | [ADR-0016](ADR-0016-lo-que-ya-no-se-imparte-es-un-estado-del-diseno.md) | Lo que ya no se imparte es un estado del diseño: «Histórico» | Propuesta |
 | [ADR-0017](ADR-0017-la-asesoria-consulta-los-disenos-finalizados-y-no-los-escribe.md) | La asesoría consulta los diseños finalizados y no los escribe | Propuesta |
 | [ADR-0018](ADR-0018-el-servicio-imputa-la-accion-al-programa-activo-de-su-diseno.md) | Lo que asume el servicio de formación se imputa al programa activo del diseño | Propuesta |
-| [ADR-0019](ADR-0019-las-asesorias-son-un-directorio-propio.md) | Las asesorías son un directorio propio, no cuentas de usuario | Propuesta |
+| [ADR-0019](ADR-0019-la-asesoria-es-una-cuenta-del-sitio-con-su-tipo.md) | La asesoría es una cuenta del sitio, con su tipo en el perfil | Propuesta |

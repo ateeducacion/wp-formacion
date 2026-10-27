@@ -33,7 +33,7 @@ La contraseña es `password` en todos. Los crea `scripts/seed-demo.php`.
 | Usuario | Rol | Qué puede hacer |
 |---------|-----|-----------------|
 | `admin` | administrator | Todo |
-| `validacion` | `fmc_curator` | Escribir, finalizar y pasar a histórico los diseños; gestionar todas las acciones; llevar el directorio de asesorías |
+| `validacion` | `fmc_curator` | Escribir, finalizar y pasar a histórico los diseños; gestionar todas las acciones |
 | `asesoria`, `asesoria2` | `fmc_adviser` | Consultar los diseños finalizados; agendar sus acciones; abrir incidencias; dar de alta ponentes |
 | `servicio` | `fmc_training_service` | Poner el expediente de una acción y resolver incidencias |
 

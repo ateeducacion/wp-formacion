@@ -54,18 +54,16 @@ final class ActionMetaKeys {
 	public const NOTES            = 'fmc_notes';
 	public const PROCESS          = 'fmc_process';
 	public const SITUATION        = 'fmc_situation';
-	// La cuenta de la asesoría, como se guardaba antes del directorio: queda para lo migrado.
-	public const ADVISER         = 'fmc_adviser';
-	public const ADVISORY        = 'fmc_advisory';
-	public const SPEAKERS        = 'fmc_speakers';
-	public const ENROLLED_MEN    = 'fmc_enrolled_men';
-	public const ENROLLED_WOMEN  = 'fmc_enrolled_women';
-	public const ATTENDED_MEN    = 'fmc_attended_men';
-	public const ATTENDED_WOMEN  = 'fmc_attended_women';
-	public const CERTIFIED_MEN   = 'fmc_certified_men';
-	public const CERTIFIED_WOMEN = 'fmc_certified_women';
-	public const DOCS_DELIVERED  = 'fmc_docs_delivered';
-	public const COMPLETED       = 'fmc_completed';
+	public const ADVISER          = 'fmc_adviser';
+	public const SPEAKERS         = 'fmc_speakers';
+	public const ENROLLED_MEN     = 'fmc_enrolled_men';
+	public const ENROLLED_WOMEN   = 'fmc_enrolled_women';
+	public const ATTENDED_MEN     = 'fmc_attended_men';
+	public const ATTENDED_WOMEN   = 'fmc_attended_women';
+	public const CERTIFIED_MEN    = 'fmc_certified_men';
+	public const CERTIFIED_WOMEN  = 'fmc_certified_women';
+	public const DOCS_DELIVERED   = 'fmc_docs_delivered';
+	public const COMPLETED        = 'fmc_completed';
 
 	/**
 	 * Where the action sits in the centres' own training plans.
@@ -183,7 +181,6 @@ final class ActionMetaKeys {
 			self::PROCESS          => MetaTypes::STRING,
 			self::SITUATION        => MetaTypes::STRING,
 			self::ADVISER          => MetaTypes::INT,
-			self::ADVISORY         => MetaTypes::INT,
 			self::SPEAKERS         => MetaTypes::IDS,
 			self::ENROLLED_MEN     => MetaTypes::INT,
 			self::ENROLLED_WOMEN   => MetaTypes::INT,

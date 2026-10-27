@@ -9,12 +9,12 @@ namespace Fmc\PublicFront;
 
 use Fmc\Domain\SchoolYear;
 use Fmc\Meta\ActionMetaKeys as A;
-use Fmc\Meta\AdvisoryMetaKeys as K;
 use Fmc\Meta\DesignMetaKeys as D;
 use Fmc\Meta\IncidentMetaKeys as I;
 use Fmc\Meta\SpeakerMetaKeys as S;
 use Fmc\PostType\PostTypes;
 use Fmc\Taxonomy\Taxonomies;
+use Fmc\User\Advisers;
 
 /**
  * Listados de acciones, diseños, ponentes e incidencias.
@@ -34,7 +34,6 @@ final class Lists {
 		PostTypes::DESIGN   => 'El catálogo y la mesa de trabajo: los borradores se escriben aquí hasta que la validación los da por finalizados, y lo que ya no se imparte pasa a histórico.',
 		PostTypes::SPEAKER  => 'Datos personales: solo para quien gestiona acciones. Busque por lo que han impartido, con sus acciones y sus horas.',
 		PostTypes::INCIDENT => 'Cambios pedidos sobre una acción. Se abren desde la propia acción.',
-		PostTypes::ADVISORY => 'El directorio de asesorías: de él se elige la responsable de cada acción, con su tipo y, si entra en el aplicativo, su cuenta.',
 	);
 
 	/**
@@ -72,10 +71,9 @@ final class Lists {
 	 * The add button of each list. Una acción se agenda: el diseño ya existe.
 	 */
 	public const ADD_LABELS = array(
-		PostTypes::ACTION   => 'Agendar acción formativa',
-		PostTypes::DESIGN   => 'Añadir diseño',
-		PostTypes::SPEAKER  => 'Añadir ponente',
-		PostTypes::ADVISORY => 'Añadir asesoría',
+		PostTypes::ACTION  => 'Agendar acción formativa',
+		PostTypes::DESIGN  => 'Añadir diseño',
+		PostTypes::SPEAKER => 'Añadir ponente',
 	);
 
 	/**
@@ -139,7 +137,6 @@ final class Lists {
 			'Ha impartido' => 'actions',
 		),
 		PostTypes::INCIDENT => array( 'Creada' => 'date' ),
-		PostTypes::ADVISORY => array( 'Asesoría' => 'title' ),
 	);
 
 	/**
@@ -310,7 +307,16 @@ final class Lists {
 				$term( 'fmc_programme', self::arg( 'fmc_programme' ) );
 				$meta( A::MODALITY, self::arg( 'fmc_modality' ) );
 				$meta( A::PROCESS, self::arg( 'fmc_process' ) );
-				$meta( A::ADVISORY, absint( self::arg( 'fmc_advisory' ) ) ? (string) absint( self::arg( 'fmc_advisory' ) ) : '' );
+				// Por la asesoría responsable, o por las de un tipo (ADR-0019).
+				$meta( A::ADVISER, absint( self::arg( 'fmc_adviser' ) ) ? (string) absint( self::arg( 'fmc_adviser' ) ) : '' );
+				if ( isset( Advisers::KINDS[ self::arg( 'fmc_adviser_kind' ) ] ) ) {
+					$of_kind              = Advisers::of_kind( self::arg( 'fmc_adviser_kind' ) );
+					$args['meta_query'][] = array(
+						'key'     => A::ADVISER,
+						'value'   => $of_kind ? $of_kind : array( 0 ),
+						'compare' => 'IN',
+					);
+				}
 				// El tipo es del diseño: se filtra por los diseños de ese tipo.
 				if ( isset( D::TYPES[ self::arg( 'fmc_type' ) ] ) ) {
 					$designs              = get_posts(
@@ -389,9 +395,6 @@ final class Lists {
 				if ( $with_state ) {
 					$meta( I::RESOLUTION, self::arg( 'fmc_resolution' ) );
 				}
-				break;
-			case PostTypes::ADVISORY:
-				$meta( K::KIND, self::arg( 'fmc_kind' ) );
 				break;
 		}
 		return self::sorted( $type, $args );
@@ -712,7 +715,7 @@ final class Lists {
 
 		// Los ponentes no tienen estados que contar, ni los diseños para quien
 		// solo ve los finalizados: su total va en una línea.
-		$plain = in_array( $type, array( PostTypes::SPEAKER, PostTypes::ADVISORY ), true ) || ( PostTypes::DESIGN === $type && ! self::writes_designs() );
+		$plain = PostTypes::SPEAKER === $type || ( PostTypes::DESIGN === $type && ! self::writes_designs() );
 		$body  = $plain ? '' : self::counters_html( $tab, self::counters( $type ) );
 		$body .= self::filters_html( $tab, $type );
 		$body .= $plain ? self::found_html( $tab, (int) $q->found_posts, $type ) : '';
@@ -737,12 +740,8 @@ final class Lists {
 	 * @return string
 	 */
 	private static function found_html( string $tab, int $found, string $type = PostTypes::SPEAKER ): string {
-		$counts = array(
-			PostTypes::DESIGN   => '%s diseño(s) finalizado(s)',
-			PostTypes::ADVISORY => '%s asesoría(s)',
-		);
-		if ( isset( $counts[ $type ] ) ) {
-			return '<p class="fmc-found">' . esc_html( sprintf( $counts[ $type ], number_format_i18n( $found ) ) ) . '</p>';
+		if ( PostTypes::DESIGN === $type ) {
+			return '<p class="fmc-found">' . esc_html( sprintf( '%s diseño(s) finalizado(s)', number_format_i18n( $found ) ) ) . '</p>';
 		}
 		$trash = self::speaker_trash();
 		$out   = '<p class="fmc-found">' . esc_html( sprintf( $trash ? '%s en la papelera' : '%s ponente(s)', number_format_i18n( $found ) ) );
@@ -783,7 +782,7 @@ final class Lists {
 	 */
 	private static function current_filters(): array {
 		$out = array();
-		foreach ( array( 'fmc_s', 'fmc_scope', 'fmc_programme', 'fmc_topic', 'fmc_modality', 'fmc_process', 'fmc_situation', 'fmc_year', 'fmc_type', 'fmc_status', 'fmc_zone', 'fmc_available', 'fmc_resolution', 'fmc_month', 'fmc_speaker', 'fmc_from', 'fmc_to', 'fmc_catalogue', 'fmc_recommended', 'fmc_file', 'fmc_incident', 'fmc_given', 'fmc_sort', 'fmc_dir', 'fmc_view', 'fmc_advisory', 'fmc_kind' ) as $key ) {
+		foreach ( array( 'fmc_s', 'fmc_scope', 'fmc_programme', 'fmc_topic', 'fmc_modality', 'fmc_process', 'fmc_situation', 'fmc_year', 'fmc_type', 'fmc_status', 'fmc_zone', 'fmc_available', 'fmc_resolution', 'fmc_month', 'fmc_speaker', 'fmc_from', 'fmc_to', 'fmc_catalogue', 'fmc_recommended', 'fmc_file', 'fmc_incident', 'fmc_given', 'fmc_sort', 'fmc_dir', 'fmc_view', 'fmc_adviser', 'fmc_adviser_kind' ) as $key ) {
 			if ( '' !== self::arg( $key ) ) {
 				$out[ $key ] = self::arg( $key );
 			}
@@ -800,9 +799,8 @@ final class Lists {
 	 */
 	public static function filters_html( string $tab, string $type ): string {
 		$placeholders = array(
-			PostTypes::ACTION   => 'Título, subtítulo o expediente…',
-			PostTypes::SPEAKER  => 'Nombre…',
-			PostTypes::ADVISORY => 'Nombre…',
+			PostTypes::ACTION  => 'Título, subtítulo o expediente…',
+			PostTypes::SPEAKER => 'Nombre…',
 		);
 		$fields       = array( self::search_field( $placeholders[ $type ] ?? 'Título…' ) );
 		switch ( $type ) {
@@ -816,7 +814,8 @@ final class Lists {
 				$fields[] = self::select( 'fmc_process', 'Estado', A::PROCESSES, 'Todos' );
 				$fields[] = self::select( 'fmc_situation', 'Situación', A::SITUATIONS, 'Todas' );
 				$fields[] = self::select( 'fmc_speaker', 'Ponente', self::post_choices( PostTypes::SPEAKER ), 'Todos', true );
-				$fields[] = self::select( 'fmc_advisory', 'Asesoría', self::post_choices( PostTypes::ADVISORY ), 'Todas', true );
+				$fields[] = self::select( 'fmc_adviser', 'Asesoría', Advisers::choices(), 'Todas', true );
+				$fields[] = self::select( 'fmc_adviser_kind', 'Tipo de asesoría', Advisers::KINDS, 'Todos' );
 				$fields[] = self::select(
 					'fmc_incident',
 					'Incidencias',
@@ -870,9 +869,6 @@ final class Lists {
 				break;
 			case PostTypes::INCIDENT:
 				$fields[] = self::select( 'fmc_resolution', 'Resolución', I::RESOLUTIONS, 'Todas' );
-				break;
-			case PostTypes::ADVISORY:
-				$fields[] = self::select( 'fmc_kind', 'Tipo', K::KINDS, 'Todos' );
 				break;
 		}
 
@@ -1157,8 +1153,6 @@ final class Lists {
 				return implode( ', ', array_map( 'get_the_title', array_filter( array_map( 'intval', (array) $value ) ) ) );
 			case 'adviser':
 				return $value ? (string) get_the_author_meta( 'display_name', (int) $value ) : '';
-			case 'advisory':
-				return $value ? get_the_title( (int) $value ) : '';
 			case 'rich':
 			case 'textarea':
 				return trim( wp_strip_all_tags( (string) $value ) );
@@ -1209,11 +1203,6 @@ final class Lists {
 					'Isla o zona'      => static fn( $p ) => self::terms( $p->ID, Taxonomies::ZONE ),
 					'Ha impartido'     => static fn( $p ) => isset( $stats[ $p->ID ] ) ? array( 'html' => self::given_html( $p->ID, $stats[ $p->ID ] ) ) : '—',
 					'Recomendado para' => static fn( $p ) => implode( "\n", array_slice( self::design_titles( (array) get_post_meta( $p->ID, S::RECOMMENDED, true ) ), 0, 3 ) ),
-				);
-			case PostTypes::ADVISORY:
-				return array(
-					'Tipo'   => static fn( $p ) => K::KINDS[ $m( $p, K::KIND ) ] ?? '',
-					'Cuenta' => static fn( $p ) => $m( $p, K::USER ) ? (string) get_the_author_meta( 'display_name', (int) $m( $p, K::USER ) ) : '',
 				);
 			default:
 				return array(

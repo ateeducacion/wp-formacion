@@ -23,7 +23,6 @@ final class PostTypes {
 	public const ACTION   = 'fmc_action';
 	public const SPEAKER  = 'fmc_speaker';
 	public const INCIDENT = 'fmc_incident';
-	public const ADVISORY = 'fmc_advisory';
 
 	/**
 	 * Design status for what is no longer given: kept, but out of every choice (ADR-0016).
@@ -78,14 +77,6 @@ final class PostTypes {
 				'new'      => 'Nueva incidencia',
 				'public'   => false,
 				'icon'     => 'dashicons-flag',
-			),
-			// El directorio de asesorías: un puesto, no una cuenta (ADR-0019).
-			self::ADVISORY => array(
-				'singular' => 'Asesoría',
-				'plural'   => 'Asesorías',
-				'new'      => 'Nueva asesoría',
-				'public'   => false,
-				'icon'     => 'dashicons-id',
 			),
 		);
 	}
@@ -216,8 +207,6 @@ final class PostTypes {
 				// cualquier ficha se puede dar de baja con motivo (ADR-0011).
 				self::SPEAKER  => array_merge( $own, array( 'delete_others', 'delete_published' ) ),
 				self::INCIDENT => array( 'edit', 'publish' ),
-				// El directorio de asesorías lo lleva la validación (ADR-0019).
-				self::ADVISORY => array(),
 			),
 			// El servicio de formación no edita nada por la vía general: lee y
 			// tiene sus dos capacidades propias (ADR-0006).

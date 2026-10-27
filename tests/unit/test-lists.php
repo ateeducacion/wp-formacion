@@ -817,14 +817,14 @@ class Test_Lists extends WP_UnitTestCase {
 	 */
 	public function test_plain_turns_keys_and_ids_into_readable_text() {
 		$this->as_role( 'fmc_curator' );
-		$advisory = $this->post( PostTypes::ADVISORY, 'Asesoría Uno' );
-		$speaker  = $this->post( PostTypes::SPEAKER, 'Ponente Uno' );
-		$action   = $this->post(
+		$adviser = self::factory()->user->create( array( 'display_name' => 'Asesora Uno' ) );
+		$speaker = $this->post( PostTypes::SPEAKER, 'Ponente Uno' );
+		$action  = $this->post(
 			PostTypes::ACTION,
 			'Acción',
 			array(
 				A::TRAINING_PLANS => array( 'plan', 'seminar' ),
-				A::ADVISORY       => $advisory,
+				A::ADVISER        => $adviser,
 				A::SPEAKERS       => array( $speaker ),
 				A::FUNDED_BY      => 'area',
 			)
@@ -836,15 +836,15 @@ class Test_Lists extends WP_UnitTestCase {
 		$plain  = static fn( string $key ): string => Lists::plain( $post, $key, $fields[ $key ] );
 
 		$this->assertSame( 'Incluida en su plan de formación, Incluida en un seminario o grupo de trabajo', $plain( A::TRAINING_PLANS ) );
-		$this->assertSame( 'Asesoría Uno', $plain( A::ADVISORY ) );
+		$this->assertSame( 'Asesora Uno', $plain( A::ADVISER ) );
 		$this->assertSame( 'Ponente Uno', $plain( A::SPEAKERS ) );
 		$this->assertSame( 'Área', $plain( A::FUNDED_BY ) );
 		$this->assertSame( 'Programa dos, Programa uno', $plain( 'tax:fmc_programme' ) );
 		$this->assertSame( 'No', $plain( A::VIDEOCONFERENCE ) );
 		$this->assertSame( '', $plain( A::SUBTITLE ) );
 
-		delete_post_meta( $action, A::ADVISORY );
-		$this->assertSame( '', $plain( A::ADVISORY ) );
+		delete_post_meta( $action, A::ADVISER );
+		$this->assertSame( '', $plain( A::ADVISER ) );
 	}
 
 

@@ -6,7 +6,6 @@
  */
 
 use Fmc\Meta\ActionMetaKeys as A;
-use Fmc\Meta\AdvisoryMetaKeys;
 use Fmc\Meta\DesignMetaKeys as D;
 use Fmc\Meta\IncidentMetaKeys as I;
 use Fmc\Meta\MetaRegistration;
@@ -455,48 +454,36 @@ class Test_Editor_Render extends WP_UnitTestCase {
 	}
 
 	/**
-	 * Una lista vacía dice por qué: sin asesorías en el directorio, o sin cuentas de asesoría.
+	 * Sin cuentas de asesoría, la lista vacía dice por qué.
 	 */
-	public function test_an_empty_list_says_why() {
+	public function test_an_empty_adviser_list_says_why() {
 		$this->as_role( 'administrator' );
 		foreach ( get_users( array( 'role__in' => array( 'fmc_adviser', 'fmc_curator' ) ) ) as $user ) {
 			wp_delete_user( $user->ID );
 		}
 
-		$this->assertStringContainsString( 'Aún no hay ninguna asesoría en el directorio', Editor::screen( 0, PostTypes::ACTION )['body'] );
-		$this->assertStringContainsString( 'Aún no hay ninguna cuenta de asesoría', Editor::screen( 0, PostTypes::ADVISORY )['body'] );
+		$this->assertStringContainsString( 'Aún no hay ninguna asesoría con cuenta en el aplicativo', Editor::screen( 0, PostTypes::ACTION )['body'] );
 
-		$this->post( PostTypes::ADVISORY, 1, 'publish', 'Asesoría TIC' );
 		$this->as_role( 'fmc_curator' );
 		$this->assertStringNotContainsString( 'Aún no hay ninguna asesoría', Editor::screen( 0, PostTypes::ACTION )['body'] );
-		$this->assertStringNotContainsString( 'Aún no hay ninguna cuenta', Editor::screen( 0, PostTypes::ADVISORY )['body'] );
 	}
 
 	/**
-	 * La asesoría responsable sale del directorio, con su tipo; la cuenta de
-	 * una asesoría, de las personas con ese rol. Las listas largas llevan buscador.
+	 * Las asesorías salen para elegir; las listas largas llevan buscador.
 	 */
-	public function test_advisory_adviser_and_term_choices() {
+	public function test_adviser_and_term_choices() {
 		$curator = $this->as_role( 'fmc_curator' );
 		$this->factory()->user->create( array( 'role' => 'fmc_training_service' ) );
 		for ( $i = 0; $i < 11; $i++ ) {
 			self::factory()->term->create( array( 'taxonomy' => 'fmc_scope' ) );
 		}
-		$ict = $this->post( PostTypes::ADVISORY, $curator, 'publish', 'Asesoría de Norte' );
-		update_post_meta( $ict, AdvisoryMetaKeys::KIND, 'ict' );
-		$this->post( PostTypes::ADVISORY, $curator, 'draft', 'En borrador' );
 
 		$body = Editor::screen( 0, PostTypes::ACTION )['body'];
 
-		$advisories = $this->find( $body, '//select[@name="f[fmc_advisory]"]/option[@value!=""]' );
-		$this->assertSame( 1, $advisories->length, 'solo las publicadas' );
-		$this->assertSame( (string) $ict, $advisories->item( 0 )->getAttribute( 'value' ) );
-		$this->assertSame( 'Asesoría de Norte · TIC', $advisories->item( 0 )->textContent ); // phpcs:ignore WordPress.NamingConventions.ValidVariableName.UsedPropertyNotSnakeCase -- DOM.
-		$this->assertSame( 0, $this->find( $body, '//select[@name="f[fmc_adviser]"]' )->length, 'la cuenta ya no se elige en la acción' );
-
-		$accounts = $this->find( $this->screen_of( $ict )['body'], '//select[@name="f[' . AdvisoryMetaKeys::USER . ']"]/option[@value!=""]' );
-		$this->assertSame( 1, $accounts->length, 'el servicio de formación no es asesoría' );
-		$this->assertSame( (string) $curator, $accounts->item( 0 )->getAttribute( 'value' ) );
+		$advisers = $this->find( $body, '//select[@name="f[fmc_adviser]"]/option[@value!=""]' );
+		$this->assertSame( 1, $advisers->length, 'el servicio de formación no es asesoría' );
+		$this->assertSame( (string) $curator, $advisers->item( 0 )->getAttribute( 'value' ) );
+		$this->assertFalse( $this->find( $body, '//select[@name="f[fmc_adviser]"]' )->item( 0 )->hasAttribute( 'data-fmc-ts' ) );
 
 		$scopes = $this->find( $body, '//select[@name="f[tax:fmc_scope]"]' )->item( 0 );
 		$this->assertTrue( $scopes->hasAttribute( 'data-fmc-ts' ) );

@@ -49,11 +49,10 @@ final class Screen {
 	 * los diseños, de acciones formativas y no solo de cursos.
 	 */
 	public const TITLES = array(
-		'actions'    => 'Planificación de acciones formativas',
-		'designs'    => 'Diseño de acciones formativas',
-		'speakers'   => 'Ponentes',
-		'incidents'  => 'Incidencias',
-		'advisories' => 'Asesorías',
+		'actions'   => 'Planificación de acciones formativas',
+		'designs'   => 'Diseño de acciones formativas',
+		'speakers'  => 'Ponentes',
+		'incidents' => 'Incidencias',
 	);
 
 	/**
@@ -183,12 +182,6 @@ final class Screen {
 				'type'  => PostTypes::INCIDENT,
 			);
 		}
-		if ( current_user_can( 'edit_fmc_advisorys' ) ) {
-			$tabs['advisories'] = array(
-				'label' => self::TITLES['advisories'],
-				'type'  => PostTypes::ADVISORY,
-			);
-		}
 		return $tabs;
 	}
 
@@ -204,7 +197,6 @@ final class Screen {
 			PostTypes::DESIGN   => 'designs',
 			PostTypes::SPEAKER  => 'speakers',
 			PostTypes::INCIDENT => 'incidents',
-			PostTypes::ADVISORY => 'advisories',
 		);
 		return $map[ $type ] ?? 'designs';
 	}

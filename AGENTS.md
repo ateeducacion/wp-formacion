@@ -21,8 +21,8 @@ En producción se activa con **Code Snippets** y **WPFront User Role Editor**
 roles y sus capacidades salen del código, no de su editor—; dónde, lo dice el
 `.env` y **no el repositorio**.
 
-El dominio son cinco CPT —`fmc_design`, `fmc_action`, `fmc_speaker`,
-`fmc_incident` y `fmc_advisory`, el directorio de asesorías— y cinco taxonomías —`fmc_programme`, `fmc_topic`,
+El dominio son cuatro CPT —`fmc_design`, `fmc_action`, `fmc_speaker`,
+`fmc_incident`— y cinco taxonomías —`fmc_programme`, `fmc_topic`,
 `fmc_competence`, `fmc_scope` y `fmc_zone`, la isla o zona del ponente—.
 Qué pide cada uno está en [REQ-0001](docs/requisitos/REQ-0001-aplicativo-de-formacion.md)
 y cómo se llega hasta el sitio nuevo, en
@@ -105,12 +105,12 @@ src/Fmc/
 ├── Meta/ActionMetaKeys.php       Claves de la acción y sus listas (financiación, proceso, situación)
 ├── Meta/SpeakerMetaKeys.php      Claves del ponente (datos personales)
 ├── Meta/IncidentMetaKeys.php     Claves de la incidencia y sus resoluciones
-├── Meta/AdvisoryMetaKeys.php     Claves de la asesoría del directorio y sus tipos (TIC, STEAM…)
 ├── Meta/MetaRegistration.php     register_post_meta con tipo, lista cerrada y permiso por campo
 ├── Domain/SchoolYear.php         El curso escolar de una fecha. Puro
 ├── Domain/DigComp.php            El perfil de competencia digital de elidd (su dirección), sus áreas y competencias. Puro
-├── PostType/PostTypes.php        Los cinco CPT, el estado «Histórico» y qué capacidades tiene cada rol en cada uno
+├── PostType/PostTypes.php        Los cuatro CPT, el estado «Histórico» y qué capacidades tiene cada rol en cada uno
 ├── Taxonomy/Taxonomies.php       Programa, temática, competencia digital, ámbito e isla o zona
+├── User/Advisers.php             Las cuentas de asesoría del sitio y su tipo (TIC, STEAM…), en el perfil del escritorio
 └── PublicFront/                  El aplicativo, en la portada del sitio
     ├── Screen.php                Enrutado (?fmc_tab, ?fmc_edit, ?fmc_new), cabecera y pestañas
     ├── Lists.php                 Contadores, filtros y tabla paginada de cada tipo

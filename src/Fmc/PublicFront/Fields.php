@@ -8,7 +8,6 @@
 namespace Fmc\PublicFront;
 
 use Fmc\Meta\ActionMetaKeys as A;
-use Fmc\Meta\AdvisoryMetaKeys as K;
 use Fmc\Meta\DesignMetaKeys as D;
 use Fmc\Meta\IncidentMetaKeys as I;
 use Fmc\Meta\SpeakerMetaKeys as S;
@@ -25,8 +24,7 @@ use Fmc\PostType\PostTypes;
  * Claves especiales: `post_title`, `post_content`, `tax:<taxonomía>`, `docs`.
  * Un campo con `auto` lo rellena el aplicativo: sale de solo lectura para todos.
  * Widgets: text, textarea, number, date, url, email, checkbox, select, radio,
- * checks (varios de una lista), terms, term, design, speakers, adviser (una
- * cuenta), advisory (una asesoría del directorio), docs.
+ * checks (varios de una lista), terms, term, design, speakers, adviser, docs.
  *
  * Las reglas del formulario anterior van aparte, en {@see rules()}: `min` y
  * `max`, `unique` (no se repite en otro del mismo tipo) y `show` (el campo solo
@@ -48,7 +46,6 @@ final class Fields {
 			PostTypes::ACTION   => 'action',
 			PostTypes::SPEAKER  => 'speaker',
 			PostTypes::INCIDENT => 'incident',
-			PostTypes::ADVISORY => 'advisory',
 		);
 		if ( ! isset( $builders[ $type ] ) ) {
 			return array();
@@ -132,9 +129,6 @@ final class Fields {
 			),
 			PostTypes::INCIDENT => array(
 				I::RESOLUTION_NOTES => array( 'show' => array( I::RESOLUTION => array( 'approved', 'denied' ) ) ),
-			),
-			PostTypes::ADVISORY => array(
-				'post_title' => array( 'unique' => true ),
 			),
 		);
 	}
@@ -323,10 +317,9 @@ final class Fields {
 						'col'   => 6,
 						'req'   => true,
 					),
-					// Del directorio, no una cuenta: se cuenta por asesoría aunque cambie quien la ocupa (ADR-0019).
-					A::ADVISORY        => array(
+					A::ADVISER         => array(
 						'label' => 'Asesoría responsable',
-						'w'     => 'advisory',
+						'w'     => 'adviser',
 						'col'   => 6,
 					),
 					A::VENUE_CENTRE    => array(
@@ -641,41 +634,6 @@ final class Fields {
 						'label' => 'Observaciones',
 						'w'     => 'textarea',
 						'help'  => 'Salen en un bocadillo junto al nombre, en el listado y al elegir ponentes para una acción.',
-					),
-				),
-			),
-		);
-	}
-
-	/**
-	 * Advisory: an entry of the directory (ADR-0019).
-	 *
-	 * @return list<array<string, mixed>>
-	 */
-	private static function advisory(): array {
-		return array(
-			array(
-				'title'  => 'La asesoría',
-				'help'   => 'Una asesoría del directorio: se elige como responsable de las acciones. Si quien la ocupa cambia, se cambia la cuenta y la asesoría sigue siendo la misma.',
-				'fields' => array(
-					'post_title' => array(
-						'label' => 'Nombre',
-						'w'     => 'text',
-						'req'   => true,
-						'help'  => 'Como se la conoce: el puesto o la persona.',
-					),
-					K::KIND      => array(
-						'label'   => 'Tipo',
-						'w'       => 'select',
-						'choices' => K::KINDS,
-						'col'     => 6,
-						'req'     => true,
-					),
-					K::USER      => array(
-						'label' => 'Cuenta en el aplicativo',
-						'w'     => 'adviser',
-						'col'   => 6,
-						'help'  => 'Si la asesoría entra en el aplicativo, la cuenta de quien la ocupa. Puede no tenerla.',
 					),
 				),
 			),

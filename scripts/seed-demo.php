@@ -9,7 +9,6 @@
  */
 
 use Fmc\Meta\ActionMetaKeys;
-use Fmc\Meta\AdvisoryMetaKeys;
 use Fmc\Meta\DesignMetaKeys;
 use Fmc\PostType\PostTypes;
 use Fmc\Taxonomy\Taxonomies;
@@ -75,6 +74,8 @@ function fmc_seed_post( array $post, array $meta, array $terms = array() ): int 
 
 $fmc_curator = fmc_seed_user( 'validacion', 'fmc_curator', 'Validación de ejemplo' );
 $fmc_adviser = fmc_seed_user( 'asesoria', 'fmc_adviser', 'Asesoría de ejemplo' );
+// El tipo de la asesoría, en su perfil y por sitio (ADR-0019).
+update_user_option( $fmc_adviser, 'fmc_adviser_kind', 'ict' );
 fmc_seed_user( 'asesoria2', 'fmc_adviser', 'Asesoría de ejemplo 2' );
 fmc_seed_user( 'servicio', 'fmc_training_service', 'Servicio de formación de ejemplo' );
 
@@ -133,21 +134,6 @@ fmc_seed_post(
 	)
 );
 
-// La asesoría del directorio que ocupa la cuenta de ejemplo (ADR-0019).
-$fmc_advisory = fmc_seed_post(
-	array(
-		'post_type'   => PostTypes::ADVISORY,
-		'post_name'   => 'demo-asesoria',
-		'post_title'  => 'Asesoría TIC de ejemplo',
-		'post_status' => 'publish',
-		'post_author' => $fmc_curator,
-	),
-	array(
-		AdvisoryMetaKeys::KIND => 'ict',
-		AdvisoryMetaKeys::USER => $fmc_adviser,
-	)
-);
-
 fmc_seed_post(
 	array(
 		'post_type'   => PostTypes::ACTION,
@@ -166,7 +152,7 @@ fmc_seed_post(
 		ActionMetaKeys::END          => gmdate( 'Y-m-d', strtotime( '+6 weeks' ) ),
 		ActionMetaKeys::PROCESS      => 'draft',
 		ActionMetaKeys::SITUATION    => 'managing',
-		ActionMetaKeys::ADVISORY     => $fmc_advisory,
+		ActionMetaKeys::ADVISER      => $fmc_adviser,
 		ActionMetaKeys::FUNDED_BY    => 'centre',
 	),
 	array( Taxonomies::SCOPE => 'ambito-1' )
