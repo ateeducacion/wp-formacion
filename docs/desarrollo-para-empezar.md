@@ -218,7 +218,7 @@ Entorno listo:
 
 Ábrelo en el navegador: <http://localhost:8858/wp-admin/>, usuario **`admin`**,
 contraseña **`password`**. Tienes que ver el escritorio de WordPress en
-castellano y, en el menú de la izquierda, **Diseños de curso**,
+castellano y, en el menú de la izquierda, **Diseños de acciones formativas**,
 **Acciones formativas**, **Ponentes** e **Incidencias**.
 
 Hay más cuentas para probar qué ve cada perfil, todas con la contraseña

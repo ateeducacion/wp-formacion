@@ -6,7 +6,7 @@ date: 2026-09-30
 related:
   issues: []
   prs: []
-  adrs: [ADR-0002, ADR-0003, ADR-0004, ADR-0005, ADR-0006, ADR-0007, ADR-0008, ADR-0009, ADR-0010, ADR-0011, ADR-0012]
+  adrs: [ADR-0002, ADR-0003, ADR-0004, ADR-0005, ADR-0006, ADR-0007, ADR-0008, ADR-0009, ADR-0010, ADR-0011, ADR-0012, ADR-0013, ADR-0014, ADR-0015, ADR-0016, ADR-0017]
   sdds: []
 supersedes: []
 superseded_by: []
@@ -21,12 +21,13 @@ ai_assistance:
 revisión del sistema actual y de la foto de ese sistema tomada el mismo día. Se
 valida con quien gestiona hoy la formación antes de pasar a
 `Aceptada` (PLAN-0001, fase 1). La primera revisión con la validación fue el
-2026-10-21: lo que cambió está en el §9.
+2026-10-21: lo que cambió está en el §9. La segunda, el 2026-10-27: está en el
+§10.
 **Fuentes:**
 
-- Una reunión de revisión con quien usa el sistema, el 2026-09-30, y la
-  revisión del aplicativo con la validación, el 2026-10-21. El material de las
-  dos está en `.local/`.
+- Una reunión de revisión con quien usa el sistema, el 2026-09-30, y las dos
+  revisiones del aplicativo con la validación, el 2026-10-21 y el 2026-10-27.
+  El material de todas está en `.local/`.
 - Una exportación del sistema actual, tomada **solo con lecturas**. El análisis,
   con sus identificadores, está en `.local/`.
 - El aplicativo de eventos, del que este hereda la plataforma (ADR-0002).
@@ -58,8 +59,8 @@ que el sistema actual hace bien. Quien lo usa lo resume así: la aplicación
 | Actor | Qué hace | Rol |
 |---|---|---|
 | Administración | Todo, y administrar el aplicativo | `administrator` |
-| Validación | Revisa los diseños y los da por finalizados; gestiona todas las acciones | `fmc_curator` |
-| Asesoría | Escribe diseños, registra y mantiene sus acciones, abre incidencias, da de alta ponentes | `fmc_adviser` |
+| Validación | Escribe los diseños, los da por finalizados y los pasa a histórico; gestiona todas las acciones | `fmc_curator` |
+| Asesoría | Consulta los diseños finalizados; agenda y mantiene sus acciones, abre incidencias, da de alta ponentes (ver §10) | `fmc_adviser` |
 | Servicio de formación | Pone el número de expediente de la acción y resuelve las incidencias; nada más | `fmc_training_service` |
 | Visitante | Consulta el catálogo de diseños finalizados | — |
 
@@ -69,7 +70,7 @@ confirmado. Queda como pregunta abierta (§8).
 
 ## 4. Requisitos funcionales
 
-### 4.1 Diseños de curso
+### 4.1 Diseños de acciones formativas
 
 - **RF-1.** Un diseño tiene título, tipo de formación (curso, acción puntual,
   teleformación, autodirigido, intervención en aula), modalidad (presencial, en
@@ -80,9 +81,10 @@ confirmado. Queda como pregunta abierta (§8).
   de competencia digital salen del formulario (ver §9).
 - **RF-2.** Un diseño lleva un **código** único y estable que se asigna solo
   (ver §9).
-- **RF-3.** Ciclo: **borrador → pendiente de revisión → finalizado**. La
-  asesoría escribe y manda a revisión; **solo la validación lo da por
-  finalizado**; finalizado, la asesoría ya no lo edita (ADR-0004).
+- **RF-3.** Ciclo: **borrador → pendiente de revisión → finalizado →
+  histórico**. **Solo la validación** escribe diseños, los da por finalizados
+  y los pasa a histórico; la asesoría los consulta finalizados, de solo
+  lectura (ADR-0004, ADR-0016, ADR-0017; ver §10).
 - **RF-4.** Estar en el catálogo público es una decisión aparte de estar
   finalizado, y pertenecer a un programa es otra (ADR-0003).
 - **RF-5.** El diseño puede enlazar su perfil de competencia digital, generado
@@ -94,7 +96,8 @@ confirmado. Queda como pregunta abierta (§8).
 
 - **RF-7.** Una acción es **una edición de un diseño**: se crea eligiendo el
   diseño, y hereda de él título, tipo, modalidad y horas, que puede ajustar.
-  El título ya no se ajusta (ADR-0009, ver §9).
+  El título ya no se ajusta (ADR-0009, ver §9). El diseño ha de estar
+  finalizado (ADR-0016, ver §10).
 - **RF-8.** Datos propios: subtítulo, ámbito que la gestiona, centro donde se
   imparte, si es por videoconferencia, plazas, réplicas, quién la paga y de qué
   programa, asesoría responsable, ponentes (varios), plazos —inicio y fin de
@@ -120,7 +123,7 @@ confirmado. Queda como pregunta abierta (§8).
 ### 4.3 Ponentes
 
 - **RF-15.** Ficha con nombre, apellidos, documento de identidad, teléfono,
-  profesión, zona, correos, web, dirección, observaciones, «no disponible» y
+  cargo, zona, correos, web, dirección, observaciones, «no disponible» y
   diseños para los que se le recomienda.
 - **RF-16.** Son **datos personales**: no públicos, fuera de la API y visibles
   solo para quien gestiona acciones. Todas las asesorías los consultan; la baja
@@ -172,13 +175,14 @@ desde la exportación, con su mapa de campos en `.local/` (ADR-0008).
 
 ## 8. Preguntas abiertas
 
-Las que la revisión del 2026-10-21 contestó, del todo o en parte, lo dicen.
+Las que las revisiones del 2026-10-21 y del 2026-10-27 contestaron, del todo o
+en parte, lo dicen.
 
 1. ¿Sigue en uso el perfil de empresa? Si sí, ¿qué campos rellena? *No se
    trató.*
 2. ¿Valida siempre el área, o también la asesoría puede validar lo suyo?
-   *Sin cerrar.* En la revisión se habló siempre de tres perfiles —asesorías,
-   área y servicio de formación—, pero no se preguntó expresamente.
+   *Contestada el 2026-10-27:* los diseños los escribe y los finaliza la
+   validación, que es el área; la asesoría los consulta (ADR-0017, §10).
 3. ¿Se unifican el catálogo TIC y los cursos recomendados de otros programas, o
    se mantienen como catálogos separados? *En parte:* el catálogo es público y
    estar en él es una casilla aparte (RF-4); que un diseño sea de un programa
@@ -296,3 +300,71 @@ referencia aquí.
   externo cuyos enlaces han cambiado varias veces. Pide dimensionar el espacio
   de subida del sitio (§8, pregunta 10).
 - **Siguiente sesión**, con el servicio de formación y una o dos asesorías.
+
+## 10. Segunda revisión con la validación (2026-10-27)
+
+Segunda sesión de la fase 1 del PLAN-0001, sobre el sitio de pruebas con los
+datos migrados. El material de la reunión está en `.local/`.
+
+### 10.1 Decisiones con ADR
+
+| Qué cambia | Por qué | Afecta a | ADR |
+|---|---|---|---|
+| Lo que ya no se imparte pasa a un estado propio, «Histórico». Sale del listado de vigentes, del catálogo público y de toda elección. Al finalizar un diseño, los que sustituye pasan a histórico. «Recomendado para» y el diseño de una acción ofrecen solo los finalizados | La migración traía lo histórico como borrador o como finalizado. «Fuera del catálogo» no es lo mismo que «histórico». Un borrador no se imparte | RF-3, RF-4, RF-6, RF-7, RF-15, RF-17 | [ADR-0016](../adr/ADR-0016-lo-que-ya-no-se-imparte-es-un-estado-del-diseno.md) |
+| La asesoría no escribe diseños ni sube ficheros. Los consulta, solo los finalizados, en la misma ficha de solo lectura y con sus documentos. Ni borradores ni histórico, tampoco por la dirección | Los diseños los hace el área. La asesoría los necesita para saber de qué va un curso antes de agendarlo. Se pidió una sola ficha y no dos | RF-3 | [ADR-0017](../adr/ADR-0017-la-asesoria-consulta-los-disenos-finalizados-y-no-los-escribe.md) |
+
+Y tres adendas: la ADR-0004 recoge las dos decisiones; la ADR-0012, la
+búsqueda por lo recomendado y el menú de lo impartido; la ADR-0015, el cargo
+por etapa.
+
+### 10.2 Cambios sin ADR propia
+
+- **Nombres.** El aplicativo se llama «Planificador de formación». Las
+  pestañas pasan a ser «Planificación de acciones formativas», que es el
+  calendario, y «Diseño de acciones formativas», porque no todo diseño es un
+  curso. El botón de alta de una acción dice «Agendar acción formativa», y en
+  la ficha de un diseño, «Agendar una acción con este diseño». El logotipo de
+  quien despliega va por el filtro `fmc_chrome` (ADR-0002), no en el código.
+- **Horas del diseño (RF-1).** Son obligatorias según la modalidad: en un
+  diseño presencial, las horas presenciales; en uno en línea, las horas en
+  línea; en uno mixto, las dos. La descripción sigue siendo obligatoria también para un borrador:
+  se valoró y se prefirió así.
+- **Código del diseño (RF-2).** Tres cifras, y tras el `A999` viene el `B001`.
+  El número de un diseño borrado no se reutiliza, aunque se borre
+  definitivamente: el aplicativo recuerda el último que dio. Un código ya ha
+  podido salir en un documento y tiene que seguir diciendo de qué diseño se
+  trata.
+- **Ponentes (RF-15, RF-17).** El filtro «Impartido o recomendado» encuentra
+  también a quien se recomienda para un diseño con esas palabras. En el
+  listado, «N acción(es)» abre un menú con las acciones que ha impartido, cada
+  una a su ficha (adenda de la ADR-0012).
+- **Cargo del ponente (RF-15).** El docente en activo se distingue por etapa:
+  infantil y primaria, secundaria y bachillerato, formación profesional, o
+  escuela oficial de idiomas. Se queda un valor para quien no dijo la etapa
+  (adenda de la ADR-0015).
+- **Asesoría responsable.** Si todavía no hay ninguna cuenta de asesoría, la
+  ficha de la acción dice por qué la lista sale vacía.
+
+### 10.3 Lo que se confirma
+
+- La papelera del escritorio de WordPress basta para recuperar lo borrado: no
+  hace falta una pantalla propia en el aplicativo.
+- El título y el icono de cada fila abren la misma ficha: quien puede editar,
+  la edita; quien no, la ve de solo lectura.
+
+### 10.4 Pendiente
+
+- **Ver el aplicativo con el perfil de otro** desde el propio aplicativo, en
+  producción (issue #8): antes hay que comprobar cómo convive el cambio de
+  usuario con el inicio de sesión único del sitio de destino, y escribir su
+  ADR.
+- **Limpieza de los datos migrados**: los borradores que el sistema anterior
+  dejó sin marca de histórico, los ponentes que ya no deben estar, y las
+  acciones sin diseño. Es una tarea de la migración (ADR-0008), no del código.
+- **Temáticas** (§8, pregunta 11; issue #27) y **documento del diseño
+  generado** desde su ficha (§8, pregunta 9; issues #10, #11 y #12): siguen
+  abiertas.
+- **Correo del ponente.** Se habló de que la ficha avise cuando el correo del
+  ponente no es de la organización, pero hay ponentes externos que no lo
+  tienen. No se decidió.
+- **Siguiente sesión**, con el servicio de formación y dos asesorías.

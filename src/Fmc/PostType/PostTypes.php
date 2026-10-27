@@ -12,10 +12,10 @@ namespace Fmc\PostType;
  *
  * Cada tipo tiene sus propias capacidades (`edit_fmc_designs`, …), así que
  * quién hace qué se decide aquí, en un mapa, y no en cada pantalla. El ciclo
- * del diseño sale de las capacidades nativas (ADR-0004): la asesoría crea y
- * manda a revisión, pero no tiene `publish_fmc_designs` ni
- * `edit_published_fmc_designs`, así que ni lo da por finalizado ni lo toca
- * después. Eso lo hace la validación.
+ * del diseño sale de los estados nativos (ADR-0004) más uno propio,
+ * «Histórico», para lo que ya no se imparte (ADR-0016). Los diseños los
+ * escribe y los finaliza la validación; la asesoría los consulta, y solo los
+ * finalizados (ADR-0017).
  */
 final class PostTypes {
 
@@ -23,6 +23,11 @@ final class PostTypes {
 	public const ACTION   = 'fmc_action';
 	public const SPEAKER  = 'fmc_speaker';
 	public const INCIDENT = 'fmc_incident';
+
+	/**
+	 * Design status for what is no longer given: kept, but out of every choice (ADR-0016).
+	 */
+	public const ARCHIVED = 'fmc_archived';
 
 	/**
 	 * Custom capability: write the fields the training service owns —the file
@@ -43,9 +48,10 @@ final class PostTypes {
 	public static function definitions(): array {
 		return array(
 			self::DESIGN   => array(
-				'singular' => 'Diseño de curso',
-				'plural'   => 'Diseños de curso',
-				'new'      => 'Nuevo diseño de curso',
+				// No todo diseño es un curso: también hay acciones puntuales.
+				'singular' => 'Diseño de acción formativa',
+				'plural'   => 'Diseños de acciones formativas',
+				'new'      => 'Nuevo diseño de acción formativa',
 				// El catálogo es público: los diseños finalizados se enseñan.
 				'public'   => true,
 				'icon'     => 'dashicons-welcome-learn-more',
@@ -102,6 +108,80 @@ final class PostTypes {
 				)
 			);
 		}
+
+		// No es interno: entra en las consultas `any` y en los listados del
+		// escritorio, porque un histórico se sigue consultando.
+		register_post_status(
+			self::ARCHIVED,
+			array(
+				'label'                     => 'Histórico',
+				'label_count'               => array(
+					0          => 'Histórico <span class="count">(%s)</span>',
+					1          => 'Históricos <span class="count">(%s)</span>',
+					'singular' => 'Histórico <span class="count">(%s)</span>',
+					'plural'   => 'Históricos <span class="count">(%s)</span>',
+					'context'  => null,
+					'domain'   => null,
+				),
+				'public'                    => false,
+				'protected'                 => true,
+				'exclude_from_search'       => false,
+				'show_in_admin_all_list'    => true,
+				'show_in_admin_status_list' => true,
+			)
+		);
+	}
+
+	/**
+	 * A design in the archive is locked like a finalised one.
+	 *
+	 * WordPress solo protege `publish` y `future`: un histórico lo podría editar
+	 * o borrar su autor con `edit_fmc_designs`. Aquí pide lo mismo que un
+	 * finalizado (ADR-0016).
+	 *
+	 * @param string[] $caps    Primitive caps required.
+	 * @param string   $cap     Meta cap asked for.
+	 * @param int      $user_id User.
+	 * @param mixed[]  $args    Post ID first.
+	 * @return string[]
+	 */
+	public static function lock_archived( $caps, $cap, $user_id, $args ) {
+		unset( $user_id );
+		if ( ! in_array( $cap, array( 'edit_post', 'delete_post' ), true ) || empty( $args[0] ) ) {
+			return $caps;
+		}
+		$post = get_post( $args[0] );
+		if ( ! $post instanceof \WP_Post || self::DESIGN !== $post->post_type || self::ARCHIVED !== $post->post_status ) {
+			return $caps;
+		}
+		$caps[] = 'edit_post' === $cap ? 'edit_published_fmc_designs' : 'delete_published_fmc_designs';
+		return array_values( array_unique( $caps ) );
+	}
+
+	/**
+	 * A design that is not finalised is read only by who may edit it.
+	 *
+	 * WordPress deja al autor leer lo suyo aunque no sea público: una asesoría
+	 * que escribió un borrador antes de que dejaran de escribirlos lo seguiría
+	 * leyendo, y con él el título que enseñan la mediateca o un selector. Aquí,
+	 * leer un borrador, uno en revisión o un histórico pide poder editarlo
+	 * (ADR-0016, ADR-0017).
+	 *
+	 * @param string[] $caps    Primitive caps required.
+	 * @param string   $cap     Meta cap asked for.
+	 * @param int      $user_id User.
+	 * @param mixed[]  $args    Post first.
+	 * @return string[]
+	 */
+	public static function hide_unfinished( $caps, $cap, $user_id, $args ) {
+		if ( 'read_post' !== $cap || empty( $args[0] ) ) {
+			return $caps;
+		}
+		$post = get_post( $args[0] );
+		if ( ! $post instanceof \WP_Post || self::DESIGN !== $post->post_type || in_array( $post->post_status, array( 'publish', 'trash' ), true ) ) {
+			return $caps;
+		}
+		return map_meta_cap( 'edit_post', (int) $user_id, $post->ID );
 	}
 
 	/**
@@ -120,8 +200,8 @@ final class PostTypes {
 			'administrator'        => array_fill_keys( array_keys( self::definitions() ), $all ),
 			'fmc_curator'          => array_fill_keys( array_keys( self::definitions() ), $all ),
 			'fmc_adviser'          => array(
-				// Borrador y revisión, nada más: sin publicar ni editar publicados.
-				self::DESIGN   => array( 'edit', 'delete' ),
+				// Los diseños los consulta, finalizados, y no los escribe (ADR-0017).
+				self::DESIGN   => array(),
 				self::ACTION   => $own,
 				// Los ponentes son un directorio compartido: edita los suyos, pero
 				// cualquier ficha se puede dar de baja con motivo (ADR-0011).
@@ -138,7 +218,24 @@ final class PostTypes {
 	}
 
 	/**
+	 * Capabilities this map granted once and no longer does, per role.
+	 *
+	 * El reparto es aditivo y no quita nada, así que lo que un rol deja de
+	 * tener se dice aquí: si no, un sitio ya desplegado lo seguiría teniendo.
+	 *
+	 * @return array<string, string[]> role => capabilities.
+	 */
+	public static function revoked_caps(): array {
+		return array(
+			// La asesoría ya no escribe diseños (ADR-0017).
+			'fmc_adviser' => array( 'edit_fmc_designs', 'delete_fmc_designs' ),
+		);
+	}
+
+	/**
 	 * Grant the type capabilities to the roles that exist (idempotent, additive).
+	 *
+	 * Lo único que quita es lo de {@see revoked_caps()}.
 	 *
 	 * @return void
 	 */
@@ -168,6 +265,15 @@ final class PostTypes {
 			foreach ( $role ? $caps : array() as $cap ) {
 				if ( ! $role->has_cap( $cap ) ) {
 					$role->add_cap( $cap );
+				}
+			}
+		}
+
+		foreach ( self::revoked_caps() as $slug => $caps ) {
+			$role = get_role( $slug );
+			foreach ( $role ? $caps : array() as $cap ) {
+				if ( isset( $role->capabilities[ $cap ] ) ) {
+					$role->remove_cap( $cap );
 				}
 			}
 		}

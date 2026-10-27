@@ -164,23 +164,39 @@ class Test_Editor_Render extends WP_UnitTestCase {
 		$this->assertFalse( Editor::can_view( get_post( $this->post( PostTypes::ACTION, $adviser, 'draft' ) ) ), 'su borrador, no' );
 		$this->assertTrue( Editor::can_view( get_post( $this->post( PostTypes::DESIGN, $adviser ) ) ), 'un diseño finalizado lo lee cualquiera' );
 		$this->assertFalse( Editor::can_view( get_post( $this->post( PostTypes::DESIGN, $adviser, 'draft' ) ) ), 'el borrador de otra, no' );
+		// Ni su propio borrador ni un histórico, aunque sepa la dirección (ADR-0017).
+		$this->assertFalse( Editor::can_view( get_post( $this->post( PostTypes::DESIGN, get_current_user_id(), 'draft' ) ) ), 'ni el suyo' );
+		$this->assertFalse( Editor::can_view( get_post( $this->post( PostTypes::DESIGN, $adviser, PostTypes::ARCHIVED ) ) ), 'ni un histórico' );
 		$this->assertFalse( Editor::can_view( $incident ) );
 	}
 
 	/**
-	 * La asesoría, en un diseño nuevo: borrador y revisión, sin «finalizar».
+	 * La asesoría no da de alta diseños: los consulta (ADR-0017).
 	 */
-	public function test_a_new_design_for_an_adviser() {
+	public function test_an_adviser_cannot_open_a_new_design() {
 		$this->as_role( 'fmc_adviser' );
 
 		$screen = Editor::screen( 0, PostTypes::DESIGN );
 
+		$this->assertSame( 'No disponible', $screen['title'] );
+		$this->assertSame( array(), $this->buttons( $screen['body'] ) );
+	}
+
+	/**
+	 * La validación, en un diseño nuevo: borrador, revisión o finalizado.
+	 */
+	public function test_a_new_design_for_a_curator() {
+		$this->as_role( 'fmc_curator' );
+
+		$screen = Editor::screen( 0, PostTypes::DESIGN );
+
 		$this->assertSame( 'designs', $screen['tab'] );
-		$this->assertSame( 'Nuevo diseño de curso', $screen['title'] );
+		$this->assertSame( 'Nuevo diseño de acción formativa', $screen['title'] );
 		$this->assertSame(
 			array(
-				'Guardar borrador'  => 'draft',
-				'Mandar a revisión' => 'pending',
+				'Guardar borrador'   => 'draft',
+				'Mandar a revisión'  => 'pending',
+				'Dar por finalizado' => 'publish',
 			),
 			$this->buttons( $screen['body'] )
 		);
@@ -193,7 +209,8 @@ class Test_Editor_Render extends WP_UnitTestCase {
 	}
 
 	/**
-	 * La validación finaliza; y en uno finalizado, guarda o lo devuelve a borrador.
+	 * La validación finaliza; en uno finalizado, guarda, lo devuelve a borrador
+	 * o lo pasa a histórico; y uno histórico lo recupera (ADR-0016).
 	 */
 	public function test_design_buttons_for_a_curator() {
 		$adviser = self::factory()->user->create( array( 'role' => 'fmc_adviser' ) );
@@ -215,11 +232,22 @@ class Test_Editor_Render extends WP_UnitTestCase {
 			array(
 				'Guardar'             => 'publish',
 				'Devolver a borrador' => 'draft',
+				'Pasar a histórico'   => PostTypes::ARCHIVED,
 			),
 			$this->buttons( $screen['body'] )
 		);
+		$old = $this->screen_of( $this->post( PostTypes::DESIGN, $adviser, PostTypes::ARCHIVED ) );
+		$this->assertSame(
+			array(
+				'Guardar'                 => PostTypes::ARCHIVED,
+				'Recuperar del histórico' => 'publish',
+			),
+			$this->buttons( $old['body'] )
+		);
+		$this->assertStringContainsString( 'Histórico', $old['badges'] );
+		$this->assertStringNotContainsString( 'Agendar una acción', $old['actions'], 'un histórico ya no se imparte' );
 		$this->assertStringContainsString( 'Finalizado', $screen['badges'] );
-		$this->assertStringContainsString( 'Crear una acción con este diseño', $screen['actions'] );
+		$this->assertStringContainsString( 'Agendar una acción con este diseño', $screen['actions'] );
 		$this->assertStringContainsString( 'fmc_design=' . $done, $screen['actions'] );
 		// Finalizado pero fuera del catálogo: no tiene ficha pública que ver.
 		$this->assertStringNotContainsString( 'Ver en el catálogo', $screen['actions'] );
@@ -247,10 +275,10 @@ class Test_Editor_Render extends WP_UnitTestCase {
 		$this->assertSame( array(), $this->buttons( $screen['body'] ) );
 		$this->assertStringContainsString( 'Solo lectura', $screen['body'] );
 		$this->assertSame( 0, $this->find( $screen['body'], '//input[@type="file"]' )->length );
-		$this->assertStringContainsString( 'Crear una acción', $screen['actions'], 'sí puede impartirlo' );
+		$this->assertStringContainsString( 'Agendar una acción', $screen['actions'], 'sí puede impartirlo' );
 
 		$this->as_role( 'fmc_training_service' );
-		$this->assertStringNotContainsString( 'Crear una acción', $this->screen_of( $design )['actions'], 'el servicio no crea acciones' );
+		$this->assertStringNotContainsString( 'Agendar una acción', $this->screen_of( $design )['actions'], 'el servicio no crea acciones' );
 	}
 
 	/**
@@ -374,29 +402,70 @@ class Test_Editor_Render extends WP_UnitTestCase {
 	}
 
 	/**
-	 * La lista de diseños para elegir: los finalizados y los propios, con código, tipo y estado.
+	 * El diseño de una acción se elige entre los finalizados, con código y tipo:
+	 * un borrador aún no se imparte y un histórico ya no (ADR-0016). La acción
+	 * antigua conserva el suyo.
+	 *
+	 * @dataProvider design_choosers
+	 *
+	 * @param string $role Who schedules.
 	 */
-	public function test_the_design_choices_of_an_adviser() {
-		$other   = self::factory()->user->create( array( 'role' => 'fmc_adviser' ) );
-		$adviser = $this->as_role( 'fmc_adviser' );
-		$public  = $this->post( PostTypes::DESIGN, $other, 'publish', 'Robótica' );
+	public function test_an_action_chooses_among_finalised_designs( string $role ) {
+		$curator = self::factory()->user->create( array( 'role' => 'fmc_curator' ) );
+		$public  = $this->post( PostTypes::DESIGN, $curator, 'publish', 'Robótica' );
 		update_post_meta( $public, D::CODE, 'A247' );
 		update_post_meta( $public, D::TYPE, 'course' );
-		$mine = $this->post( PostTypes::DESIGN, $adviser, 'draft', 'Mi borrador' );
-		$this->post( PostTypes::DESIGN, $other, 'draft', 'Borrador ajeno' );
+		$this->post( PostTypes::DESIGN, $curator, 'draft', 'Un borrador' );
+		$old = $this->post( PostTypes::DESIGN, $curator, PostTypes::ARCHIVED, 'Pizarra digital' );
+		update_post_meta( $old, D::CODE, 'A007' );
+		$me     = $this->as_role( $role );
+		$action = $this->post( PostTypes::ACTION, $me );
+		update_post_meta( $action, A::DESIGN_ID, $old );
 
-		$options = array();
-		foreach ( $this->find( Editor::screen( 0, PostTypes::ACTION )['body'], '//select[@name="f[fmc_design_id]"]/option[@value!=""]' ) as $option ) {
-			$options[ (int) $option->getAttribute( 'value' ) ] = $option->textContent; // phpcs:ignore WordPress.NamingConventions.ValidVariableName.UsedPropertyNotSnakeCase -- DOM.
-		}
+		$options = function ( string $body ) {
+			$out = array();
+			foreach ( $this->find( $body, '//select[@name="f[fmc_design_id]"]/option[@value!=""]' ) as $option ) {
+				$out[ (int) $option->getAttribute( 'value' ) ] = $option->textContent; // phpcs:ignore WordPress.NamingConventions.ValidVariableName.UsedPropertyNotSnakeCase -- DOM.
+			}
+			return $out;
+		};
 
+		$this->assertSame( array( $public => 'A247 · Robótica (Curso)' ), $options( Editor::screen( 0, PostTypes::ACTION )['body'] ) );
 		$this->assertSame(
 			array(
-				$mine   => 'Mi borrador (Borrador)',
 				$public => 'A247 · Robótica (Curso)',
+				$old    => 'A007 · Pizarra digital (Histórico)',
 			),
-			$options
+			$options( $this->screen_of( $action )['body'] ),
+			'la acción antigua no pierde su diseño'
 		);
+	}
+
+	/**
+	 * Quién agenda acciones.
+	 *
+	 * @return array<string, array{string}>
+	 */
+	public function design_choosers(): array {
+		return array(
+			'asesoría'   => array( 'fmc_adviser' ),
+			'validación' => array( 'fmc_curator' ),
+		);
+	}
+
+	/**
+	 * Sin cuentas de asesoría, la lista vacía dice por qué.
+	 */
+	public function test_an_empty_adviser_list_says_why() {
+		$this->as_role( 'administrator' );
+		foreach ( get_users( array( 'role__in' => array( 'fmc_adviser', 'fmc_curator' ) ) ) as $user ) {
+			wp_delete_user( $user->ID );
+		}
+
+		$this->assertStringContainsString( 'Aún no hay ninguna asesoría con cuenta en el aplicativo', Editor::screen( 0, PostTypes::ACTION )['body'] );
+
+		$this->as_role( 'fmc_curator' );
+		$this->assertStringNotContainsString( 'Aún no hay ninguna asesoría', Editor::screen( 0, PostTypes::ACTION )['body'] );
 	}
 
 	/**
@@ -425,8 +494,8 @@ class Test_Editor_Render extends WP_UnitTestCase {
 	 * Lo que depende de otro campo lleva su condición, y se esconde si no se cumple.
 	 */
 	public function test_conditional_fields_carry_their_rule() {
-		$adviser = $this->as_role( 'fmc_adviser' );
-		$design  = $this->post( PostTypes::DESIGN, $adviser, 'draft' );
+		$curator = $this->as_role( 'fmc_curator' );
+		$design  = $this->post( PostTypes::DESIGN, $curator, 'draft' );
 		update_post_meta( $design, D::MODALITY, 'online' );
 
 		$body   = $this->screen_of( $design )['body'];
@@ -450,10 +519,10 @@ class Test_Editor_Render extends WP_UnitTestCase {
 			PostTypes::DESIGN,
 			null,
 			array( 'post_title' => 'Lo tecleado' ),
-			array( 'post_title' => 'Falta rellenar «Título del curso».' )
+			array( 'post_title' => 'Falta rellenar «Título».' )
 		);
 
-		$this->assertSame( 'Falta rellenar «Título del curso».', $this->find( $screen['body'], '//div[contains(@class,"alert-danger")]//li' )->item( 0 )->textContent );
+		$this->assertSame( 'Falta rellenar «Título».', $this->find( $screen['body'], '//div[contains(@class,"alert-danger")]//li' )->item( 0 )->textContent );
 		$title = $this->find( $screen['body'], '//input[@name="f[post_title]"]' )->item( 0 );
 		$this->assertStringContainsString( 'is-invalid', $title->getAttribute( 'class' ) );
 		$this->assertSame( 'Lo tecleado', $title->getAttribute( 'value' ) );
@@ -492,8 +561,8 @@ class Test_Editor_Render extends WP_UnitTestCase {
 	 * Los documentos de un diseño: cada uno se cambia o se quita; los del sistema anterior, como enlace.
 	 */
 	public function test_the_documents_section_of_a_design() {
-		$adviser = $this->as_role( 'fmc_adviser' );
-		$design  = $this->post( PostTypes::DESIGN, $adviser, 'draft' );
+		$curator = $this->as_role( 'fmc_curator' );
+		$design  = $this->post( PostTypes::DESIGN, $curator, 'draft' );
 		$doc     = self::factory()->attachment->create(
 			array(
 				'post_parent' => $design,
@@ -520,14 +589,25 @@ class Test_Editor_Render extends WP_UnitTestCase {
 		$this->assertStringContainsString( '>apoyo curso.zip</a>', $body );
 		$this->assertSame( 2, substr_count( $body, 'Ninguno.' ), 'minutaje y otros, vacíos' );
 		$this->assertSame( '.pdf,.doc,.docx,.odt', $this->find( $body, '//input[@name="fmc_doc[design][]"]' )->item( 0 )->getAttribute( 'accept' ) );
+
+		// La asesoría, en el diseño finalizado, abre los materiales y no cambia nada (ADR-0017).
+		wp_publish_post( $design );
+		$this->as_role( 'fmc_adviser' );
+		$body = $this->screen_of( $design )['body'];
+		$this->assertStringContainsString( '>diseno.pdf</a>', $body );
+		$this->assertSame( 0, $this->find( $body, '//input[@type="file"]' )->length );
+		$this->assertSame( 0, $this->find( $body, '//input[@name="fmc_remove[]"]' )->length );
 	}
 
 	/**
 	 * Subir documentos a un diseño nuevo pide poder subir ficheros y crear diseños.
 	 */
 	public function test_who_can_add_documents_to_a_new_design() {
-		$this->as_role( 'fmc_adviser' );
+		$this->as_role( 'fmc_curator' );
 		$this->assertTrue( Editor::can_write( PostTypes::DESIGN, 'docs', 0 ) );
+
+		$this->as_role( 'fmc_adviser' );
+		$this->assertFalse( Editor::can_write( PostTypes::DESIGN, 'docs', 0 ), 'la asesoría no da de alta diseños' );
 
 		$this->as_role( 'fmc_training_service' );
 		$this->assertFalse( Editor::can_write( PostTypes::DESIGN, 'docs', 0 ) );
@@ -561,7 +641,7 @@ class Test_Editor_Render extends WP_UnitTestCase {
 
 		$body = Editor::screen( 0, PostTypes::DESIGN )['body'];
 		$this->assertTrue( $this->disabled( $body, D::CODE ) );
-		$this->assertSame( 'A42', $this->find( $body, '//input[@name="f[' . D::CODE . ']"]' )->item( 0 )->getAttribute( 'value' ) );
+		$this->assertSame( 'A042', $this->find( $body, '//input[@name="f[' . D::CODE . ']"]' )->item( 0 )->getAttribute( 'value' ) );
 		$this->assertStringNotContainsString( 'name="f[tax:fmc_competence]', $body, 'las áreas antiguas ya no se rellenan' );
 	}
 
@@ -644,13 +724,15 @@ class Test_Editor_Render extends WP_UnitTestCase {
 	}
 
 	/**
-	 * «Recomendado para» solo ofrece diseños del catálogo, pero no pierde lo ya elegido.
+	 * «Recomendado para» solo ofrece diseños finalizados, pero no pierde lo ya elegido.
 	 */
-	public function test_recommended_designs_come_from_the_catalogue() {
+	public function test_recommended_designs_are_the_finalised_ones() {
 		$curator = $this->as_role( 'fmc_curator' );
 		$offered = $this->post( PostTypes::DESIGN, $curator, 'publish', 'En el catálogo' );
-		$old     = $this->post( PostTypes::DESIGN, $curator, 'publish', 'Histórico' );
-		$this->post( PostTypes::DESIGN, $curator, 'publish', 'Otro histórico' );
+		$this->post( PostTypes::DESIGN, $curator, 'publish', 'Finalizado fuera del catálogo' );
+		$old = $this->post( PostTypes::DESIGN, $curator, PostTypes::ARCHIVED, 'Histórico' );
+		$this->post( PostTypes::DESIGN, $curator, PostTypes::ARCHIVED, 'Otro histórico' );
+		$this->post( PostTypes::DESIGN, $curator, 'draft', 'Borrador' );
 		update_post_meta( $offered, D::IN_CATALOGUE, '1' );
 		$speaker = $this->post( PostTypes::SPEAKER, $curator );
 		update_post_meta( $speaker, SpeakerMetaKeys::RECOMMENDED, array( $old ) );
@@ -659,6 +741,49 @@ class Test_Editor_Render extends WP_UnitTestCase {
 		foreach ( $this->find( $this->screen_of( $speaker )['body'], '//select[@name="f[' . SpeakerMetaKeys::RECOMMENDED . '][]"]/option' ) as $option ) {
 			$options[] = $option->textContent; // phpcs:ignore WordPress.NamingConventions.ValidVariableName.UsedPropertyNotSnakeCase -- DOM.
 		}
-		$this->assertSame( array( 'En el catálogo', 'Histórico (fuera del catálogo)' ), $options );
+		$this->assertSame( array( 'En el catálogo', 'Finalizado fuera del catálogo', 'Histórico (Histórico)' ), $options, 'el recomendado que ya era histórico se conserva' );
+	}
+
+	/**
+	 * `?fmc_design=` solo precarga un diseño finalizado: de un borrador o un
+	 * histórico no sale ni el título.
+	 */
+	public function test_only_a_finalised_design_is_prefilled() {
+		$curator = self::factory()->user->create( array( 'role' => 'fmc_curator' ) );
+		$draft   = $this->post( PostTypes::DESIGN, $curator, 'draft', 'Borrador secreto' );
+		$old     = $this->post( PostTypes::DESIGN, $curator, PostTypes::ARCHIVED, 'Histórico secreto' );
+		$this->as_role( 'fmc_adviser' );
+
+		foreach ( array( $draft, $old ) as $design ) {
+			$_GET['fmc_design'] = (string) $design;
+			$body               = Editor::screen( 0, PostTypes::ACTION )['body'];
+			$this->assertSame( 0, $this->find( $body, '//select[@name="f[fmc_design_id]"]/option[@selected]' )->length );
+			$this->assertStringNotContainsString( 'secreto', $body );
+		}
+	}
+
+	/**
+	 * «Sustituye a» no ofrece el propio diseño, y a quien solo consulta no le
+	 * dice el título de lo que ya no se ofrece.
+	 */
+	public function test_the_replaces_field_skips_itself_and_hides_what_the_reader_cannot_read() {
+		$curator = $this->as_role( 'fmc_curator' );
+		$design  = $this->post( PostTypes::DESIGN, $curator, 'publish', 'El nuevo' );
+		$old     = $this->post( PostTypes::DESIGN, $curator, PostTypes::ARCHIVED, 'El viejo' );
+		update_post_meta( $design, D::REPLACES, array( $old ) );
+
+		$options = function () use ( $design ): array {
+			$out = array();
+			foreach ( $this->find( $this->screen_of( $design )['body'], '//select[@name="f[' . D::REPLACES . '][]"]/option' ) as $option ) {
+				$out[ (int) $option->getAttribute( 'value' ) ] = $option->textContent; // phpcs:ignore WordPress.NamingConventions.ValidVariableName.UsedPropertyNotSnakeCase -- DOM.
+			}
+			return $out;
+		};
+
+		$this->assertArrayNotHasKey( $design, $options() );
+		$this->assertSame( 'El viejo (Histórico)', $options()[ $old ] );
+
+		$this->as_role( 'fmc_adviser' );
+		$this->assertSame( array( $old => 'Un diseño que ya no se ofrece' ), $options() );
 	}
 }

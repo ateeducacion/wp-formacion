@@ -32,6 +32,24 @@ final class Screen {
 	public const ARG_FRAME = 'fmc_marco';
 
 	/**
+	 * The application's name: header, page title and footer.
+	 */
+	public const APP_NAME = 'Planificador de formación';
+
+	/**
+	 * Tab and screen title of each list.
+	 *
+	 * Las acciones son la planificación —el calendario de lo que se imparte—, y
+	 * los diseños, de acciones formativas y no solo de cursos.
+	 */
+	public const TITLES = array(
+		'actions'   => 'Planificación de acciones formativas',
+		'designs'   => 'Diseño de acciones formativas',
+		'speakers'  => 'Ponentes',
+		'incidents' => 'Incidencias',
+	);
+
+	/**
 	 * Bootstrap from jsDelivr, pinned with SRI, same version as `package.json`.
 	 */
 	public const BOOTSTRAP = array(
@@ -138,23 +156,23 @@ final class Screen {
 		$actions = current_user_can( 'edit_fmc_actions' ) || current_user_can( 'read_private_fmc_actions' );
 		if ( $actions ) {
 			$tabs['actions'] = array(
-				'label' => 'Acciones formativas',
+				'label' => self::TITLES['actions'],
 				'type'  => PostTypes::ACTION,
 			);
 		}
 		$tabs['designs'] = array(
-			'label' => 'Diseños de curso',
+			'label' => self::TITLES['designs'],
 			'type'  => PostTypes::DESIGN,
 		);
 		if ( current_user_can( 'edit_fmc_speakers' ) ) {
 			$tabs['speakers'] = array(
-				'label' => 'Ponentes',
+				'label' => self::TITLES['speakers'],
 				'type'  => PostTypes::SPEAKER,
 			);
 		}
 		if ( current_user_can( 'edit_fmc_incidents' ) || current_user_can( 'read_private_fmc_incidents' ) ) {
 			$tabs['incidents'] = array(
-				'label' => 'Incidencias',
+				'label' => self::TITLES['incidents'],
 				'type'  => PostTypes::INCIDENT,
 			);
 		}
@@ -305,7 +323,7 @@ final class Screen {
 		}
 		$chrome = self::deployment_chrome();
 		$out    = '<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">';
-		$out   .= '<title>' . esc_html( $screen['title'] . ' · Formación' ) . '</title>';
+		$out   .= '<title>' . esc_html( $screen['title'] . ' · ' . self::APP_NAME ) . '</title>';
 		// Bootstrap desde jsDelivr con SRI (ADR-0002).
 		// phpcs:ignore WordPress.WP.EnqueuedResources.NonEnqueuedStylesheet -- documento propio, fuera del tema.
 		$out .= '<link rel="stylesheet" href="' . esc_url( self::BOOTSTRAP['css'] ) . '" integrity="' . esc_attr( self::BOOTSTRAP['css_sri'] ) . '" crossorigin="anonymous">';
@@ -326,7 +344,7 @@ final class Screen {
 		$out .= '</div>' . ( $screen['actions'] ?? '' ) . '</div></div>';
 
 		$out .= '<main class="container py-4">' . self::notice() . $screen['body'] . '</main>';
-		$out .= '<footer class="fmc-foot"><div class="container">Aplicativo de formación' . $chrome['footer'] . '</div></footer>';
+		$out .= '<footer class="fmc-foot"><div class="container">' . esc_html( self::APP_NAME ) . $chrome['footer'] . '</div></footer>';
 		// Bootstrap trae Popper: los tooltips de las observaciones del ponente.
 		// phpcs:ignore WordPress.WP.EnqueuedResources.NonEnqueuedScript -- documento propio, fuera del tema.
 		$out .= '<script src="' . esc_url( self::BOOTSTRAP['js'] ) . '" integrity="' . esc_attr( self::BOOTSTRAP['js_sri'] ) . '" crossorigin="anonymous"></script>';
@@ -411,7 +429,7 @@ final class Screen {
 		$user = wp_get_current_user();
 		$name = (string) $user->display_name;
 		$out  = '<header class="fmc-top"><div class="container fmc-top-in">' . $brand;
-		$out .= '<a class="fmc-brand" href="' . esc_url( home_url( '/' ) ) . '">Formación</a>';
+		$out .= '<a class="fmc-brand" href="' . esc_url( home_url( '/' ) ) . '">' . esc_html( self::APP_NAME ) . '</a>';
 		$out .= '<details class="fmc-yo"><summary><span class="fmc-avatar" aria-hidden="true">' . esc_html( strtoupper( mb_substr( $name, 0, 1 ) ) ) . '</span>';
 		$out .= '<span class="fmc-yo-txt"><strong>' . esc_html( $name ) . '</strong><small>' . esc_html( self::role_label( $user ) ) . '</small></span></summary><div class="fmc-yo-menu">';
 		if ( current_user_can( 'manage_options' ) ) {
@@ -443,7 +461,7 @@ final class Screen {
 		$in = is_user_logged_in()
 			? '<a class="btn btn-outline-primary btn-sm" href="' . esc_url( home_url( '/' ) ) . '">Ir al aplicativo</a>'
 			: '<a class="btn btn-outline-primary btn-sm" href="' . esc_url( wp_login_url( home_url( '/' ) ) ) . '">Entrar</a>';
-		return '<header class="fmc-top"><div class="container fmc-top-in">' . $brand . '<a class="fmc-brand" href="' . esc_url( Catalogue::url() ) . '">Formación</a><span class="ms-auto">' . $in . '</span></div></header>';
+		return '<header class="fmc-top"><div class="container fmc-top-in">' . $brand . '<a class="fmc-brand" href="' . esc_url( Catalogue::url() ) . '">' . esc_html( self::APP_NAME ) . '</a><span class="ms-auto">' . $in . '</span></div></header>';
 	}
 
 	/**

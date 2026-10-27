@@ -130,23 +130,23 @@ class Test_Editor_Save extends WP_UnitTestCase {
 	}
 
 	/**
-	 * La asesoría guarda en borrador o manda a revisión, pero no publica ni a mano.
+	 * La asesoría no escribe diseños: ni nuevos ni los suyos de antes (ADR-0017).
 	 */
-	public function test_an_adviser_drafts_and_sends_to_review_but_never_publishes() {
-		$this->as_role( 'fmc_adviser' );
+	public function test_an_adviser_does_not_write_designs() {
+		$adviser = $this->as_role( 'fmc_adviser' );
 
-		$draft = Editor::apply( PostTypes::DESIGN, 0, $this->design_fields(), 'draft', 0 );
-		$this->assertSame( 'created', $draft['outcome'] );
-		$this->assertSame( 'draft', get_post_status( $draft['id'] ) );
+		$this->assertSame( 'denied', Editor::apply( PostTypes::DESIGN, 0, $this->design_fields(), 'draft', 0 )['outcome'] );
+		$this->assertSame( 0, $this->count_of( PostTypes::DESIGN ) );
 
-		$this->assertSame( 'saved', Editor::apply( PostTypes::DESIGN, $draft['id'], $this->design_fields(), 'pending', 0 )['outcome'] );
-		$this->assertSame( 'pending', get_post_status( $draft['id'] ) );
+		// Ni el borrador que escribió antes de que la asesoría dejara de escribirlos.
+		$old = $this->post( PostTypes::DESIGN, $adviser, 'draft' );
+		$this->assertSame( 'denied', Editor::apply( PostTypes::DESIGN, $old, $this->design_fields(), 'pending', 0 )['outcome'] );
+		$this->assertSame( 'draft', get_post_status( $old ) );
 
-		Editor::apply( PostTypes::DESIGN, $draft['id'], $this->design_fields(), 'publish', 0 );
-		$this->assertSame( 'pending', get_post_status( $draft['id'] ), 'pulsar «finalizar» a mano no lo publica' );
-
-		$new = Editor::apply( PostTypes::DESIGN, 0, $this->design_fields(), 'publish', 0 );
-		$this->assertSame( 'draft', get_post_status( $new['id'] ), 'uno nuevo se queda en borrador' );
+		// Sin `publish_fmc_designs`, ni finalizar ni pasar a histórico.
+		$this->assertSame( 'draft', Editor::next_status( PostTypes::DESIGN, get_post( $old ), 'publish' ) );
+		$this->assertSame( 'draft', Editor::next_status( PostTypes::DESIGN, get_post( $old ), PostTypes::ARCHIVED ) );
+		$this->assertSame( 'draft', Editor::next_status( PostTypes::DESIGN, null, 'publish' ), 'uno nuevo se queda en borrador' );
 	}
 
 	/**
@@ -167,6 +167,14 @@ class Test_Editor_Save extends WP_UnitTestCase {
 		$this->assertSame( 'draft', get_post_status( $design ) );
 
 		$this->assertSame( 'draft', Editor::next_status( PostTypes::DESIGN, null, '' ) );
+
+		// Lo que ya no se imparte pasa a histórico, se guarda en él y se recupera (ADR-0016).
+		Editor::apply( PostTypes::DESIGN, $design, $this->design_fields(), PostTypes::ARCHIVED, 0 );
+		$this->assertSame( PostTypes::ARCHIVED, get_post_status( $design ) );
+		$this->assertSame( 'saved', Editor::apply( PostTypes::DESIGN, $design, $this->design_fields( array( 'post_title' => 'Corregido' ) ), PostTypes::ARCHIVED, 0 )['outcome'] );
+		$this->assertSame( PostTypes::ARCHIVED, get_post_status( $design ) );
+		Editor::apply( PostTypes::DESIGN, $design, $this->design_fields(), 'publish', 0 );
+		$this->assertSame( 'publish', get_post_status( $design ) );
 	}
 
 	/**
@@ -187,7 +195,7 @@ class Test_Editor_Save extends WP_UnitTestCase {
 	 * Lo obligatorio que falta se dice campo a campo, y no se guarda nada.
 	 */
 	public function test_required_fields_are_reported_and_nothing_is_stored() {
-		$this->as_role( 'fmc_adviser' );
+		$this->as_role( 'fmc_curator' );
 
 		$result = Editor::apply(
 			PostTypes::DESIGN,
@@ -203,7 +211,7 @@ class Test_Editor_Save extends WP_UnitTestCase {
 		);
 
 		$this->assertSame( 'invalid', $result['outcome'] );
-		$this->assertSame( 'Falta rellenar «Título del curso».', $result['errors']['post_title'] );
+		$this->assertSame( 'Falta rellenar «Título».', $result['errors']['post_title'] );
 		$this->assertSame( 'Falta rellenar «Tipo de formación».', $result['errors'][ D::TYPE ] );
 		$this->assertArrayNotHasKey( D::MODALITY, $result['errors'] );
 		$this->assertSame( 0, $result['values']['_parent'] );
@@ -419,7 +427,7 @@ class Test_Editor_Save extends WP_UnitTestCase {
 	 * El código del diseño lo pone el aplicativo: el siguiente al mayor, con su prefijo.
 	 */
 	public function test_the_design_code_is_the_next_free_one() {
-		$this->as_role( 'fmc_adviser' );
+		$this->as_role( 'fmc_curator' );
 		$old = self::factory()->post->create( array( 'post_type' => PostTypes::DESIGN ) );
 		update_post_meta( $old, D::CODE, 'A247' );
 		$this->assertSame( 'A248', Editor::next_code() );
@@ -431,6 +439,102 @@ class Test_Editor_Save extends WP_UnitTestCase {
 		Editor::apply( PostTypes::DESIGN, $result['id'], $this->design_fields(), 'draft', 0 );
 		$this->assertSame( 'A248', get_post_meta( $result['id'], D::CODE, true ), 'y no cambia al volver a guardar' );
 		$this->assertSame( 'A249', Editor::next_code() );
+	}
+
+	/**
+	 * Tres cifras siempre, y tras el `A999`, el `B001`: la letra manda sobre el número.
+	 */
+	public function test_the_design_code_moves_to_the_next_letter() {
+		$code = static function ( string $value ): void {
+			update_post_meta( self::factory()->post->create( array( 'post_type' => PostTypes::DESIGN ) ), D::CODE, $value );
+		};
+		$this->assertSame( 'A001', Editor::next_code(), 'el primero' );
+
+		$code( 'A7' );
+		$code( 'A122B' );
+		$this->assertSame( 'A008', Editor::next_code(), 'las variantes con letra detrás no cuentan' );
+
+		$code( 'A999' );
+		$this->assertSame( 'B001', Editor::next_code() );
+
+		$code( 'B001' );
+		$code( 'a998' );
+		$this->assertSame( 'B002', Editor::next_code(), 'un B va después de cualquier A' );
+	}
+
+	/**
+	 * Las horas de cada parte son obligatorias cuando la modalidad la tiene: una mixta pide las dos.
+	 */
+	public function test_the_hours_of_each_part_are_required() {
+		$this->as_role( 'fmc_curator' );
+
+		$blended = Editor::apply( PostTypes::DESIGN, 0, $this->design_fields( array( D::HOURS_ONLINE => '' ) ), 'draft', 0 );
+		$this->assertSame( 'invalid', $blended['outcome'] );
+		$this->assertSame( array( D::HOURS_ONLINE => 'Falta rellenar «Horas en línea».' ), $blended['errors'] );
+
+		$online = Editor::apply(
+			PostTypes::DESIGN,
+			0,
+			$this->design_fields(
+				array(
+					D::MODALITY     => 'online',
+					D::HOURS_ONSITE => '',
+					D::HOURS_ONLINE => '',
+				)
+			),
+			'draft',
+			0
+		);
+		$this->assertSame( array( D::HOURS_ONLINE ), array_keys( $online['errors'] ), 'en línea no pide las presenciales' );
+
+		$onsite = Editor::apply(
+			PostTypes::DESIGN,
+			0,
+			$this->design_fields(
+				array(
+					D::MODALITY     => 'onsite',
+					D::HOURS_ONLINE => '',
+				)
+			),
+			'draft',
+			0
+		);
+		$this->assertSame( 'created', $onsite['outcome'] );
+		$this->assertSame( '10', get_post_meta( $onsite['id'], D::HOURS_ONSITE, true ) );
+	}
+
+	/**
+	 * Al finalizar un diseño, los que sustituye pasan a histórico; mientras es
+	 * borrador siguen en uso, y uno recuperado a mano no vuelve a él (ADR-0016).
+	 */
+	public function test_finalising_a_design_archives_the_ones_it_replaces() {
+		$curator  = $this->as_role( 'fmc_curator' );
+		$old      = $this->post( PostTypes::DESIGN, $curator );
+		$older    = $this->post( PostTypes::DESIGN, $curator, 'draft' );
+		$replaces = array( D::REPLACES => array( (string) $old, (string) $older ) );
+
+		$new = Editor::apply( PostTypes::DESIGN, 0, $this->design_fields( $replaces ), 'draft', 0 );
+		$this->assertSame( 'publish', get_post_status( $old ), 'el nuevo aún es un borrador' );
+
+		$fields = $this->design_fields( $replaces );
+		Editor::apply( PostTypes::DESIGN, $new['id'], $fields, 'publish', 0 );
+		$this->assertSame( PostTypes::ARCHIVED, get_post_status( $old ) );
+		$this->assertSame( PostTypes::ARCHIVED, get_post_status( $older ) );
+
+		wp_update_post(
+			array(
+				'ID'          => $old,
+				'post_status' => 'publish',
+			)
+		);
+		Editor::apply( PostTypes::DESIGN, $new['id'], $fields, 'publish', 0 );
+		$this->assertSame( 'publish', get_post_status( $old ), 'recuperado a mano, se queda' );
+
+		$third                   = $this->post( PostTypes::DESIGN, $curator );
+		$fields[ D::REPLACES ][] = (string) $third;
+		Editor::apply( PostTypes::DESIGN, $new['id'], $fields, 'publish', 0 );
+		$this->assertSame( PostTypes::ARCHIVED, get_post_status( $third ), 'el que se añade después, sí' );
+		$this->assertSame( 'publish', get_post_status( $old ) );
 	}
 
 	/**
@@ -531,7 +635,7 @@ class Test_Editor_Save extends WP_UnitTestCase {
 	 * Los documentos viajan con el guardado del diseño, y lo que no entra se cuenta.
 	 */
 	public function test_a_design_save_applies_its_documents() {
-		$this->as_role( 'fmc_adviser' );
+		$this->as_role( 'fmc_curator' );
 		$tmp = wp_tempnam( 'falso.pdf' );
 		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents -- fichero de prueba.
 		file_put_contents( $tmp, 'texto' );
@@ -668,5 +772,145 @@ class Test_Editor_Save extends WP_UnitTestCase {
 		} catch ( WPDieException $e ) {
 			$this->assertSame( 0, $this->count_of( PostTypes::SPEAKER ) );
 		}
+	}
+
+	/**
+	 * Una acción solo se agenda con un diseño finalizado, aunque el formulario
+	 * llegue con otro; la que ya tenía uno histórico lo conserva (ADR-0016).
+	 */
+	public function test_an_action_needs_a_finalised_design() {
+		$curator = self::factory()->user->create( array( 'role' => 'fmc_curator' ) );
+		$draft   = $this->post( PostTypes::DESIGN, $curator, 'draft' );
+		$old     = $this->post( PostTypes::DESIGN, $curator, PostTypes::ARCHIVED );
+		$adviser = $this->as_role( 'fmc_adviser' );
+
+		$result = Editor::apply( PostTypes::ACTION, 0, $this->action_fields( array( A::DESIGN_ID => (string) $draft ) ), '', 0 );
+		$this->assertSame( 'invalid', $result['outcome'] );
+		$this->assertStringContainsString( 'no está finalizado', $result['errors'][ A::DESIGN_ID ] );
+		$this->assertSame( 0, $this->count_of( PostTypes::ACTION ) );
+		$this->assertSame( 'invalid', Editor::apply( PostTypes::ACTION, 0, $this->action_fields( array( A::DESIGN_ID => (string) $this->post( PostTypes::SPEAKER, $adviser ) ) ), '', 0 )['outcome'], 'ni otra cosa que un diseño' );
+
+		$action = $this->post( PostTypes::ACTION, $adviser );
+		update_post_meta( $action, A::DESIGN_ID, $old );
+		$this->assertSame( 'saved', Editor::apply( PostTypes::ACTION, $action, $this->action_fields( array( A::DESIGN_ID => (string) $old ) ), '', 0 )['outcome'] );
+		$this->assertSame( 'invalid', Editor::apply( PostTypes::ACTION, $action, $this->action_fields( array( A::DESIGN_ID => (string) $draft ) ), '', 0 )['outcome'], 'cambiarlo a un borrador, no' );
+	}
+
+	/**
+	 * «Recomendado para» guarda solo diseños finalizados, más los que ya tenía;
+	 * lo demás que llegue en el formulario se descarta.
+	 */
+	public function test_recommended_designs_are_checked_on_save() {
+		$curator = self::factory()->user->create( array( 'role' => 'fmc_curator' ) );
+		$final   = $this->post( PostTypes::DESIGN, $curator );
+		$draft   = $this->post( PostTypes::DESIGN, $curator, 'draft' );
+		$old     = $this->post( PostTypes::DESIGN, $curator, PostTypes::ARCHIVED );
+		$adviser = $this->as_role( 'fmc_adviser' );
+		$speaker = $this->post( PostTypes::SPEAKER, $adviser );
+		update_post_meta( $speaker, S::FIRST_NAME, 'Ana' );
+		update_post_meta( $speaker, S::LAST_NAME, 'Pérez' );
+		update_post_meta( $speaker, S::EMAIL, 'ana@example.org' );
+		update_post_meta( $speaker, S::RECOMMENDED, array( $old ) );
+		$other = $this->post( PostTypes::ACTION, $adviser );
+
+		$fields = array(
+			S::FIRST_NAME  => 'Ana',
+			S::LAST_NAME   => 'Pérez',
+			S::EMAIL       => 'ana@example.org',
+			S::RECOMMENDED => array( (string) $final, (string) $draft, (string) $old, (string) $other ),
+		);
+		$this->assertSame( 'saved', Editor::apply( PostTypes::SPEAKER, $speaker, $fields, '', 0 )['outcome'] );
+		$this->assertSame( array( $final, $old ), array_map( 'intval', (array) get_post_meta( $speaker, S::RECOMMENDED, true ) ) );
+	}
+
+	/**
+	 * El número de un diseño borrado para siempre no vuelve a darse.
+	 */
+	public function test_a_deleted_design_code_is_not_given_again() {
+		$this->as_role( 'fmc_curator' );
+		$first = Editor::apply( PostTypes::DESIGN, 0, $this->design_fields(), 'draft', 0 );
+		$this->assertSame( 'A001', get_post_meta( $first['id'], D::CODE, true ) );
+
+		wp_delete_post( $first['id'], true );
+
+		$this->assertSame( 'A002', Editor::next_code() );
+		$second = Editor::apply( PostTypes::DESIGN, 0, $this->design_fields(), 'draft', 0 );
+		$this->assertSame( 'A002', get_post_meta( $second['id'], D::CODE, true ) );
+	}
+
+	/**
+	 * Un diseño nuevo puede llamarse como el que sustituye, y el histórico se
+	 * sigue guardando aunque su sucesor lleve su título. Lo que pasa a
+	 * histórico no se completa: no pide lo obligatorio.
+	 */
+	public function test_the_archive_does_not_compete_for_titles_nor_requires_fields() {
+		$curator = $this->as_role( 'fmc_curator' );
+		$old     = self::factory()->post->create(
+			array(
+				'post_type'   => PostTypes::DESIGN,
+				'post_title'  => 'Robótica',
+				'post_author' => $curator,
+			)
+		);
+
+		$fields = $this->design_fields(
+			array(
+				'post_title' => 'Robótica',
+				D::REPLACES  => array( (string) $old ),
+			)
+		);
+		$new    = Editor::apply( PostTypes::DESIGN, 0, $fields, 'publish', 0 );
+		$this->assertSame( 'created', $new['outcome'], 'el que sustituye puede llevar su título' );
+		$this->assertSame( PostTypes::ARCHIVED, get_post_status( $old ) );
+
+		$this->assertSame( 'saved', Editor::apply( PostTypes::DESIGN, $old, $this->design_fields( array( 'post_title' => 'Robótica' ) ), PostTypes::ARCHIVED, 0 )['outcome'] );
+		$this->assertSame( 'invalid', Editor::apply( PostTypes::DESIGN, 0, $this->design_fields( array( 'post_title' => 'Robótica' ) ), 'draft', 0 )['outcome'], 'otro que no lo sustituye, no' );
+
+		$incomplete = $this->post( PostTypes::DESIGN, $curator );
+		$this->assertSame( 'saved', Editor::apply( PostTypes::DESIGN, $incomplete, array( 'post_title' => 'Sin descripción' ), PostTypes::ARCHIVED, 0 )['outcome'] );
+		$this->assertSame( PostTypes::ARCHIVED, get_post_status( $incomplete ) );
+	}
+
+	/**
+	 * Cero horas no son horas: una mixta pide las dos de verdad.
+	 */
+	public function test_zero_hours_count_as_missing() {
+		$this->as_role( 'fmc_curator' );
+
+		$result = Editor::apply( PostTypes::DESIGN, 0, $this->design_fields( array( D::HOURS_ONSITE => '0' ) ), 'draft', 0 );
+
+		$this->assertSame( array( D::HOURS_ONSITE => 'Falta rellenar «Horas presenciales».' ), $result['errors'] );
+	}
+
+	/**
+	 * Cada diseño sustituido pasa a histórico una sola vez: recuperado a mano,
+	 * no vuelve a él aunque el nuevo se devuelva a borrador y se finalice otra vez.
+	 */
+	public function test_a_replaced_design_is_archived_once() {
+		$curator = $this->as_role( 'fmc_curator' );
+		$old     = $this->post( PostTypes::DESIGN, $curator );
+		$fields  = $this->design_fields( array( D::REPLACES => array( (string) $old ) ) );
+		$new     = Editor::apply( PostTypes::DESIGN, 0, $fields, 'publish', 0 );
+		$this->assertSame( PostTypes::ARCHIVED, get_post_status( $old ) );
+
+		Editor::apply( PostTypes::DESIGN, $old, $this->design_fields(), 'publish', 0 );
+		Editor::apply( PostTypes::DESIGN, $new['id'], $fields, 'draft', 0 );
+		Editor::apply( PostTypes::DESIGN, $new['id'], $fields, 'publish', 0 );
+		$this->assertSame( 'publish', get_post_status( $old ) );
+		$this->assertSame( array( $old ), get_post_meta( $new['id'], Editor::ARCHIVED_META, true ) );
+	}
+
+	/**
+	 * Sacar un diseño del histórico es de quien finaliza.
+	 */
+	public function test_only_who_finalises_takes_a_design_out_of_the_archive() {
+		$old = get_post( $this->post( PostTypes::DESIGN, 1, PostTypes::ARCHIVED ) );
+
+		$this->as_role( 'fmc_adviser' );
+		$this->assertSame( PostTypes::ARCHIVED, Editor::next_status( PostTypes::DESIGN, $old, 'draft' ) );
+		$this->assertSame( PostTypes::ARCHIVED, Editor::next_status( PostTypes::DESIGN, $old, 'pending' ) );
+
+		$this->as_role( 'fmc_curator' );
+		$this->assertSame( 'draft', Editor::next_status( PostTypes::DESIGN, $old, 'draft' ) );
 	}
 }

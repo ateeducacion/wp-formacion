@@ -46,11 +46,19 @@ class Test_Post_Types extends WP_UnitTestCase {
 	}
 
 	/**
-	 * La asesoría escribe su diseño y lo manda a revisión, pero no lo finaliza.
+	 * La asesoría consulta los diseños finalizados y no escribe ninguno, ni los
+	 * suyos de antes; los borradores y el histórico no los lee (ADR-0017).
 	 */
-	public function test_an_adviser_drafts_but_cannot_finalise_a_design() {
+	public function test_an_adviser_reads_finalised_designs_and_writes_none() {
 		$adviser = $this->as_role( 'fmc_adviser' );
-		$design  = self::factory()->post->create(
+		$design  = static fn( string $status ) => self::factory()->post->create(
+			array(
+				'post_type'   => PostTypes::DESIGN,
+				'post_status' => $status,
+				'post_author' => 1,
+			)
+		);
+		$own     = self::factory()->post->create(
 			array(
 				'post_type'   => PostTypes::DESIGN,
 				'post_status' => 'pending',
@@ -58,8 +66,77 @@ class Test_Post_Types extends WP_UnitTestCase {
 			)
 		);
 
-		$this->assertTrue( current_user_can( 'edit_post', $design ) );
+		$this->assertFalse( current_user_can( 'edit_fmc_designs' ) );
+		$this->assertFalse( current_user_can( 'edit_post', $own ) );
+		$this->assertFalse( current_user_can( 'delete_post', $own ) );
 		$this->assertFalse( current_user_can( 'publish_fmc_designs' ) );
+		$this->assertTrue( current_user_can( 'read_post', $design( 'publish' ) ) );
+		$this->assertFalse( current_user_can( 'read_post', $design( 'draft' ) ) );
+		$this->assertFalse( current_user_can( 'read_post', $design( PostTypes::ARCHIVED ) ) );
+	}
+
+	/**
+	 * «Histórico» es un estado registrado, que no se ve fuera y entra en las consultas `any` (ADR-0016).
+	 */
+	public function test_the_archive_is_a_registered_status() {
+		PostTypes::register();
+		$status = get_post_status_object( PostTypes::ARCHIVED );
+
+		$this->assertSame( 'Histórico', $status->label );
+		$this->assertFalse( $status->public );
+		$this->assertTrue( $status->protected );
+		$this->assertContains( PostTypes::ARCHIVED, get_post_stati( array( 'exclude_from_search' => false ) ) );
+		$this->assertSame( 'Históricos <span class="count">(3)</span>', sprintf( translate_nooped_plural( $status->label_count, 3 ), 3 ) );
+	}
+
+	/**
+	 * Un histórico está cerrado como un finalizado: quien solo edita lo suyo
+	 * no lo toca, aunque sea suyo; la validación, sí.
+	 */
+	public function test_an_archived_design_is_locked_like_a_finalised_one() {
+		add_role(
+			'fmc_test_writer',
+			'Escribe diseños',
+			array(
+				'edit_fmc_designs'   => true,
+				'delete_fmc_designs' => true,
+			)
+		);
+		$writer = $this->as_role( 'fmc_test_writer' );
+		$design = self::factory()->post->create(
+			array(
+				'post_type'   => PostTypes::DESIGN,
+				'post_status' => 'draft',
+				'post_author' => $writer,
+			)
+		);
+		$this->assertTrue( current_user_can( 'edit_post', $design ) );
+
+		wp_update_post(
+			array(
+				'ID'          => $design,
+				'post_status' => PostTypes::ARCHIVED,
+			)
+		);
+		$this->assertFalse( current_user_can( 'edit_post', $design ) );
+		$this->assertFalse( current_user_can( 'delete_post', $design ) );
+		$this->assertTrue( user_can( self::factory()->user->create( array( 'role' => 'fmc_curator' ) ), 'edit_post', $design ) );
+		remove_role( 'fmc_test_writer' );
+	}
+
+	/**
+	 * Lo que la asesoría tenía en un sitio ya desplegado se le quita al repartir.
+	 */
+	public function test_granting_caps_revokes_what_the_map_no_longer_gives() {
+		$role = get_role( 'fmc_adviser' );
+		$role->add_cap( 'edit_fmc_designs' );
+		$role->add_cap( 'delete_fmc_designs' );
+
+		PostTypes::grant_caps_to_roles();
+
+		$this->assertArrayNotHasKey( 'edit_fmc_designs', get_role( 'fmc_adviser' )->capabilities );
+		$this->assertArrayNotHasKey( 'delete_fmc_designs', get_role( 'fmc_adviser' )->capabilities );
+		$this->assertTrue( get_role( 'fmc_curator' )->has_cap( 'edit_fmc_designs' ), 'a la validación no se le quita' );
 	}
 
 	/**
@@ -155,9 +232,9 @@ class Test_Post_Types extends WP_UnitTestCase {
 	}
 
 	/**
-	 * La asesoría no publica su diseño ni lo borra una vez finalizado.
+	 * La asesoría no publica ni borra diseños, ni siquiera los suyos.
 	 */
-	public function test_an_adviser_cannot_publish_nor_delete_a_finalised_design() {
+	public function test_an_adviser_cannot_publish_nor_delete_a_design() {
 		$adviser = $this->as_role( 'fmc_adviser' );
 		$draft   = self::factory()->post->create(
 			array(
@@ -175,7 +252,7 @@ class Test_Post_Types extends WP_UnitTestCase {
 		);
 
 		$this->assertFalse( current_user_can( 'publish_post', $draft ) );
-		$this->assertTrue( current_user_can( 'delete_post', $draft ) );
+		$this->assertFalse( current_user_can( 'delete_post', $draft ) );
 		$this->assertFalse( current_user_can( 'delete_post', $final ) );
 		$this->assertFalse( current_user_can( 'edit_published_fmc_designs' ) );
 	}
@@ -287,5 +364,64 @@ class Test_Post_Types extends WP_UnitTestCase {
 		fmc_register_roles();
 		PostTypes::grant_caps_to_roles();
 		$this->assertTrue( get_role( 'fmc_training_service' )->has_cap( 'read_private_fmc_actions' ) );
+	}
+
+	/**
+	 * Lo que no está finalizado solo lo lee quien puede editarlo, también si
+	 * es su autor; un finalizado lo lee cualquiera (ADR-0017).
+	 */
+	public function test_an_unfinished_design_is_read_only_by_who_may_edit_it() {
+		$adviser = $this->as_role( 'fmc_adviser' );
+		$own     = static fn( string $status ) => self::factory()->post->create(
+			array(
+				'post_type'   => PostTypes::DESIGN,
+				'post_status' => $status,
+				'post_author' => $adviser,
+			)
+		);
+		$draft   = $own( 'draft' );
+		$pending = $own( 'pending' );
+		$old     = $own( PostTypes::ARCHIVED );
+		$final   = $own( 'publish' );
+
+		$this->assertFalse( current_user_can( 'read_post', $draft ), 'ni su propio borrador' );
+		$this->assertFalse( current_user_can( 'read_post', $pending ) );
+		$this->assertFalse( current_user_can( 'read_post', $old ) );
+		$this->assertTrue( current_user_can( 'read_post', $final ) );
+		$this->assertTrue(
+			current_user_can(
+				'read_post',
+				self::factory()->post->create(
+					array(
+						'post_status' => 'draft',
+						'post_author' => $adviser,
+					)
+				)
+			),
+			'otros tipos, como siempre'
+		);
+
+		$this->as_role( 'fmc_curator' );
+		foreach ( array( $draft, $pending, $old ) as $design ) {
+			$this->assertTrue( current_user_can( 'read_post', $design ) );
+		}
+	}
+
+	/**
+	 * El cierre del histórico vale aunque se pregunte con el objeto y no con su número.
+	 */
+	public function test_the_archive_lock_takes_a_post_object() {
+		$design = get_post(
+			self::factory()->post->create(
+				array(
+					'post_type'   => PostTypes::DESIGN,
+					'post_status' => PostTypes::ARCHIVED,
+				)
+			)
+		);
+
+		$this->assertContains( 'edit_published_fmc_designs', PostTypes::lock_archived( array( 'edit_fmc_designs' ), 'edit_post', 0, array( $design ) ) );
+		$this->assertContains( 'delete_published_fmc_designs', PostTypes::lock_archived( array(), 'delete_post', 0, array( $design->ID ) ) );
+		$this->assertSame( array( 'read' ), PostTypes::lock_archived( array( 'read' ), 'read_post', 0, array( $design ) ) );
 	}
 }

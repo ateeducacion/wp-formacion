@@ -209,7 +209,7 @@ final class Calendar {
 		$view   = self::view();
 		$period = 'week' === $view || 'day' === $view ? self::days_screen( $view ) : self::month_screen();
 		$object = get_post_type_object( PostTypes::ACTION );
-		$add    = current_user_can( $object->cap->create_posts ) ? ' <a class="btn btn-primary fmc-abre-panel" href="' . esc_url( Screen::url( array( Screen::ARG_NEW => PostTypes::ACTION ) ) ) . '">+ Añadir acción formativa</a>' : '';
+		$add    = current_user_can( $object->cap->create_posts ) ? ' <a class="btn btn-primary fmc-abre-panel" href="' . esc_url( Screen::url( array( Screen::ARG_NEW => PostTypes::ACTION ) ) ) . '">+ ' . esc_html( Lists::ADD_LABELS[ PostTypes::ACTION ] ) . '</a>' : '';
 		// El CSV, de lo que empieza en el periodo que se ve, con los filtros.
 		$csv = array(
 			'fmc_csv'  => '1',
@@ -220,7 +220,7 @@ final class Calendar {
 		// nada; el periodo, con sus flechas, va abajo, junto a lo que se ve.
 		return array(
 			'tab'      => 'actions',
-			'title'    => $object->labels->name,
+			'title'    => Screen::TITLES['actions'],
 			'subtitle' => Lists::SUBTITLES[ PostTypes::ACTION ],
 			'actions'  => self::views_html( $view ) . $add . ' ' . self::nav_link( $csv, 'Exportar CSV' ),
 			'body'     => Lists::filters_html( 'actions', PostTypes::ACTION ) . self::period_html( $period ) . self::legend() . $period['body'],

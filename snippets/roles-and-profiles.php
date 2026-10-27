@@ -29,9 +29,11 @@ if ( ! function_exists( 'fmc_role_definitions' ) ) {
 				'label' => 'Validación de formación',
 				'caps'  => array( 'read', 'upload_files' ),
 			),
+			// Sin `upload_files`: ya no sube documentos de diseño (ADR-0017), y con
+			// él vería en la mediateca los de los borradores y del histórico.
 			'fmc_adviser'          => array(
 				'label' => 'Asesoría de formación',
-				'caps'  => array( 'read', 'upload_files' ),
+				'caps'  => array( 'read' ),
 			),
 			'fmc_training_service' => array(
 				'label' => 'Servicio de formación',
@@ -49,6 +51,22 @@ if ( ! function_exists( 'fmc_role_slugs' ) ) {
 	 */
 	function fmc_role_slugs(): array {
 		return array_keys( fmc_role_definitions() );
+	}
+}
+
+if ( ! function_exists( 'fmc_revoked_role_caps' ) ) {
+	/**
+	 * Capabilities this snippet granted once and no longer does, per role.
+	 *
+	 * El reparto es aditivo: lo que un rol deja de tener se dice aquí, o un
+	 * sitio ya desplegado lo conservaría. Es lo único que se quita.
+	 *
+	 * @return array<string, string[]>
+	 */
+	function fmc_revoked_role_caps(): array {
+		return array(
+			'fmc_adviser' => array( 'upload_files' ),
+		);
 	}
 }
 
@@ -70,9 +88,9 @@ if ( ! function_exists( 'fmc_register_roles' ) ) {
 	/**
 	 * Idempotently register product roles and grant the app cap to administrators.
 	 *
-	 * Aditiva: crea el rol si falta y añade la capacidad si falta, nunca quita.
-	 * Lo que se conceda a mano en el editor de roles sigue ahí en la siguiente
-	 * carga. El rótulo sí es el del código: si cambia, el rol ya creado lo
+	 * Aditiva: crea el rol si falta y añade la capacidad si falta. Solo quita
+	 * lo de {@see fmc_revoked_role_caps()}; lo demás que se conceda a mano en el
+	 * editor de roles sigue ahí en la siguiente carga. El rótulo sí es el del código: si cambia, el rol ya creado lo
 	 * coge, o un sitio desplegado seguiría con el nombre viejo.
 	 *
 	 * @return void
@@ -97,6 +115,11 @@ if ( ! function_exists( 'fmc_register_roles' ) ) {
 					$role->add_cap( $cap );
 				}
 			}
+			foreach ( $role ? ( fmc_revoked_role_caps()[ $slug ] ?? array() ) : array() as $cap ) {
+				if ( isset( $role->capabilities[ $cap ] ) ) {
+					$role->remove_cap( $cap );
+				}
+			}
 		}
 
 		$admin = get_role( 'administrator' );
@@ -110,8 +133,8 @@ if ( ! function_exists( 'fmc_roles_status' ) ) {
 	/**
 	 * Forbidden capabilities someone granted by hand to a product role.
 	 *
-	 * Este snippet nunca quita capacidades, así que avisa y quien administra
-	 * decide.
+	 * Este snippet no quita capacidades salvo las que ya no concede, así que
+	 * avisa y quien administra decide.
 	 *
 	 * @return array<string, string[]> role => forbidden caps it holds.
 	 */

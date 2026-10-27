@@ -30,10 +30,15 @@ final class Lists {
 	 */
 	public const SUBTITLES = array(
 		PostTypes::ACTION   => 'Cada edición de un diseño: dónde, cuándo, para cuántos y cómo fue.',
-		PostTypes::DESIGN   => 'El catálogo y la mesa de trabajo: los borradores se escriben aquí hasta que la validación los da por finalizados.',
+		PostTypes::DESIGN   => 'El catálogo y la mesa de trabajo: los borradores se escriben aquí hasta que la validación los da por finalizados, y lo que ya no se imparte pasa a histórico.',
 		PostTypes::SPEAKER  => 'Datos personales: solo para quien gestiona acciones. Busque por lo que han impartido, con sus acciones y sus horas.',
 		PostTypes::INCIDENT => 'Cambios pedidos sobre una acción. Se abren desde la propia acción.',
 	);
+
+	/**
+	 * The designs list, for whoever only reads designs (ADR-0017).
+	 */
+	public const SUBTITLE_DESIGN_READER = 'Los diseños finalizados, con su ficha y sus documentos.';
 
 	/**
 	 * Bootstrap colour of each action situation.
@@ -50,10 +55,30 @@ final class Lists {
 	 * Label and colour of each design status.
 	 */
 	public const DESIGN_STATUSES = array(
-		'draft'   => array( 'Borrador', 'secondary' ),
-		'pending' => array( 'En revisión', 'warning' ),
-		'publish' => array( 'Finalizado', 'success' ),
+		'draft'             => array( 'Borrador', 'secondary' ),
+		'pending'           => array( 'En revisión', 'warning' ),
+		'publish'           => array( 'Finalizado', 'success' ),
+		PostTypes::ARCHIVED => array( 'Histórico', 'dark' ),
 	);
+
+	/**
+	 * Design statuses the list shows unless the archive is asked for.
+	 */
+	public const DESIGN_CURRENT = array( 'draft', 'pending', 'publish' );
+
+	/**
+	 * The add button of each list. Una acción se agenda: el diseño ya existe.
+	 */
+	public const ADD_LABELS = array(
+		PostTypes::ACTION  => 'Agendar acción formativa',
+		PostTypes::DESIGN  => 'Añadir diseño',
+		PostTypes::SPEAKER => 'Añadir ponente',
+	);
+
+	/**
+	 * Actions listed in a speaker's «Ha impartido» menu; the rest, in the action list.
+	 */
+	public const GIVEN_MENU = 15;
 
 	/**
 	 * Hook registration.
@@ -102,8 +127,8 @@ final class Lists {
 			'Fechas'           => 'start',
 		),
 		PostTypes::DESIGN   => array(
-			'Diseño de curso' => 'title',
-			'Código'          => 'code',
+			'Diseño de acción formativa' => 'title',
+			'Código'                     => 'code',
 		),
 		PostTypes::SPEAKER  => array(
 			'Ponente'      => 'name',
@@ -339,6 +364,15 @@ final class Lists {
 				if ( '1' === self::arg( 'fmc_catalogue' ) ) {
 					$meta( D::IN_CATALOGUE, '1' );
 				}
+				// Quien no escribe diseños ve los finalizados y nada más: ni
+				// borradores ni históricos, ni siquiera los suyos (ADR-0017).
+				if ( ! self::writes_designs() ) {
+					$args['post_status'] = 'publish';
+					unset( $args['fmc_visible'] );
+					break;
+				}
+				// El histórico no se mezcla con lo que está en uso: tiene su contador.
+				$args['post_status'] = self::DESIGN_CURRENT;
 				if ( $with_state && isset( self::DESIGN_STATUSES[ self::arg( 'fmc_status' ) ] ) ) {
 					$args['post_status'] = self::arg( 'fmc_status' );
 				}
@@ -353,6 +387,15 @@ final class Lists {
 				break;
 		}
 		return self::sorted( $type, $args );
+	}
+
+	/**
+	 * Whether the current user writes designs, and so sees their whole cycle.
+	 *
+	 * @return bool
+	 */
+	private static function writes_designs(): bool {
+		return current_user_can( 'edit_others_fmc_designs' );
 	}
 
 	/**
@@ -383,8 +426,10 @@ final class Lists {
 			);
 		}
 		$args = self::speaker_order( $args );
-		// Recomendado para el diseño o para alguno de los que sustituye (ADR-0012).
-		if ( absint( self::arg( 'fmc_recommended' ) ) ) {
+		// Recomendado para el diseño o para alguno de los que sustituye (ADR-0012);
+		// uno que no se puede leer no filtra, ni dice nada de él.
+		$recommended = absint( self::arg( 'fmc_recommended' ) );
+		if ( $recommended && PostTypes::DESIGN === get_post_type( $recommended ) && current_user_can( 'read_post', $recommended ) ) {
 			$wanted           = Speakers::recommended_for( absint( self::arg( 'fmc_recommended' ) ) );
 			$args['post__in'] = array_values( isset( $args['post__in'] ) ? array_intersect( $args['post__in'], $wanted ) : $wanted );
 			$args['post__in'] = $args['post__in'] ? $args['post__in'] : array( 0 );
@@ -452,7 +497,7 @@ final class Lists {
 			}
 		}
 		$stats = self::speaker_stats();
-		$ids   = $filtered ? array_keys( $stats ) : get_posts(
+		$ids   = $filtered ? self::speaker_matches( $stats ) : get_posts(
 			array(
 				'post_type'      => PostTypes::SPEAKER,
 				'post_status'    => 'publish',
@@ -484,6 +529,25 @@ final class Lists {
 		}
 		$args['post__in'] = $ids ? array_map( 'intval', $ids ) : array( 0 );
 		return $args;
+	}
+
+	/**
+	 * Speakers the filters find: who has given a matching action, and, when
+	 * only words are asked for, who is recommended for a design with them.
+	 *
+	 * Quien busca «drones» quiere también a quien se recomienda para el curso
+	 * de drones aunque aún no lo haya dado. El expediente y la fecha son de las
+	 * acciones: con ellos, solo cuenta lo impartido.
+	 *
+	 * @param array<int, array{actions:int, hours:float}> $stats Speakers::stats() for the filters.
+	 * @return int[]
+	 */
+	private static function speaker_matches( array $stats ): array {
+		$ids = array_keys( $stats );
+		if ( '' !== self::arg( 'fmc_given' ) && '' === self::arg( 'fmc_file' ) . self::arg( 'fmc_from' ) ) {
+			$ids = array_values( array_unique( array_merge( $ids, Speakers::recommended_matching( self::arg( 'fmc_given' ) ) ) ) );
+		}
+		return $ids;
 	}
 
 	/**
@@ -527,7 +591,8 @@ final class Lists {
 		$base = self::query_args( $type, false );
 		$out  = array(
 			array(
-				'label' => 'En total',
+				// Sin el histórico, que va en su contador.
+				'label' => PostTypes::DESIGN === $type && self::writes_designs() ? 'Vigentes' : 'En total',
 				'n'     => self::total( $base ),
 				'arg'   => '',
 				'value' => '',
@@ -556,7 +621,7 @@ final class Lists {
 				}
 				break;
 			case PostTypes::DESIGN:
-				foreach ( self::DESIGN_STATUSES as $key => $status ) {
+				foreach ( self::writes_designs() ? self::DESIGN_STATUSES : array() as $key => $status ) {
 					$by[] = array( $status[0], 'fmc_status', $key, array( 'post_status' => $key ) );
 				}
 				break;
@@ -610,8 +675,8 @@ final class Lists {
 		$q    = new \WP_Query( $args );
 
 		$object  = get_post_type_object( $type );
-		$actions = current_user_can( $object->cap->create_posts ) && PostTypes::INCIDENT !== $type
-			? '<a class="btn btn-primary fmc-abre-panel" href="' . esc_url( Screen::url( array( Screen::ARG_NEW => $type ) ) ) . '">+ Añadir ' . esc_html( mb_strtolower( $object->labels->singular_name ) ) . '</a>'
+		$actions = current_user_can( $object->cap->create_posts ) && isset( self::ADD_LABELS[ $type ] )
+			? '<a class="btn btn-primary fmc-abre-panel" href="' . esc_url( Screen::url( array( Screen::ARG_NEW => $type ) ) ) . '">+ ' . esc_html( self::ADD_LABELS[ $type ] ) . '</a>'
 			: '';
 
 		// Los ponentes no se exportan: un listado con correos y documentos de
@@ -637,30 +702,36 @@ final class Lists {
 			$actions = Calendar::views_html( 'list' ) . ' ' . $actions;
 		}
 
-		// Los ponentes no tienen estados que contar: su total va en una línea.
-		$body  = PostTypes::SPEAKER === $type ? '' : self::counters_html( $tab, self::counters( $type ) );
+		// Los ponentes no tienen estados que contar, ni los diseños para quien
+		// solo ve los finalizados: su total va en una línea.
+		$plain = PostTypes::SPEAKER === $type || ( PostTypes::DESIGN === $type && ! self::writes_designs() );
+		$body  = $plain ? '' : self::counters_html( $tab, self::counters( $type ) );
 		$body .= self::filters_html( $tab, $type );
-		$body .= PostTypes::SPEAKER === $type ? self::found_html( $tab, (int) $q->found_posts ) : '';
+		$body .= $plain ? self::found_html( $tab, (int) $q->found_posts, $type ) : '';
 		$body .= self::table_html( $type, $q->posts );
 		$body .= self::pager_html( $page, (int) $q->max_num_pages );
 
 		return array(
 			'tab'      => $tab,
-			'title'    => $object->labels->name,
-			'subtitle' => self::SUBTITLES[ $type ],
+			'title'    => Screen::TITLES[ $tab ] ?? $object->labels->name,
+			'subtitle' => PostTypes::DESIGN === $type && ! self::writes_designs() ? self::SUBTITLE_DESIGN_READER . ( current_user_can( 'edit_fmc_actions' ) ? ' Desde la ficha se agenda una acción.' : '' ) : self::SUBTITLES[ $type ],
 			'actions'  => $actions,
 			'body'     => $body,
 		);
 	}
 
 	/**
-	 * How many speakers the filters find, and the way to the trash and back.
+	 * How many the filters find and, for speakers, the way to the trash and back.
 	 *
 	 * @param string $tab   Tab.
-	 * @param int    $found Speakers found.
+	 * @param int    $found Posts found.
+	 * @param string $type  Post type.
 	 * @return string
 	 */
-	private static function found_html( string $tab, int $found ): string {
+	private static function found_html( string $tab, int $found, string $type = PostTypes::SPEAKER ): string {
+		if ( PostTypes::DESIGN === $type ) {
+			return '<p class="fmc-found">' . esc_html( sprintf( '%s diseño(s) finalizado(s)', number_format_i18n( $found ) ) ) . '</p>';
+		}
 		$trash = self::speaker_trash();
 		$out   = '<p class="fmc-found">' . esc_html( sprintf( $trash ? '%s en la papelera' : '%s ponente(s)', number_format_i18n( $found ) ) );
 		if ( current_user_can( 'edit_others_fmc_speakers' ) ) {
@@ -749,7 +820,9 @@ final class Lists {
 				$fields[] = self::select( 'fmc_modality', 'Modalidad', D::MODALITIES, 'Todas' );
 				$fields[] = self::select( 'fmc_programme', 'Programa', self::term_choices( 'fmc_programme' ), 'Todos' );
 				$fields[] = self::select( 'fmc_topic', 'Temática', self::term_choices( 'fmc_topic' ), 'Todas' );
-				$fields[] = self::select( 'fmc_status', 'Estado', array_map( static fn( $s ) => $s[0], self::DESIGN_STATUSES ), 'Todos' );
+				if ( self::writes_designs() ) {
+					$fields[] = self::select( 'fmc_status', 'Estado', array_map( static fn( $s ) => $s[0], self::DESIGN_STATUSES ), 'Vigentes' );
+				}
 				$fields[] = self::select( 'fmc_catalogue', 'Catálogo', array( '1' => 'En el catálogo público' ), 'Todos' );
 				break;
 			case PostTypes::SPEAKER:
@@ -764,8 +837,9 @@ final class Lists {
 					'Todos'
 				);
 				$fields[] = self::select( 'fmc_recommended', 'Recomendado para', self::post_choices( PostTypes::DESIGN ), 'Cualquier diseño', true );
-				// Lo que ha impartido cada cual, en vez de categorías de ponentes (ADR-0012).
-				$fields[] = self::text_field( 'fmc_given', 'Ha impartido', 'Palabras del título' );
+				// Lo que ha impartido cada cual, en vez de categorías de ponentes
+				// (ADR-0012), y también para qué se le recomienda.
+				$fields[] = self::text_field( 'fmc_given', 'Impartido o recomendado', 'Palabras del título' );
 				$fields[] = self::text_field( 'fmc_file', 'Expediente empieza por', 'Prefijo' );
 				$fields[] = self::date_field( 'fmc_from', 'Acciones desde' );
 				$fields[] = self::select(
@@ -871,17 +945,8 @@ final class Lists {
 			'order'          => 'ASC',
 			'no_found_rows'  => true,
 		);
-		if ( PostTypes::DESIGN === $type ) {
-			// Solo los del catálogo, que son los que se imparten (ADR-0012): los
-			// históricos alargaban la lista hasta hacerla inmanejable.
-			// phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_query -- solo los diseños del catálogo.
-			$args['meta_query'] = array(
-				array(
-					'key'   => D::IN_CATALOGUE,
-					'value' => '1',
-				),
-			);
-		}
+		// De los diseños, solo los finalizados, que son los que se imparten: ni
+		// los borradores ni los históricos, que alargaban la lista (ADR-0016).
 		$out = array();
 		foreach ( get_posts( $args ) as $p ) {
 			// El código delante: se busca por él y separa títulos parecidos.
@@ -951,7 +1016,13 @@ final class Lists {
 			$link = $thumb . $name . self::badge( $post ) . self::subtitle( $post ) . ( '' !== $file ? '<div class="small text-secondary">' . esc_html( $file ) . '</div>' : '' );
 			$out .= '<tr><td class="fmc-col-title">' . $link . '</td>';
 			foreach ( $columns as $cell ) {
-				$lines = explode( "\n", (string) $cell( $post ) );
+				$value = $cell( $post );
+				// Una celda con `html` viene ya escapada: lleva enlaces o un menú.
+				if ( is_array( $value ) ) {
+					$out .= '<td>' . $value['html'] . '</td>';
+					continue;
+				}
+				$lines = explode( "\n", (string) $value );
 				$out  .= '<td>' . esc_html( array_shift( $lines ) );
 				foreach ( array_filter( $lines, 'strlen' ) as $line ) {
 					$out .= '<div class="small text-secondary">' . esc_html( $line ) . '</div>';
@@ -1064,6 +1135,7 @@ final class Lists {
 				return implode( ', ', array_map( static fn( $id ) => get_term( (int) $id )->name ?? '', (array) $value ) );
 			case 'design':
 			case 'designs':
+				return implode( ', ', self::design_titles( (array) $value ) );
 			case 'speakers':
 				return implode( ', ', array_map( 'get_the_title', array_filter( array_map( 'intval', (array) $value ) ) ) );
 			case 'adviser':
@@ -1080,10 +1152,11 @@ final class Lists {
 	 * The list columns of a type, after the title: heading => how to read it.
 	 *
 	 * Un salto de línea separa el dato de su detalle, que sale debajo, en
-	 * pequeño. Son las columnas del sistema anterior que se usan a diario.
+	 * pequeño. Son las columnas del sistema anterior que se usan a diario. Una
+	 * celda que devuelve `array( 'html' => … )` se pinta tal cual, ya escapada.
 	 *
 	 * @param string $type Post type.
-	 * @return array<string, callable(\WP_Post): string>
+	 * @return array<string, callable(\WP_Post): (string|array{html:string})>
 	 */
 	public static function columns( string $type ): array {
 		$m = static fn( \WP_Post $p, string $key ): string => (string) get_post_meta( $p->ID, $key, true );
@@ -1098,7 +1171,7 @@ final class Lists {
 				);
 			case PostTypes::DESIGN:
 				return array(
-					'Código'    => static fn( $p ) => $m( $p, D::CODE ) . ( $m( $p, D::IN_CATALOGUE ) ? "\nEn el catálogo" : '' ),
+					'Código'    => static fn( $p ) => $m( $p, D::CODE ) . ( Catalogue::is_listed( $p ) ? "\nEn el catálogo" : '' ),
 					'Tipo'      => static fn( $p ) => ( D::TYPES[ $m( $p, D::TYPE ) ] ?? '' ) . "\n" . ( D::MODALITIES[ $m( $p, D::MODALITY ) ] ?? '' ),
 					'Horas'     => static fn( $p ) => self::hours( $m( $p, D::HOURS_ONSITE ), $m( $p, D::HOURS_ONLINE ) ),
 					'Temática'  => static fn( $p ) => self::terms( $p->ID, 'fmc_topic' ),
@@ -1115,8 +1188,8 @@ final class Lists {
 				return array(
 					'Contacto'         => static fn( $p ) => $m( $p, S::EMAIL ) . "\n" . $m( $p, S::PHONE ),
 					'Isla o zona'      => static fn( $p ) => self::terms( $p->ID, Taxonomies::ZONE ),
-					'Ha impartido'     => static fn( $p ) => isset( $stats[ $p->ID ] ) ? sprintf( '%d acción(es)', $stats[ $p->ID ]['actions'] ) . "\n" . ( $stats[ $p->ID ]['hours'] + 0 ) . ' h' : '—',
-					'Recomendado para' => static fn( $p ) => implode( "\n", array_map( 'get_the_title', array_slice( array_filter( array_map( 'intval', (array) get_post_meta( $p->ID, S::RECOMMENDED, true ) ) ), 0, 3 ) ) ),
+					'Ha impartido'     => static fn( $p ) => isset( $stats[ $p->ID ] ) ? array( 'html' => self::given_html( $p->ID, $stats[ $p->ID ] ) ) : '—',
+					'Recomendado para' => static fn( $p ) => implode( "\n", array_slice( self::design_titles( (array) get_post_meta( $p->ID, S::RECOMMENDED, true ) ), 0, 3 ) ),
 				);
 			default:
 				return array(
@@ -1127,6 +1200,62 @@ final class Lists {
 					'Resolución' => static fn( $p ) => ( I::RESOLUTIONS[ $m( $p, I::RESOLUTION ) ] ?? 'Pendiente' ) . "\n" . wp_trim_words( $m( $p, I::RESOLUTION_NOTES ), 10 ),
 				);
 		}
+	}
+
+	/**
+	 * Titles of the designs the viewer may read, with the status of the unfinished ones.
+	 *
+	 * Lo guardado puede apuntar a un diseño que luego pasó a histórico o volvió
+	 * a borrador. Se dice así; y a quien no puede leerlo, ni el título.
+	 *
+	 * @param mixed[] $ids Design IDs.
+	 * @return string[]
+	 */
+	private static function design_titles( array $ids ): array {
+		$out = array();
+		foreach ( array_filter( array_map( 'intval', $ids ) ) as $id ) {
+			$post = get_post( $id );
+			if ( ! $post instanceof \WP_Post || PostTypes::DESIGN !== $post->post_type || ! current_user_can( 'read_post', $id ) ) {
+				continue;
+			}
+			$out[] = get_the_title( $post ) . ( 'publish' !== $post->post_status && isset( self::DESIGN_STATUSES[ $post->post_status ] ) ? ' (' . self::DESIGN_STATUSES[ $post->post_status ][0] . ')' : '' );
+		}
+		return $out;
+	}
+
+	/**
+	 * What a speaker has given, with the actions themselves in a menu.
+	 *
+	 * Al pulsar «N acción(es)» se abre un menú con las más recientes de las que
+	 * cuentan con los filtros puestos, cada una a su ficha, y el enlace al
+	 * listado de acciones con todas las suyas. Es un menú de
+	 * Bootstrap con posición fija, para que la tabla no lo recorte; sin
+	 * JavaScript, el mismo enlace lleva al listado.
+	 *
+	 * @param int                             $speaker Speaker ID.
+	 * @param array{actions:int, hours:float} $totals  Its totals for the filters.
+	 * @return string
+	 */
+	private static function given_html( int $speaker, array $totals ): string {
+		$all   = Screen::url(
+			array(
+				Screen::ARG_TAB => 'actions',
+				'fmc_view'      => 'list',
+				'fmc_speaker'   => $speaker,
+			)
+		);
+		$rows  = Speakers::given( $speaker, self::arg( 'fmc_given' ), self::arg( 'fmc_file' ), self::arg( 'fmc_from' ) );
+		$shown = array_slice( $rows, 0, self::GIVEN_MENU );
+		$out   = '<div class="dropdown fmc-given"><a class="dropdown-toggle fmc-given-toggle" href="' . esc_url( $all ) . '" role="button" data-bs-toggle="dropdown" data-bs-popper-config="' . esc_attr( '{"strategy":"fixed"}' ) . '" aria-expanded="false">' . esc_html( sprintf( '%d acción(es)', $totals['actions'] ) ) . '</a>';
+		$out  .= '<div class="small text-secondary">' . esc_html( ( $totals['hours'] + 0 ) . ' h' ) . '</div>';
+		$out  .= '<div class="dropdown-menu fmc-given-menu"><div class="dropdown-header">' . esc_html( count( $rows ) > count( $shown ) ? sprintf( 'Las %1$d más recientes de %2$d', count( $shown ), count( $rows ) ) : 'Acciones que ha impartido' ) . '</div>';
+		foreach ( $shown as $row ) {
+			// Las acciones antiguas llevan el subtítulo dentro del título (ADR-0009): no se repite.
+			$sub  = '' !== $row['subtitle'] && false === mb_stripos( $row['title'], $row['subtitle'] ) ? '<span class="d-block small text-secondary">' . esc_html( $row['subtitle'] ) . '</span>' : '';
+			$out .= '<a class="dropdown-item fmc-abre-panel" title="' . esc_attr( $row['title'] ) . '" href="' . esc_url( Screen::url( array( Screen::ARG_EDIT => $row['id'] ) ) ) . '"><span class="fmc-given-date">' . esc_html( self::dates( $row['start'], '' ) ) . '</span> ' . esc_html( '' !== $row['title'] ? $row['title'] : '(sin título)' ) . $sub . '</a>';
+		}
+		$out .= '<div class="dropdown-divider"></div><a class="dropdown-item" href="' . esc_url( $all ) . '">Todas sus acciones, en el listado</a></div></div>';
+		return $out;
 	}
 
 	/**

@@ -62,6 +62,16 @@ y [ADR-0012](../adr/ADR-0012-un-diseno-puede-sustituir-a-otro-y-los-ponentes-se-
 Las incidencias se siguen usando. Quién cura y el perfil de empresa siguen
 sin cerrar.
 
+**Hecho, 2026-10-27:** segunda sesión, con la validación, sobre el sitio de
+pruebas con los datos migrados. Lo que cambió está en el
+[§10 de REQ-0001](../requisitos/REQ-0001-aplicativo-de-formacion.md), y las
+decisiones, en dos ADR propuestas:
+[ADR-0016](../adr/ADR-0016-lo-que-ya-no-se-imparte-es-un-estado-del-diseno.md)
+(el estado «Histórico») y
+[ADR-0017](../adr/ADR-0017-la-asesoria-consulta-los-disenos-finalizados-y-no-los-escribe.md)
+(la asesoría consulta los diseños y no los escribe). Con esta última queda
+contestado quién valida: el área. El perfil de empresa sigue sin cerrar.
+
 **Siguiente:** una sesión con el servicio de formación y una o dos asesorías
 de las que más tiempo llevan, para cerrar:
 

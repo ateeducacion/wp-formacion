@@ -29,7 +29,7 @@ final class Speakers {
 	 * ponente serían cientos de consultas por pantalla. Se recuerda mientras
 	 * no cambie ninguna entrada ni ninguna meta (`last_changed` de `posts`).
 	 *
-	 * @return list<array{text:string, file:string, start:string, hours:float, speakers:int[]}>
+	 * @return list<array{id:int, title:string, subtitle:string, text:string, file:string, start:string, hours:float, speakers:int[]}>
 	 */
 	private static function actions(): array {
 		static $cache = array();
@@ -54,7 +54,7 @@ final class Speakers {
 		}
 		$cols = implode( ', ', array_map( static fn( $alias ) => "m_$alias.meta_value AS $alias", array_keys( $keys ) ) );
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- una lectura agregada sin API; las uniones van preparadas arriba.
-		$found = $wpdb->get_results( $wpdb->prepare( "SELECT p.post_title AS title, $cols FROM $wpdb->posts p $join WHERE p.post_type = %s AND p.post_status = 'publish' AND m_speakers.meta_value IS NOT NULL", PostTypes::ACTION ), ARRAY_A );
+		$found = $wpdb->get_results( $wpdb->prepare( "SELECT p.ID AS id, p.post_title AS title, $cols FROM $wpdb->posts p $join WHERE p.post_type = %s AND p.post_status = 'publish' AND m_speakers.meta_value IS NOT NULL", PostTypes::ACTION ), ARRAY_A );
 
 		$rows = array();
 		foreach ( (array) $found as $r ) {
@@ -63,6 +63,9 @@ final class Speakers {
 				continue;
 			}
 			$rows[] = array(
+				'id'       => (int) $r['id'],
+				'title'    => (string) $r['title'],
+				'subtitle' => (string) $r['subtitle'],
 				'text'     => self::fold( $r['title'] . ' ' . $r['subtitle'] ),
 				'file'     => (string) $r['file'],
 				'start'    => (string) $r['start'],
@@ -93,7 +96,65 @@ final class Speakers {
 	 * @return array<int, array{actions:int, hours:float}> speaker => totals.
 	 */
 	public static function stats( string $given = '', string $file = '', string $from = '' ): array {
-		$words = array_filter( explode( ' ', self::fold( $given ) ), 'strlen' );
+		$out = array();
+		foreach ( self::matching( $given, $file, $from ) as $row ) {
+			foreach ( array_unique( $row['speakers'] ) as $id ) {
+				$out[ $id ]['actions'] = ( $out[ $id ]['actions'] ?? 0 ) + 1;
+				$out[ $id ]['hours']   = ( $out[ $id ]['hours'] ?? 0.0 ) + $row['hours'];
+			}
+		}
+		return $out;
+	}
+
+	/**
+	 * The actions a speaker has given among the ones that match, newest first.
+	 *
+	 * Son las que cuenta {@see stats()}, para enseñarlas una a una.
+	 *
+	 * @param int    $speaker Speaker ID.
+	 * @param string $given   Words of the action title or subtitle; all must appear.
+	 * @param string $file    Start of the file number.
+	 * @param string $from    Y-m-d: actions starting that day or later.
+	 * @return list<array{id:int, title:string, subtitle:string, start:string}>
+	 */
+	public static function given( int $speaker, string $given = '', string $file = '', string $from = '' ): array {
+		$out = array();
+		foreach ( self::matching( $given, $file, $from ) as $row ) {
+			if ( in_array( $speaker, $row['speakers'], true ) ) {
+				$out[] = array(
+					'id'       => $row['id'],
+					'title'    => $row['title'],
+					'subtitle' => $row['subtitle'],
+					'start'    => $row['start'],
+				);
+			}
+		}
+		usort(
+			$out,
+			static function ( $a, $b ) {
+				$order = strcmp( $b['start'], $a['start'] );
+				return 0 !== $order ? $order : $b['id'] <=> $a['id'];
+			}
+		);
+		return $out;
+	}
+
+	/**
+	 * The given actions that match the words, the file prefix and the date.
+	 *
+	 * @param string $given Words of the action title or subtitle; all must appear.
+	 * @param string $file  Start of the file number.
+	 * @param string $from  Y-m-d: actions starting that day or later.
+	 * @return list<array{id:int, title:string, subtitle:string, text:string, file:string, start:string, hours:float, speakers:int[]}>
+	 */
+	private static function matching( string $given, string $file, string $from ): array {
+		// Una vez por filtro y petición: el listado lo pide para cada fila.
+		static $cache = array();
+		$key          = wp_cache_get_last_changed( 'posts' ) . '|' . $given . '|' . $file . '|' . $from;
+		if ( isset( $cache[ $key ] ) ) {
+			return $cache[ $key ];
+		}
+		$words = self::words( $given );
 		$file  = self::fold( $file );
 		$out   = array();
 		foreach ( self::actions() as $row ) {
@@ -103,17 +164,76 @@ final class Speakers {
 			if ( '' !== $from && $row['start'] < $from ) {
 				continue;
 			}
-			foreach ( $words as $word ) {
-				if ( false === strpos( $row['text'], $word ) ) {
-					continue 2;
-				}
+			if ( self::has_words( $row['text'], $words ) ) {
+				$out[] = $row;
 			}
-			foreach ( array_unique( $row['speakers'] ) as $id ) {
-				$out[ $id ]['actions'] = ( $out[ $id ]['actions'] ?? 0 ) + 1;
-				$out[ $id ]['hours']   = ( $out[ $id ]['hours'] ?? 0.0 ) + $row['hours'];
+		}
+		$cache[ $key ] = $out;
+		return $out;
+	}
+
+	/**
+	 * Speakers recommended for a design whose title has every word.
+	 *
+	 * Cuenta la cadena de sustituciones, como {@see recommended_map()}: quien
+	 * se recomendaba para un diseño ya sustituido lo es para el que lo sustituye.
+	 * Solo los diseños que quien busca puede leer: si no, la búsqueda le diría
+	 * qué palabras lleva el título de un borrador.
+	 *
+	 * @param string $given Words of the design title.
+	 * @return int[]
+	 */
+	public static function recommended_matching( string $given ): array {
+		$words = self::words( $given );
+		if ( array() === $words ) {
+			return array();
+		}
+		$map     = self::recommended_map();
+		$designs = array_values( array_unique( array_merge( array(), ...array_values( $map ) ) ) );
+		update_meta_cache( 'post', $designs );
+		$titles = array();
+		foreach ( $designs as $design ) {
+			if ( current_user_can( 'read_post', $design ) ) {
+				// El título tal cual, como el de las acciones: sin las comillas tipográficas de `get_the_title()`.
+				$titles[ $design ] = self::fold( get_post_field( 'post_title', $design, 'raw' ) . ' ' . get_post_meta( $design, D::CODE, true ) );
+			}
+		}
+		$out = array();
+		foreach ( $map as $speaker => $chain ) {
+			foreach ( array_intersect( $chain, array_keys( $titles ) ) as $design ) {
+				if ( self::has_words( $titles[ $design ], $words ) ) {
+					$out[] = (int) $speaker;
+					break;
+				}
 			}
 		}
 		return $out;
+	}
+
+	/**
+	 * The words of a search, folded.
+	 *
+	 * @param string $text Search.
+	 * @return string[]
+	 */
+	private static function words( string $text ): array {
+		return array_values( array_filter( explode( ' ', self::fold( $text ) ), 'strlen' ) );
+	}
+
+	/**
+	 * Whether a folded text holds every word.
+	 *
+	 * @param string   $text  Folded text.
+	 * @param string[] $words Folded words.
+	 * @return bool
+	 */
+	private static function has_words( string $text, array $words ): bool {
+		foreach ( $words as $word ) {
+			if ( false === strpos( $text, $word ) ) {
+				return false;
+			}
+		}
+		return true;
 	}
 
 	/**

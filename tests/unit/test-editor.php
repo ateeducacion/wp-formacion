@@ -365,8 +365,8 @@ class Test_Editor extends WP_UnitTestCase {
 	 * En línea, las horas presenciales no cuentan y se guardan vacías.
 	 */
 	public function test_hidden_fields_are_stored_empty() {
-		$adviser = $this->as_role( 'fmc_adviser' );
-		$id      = $this->design( $adviser );
+		$curator = $this->as_role( 'fmc_curator' );
+		$id      = $this->design( $curator );
 
 		$result = Editor::apply( PostTypes::DESIGN, $id, $this->design_fields(), 'draft', 0 );
 
@@ -379,8 +379,8 @@ class Test_Editor extends WP_UnitTestCase {
 	 * Fuera de rango no se guarda: 300 horas no es un diseño, es una errata.
 	 */
 	public function test_out_of_range_numbers_are_rejected() {
-		$adviser = $this->as_role( 'fmc_adviser' );
-		$result  = Editor::apply( PostTypes::DESIGN, $this->design( $adviser ), $this->design_fields( array( DesignMetaKeys::HOURS_ONLINE => '300' ) ), 'draft', 0 );
+		$curator = $this->as_role( 'fmc_curator' );
+		$result  = Editor::apply( PostTypes::DESIGN, $this->design( $curator ), $this->design_fields( array( DesignMetaKeys::HOURS_ONLINE => '300' ) ), 'draft', 0 );
 
 		$this->assertSame( 'invalid', $result['outcome'] );
 		$this->assertStringContainsString( 'entre 0 y 200', $result['errors'][ DesignMetaKeys::HOURS_ONLINE ] );
@@ -390,12 +390,12 @@ class Test_Editor extends WP_UnitTestCase {
 	 * Dos diseños no se llaman igual; y guardar el mismo no choca consigo.
 	 */
 	public function test_design_titles_are_unique() {
-		$adviser = $this->as_role( 'fmc_adviser' );
-		$first   = $this->design( $adviser );
+		$curator = $this->as_role( 'fmc_curator' );
+		$first   = $this->design( $curator );
 		$this->assertSame( 'saved', Editor::apply( PostTypes::DESIGN, $first, $this->design_fields(), 'draft', 0 )['outcome'] );
 		$this->assertSame( 'saved', Editor::apply( PostTypes::DESIGN, $first, $this->design_fields(), 'draft', 0 )['outcome'] );
 
-		$result = Editor::apply( PostTypes::DESIGN, $this->design( $adviser ), $this->design_fields(), 'draft', 0 );
+		$result = Editor::apply( PostTypes::DESIGN, $this->design( $curator ), $this->design_fields(), 'draft', 0 );
 		$this->assertSame( 'invalid', $result['outcome'] );
 		$this->assertArrayHasKey( 'post_title', $result['errors'] );
 	}
@@ -424,8 +424,8 @@ class Test_Editor extends WP_UnitTestCase {
 	 * Subir, rechazar lo que no es del formato, cambiar y quitar.
 	 */
 	public function test_design_documents_upload_replace_and_remove() {
-		$adviser = $this->as_role( 'fmc_adviser' );
-		$id      = $this->design( $adviser );
+		$curator = $this->as_role( 'fmc_curator' );
+		$id      = $this->design( $curator );
 		$pdf     = "%PDF-1.4\n1 0 obj<<>>endobj\ntrailer<<>>\n%%EOF\n";
 
 		$problems = Documents::apply(

@@ -126,7 +126,7 @@ class Test_Calendar extends WP_UnitTestCase {
 
 		$this->assertSame( 'actions', $screen['tab'] );
 		$this->assertMatchesRegularExpression( '/fmc_tab=actions[^"]*fmc_csv=1[^"]*fmc_from=2026-03-01[^"]*fmc_to=2026-03-31">Exportar CSV</', $screen['actions'], 'el CSV, de lo que empieza ese mes' );
-		$this->assertSame( 'Acciones formativas', $screen['title'] );
+		$this->assertSame( 'Planificación de acciones formativas', $screen['title'] );
 		$this->assertStringContainsString( '<h2 class="fmc-period-title">Marzo de 2026</h2>', $screen['body'] );
 		$this->assertStringContainsString( '3 acción(es) empiezan este mes.', $this->period( $screen ) );
 		$this->assertSame( array( 'Ajedrez', 'Robótica' ), $this->cards_on( $screen['body'], 10 ) );
@@ -175,7 +175,7 @@ class Test_Calendar extends WP_UnitTestCase {
 		$this->assertMatchesRegularExpression( '/href="[^"]*fmc_month=' . substr( Calendar::today(), 0, 7 ) . '">Hoy<\/a>/', $nav );
 		// El curso escolar no viaja con las flechas: el mes ya dice cuándo.
 		$this->assertStringNotContainsString( 'fmc_year', $nav );
-		$this->assertStringContainsString( '+ Añadir acción formativa', $screen['actions'] );
+		$this->assertStringContainsString( '+ Agendar acción formativa', $screen['actions'] );
 	}
 
 	/**

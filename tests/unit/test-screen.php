@@ -78,9 +78,9 @@ class Test_Screen extends WP_UnitTestCase {
 			throw new RuntimeException( 'redirect:' . $location );
 		};
 		$document = static function ( $safe ) {
-			if ( str_ends_with( (string) $safe, ' · Formación' ) ) {
+			if ( str_ends_with( (string) $safe, ' · Planificador de formación' ) ) {
 				// phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- lo lee el test, no se pinta.
-				throw new RuntimeException( 'document:' . substr( $safe, 0, -strlen( ' · Formación' ) ) );
+				throw new RuntimeException( 'document:' . substr( $safe, 0, -strlen( ' · Planificador de formación' ) ) );
 			}
 			return $safe;
 		};
@@ -134,7 +134,7 @@ class Test_Screen extends WP_UnitTestCase {
 	private function screen( array $extra = array() ): array {
 		return $extra + array(
 			'tab'   => 'designs',
-			'title' => 'Diseños de curso',
+			'title' => 'Diseño de acciones formativas',
 			'body'  => '<p id="cuerpo">Cuerpo</p>',
 		);
 	}
@@ -181,7 +181,7 @@ class Test_Screen extends WP_UnitTestCase {
 		$this->as_role( 'fmc_curator' );
 		$this->visit();
 
-		$this->assertSame( 'document:Acciones formativas', $this->route() );
+		$this->assertSame( 'document:Planificación de acciones formativas', $this->route() );
 	}
 
 	/**
@@ -210,8 +210,8 @@ class Test_Screen extends WP_UnitTestCase {
 	public function test_each_tab_opens_its_own_list() {
 		$this->as_role( 'fmc_curator' );
 		$expected = array(
-			'actions'   => 'Acciones formativas',
-			'designs'   => 'Diseños de curso',
+			'actions'   => 'Planificación de acciones formativas',
+			'designs'   => 'Diseño de acciones formativas',
 			'speakers'  => 'Ponentes',
 			'incidents' => 'Incidencias',
 		);
@@ -232,16 +232,16 @@ class Test_Screen extends WP_UnitTestCase {
 	public function test_an_unknown_or_forbidden_tab_falls_back_to_the_first_allowed() {
 		$this->as_role( 'fmc_curator' );
 		$this->visit( array( Screen::ARG_TAB => 'no-existe' ) );
-		$this->assertSame( 'document:Acciones formativas', $this->route() );
+		$this->assertSame( 'document:Planificación de acciones formativas', $this->route() );
 		// La pestaña del calendario ya no existe: sus enlaces llevan a las acciones,
 		// que se abren en él.
 		$this->visit( array( Screen::ARG_TAB => 'calendar' ) );
-		$this->assertSame( 'document:Acciones formativas', $this->route() );
+		$this->assertSame( 'document:Planificación de acciones formativas', $this->route() );
 
 		// Sin acciones ni ponentes, la única pestaña es la del catálogo.
 		$this->as_role( 'subscriber' );
 		$this->visit( array( Screen::ARG_TAB => 'speakers' ) );
-		$this->assertSame( 'document:Diseños de curso', $this->route() );
+		$this->assertSame( 'document:Diseño de acciones formativas', $this->route() );
 	}
 
 	/**
@@ -260,7 +260,7 @@ class Test_Screen extends WP_UnitTestCase {
 		$this->assertSame( 'document:Robótica en el aula', $this->route() );
 
 		$this->visit( array( Screen::ARG_NEW => PostTypes::DESIGN ) );
-		$this->assertSame( 'document:Nuevo diseño de curso', $this->route() );
+		$this->assertSame( 'document:Nuevo diseño de acción formativa', $this->route() );
 
 		$this->visit( array( Screen::ARG_EDIT => $design + 1000 ) );
 		$this->assertSame( 'document:No disponible', $this->route() );
@@ -285,7 +285,7 @@ class Test_Screen extends WP_UnitTestCase {
 				'fmc_csv'       => '1',
 			)
 		);
-		$this->assertSame( 'document:Acciones formativas', $this->route() );
+		$this->assertSame( 'document:Planificación de acciones formativas', $this->route() );
 	}
 
 	/**
@@ -506,7 +506,7 @@ class Test_Screen extends WP_UnitTestCase {
 		$this->as_role( 'fmc_curator' );
 		$plain = Screen::document( $this->screen() );
 		$this->assertStringContainsString( '</style></head>', $plain );
-		$this->assertStringContainsString( '<div class="container">Aplicativo de formación</div></footer>', $plain );
+		$this->assertStringContainsString( '<div class="container">Planificador de formación</div></footer>', $plain );
 
 		$chrome = static fn() => array(
 			'head'   => '<meta name="fmc-analitica" content="ejemplo">',
@@ -517,7 +517,7 @@ class Test_Screen extends WP_UnitTestCase {
 		remove_filter( 'fmc_chrome', $chrome );
 
 		$this->assertStringContainsString( '<meta name="fmc-analitica" content="ejemplo"></head>', $html );
-		$this->assertStringContainsString( 'Aplicativo de formación · <a href="https://example.org/aviso-legal">Aviso legal</a></div></footer>', $html );
+		$this->assertStringContainsString( 'Planificador de formación · <a href="https://example.org/aviso-legal">Aviso legal</a></div></footer>', $html );
 
 		// Un filtro que devuelve solo una de las dos piezas no rompe la otra.
 		$partial = static fn() => array( 'footer' => 'Pie' );
@@ -566,7 +566,7 @@ class Test_Screen extends WP_UnitTestCase {
 		$this->assertSame( 3, substr_count( $html, 'class="nav-item"' ) );
 		$this->assertStringNotContainsString( '>Ponentes</a>', $html );
 		$this->assertSame( 1, substr_count( $html, 'aria-current="page"' ) );
-		$this->assertStringContainsString( 'nav-link active" aria-current="page" href="' . esc_url( Screen::url( array( Screen::ARG_TAB => 'actions' ) ) ) . '">Acciones formativas</a>', $html );
+		$this->assertStringContainsString( 'nav-link active" aria-current="page" href="' . esc_url( Screen::url( array( Screen::ARG_TAB => 'actions' ) ) ) . '">Planificación de acciones formativas</a>', $html );
 	}
 
 	/**
@@ -595,7 +595,7 @@ class Test_Screen extends WP_UnitTestCase {
 		);
 
 		$this->assertStringNotContainsString( '<script>alert(1)</script>', $html );
-		$this->assertStringContainsString( '<title>&lt;script&gt;alert(1)&lt;/script&gt; · Formación</title>', $html );
+		$this->assertStringContainsString( '<title>&lt;script&gt;alert(1)&lt;/script&gt; · Planificador de formación</title>', $html );
 		$this->assertStringContainsString( '<p class="fmc-sub">A &amp; &lt;b&gt;B&lt;/b&gt;</p>', $html );
 		$this->assertStringContainsString( '<main class="container py-4"><p id="cuerpo">Cuerpo</p></main>', $html );
 

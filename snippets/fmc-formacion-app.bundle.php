@@ -6,7 +6,7 @@
  * Priority: 15
  *
  * @package Fmc
- * @version 0.0.4
+ * @version 0.0.5
  */
 
 // phpcs:disable
@@ -141,6 +141,7 @@ final class MetaTypes {
 
 
 namespace Fmc\Meta;
+
 
 
 
@@ -438,10 +439,15 @@ final class SpeakerMetaKeys {
 
 
 
+
 	public const PROFESSIONS = array(
-		'teacher'         => 'Docente en activo',
-		'retired_teacher' => 'Docente jubilado',
-		'external'        => 'No docente o externo',
+		'primary_teacher'    => 'Docente de infantil y primaria',
+		'secondary_teacher'  => 'Docente de secundaria y bachillerato',
+		'vocational_teacher' => 'Docente de formación profesional',
+		'language_teacher'   => 'Docente de escuela oficial de idiomas',
+		'teacher'            => 'Docente en activo, sin etapa indicada',
+		'retired_teacher'    => 'Docente jubilado',
+		'external'           => 'No docente o externo',
 	);
 
 
@@ -851,6 +857,11 @@ final class PostTypes {
 
 
 
+	public const ARCHIVED = 'fmc_archived';
+
+
+
+
 
 	public const CAP_SERVICE_FIELDS = 'fmc_edit_service_fields';
 
@@ -867,9 +878,10 @@ final class PostTypes {
 	public static function definitions(): array {
 		return array(
 			self::DESIGN   => array(
-				'singular' => 'Diseño de curso',
-				'plural'   => 'Diseños de curso',
-				'new'      => 'Nuevo diseño de curso',
+
+				'singular' => 'Diseño de acción formativa',
+				'plural'   => 'Diseños de acciones formativas',
+				'new'      => 'Nuevo diseño de acción formativa',
 
 				'public'   => true,
 				'icon'     => 'dashicons-welcome-learn-more',
@@ -926,6 +938,80 @@ final class PostTypes {
 				)
 			);
 		}
+
+
+
+		register_post_status(
+			self::ARCHIVED,
+			array(
+				'label'                     => 'Histórico',
+				'label_count'               => array(
+					0          => 'Histórico <span class="count">(%s)</span>',
+					1          => 'Históricos <span class="count">(%s)</span>',
+					'singular' => 'Histórico <span class="count">(%s)</span>',
+					'plural'   => 'Históricos <span class="count">(%s)</span>',
+					'context'  => null,
+					'domain'   => null,
+				),
+				'public'                    => false,
+				'protected'                 => true,
+				'exclude_from_search'       => false,
+				'show_in_admin_all_list'    => true,
+				'show_in_admin_status_list' => true,
+			)
+		);
+	}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+	public static function lock_archived( $caps, $cap, $user_id, $args ) {
+		unset( $user_id );
+		if ( ! in_array( $cap, array( 'edit_post', 'delete_post' ), true ) || empty( $args[0] ) ) {
+			return $caps;
+		}
+		$post = get_post( $args[0] );
+		if ( ! $post instanceof \WP_Post || self::DESIGN !== $post->post_type || self::ARCHIVED !== $post->post_status ) {
+			return $caps;
+		}
+		$caps[] = 'edit_post' === $cap ? 'edit_published_fmc_designs' : 'delete_published_fmc_designs';
+		return array_values( array_unique( $caps ) );
+	}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+	public static function hide_unfinished( $caps, $cap, $user_id, $args ) {
+		if ( 'read_post' !== $cap || empty( $args[0] ) ) {
+			return $caps;
+		}
+		$post = get_post( $args[0] );
+		if ( ! $post instanceof \WP_Post || self::DESIGN !== $post->post_type || in_array( $post->post_status, array( 'publish', 'trash' ), true ) ) {
+			return $caps;
+		}
+		return map_meta_cap( 'edit_post', (int) $user_id, $post->ID );
 	}
 
 
@@ -945,7 +1031,7 @@ final class PostTypes {
 			'fmc_curator'          => array_fill_keys( array_keys( self::definitions() ), $all ),
 			'fmc_adviser'          => array(
 
-				self::DESIGN   => array( 'edit', 'delete' ),
+				self::DESIGN   => array(),
 				self::ACTION   => $own,
 
 
@@ -960,6 +1046,23 @@ final class PostTypes {
 			),
 		);
 	}
+
+
+
+
+
+
+
+
+
+	public static function revoked_caps(): array {
+		return array(
+
+			'fmc_adviser' => array( 'edit_fmc_designs', 'delete_fmc_designs' ),
+		);
+	}
+
+
 
 
 
@@ -992,6 +1095,15 @@ final class PostTypes {
 			foreach ( $role ? $caps : array() as $cap ) {
 				if ( ! $role->has_cap( $cap ) ) {
 					$role->add_cap( $cap );
+				}
+			}
+		}
+
+		foreach ( self::revoked_caps() as $slug => $caps ) {
+			$role = get_role( $slug );
+			foreach ( $role ? $caps : array() as $cap ) {
+				if ( isset( $role->capabilities[ $cap ] ) ) {
+					$role->remove_cap( $cap );
 				}
 			}
 		}
@@ -1199,6 +1311,8 @@ use Fmc\PostType\PostTypes;
 
 
 
+
+
 if ( ! class_exists( 'Fmc\PublicFront\Fields', false ) ) {
 final class Fields {
 
@@ -1250,12 +1364,16 @@ final class Fields {
 				D::PRACTICE     => $rich,
 				D::TIMING       => $rich,
 				D::NOTES        => $rich,
+
+
 				D::HOURS_ONSITE => array(
 					'max'  => 200,
+					'req'  => true,
 					'show' => array( D::MODALITY => $onsite ),
 				),
 				D::HOURS_ONLINE => array(
 					'max'  => 200,
+					'req'  => true,
 					'show' => array( D::MODALITY => $online ),
 				),
 			),
@@ -1288,7 +1406,8 @@ final class Fields {
 			PostTypes::SPEAKER  => array(
 				S::ID_NUMBER   => array( 'unique' => true ),
 
-				S::RECOMMENDED => array( 'catalogue' => true ),
+
+				S::RECOMMENDED => array( 'active' => true ),
 			),
 			PostTypes::INCIDENT => array(
 				I::RESOLUTION_NOTES => array( 'show' => array( I::RESOLUTION => array( 'approved', 'denied' ) ) ),
@@ -1322,7 +1441,7 @@ final class Fields {
 				'help'   => 'Cómo se llama el diseño y de qué tipo es. El código lo asigna el aplicativo y no cambia.',
 				'fields' => array(
 					'post_title'    => array(
-						'label' => 'Título del curso',
+						'label' => 'Título',
 						'w'     => 'text',
 						'req'   => true,
 						'help'  => 'Tal y como sale en el catálogo. Empiece por «Curso:» o «APU:» si así se viene haciendo.',
@@ -1362,7 +1481,7 @@ final class Fields {
 						'label' => 'Sale en el catálogo público',
 						'w'     => 'checkbox',
 						'col'   => 4,
-						'help'  => 'Aparte de estar finalizado. Fuera del catálogo, es histórico: ya no se recomienda a ponentes.',
+						'help'  => 'Solo sale si, además, está finalizado. Lo que ya no se imparte no se quita de aquí: se pasa a histórico.',
 					),
 				),
 			),
@@ -1384,7 +1503,7 @@ final class Fields {
 						'label' => 'Sustituye a',
 						'w'     => 'designs',
 						'col'   => 6,
-						'help'  => 'Los diseños que este deja en histórico: sus ponentes recomendados pasan a serlo de este.',
+						'help'  => 'Al dar este por finalizado, los que sustituye pasan a histórico y sus ponentes recomendados pasan a este diseño.',
 					),
 
 
@@ -1466,7 +1585,7 @@ final class Fields {
 						'label' => 'Diseño',
 						'w'     => 'design',
 						'req'   => true,
-						'help'  => 'La acción lleva el título del diseño, y no se cambia.',
+						'help'  => 'Solo los diseños finalizados. La acción lleva el título del diseño, y no se cambia.',
 					),
 					A::SUBTITLE        => array(
 						'label' => 'Subtítulo',
@@ -1788,7 +1907,7 @@ final class Fields {
 					S::RECOMMENDED => array(
 						'label' => 'Recomendado para los diseños',
 						'w'     => 'designs',
-						'help'  => 'Escriba para buscar y añadir; la «×» de cada uno lo quita. Solo se ofrecen los diseños del catálogo.',
+						'help'  => 'Escriba para buscar y añadir; la «×» de cada uno lo quita. Solo se ofrecen los diseños finalizados: ni borradores ni históricos.',
 					),
 					S::NOTES       => array(
 						'label' => 'Observaciones',
@@ -2203,7 +2322,7 @@ final class Speakers {
 		}
 		$cols = implode( ', ', array_map( static fn( $alias ) => "m_$alias.meta_value AS $alias", array_keys( $keys ) ) );
 
-		$found = $wpdb->get_results( $wpdb->prepare( "SELECT p.post_title AS title, $cols FROM $wpdb->posts p $join WHERE p.post_type = %s AND p.post_status = 'publish' AND m_speakers.meta_value IS NOT NULL", PostTypes::ACTION ), ARRAY_A );
+		$found = $wpdb->get_results( $wpdb->prepare( "SELECT p.ID AS id, p.post_title AS title, $cols FROM $wpdb->posts p $join WHERE p.post_type = %s AND p.post_status = 'publish' AND m_speakers.meta_value IS NOT NULL", PostTypes::ACTION ), ARRAY_A );
 
 		$rows = array();
 		foreach ( (array) $found as $r ) {
@@ -2212,6 +2331,9 @@ final class Speakers {
 				continue;
 			}
 			$rows[] = array(
+				'id'       => (int) $r['id'],
+				'title'    => (string) $r['title'],
+				'subtitle' => (string) $r['subtitle'],
 				'text'     => self::fold( $r['title'] . ' ' . $r['subtitle'] ),
 				'file'     => (string) $r['file'],
 				'start'    => (string) $r['start'],
@@ -2242,7 +2364,65 @@ final class Speakers {
 
 
 	public static function stats( string $given = '', string $file = '', string $from = '' ): array {
-		$words = array_filter( explode( ' ', self::fold( $given ) ), 'strlen' );
+		$out = array();
+		foreach ( self::matching( $given, $file, $from ) as $row ) {
+			foreach ( array_unique( $row['speakers'] ) as $id ) {
+				$out[ $id ]['actions'] = ( $out[ $id ]['actions'] ?? 0 ) + 1;
+				$out[ $id ]['hours']   = ( $out[ $id ]['hours'] ?? 0.0 ) + $row['hours'];
+			}
+		}
+		return $out;
+	}
+
+
+
+
+
+
+
+
+
+
+
+
+	public static function given( int $speaker, string $given = '', string $file = '', string $from = '' ): array {
+		$out = array();
+		foreach ( self::matching( $given, $file, $from ) as $row ) {
+			if ( in_array( $speaker, $row['speakers'], true ) ) {
+				$out[] = array(
+					'id'       => $row['id'],
+					'title'    => $row['title'],
+					'subtitle' => $row['subtitle'],
+					'start'    => $row['start'],
+				);
+			}
+		}
+		usort(
+			$out,
+			static function ( $a, $b ) {
+				$order = strcmp( $b['start'], $a['start'] );
+				return 0 !== $order ? $order : $b['id'] <=> $a['id'];
+			}
+		);
+		return $out;
+	}
+
+
+
+
+
+
+
+
+
+	private static function matching( string $given, string $file, string $from ): array {
+
+		static $cache = array();
+		$key          = wp_cache_get_last_changed( 'posts' ) . '|' . $given . '|' . $file . '|' . $from;
+		if ( isset( $cache[ $key ] ) ) {
+			return $cache[ $key ];
+		}
+		$words = self::words( $given );
 		$file  = self::fold( $file );
 		$out   = array();
 		foreach ( self::actions() as $row ) {
@@ -2252,17 +2432,76 @@ final class Speakers {
 			if ( '' !== $from && $row['start'] < $from ) {
 				continue;
 			}
-			foreach ( $words as $word ) {
-				if ( false === strpos( $row['text'], $word ) ) {
-					continue 2;
-				}
+			if ( self::has_words( $row['text'], $words ) ) {
+				$out[] = $row;
 			}
-			foreach ( array_unique( $row['speakers'] ) as $id ) {
-				$out[ $id ]['actions'] = ( $out[ $id ]['actions'] ?? 0 ) + 1;
-				$out[ $id ]['hours']   = ( $out[ $id ]['hours'] ?? 0.0 ) + $row['hours'];
+		}
+		$cache[ $key ] = $out;
+		return $out;
+	}
+
+
+
+
+
+
+
+
+
+
+
+
+	public static function recommended_matching( string $given ): array {
+		$words = self::words( $given );
+		if ( array() === $words ) {
+			return array();
+		}
+		$map     = self::recommended_map();
+		$designs = array_values( array_unique( array_merge( array(), ...array_values( $map ) ) ) );
+		update_meta_cache( 'post', $designs );
+		$titles = array();
+		foreach ( $designs as $design ) {
+			if ( current_user_can( 'read_post', $design ) ) {
+
+				$titles[ $design ] = self::fold( get_post_field( 'post_title', $design, 'raw' ) . ' ' . get_post_meta( $design, D::CODE, true ) );
+			}
+		}
+		$out = array();
+		foreach ( $map as $speaker => $chain ) {
+			foreach ( array_intersect( $chain, array_keys( $titles ) ) as $design ) {
+				if ( self::has_words( $titles[ $design ], $words ) ) {
+					$out[] = (int) $speaker;
+					break;
+				}
 			}
 		}
 		return $out;
+	}
+
+
+
+
+
+
+
+	private static function words( string $text ): array {
+		return array_values( array_filter( explode( ' ', self::fold( $text ) ), 'strlen' ) );
+	}
+
+
+
+
+
+
+
+
+	private static function has_words( string $text, array $words ): bool {
+		foreach ( $words as $word ) {
+			if ( false === strpos( $text, $word ) ) {
+				return false;
+			}
+		}
+		return true;
 	}
 
 
@@ -2395,10 +2634,15 @@ final class Lists {
 
 	public const SUBTITLES = array(
 		PostTypes::ACTION   => 'Cada edición de un diseño: dónde, cuándo, para cuántos y cómo fue.',
-		PostTypes::DESIGN   => 'El catálogo y la mesa de trabajo: los borradores se escriben aquí hasta que la validación los da por finalizados.',
+		PostTypes::DESIGN   => 'El catálogo y la mesa de trabajo: los borradores se escriben aquí hasta que la validación los da por finalizados, y lo que ya no se imparte pasa a histórico.',
 		PostTypes::SPEAKER  => 'Datos personales: solo para quien gestiona acciones. Busque por lo que han impartido, con sus acciones y sus horas.',
 		PostTypes::INCIDENT => 'Cambios pedidos sobre una acción. Se abren desde la propia acción.',
 	);
+
+
+
+
+	public const SUBTITLE_DESIGN_READER = 'Los diseños finalizados, con su ficha y sus documentos.';
 
 
 
@@ -2415,10 +2659,30 @@ final class Lists {
 
 
 	public const DESIGN_STATUSES = array(
-		'draft'   => array( 'Borrador', 'secondary' ),
-		'pending' => array( 'En revisión', 'warning' ),
-		'publish' => array( 'Finalizado', 'success' ),
+		'draft'             => array( 'Borrador', 'secondary' ),
+		'pending'           => array( 'En revisión', 'warning' ),
+		'publish'           => array( 'Finalizado', 'success' ),
+		PostTypes::ARCHIVED => array( 'Histórico', 'dark' ),
 	);
+
+
+
+
+	public const DESIGN_CURRENT = array( 'draft', 'pending', 'publish' );
+
+
+
+
+	public const ADD_LABELS = array(
+		PostTypes::ACTION  => 'Agendar acción formativa',
+		PostTypes::DESIGN  => 'Añadir diseño',
+		PostTypes::SPEAKER => 'Añadir ponente',
+	);
+
+
+
+
+	public const GIVEN_MENU = 15;
 
 
 
@@ -2467,8 +2731,8 @@ final class Lists {
 			'Fechas'           => 'start',
 		),
 		PostTypes::DESIGN   => array(
-			'Diseño de curso' => 'title',
-			'Código'          => 'code',
+			'Diseño de acción formativa' => 'title',
+			'Código'                     => 'code',
 		),
 		PostTypes::SPEAKER  => array(
 			'Ponente'      => 'name',
@@ -2704,6 +2968,15 @@ final class Lists {
 				if ( '1' === self::arg( 'fmc_catalogue' ) ) {
 					$meta( D::IN_CATALOGUE, '1' );
 				}
+
+
+				if ( ! self::writes_designs() ) {
+					$args['post_status'] = 'publish';
+					unset( $args['fmc_visible'] );
+					break;
+				}
+
+				$args['post_status'] = self::DESIGN_CURRENT;
 				if ( $with_state && isset( self::DESIGN_STATUSES[ self::arg( 'fmc_status' ) ] ) ) {
 					$args['post_status'] = self::arg( 'fmc_status' );
 				}
@@ -2718,6 +2991,15 @@ final class Lists {
 				break;
 		}
 		return self::sorted( $type, $args );
+	}
+
+
+
+
+
+
+	private static function writes_designs(): bool {
+		return current_user_can( 'edit_others_fmc_designs' );
 	}
 
 
@@ -2749,7 +3031,9 @@ final class Lists {
 		}
 		$args = self::speaker_order( $args );
 
-		if ( absint( self::arg( 'fmc_recommended' ) ) ) {
+
+		$recommended = absint( self::arg( 'fmc_recommended' ) );
+		if ( $recommended && PostTypes::DESIGN === get_post_type( $recommended ) && current_user_can( 'read_post', $recommended ) ) {
 			$wanted           = Speakers::recommended_for( absint( self::arg( 'fmc_recommended' ) ) );
 			$args['post__in'] = array_values( isset( $args['post__in'] ) ? array_intersect( $args['post__in'], $wanted ) : $wanted );
 			$args['post__in'] = $args['post__in'] ? $args['post__in'] : array( 0 );
@@ -2817,7 +3101,7 @@ final class Lists {
 			}
 		}
 		$stats = self::speaker_stats();
-		$ids   = $filtered ? array_keys( $stats ) : get_posts(
+		$ids   = $filtered ? self::speaker_matches( $stats ) : get_posts(
 			array(
 				'post_type'      => PostTypes::SPEAKER,
 				'post_status'    => 'publish',
@@ -2849,6 +3133,25 @@ final class Lists {
 		}
 		$args['post__in'] = $ids ? array_map( 'intval', $ids ) : array( 0 );
 		return $args;
+	}
+
+
+
+
+
+
+
+
+
+
+
+
+	private static function speaker_matches( array $stats ): array {
+		$ids = array_keys( $stats );
+		if ( '' !== self::arg( 'fmc_given' ) && '' === self::arg( 'fmc_file' ) . self::arg( 'fmc_from' ) ) {
+			$ids = array_values( array_unique( array_merge( $ids, Speakers::recommended_matching( self::arg( 'fmc_given' ) ) ) ) );
+		}
+		return $ids;
 	}
 
 
@@ -2892,7 +3195,8 @@ final class Lists {
 		$base = self::query_args( $type, false );
 		$out  = array(
 			array(
-				'label' => 'En total',
+
+				'label' => PostTypes::DESIGN === $type && self::writes_designs() ? 'Vigentes' : 'En total',
 				'n'     => self::total( $base ),
 				'arg'   => '',
 				'value' => '',
@@ -2921,7 +3225,7 @@ final class Lists {
 				}
 				break;
 			case PostTypes::DESIGN:
-				foreach ( self::DESIGN_STATUSES as $key => $status ) {
+				foreach ( self::writes_designs() ? self::DESIGN_STATUSES : array() as $key => $status ) {
 					$by[] = array( $status[0], 'fmc_status', $key, array( 'post_status' => $key ) );
 				}
 				break;
@@ -2975,8 +3279,8 @@ final class Lists {
 		$q    = new \WP_Query( $args );
 
 		$object  = get_post_type_object( $type );
-		$actions = current_user_can( $object->cap->create_posts ) && PostTypes::INCIDENT !== $type
-			? '<a class="btn btn-primary fmc-abre-panel" href="' . esc_url( Screen::url( array( Screen::ARG_NEW => $type ) ) ) . '">+ Añadir ' . esc_html( mb_strtolower( $object->labels->singular_name ) ) . '</a>'
+		$actions = current_user_can( $object->cap->create_posts ) && isset( self::ADD_LABELS[ $type ] )
+			? '<a class="btn btn-primary fmc-abre-panel" href="' . esc_url( Screen::url( array( Screen::ARG_NEW => $type ) ) ) . '">+ ' . esc_html( self::ADD_LABELS[ $type ] ) . '</a>'
 			: '';
 
 
@@ -3003,16 +3307,18 @@ final class Lists {
 		}
 
 
-		$body  = PostTypes::SPEAKER === $type ? '' : self::counters_html( $tab, self::counters( $type ) );
+
+		$plain = PostTypes::SPEAKER === $type || ( PostTypes::DESIGN === $type && ! self::writes_designs() );
+		$body  = $plain ? '' : self::counters_html( $tab, self::counters( $type ) );
 		$body .= self::filters_html( $tab, $type );
-		$body .= PostTypes::SPEAKER === $type ? self::found_html( $tab, (int) $q->found_posts ) : '';
+		$body .= $plain ? self::found_html( $tab, (int) $q->found_posts, $type ) : '';
 		$body .= self::table_html( $type, $q->posts );
 		$body .= self::pager_html( $page, (int) $q->max_num_pages );
 
 		return array(
 			'tab'      => $tab,
-			'title'    => $object->labels->name,
-			'subtitle' => self::SUBTITLES[ $type ],
+			'title'    => Screen::TITLES[ $tab ] ?? $object->labels->name,
+			'subtitle' => PostTypes::DESIGN === $type && ! self::writes_designs() ? self::SUBTITLE_DESIGN_READER . ( current_user_can( 'edit_fmc_actions' ) ? ' Desde la ficha se agenda una acción.' : '' ) : self::SUBTITLES[ $type ],
 			'actions'  => $actions,
 			'body'     => $body,
 		);
@@ -3025,7 +3331,11 @@ final class Lists {
 
 
 
-	private static function found_html( string $tab, int $found ): string {
+
+	private static function found_html( string $tab, int $found, string $type = PostTypes::SPEAKER ): string {
+		if ( PostTypes::DESIGN === $type ) {
+			return '<p class="fmc-found">' . esc_html( sprintf( '%s diseño(s) finalizado(s)', number_format_i18n( $found ) ) ) . '</p>';
+		}
 		$trash = self::speaker_trash();
 		$out   = '<p class="fmc-found">' . esc_html( sprintf( $trash ? '%s en la papelera' : '%s ponente(s)', number_format_i18n( $found ) ) );
 		if ( current_user_can( 'edit_others_fmc_speakers' ) ) {
@@ -3114,7 +3424,9 @@ final class Lists {
 				$fields[] = self::select( 'fmc_modality', 'Modalidad', D::MODALITIES, 'Todas' );
 				$fields[] = self::select( 'fmc_programme', 'Programa', self::term_choices( 'fmc_programme' ), 'Todos' );
 				$fields[] = self::select( 'fmc_topic', 'Temática', self::term_choices( 'fmc_topic' ), 'Todas' );
-				$fields[] = self::select( 'fmc_status', 'Estado', array_map( static fn( $s ) => $s[0], self::DESIGN_STATUSES ), 'Todos' );
+				if ( self::writes_designs() ) {
+					$fields[] = self::select( 'fmc_status', 'Estado', array_map( static fn( $s ) => $s[0], self::DESIGN_STATUSES ), 'Vigentes' );
+				}
 				$fields[] = self::select( 'fmc_catalogue', 'Catálogo', array( '1' => 'En el catálogo público' ), 'Todos' );
 				break;
 			case PostTypes::SPEAKER:
@@ -3130,7 +3442,8 @@ final class Lists {
 				);
 				$fields[] = self::select( 'fmc_recommended', 'Recomendado para', self::post_choices( PostTypes::DESIGN ), 'Cualquier diseño', true );
 
-				$fields[] = self::text_field( 'fmc_given', 'Ha impartido', 'Palabras del título' );
+
+				$fields[] = self::text_field( 'fmc_given', 'Impartido o recomendado', 'Palabras del título' );
 				$fields[] = self::text_field( 'fmc_file', 'Expediente empieza por', 'Prefijo' );
 				$fields[] = self::date_field( 'fmc_from', 'Acciones desde' );
 				$fields[] = self::select(
@@ -3236,17 +3549,8 @@ final class Lists {
 			'order'          => 'ASC',
 			'no_found_rows'  => true,
 		);
-		if ( PostTypes::DESIGN === $type ) {
 
 
-
-			$args['meta_query'] = array(
-				array(
-					'key'   => D::IN_CATALOGUE,
-					'value' => '1',
-				),
-			);
-		}
 		$out = array();
 		foreach ( get_posts( $args ) as $p ) {
 
@@ -3316,7 +3620,13 @@ final class Lists {
 			$link = $thumb . $name . self::badge( $post ) . self::subtitle( $post ) . ( '' !== $file ? '<div class="small text-secondary">' . esc_html( $file ) . '</div>' : '' );
 			$out .= '<tr><td class="fmc-col-title">' . $link . '</td>';
 			foreach ( $columns as $cell ) {
-				$lines = explode( "\n", (string) $cell( $post ) );
+				$value = $cell( $post );
+
+				if ( is_array( $value ) ) {
+					$out .= '<td>' . $value['html'] . '</td>';
+					continue;
+				}
+				$lines = explode( "\n", (string) $value );
 				$out  .= '<td>' . esc_html( array_shift( $lines ) );
 				foreach ( array_filter( $lines, 'strlen' ) as $line ) {
 					$out .= '<div class="small text-secondary">' . esc_html( $line ) . '</div>';
@@ -3429,6 +3739,7 @@ final class Lists {
 				return implode( ', ', array_map( static fn( $id ) => get_term( (int) $id )->name ?? '', (array) $value ) );
 			case 'design':
 			case 'designs':
+				return implode( ', ', self::design_titles( (array) $value ) );
 			case 'speakers':
 				return implode( ', ', array_map( 'get_the_title', array_filter( array_map( 'intval', (array) $value ) ) ) );
 			case 'adviser':
@@ -3440,6 +3751,7 @@ final class Lists {
 				return is_array( $value ) ? implode( ', ', $value ) : (string) $value;
 		}
 	}
+
 
 
 
@@ -3463,7 +3775,7 @@ final class Lists {
 				);
 			case PostTypes::DESIGN:
 				return array(
-					'Código'    => static fn( $p ) => $m( $p, D::CODE ) . ( $m( $p, D::IN_CATALOGUE ) ? "\nEn el catálogo" : '' ),
+					'Código'    => static fn( $p ) => $m( $p, D::CODE ) . ( Catalogue::is_listed( $p ) ? "\nEn el catálogo" : '' ),
 					'Tipo'      => static fn( $p ) => ( D::TYPES[ $m( $p, D::TYPE ) ] ?? '' ) . "\n" . ( D::MODALITIES[ $m( $p, D::MODALITY ) ] ?? '' ),
 					'Horas'     => static fn( $p ) => self::hours( $m( $p, D::HOURS_ONSITE ), $m( $p, D::HOURS_ONLINE ) ),
 					'Temática'  => static fn( $p ) => self::terms( $p->ID, 'fmc_topic' ),
@@ -3480,8 +3792,8 @@ final class Lists {
 				return array(
 					'Contacto'         => static fn( $p ) => $m( $p, S::EMAIL ) . "\n" . $m( $p, S::PHONE ),
 					'Isla o zona'      => static fn( $p ) => self::terms( $p->ID, Taxonomies::ZONE ),
-					'Ha impartido'     => static fn( $p ) => isset( $stats[ $p->ID ] ) ? sprintf( '%d acción(es)', $stats[ $p->ID ]['actions'] ) . "\n" . ( $stats[ $p->ID ]['hours'] + 0 ) . ' h' : '—',
-					'Recomendado para' => static fn( $p ) => implode( "\n", array_map( 'get_the_title', array_slice( array_filter( array_map( 'intval', (array) get_post_meta( $p->ID, S::RECOMMENDED, true ) ) ), 0, 3 ) ) ),
+					'Ha impartido'     => static fn( $p ) => isset( $stats[ $p->ID ] ) ? array( 'html' => self::given_html( $p->ID, $stats[ $p->ID ] ) ) : '—',
+					'Recomendado para' => static fn( $p ) => implode( "\n", array_slice( self::design_titles( (array) get_post_meta( $p->ID, S::RECOMMENDED, true ) ), 0, 3 ) ),
 				);
 			default:
 				return array(
@@ -3492,6 +3804,62 @@ final class Lists {
 					'Resolución' => static fn( $p ) => ( I::RESOLUTIONS[ $m( $p, I::RESOLUTION ) ] ?? 'Pendiente' ) . "\n" . wp_trim_words( $m( $p, I::RESOLUTION_NOTES ), 10 ),
 				);
 		}
+	}
+
+
+
+
+
+
+
+
+
+
+	private static function design_titles( array $ids ): array {
+		$out = array();
+		foreach ( array_filter( array_map( 'intval', $ids ) ) as $id ) {
+			$post = get_post( $id );
+			if ( ! $post instanceof \WP_Post || PostTypes::DESIGN !== $post->post_type || ! current_user_can( 'read_post', $id ) ) {
+				continue;
+			}
+			$out[] = get_the_title( $post ) . ( 'publish' !== $post->post_status && isset( self::DESIGN_STATUSES[ $post->post_status ] ) ? ' (' . self::DESIGN_STATUSES[ $post->post_status ][0] . ')' : '' );
+		}
+		return $out;
+	}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+	private static function given_html( int $speaker, array $totals ): string {
+		$all   = Screen::url(
+			array(
+				Screen::ARG_TAB => 'actions',
+				'fmc_view'      => 'list',
+				'fmc_speaker'   => $speaker,
+			)
+		);
+		$rows  = Speakers::given( $speaker, self::arg( 'fmc_given' ), self::arg( 'fmc_file' ), self::arg( 'fmc_from' ) );
+		$shown = array_slice( $rows, 0, self::GIVEN_MENU );
+		$out   = '<div class="dropdown fmc-given"><a class="dropdown-toggle fmc-given-toggle" href="' . esc_url( $all ) . '" role="button" data-bs-toggle="dropdown" data-bs-popper-config="' . esc_attr( '{"strategy":"fixed"}' ) . '" aria-expanded="false">' . esc_html( sprintf( '%d acción(es)', $totals['actions'] ) ) . '</a>';
+		$out  .= '<div class="small text-secondary">' . esc_html( ( $totals['hours'] + 0 ) . ' h' ) . '</div>';
+		$out  .= '<div class="dropdown-menu fmc-given-menu"><div class="dropdown-header">' . esc_html( count( $rows ) > count( $shown ) ? sprintf( 'Las %1$d más recientes de %2$d', count( $shown ), count( $rows ) ) : 'Acciones que ha impartido' ) . '</div>';
+		foreach ( $shown as $row ) {
+
+			$sub  = '' !== $row['subtitle'] && false === mb_stripos( $row['title'], $row['subtitle'] ) ? '<span class="d-block small text-secondary">' . esc_html( $row['subtitle'] ) . '</span>' : '';
+			$out .= '<a class="dropdown-item fmc-abre-panel" title="' . esc_attr( $row['title'] ) . '" href="' . esc_url( Screen::url( array( Screen::ARG_EDIT => $row['id'] ) ) ) . '"><span class="fmc-given-date">' . esc_html( self::dates( $row['start'], '' ) ) . '</span> ' . esc_html( '' !== $row['title'] ? $row['title'] : '(sin título)' ) . $sub . '</a>';
+		}
+		$out .= '<div class="dropdown-divider"></div><a class="dropdown-item" href="' . esc_url( $all ) . '">Todas sus acciones, en el listado</a></div></div>';
+		return $out;
 	}
 
 
@@ -3898,7 +4266,7 @@ final class Calendar {
 		$view   = self::view();
 		$period = 'week' === $view || 'day' === $view ? self::days_screen( $view ) : self::month_screen();
 		$object = get_post_type_object( PostTypes::ACTION );
-		$add    = current_user_can( $object->cap->create_posts ) ? ' <a class="btn btn-primary fmc-abre-panel" href="' . esc_url( Screen::url( array( Screen::ARG_NEW => PostTypes::ACTION ) ) ) . '">+ Añadir acción formativa</a>' : '';
+		$add    = current_user_can( $object->cap->create_posts ) ? ' <a class="btn btn-primary fmc-abre-panel" href="' . esc_url( Screen::url( array( Screen::ARG_NEW => PostTypes::ACTION ) ) ) . '">+ ' . esc_html( Lists::ADD_LABELS[ PostTypes::ACTION ] ) . '</a>' : '';
 
 		$csv = array(
 			'fmc_csv'  => '1',
@@ -3909,7 +4277,7 @@ final class Calendar {
 
 		return array(
 			'tab'      => 'actions',
-			'title'    => $object->labels->name,
+			'title'    => Screen::TITLES['actions'],
 			'subtitle' => Lists::SUBTITLES[ PostTypes::ACTION ],
 			'actions'  => self::views_html( $view ) . $add . ' ' . self::nav_link( $csv, 'Exportar CSV' ),
 			'body'     => Lists::filters_html( 'actions', PostTypes::ACTION ) . self::period_html( $period ) . self::legend() . $period['body'],
@@ -4233,6 +4601,16 @@ final class Editor {
 
 
 
+	public const CODE_OPTION = 'fmc_design_code_last';
+
+
+
+
+	public const ARCHIVED_META = '_fmc_replaced_archived';
+
+
+
+
 
 
 
@@ -4251,13 +4629,15 @@ final class Editor {
 
 
 
+
+
 	public static function can_view( \WP_Post $post ): bool {
 		if ( current_user_can( 'edit_post', $post->ID ) ) {
 			return true;
 		}
 		switch ( $post->post_type ) {
 			case PostTypes::DESIGN:
-				return current_user_can( 'read_post', $post->ID );
+				return 'publish' === $post->post_status && current_user_can( 'read_post', $post->ID );
 			case PostTypes::ACTION:
 
 				return 'publish' === $post->post_status && ( current_user_can( 'read_private_fmc_actions' ) || current_user_can( 'edit_fmc_actions' ) );
@@ -4374,8 +4754,9 @@ final class Editor {
 		$parent   = $post ? (int) $post->post_parent : absint( $values['_parent'] ?? Lists::arg( Screen::ARG_PARENT ) );
 
 
+
 		$from = absint( Lists::arg( 'fmc_design' ) );
-		if ( ! $post && PostTypes::ACTION === $type && $from && PostTypes::DESIGN === get_post_type( $from ) ) {
+		if ( ! $post && PostTypes::ACTION === $type && $from && PostTypes::DESIGN === get_post_type( $from ) && 'publish' === get_post_status( $from ) ) {
 			$values += array(
 				A::DESIGN_ID    => $from,
 				A::MODALITY     => get_post_meta( $from, D::MODALITY, true ),
@@ -4426,7 +4807,11 @@ final class Editor {
 				$writable = $writable || $can;
 				$value    = array_key_exists( $key, $values ) ? $values[ $key ] : self::value( $post, $key );
 				$shown    = self::shown( $field, static fn( $k ) => array_key_exists( $k, $values ) ? $values[ $k ] : self::value( $post, $k ) );
-				$field   += array( 'design' => (int) ( array_key_exists( A::DESIGN_ID, $values ) ? $values[ A::DESIGN_ID ] : self::value( $post, A::DESIGN_ID ) ) );
+				$field   += array(
+					'design' => (int) ( array_key_exists( A::DESIGN_ID, $values ) ? $values[ A::DESIGN_ID ] : self::value( $post, A::DESIGN_ID ) ),
+					'post'   => $id,
+					'stored' => self::value( $post, $key ),
+				);
 				$body    .= 'docs' === $field['w'] ? self::docs( $post, $can ) : self::field( $type, $key, $field, $value, $can, isset( $errors[ $key ] ), $shown );
 			}
 			$body .= '</div></div></fieldset>';
@@ -4453,7 +4838,7 @@ final class Editor {
 		$badges = $post ? Lists::badge( $post ) : '';
 		return array(
 			'tab'      => $tab,
-			'back'     => '<a class="small" href="' . esc_url( Screen::url( array( Screen::ARG_TAB => $tab ) ) ) . '">← ' . esc_html( $object->labels->name ) . '</a>',
+			'back'     => '<a class="small" href="' . esc_url( Screen::url( array( Screen::ARG_TAB => $tab ) ) ) . '">← ' . esc_html( Screen::TITLES[ $tab ] ?? $object->labels->name ) . '</a>',
 			'title'    => $post ? Lists::title( $post ) : $object->labels->new_item,
 
 			'subtitle' => $post && PostTypes::ACTION === $type ? (string) get_post_meta( $post->ID, A::SUBTITLE, true ) : '',
@@ -4485,21 +4870,34 @@ final class Editor {
 
 
 
+
+
+
+
+
 	public static function next_code(): string {
 
 
 		global $wpdb;
 
-		$codes  = $wpdb->get_col( $wpdb->prepare( "SELECT meta_value FROM $wpdb->postmeta WHERE meta_key = %s", D::CODE ) );
-		$prefix = D::CODE_PREFIX;
-		$max    = 0;
+		$codes   = $wpdb->get_col( $wpdb->prepare( "SELECT meta_value FROM $wpdb->postmeta WHERE meta_key = %s", D::CODE ) );
+		$codes[] = (string) get_option( self::CODE_OPTION, '' );
+		$prefix  = D::CODE_PREFIX;
+		$max     = 0;
 		foreach ( $codes as $code ) {
-			if ( preg_match( '/^([A-Za-z]*)(\d+)$/', trim( (string) $code ), $m ) && (int) $m[2] > $max ) {
+			if ( ! preg_match( '/^([A-Za-z])(\d+)$/', trim( (string) $code ), $m ) ) {
+				continue;
+			}
+			$letter = strtoupper( $m[1] );
+			if ( strcmp( $letter, $prefix ) > 0 || ( $letter === $prefix && (int) $m[2] > $max ) ) {
+				$prefix = $letter;
 				$max    = (int) $m[2];
-				$prefix = $m[1];
 			}
 		}
-		return $prefix . ( $max + 1 );
+		if ( $max >= 999 && 'Z' !== $prefix ) {
+			return chr( ord( $prefix ) + 1 ) . '001';
+		}
+		return $prefix . str_pad( (string) ( $max + 1 ), 3, '0', STR_PAD_LEFT );
 	}
 
 
@@ -4523,7 +4921,7 @@ final class Editor {
 							'fmc_design'    => $post->ID,
 						)
 					)
-				) . '">Crear una acción con este diseño</a> ';
+				) . '">Agendar una acción con este diseño</a> ';
 			}
 
 			if ( Catalogue::is_listed( $post ) ) {
@@ -4544,6 +4942,7 @@ final class Editor {
 
 
 
+
 	private static function buttons( string $type, ?\WP_Post $post ): string {
 		$button = static fn( string $status, string $label, string $css ): string => '<button class="btn ' . $css . '" type="submit" name="fmc_status" value="' . esc_attr( $status ) . '">' . esc_html( $label ) . '</button> ';
 		if ( PostTypes::INCIDENT === $type && ! $post ) {
@@ -4554,16 +4953,19 @@ final class Editor {
 		}
 		$status = $post ? $post->post_status : 'draft';
 		$out    = '';
-		if ( 'publish' !== $status ) {
+		if ( ! in_array( $status, array( 'publish', PostTypes::ARCHIVED ), true ) ) {
 			$out .= $button( 'draft', 'Guardar borrador', 'btn-outline-primary' );
 			$out .= $button( 'pending', 'Mandar a revisión', 'pending' === $status ? 'btn-outline-warning' : 'btn-warning' );
 		}
-		if ( current_user_can( 'publish_fmc_designs' ) ) {
-			$out .= 'publish' === $status
-				? $button( 'publish', 'Guardar', 'btn-primary' ) . $button( 'draft', 'Devolver a borrador', 'btn-outline-secondary' )
-				: $button( 'publish', 'Dar por finalizado', 'btn-success' );
+		if ( ! current_user_can( 'publish_fmc_designs' ) ) {
+			return $out;
 		}
-		return $out;
+		if ( PostTypes::ARCHIVED === $status ) {
+			return $out . $button( PostTypes::ARCHIVED, 'Guardar', 'btn-primary' ) . $button( 'publish', 'Recuperar del histórico', 'btn-outline-success' );
+		}
+		return $out . ( 'publish' === $status
+			? $button( 'publish', 'Guardar', 'btn-primary' ) . $button( 'draft', 'Devolver a borrador', 'btn-outline-secondary' ) . $button( PostTypes::ARCHIVED, 'Pasar a histórico', 'btn-outline-dark' )
+			: $button( 'publish', 'Dar por finalizado', 'btn-success' ) );
 	}
 
 
@@ -4590,6 +4992,10 @@ final class Editor {
 		}
 
 
+
+		if ( $can && 'adviser' === $f['w'] && array() === self::advisers() ) {
+			$help .= '<div class="form-text">Aún no hay ninguna asesoría con cuenta en el aplicativo: la administración las da de alta en «Usuarios», con el rol «Asesoría de formación».</div>';
+		}
 		if ( $can && ! empty( $f['add'] ) && current_user_can( get_post_type_object( $f['add'] )->cap->create_posts ) ) {
 			$help .= '<div class="form-text"><a href="' . esc_url(
 				Screen::url(
@@ -4618,6 +5024,13 @@ final class Editor {
 				$choices = self::choices( $f, $key );
 				$current = is_array( $value ) ? (string) ( $value[0] ?? '' ) : (string) $value;
 
+
+
+				$kept = absint( $current );
+				if ( 'design' === $f['w'] && $kept && ! isset( $choices[ $kept ] ) && absint( $f['stored'] ?? 0 ) === $kept && PostTypes::DESIGN === get_post_type( $kept ) ) {
+					$choices[ $kept ] = self::design_label( get_post( $kept ) );
+				}
+
 				$search = count( $choices ) > 10 ? ' data-fmc-ts data-placeholder="Escriba para buscar…"' : '';
 				$input  = '<select class="form-select' . $invalid . '" id="' . esc_attr( $id ) . '" name="' . esc_attr( $name ) . '"' . $search . $disabled . '><option value="">—</option>';
 				foreach ( $choices as $v => $text ) {
@@ -4634,8 +5047,10 @@ final class Editor {
 				$choices = self::choices( $f, $key );
 				$current = array_map( 'strval', array_filter( (array) $value ) );
 
+				$stored  = array_map( 'strval', array_filter( (array) ( $f['stored'] ?? array() ) ) );
+				$current = array_values( array_intersect( $current, array_merge( array_map( 'strval', array_keys( $choices ) ), $stored ) ) );
 				foreach ( array_diff( $current, array_map( 'strval', array_keys( $choices ) ) ) as $kept ) {
-					$choices[ $kept ] = get_the_title( (int) $kept ) . ' (fuera del catálogo)';
+					$choices[ $kept ] = 'speakers' === $f['w'] ? get_the_title( (int) $kept ) : self::kept_label( (int) $kept );
 				}
 				$people = 'speakers' === $f['w'];
 				$map    = $people ? Speakers::recommended_map() : array();
@@ -4775,19 +5190,50 @@ final class Editor {
 		if ( 'adviser' === $f['w'] ) {
 			return self::advisers();
 		}
-		$type  = 'speakers' === $f['w'] ? PostTypes::SPEAKER : PostTypes::DESIGN;
-		$query = self::posts_query( $type, ! empty( $f['catalogue'] ) );
+		$type = 'speakers' === $f['w'] ? PostTypes::SPEAKER : PostTypes::DESIGN;
+
+
+		$query = self::posts_query( $type, ! empty( $f['active'] ) || 'design' === $f['w'] );
 		if ( PostTypes::SPEAKER === $type ) {
 			return self::speaker_choices( get_posts( $query ), (int) ( $f['design'] ?? 0 ) );
 		}
 		$out = array();
 		foreach ( get_posts( $query ) as $p ) {
-			$code          = (string) get_post_meta( $p->ID, D::CODE, true );
-			$kind          = D::TYPES[ (string) get_post_meta( $p->ID, D::TYPE, true ) ] ?? '';
-			$notes         = array_filter( array( $kind, 'publish' !== $p->post_status ? Lists::DESIGN_STATUSES[ $p->post_status ][0] ?? '' : '' ) );
-			$out[ $p->ID ] = ( '' !== $code ? $code . ' · ' : '' ) . get_the_title( $p ) . ( $notes ? ' (' . implode( ', ', $notes ) . ')' : '' );
+			$out[ $p->ID ] = self::design_label( $p );
 		}
+
+		unset( $out[ (int) ( $f['post'] ?? 0 ) ] );
 		return $out;
+	}
+
+
+
+
+
+
+
+
+
+
+	private static function kept_label( int $id ): string {
+		$post = get_post( $id );
+		if ( ! $post instanceof \WP_Post || PostTypes::DESIGN !== $post->post_type || ! current_user_can( 'read_post', $id ) ) {
+			return 'Un diseño que ya no se ofrece';
+		}
+		return self::design_label( $post );
+	}
+
+
+
+
+
+
+
+	private static function design_label( \WP_Post $p ): string {
+		$code  = (string) get_post_meta( $p->ID, D::CODE, true );
+		$kind  = D::TYPES[ (string) get_post_meta( $p->ID, D::TYPE, true ) ] ?? '';
+		$notes = array_filter( array( $kind, 'publish' !== $p->post_status ? Lists::DESIGN_STATUSES[ $p->post_status ][0] ?? '' : '' ) );
+		return ( '' !== $code ? $code . ' · ' : '' ) . get_the_title( $p ) . ( $notes ? ' (' . implode( ', ', $notes ) . ')' : '' );
 	}
 
 
@@ -4816,10 +5262,15 @@ final class Editor {
 
 
 
-	private static function posts_query( string $type, bool $catalogue ): array {
-		$query = array(
+
+
+
+
+	private static function posts_query( string $type, bool $active ): array {
+		$all = PostTypes::DESIGN === $type && ! $active && current_user_can( 'edit_others_fmc_designs' );
+		return array(
 			'post_type'        => $type,
-			'post_status'      => PostTypes::DESIGN === $type && ! $catalogue ? array( 'publish', 'pending', 'draft' ) : 'publish',
+			'post_status'      => $all ? array( 'publish', 'pending', 'draft', PostTypes::ARCHIVED ) : 'publish',
 			'posts_per_page'   => -1,
 			'orderby'          => 'title',
 			'order'            => 'ASC',
@@ -4827,16 +5278,6 @@ final class Editor {
 			'suppress_filters' => false,
 			'no_found_rows'    => true,
 		);
-		if ( $catalogue ) {
-
-			$query['meta_query'] = array(
-				array(
-					'key'   => D::IN_CATALOGUE,
-					'value' => '1',
-				),
-			);
-		}
-		return $query;
 	}
 
 
@@ -5104,6 +5545,8 @@ final class Editor {
 		$values   = array();
 		$errors   = array();
 		$writable = array();
+
+		$archiving = PostTypes::DESIGN === $type && PostTypes::ARCHIVED === self::next_status( $type, $post, $status );
 		foreach ( $fields as $key => $f ) {
 			if ( 'docs' === $f['w'] || ! self::can_write( $type, $key, $id ) ) {
 				continue;
@@ -5118,9 +5561,11 @@ final class Editor {
 			$values[ $key ] = $value;
 		}
 
+		$errors = self::check_choices( $fields, $values, $post );
 
 
-		if ( PostTypes::ACTION === $type && ! empty( $values[ A::DESIGN_ID ] ) ) {
+
+		if ( PostTypes::ACTION === $type && ! empty( $values[ A::DESIGN_ID ] ) && ! isset( $errors[ A::DESIGN_ID ] ) ) {
 			$design = (int) $values[ A::DESIGN_ID ];
 			if ( isset( $values[ A::MODALITY ] ) && '' === $values[ A::MODALITY ] ) {
 				$values[ A::MODALITY ] = (string) get_post_meta( $design, D::MODALITY, true );
@@ -5142,8 +5587,13 @@ final class Editor {
 				$values[ $key ] = is_array( $value ) ? array() : '';
 				continue;
 			}
+			if ( isset( $errors[ $key ] ) ) {
+				continue;
+			}
 			$empty = '' === $value || array() === $value;
-			if ( ! empty( $f['req'] ) && $empty && ! ( 'post_title' === $key && PostTypes::ACTION === $type ) ) {
+
+			$missing = $empty || ( 'number' === $f['w'] && ! isset( $f['min'] ) && (float) $value <= 0 );
+			if ( ! empty( $f['req'] ) && $missing && ! $archiving && ! ( 'post_title' === $key && PostTypes::ACTION === $type ) ) {
 				$errors[ $key ] = 'Falta rellenar «' . $f['label'] . '».';
 				continue;
 			}
@@ -5151,7 +5601,9 @@ final class Editor {
 				$errors[ $key ] = '«' . $f['label'] . '» tiene que estar entre ' . (int) ( $f['min'] ?? 0 ) . ' y ' . (int) $f['max'] . '.';
 				continue;
 			}
-			if ( ! $empty && ! empty( $f['unique'] ) && self::taken( $type, $key, (string) $value, $id ) ) {
+
+			$others = PostTypes::DESIGN === $type ? array_map( 'intval', (array) $read( D::REPLACES ) ) : array();
+			if ( ! $empty && ! empty( $f['unique'] ) && ! $archiving && self::taken( $type, $key, (string) $value, $id, $others ) ) {
 				$errors[ $key ] = 'Ya hay otro con ese valor en «' . $f['label'] . '».';
 			}
 		}
@@ -5188,6 +5640,7 @@ final class Editor {
 
 		if ( PostTypes::DESIGN === $type && ( ! $post || '' === (string) get_post_meta( $post->ID, D::CODE, true ) ) ) {
 			$values[ D::CODE ] = self::next_code();
+			update_option( self::CODE_OPTION, $values[ D::CODE ], false );
 		}
 		if ( PostTypes::SPEAKER === $type && isset( $values['fmc_last_name'] ) ) {
 			$postarr['post_title'] = trim( $values['fmc_last_name'] . ', ' . $values['fmc_first_name'], ', ' );
@@ -5236,6 +5689,9 @@ final class Editor {
 		if ( PostTypes::DESIGN === $type && ( $files || $remove ) ) {
 			$problems = Documents::apply( $id, $files, $remove );
 		}
+		if ( PostTypes::DESIGN === $type && 'publish' === get_post_status( $id ) ) {
+			self::archive_replaced( $id );
+		}
 
 		return array(
 			'outcome'  => $post ? 'saved' : 'created',
@@ -5255,14 +5711,97 @@ final class Editor {
 
 
 
-	public static function taken( string $type, string $key, string $value, int $id ): bool {
+
+
+
+
+	private static function archive_replaced( int $design ): void {
+		if ( ! current_user_can( 'publish_fmc_designs' ) ) {
+			return;
+		}
+		$done = array_map( 'intval', (array) get_post_meta( $design, self::ARCHIVED_META, true ) );
+		foreach ( array_diff( array_map( 'intval', (array) get_post_meta( $design, D::REPLACES, true ) ), $done ) as $old ) {
+			$post = get_post( $old );
+			if ( $old === $design || ! $post instanceof \WP_Post || PostTypes::DESIGN !== $post->post_type || ! current_user_can( 'edit_post', $old ) ) {
+				continue;
+			}
+			if ( in_array( $post->post_status, Lists::DESIGN_CURRENT, true ) ) {
+				wp_update_post(
+					array(
+						'ID'          => $old,
+						'post_status' => PostTypes::ARCHIVED,
+					)
+				);
+			}
+			$done[] = $old;
+		}
+		update_post_meta( $design, self::ARCHIVED_META, array_values( array_filter( $done ) ) );
+	}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+	private static function check_choices( array $fields, array &$values, ?\WP_Post $post ): array {
+		$errors = array();
+		foreach ( $values as $key => $value ) {
+			$w = $fields[ $key ]['w'];
+			if ( ! in_array( $w, array( 'design', 'designs', 'speakers' ), true ) || '' === $value || array() === $value ) {
+				continue;
+			}
+			$type   = 'speakers' === $w ? PostTypes::SPEAKER : PostTypes::DESIGN;
+			$active = 'designs' !== $w || ! empty( $fields[ $key ]['active'] );
+			$stored = array_map( 'intval', (array) self::value( $post, $key ) );
+			$ok     = static function ( int $id ) use ( $type, $active, $stored ): bool {
+				$p = get_post( $id );
+				if ( in_array( $id, $stored, true ) ) {
+					return true;
+				}
+				if ( ! $p instanceof \WP_Post || $type !== $p->post_type ) {
+					return false;
+				}
+				return $active ? 'publish' === $p->post_status : 'trash' !== $p->post_status && current_user_can( 'read_post', $id );
+			};
+			if ( 'design' === $w ) {
+				if ( ! $ok( absint( $value ) ) ) {
+					$errors[ $key ] = 'El diseño elegido no está finalizado: solo se agenda una acción con un diseño finalizado.';
+				}
+				continue;
+			}
+			$values[ $key ] = array_values( array_filter( (array) $value, static fn( $v ) => $ok( absint( $v ) ) ) );
+		}
+		return $errors;
+	}
+
+
+
+
+
+
+
+
+
+
+
+	public static function taken( string $type, string $key, string $value, int $id, array $others = array() ): bool {
+
 		$args = array(
 			'post_type'      => $type,
 			'post_status'    => array( 'publish', 'pending', 'draft', 'private' ),
 			'posts_per_page' => 1,
 			'fields'         => 'ids',
 			'no_found_rows'  => true,
-			'post__not_in'   => array( $id ), 
+			'post__not_in'   => array_merge( array( $id ), $others ), 
 		);
 		if ( 'post_title' === $key ) {
 			$args['title'] = $value;
@@ -5288,10 +5827,12 @@ final class Editor {
 	public static function next_status( string $type, ?\WP_Post $post, string $requested ): string {
 		$current = $post ? $post->post_status : '';
 		if ( PostTypes::DESIGN === $type ) {
-			if ( 'publish' === $requested && ! current_user_can( 'publish_fmc_designs' ) ) {
+
+			$moves = in_array( $requested, array( 'publish', PostTypes::ARCHIVED ), true ) || ( PostTypes::ARCHIVED === $current && '' !== $requested );
+			if ( $moves && ! current_user_can( 'publish_fmc_designs' ) ) {
 				return '' !== $current ? $current : 'draft';
 			}
-			return in_array( $requested, array( 'draft', 'pending', 'publish' ), true ) ? $requested : ( '' !== $current ? $current : 'draft' );
+			return in_array( $requested, array( 'draft', 'pending', 'publish', PostTypes::ARCHIVED ), true ) ? $requested : ( '' !== $current ? $current : 'draft' );
 		}
 		if ( '' !== $current ) {
 			return $current;
@@ -5334,6 +5875,24 @@ final class Screen {
 
 
 	public const ARG_FRAME = 'fmc_marco';
+
+
+
+
+	public const APP_NAME = 'Planificador de formación';
+
+
+
+
+
+
+
+	public const TITLES = array(
+		'actions'   => 'Planificación de acciones formativas',
+		'designs'   => 'Diseño de acciones formativas',
+		'speakers'  => 'Ponentes',
+		'incidents' => 'Incidencias',
+	);
 
 
 
@@ -5442,23 +6001,23 @@ final class Screen {
 		$actions = current_user_can( 'edit_fmc_actions' ) || current_user_can( 'read_private_fmc_actions' );
 		if ( $actions ) {
 			$tabs['actions'] = array(
-				'label' => 'Acciones formativas',
+				'label' => self::TITLES['actions'],
 				'type'  => PostTypes::ACTION,
 			);
 		}
 		$tabs['designs'] = array(
-			'label' => 'Diseños de curso',
+			'label' => self::TITLES['designs'],
 			'type'  => PostTypes::DESIGN,
 		);
 		if ( current_user_can( 'edit_fmc_speakers' ) ) {
 			$tabs['speakers'] = array(
-				'label' => 'Ponentes',
+				'label' => self::TITLES['speakers'],
 				'type'  => PostTypes::SPEAKER,
 			);
 		}
 		if ( current_user_can( 'edit_fmc_incidents' ) || current_user_can( 'read_private_fmc_incidents' ) ) {
 			$tabs['incidents'] = array(
-				'label' => 'Incidencias',
+				'label' => self::TITLES['incidents'],
 				'type'  => PostTypes::INCIDENT,
 			);
 		}
@@ -5609,7 +6168,7 @@ final class Screen {
 		}
 		$chrome = self::deployment_chrome();
 		$out    = '<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">';
-		$out   .= '<title>' . esc_html( $screen['title'] . ' · Formación' ) . '</title>';
+		$out   .= '<title>' . esc_html( $screen['title'] . ' · ' . self::APP_NAME ) . '</title>';
 
 
 		$out .= '<link rel="stylesheet" href="' . esc_url( self::BOOTSTRAP['css'] ) . '" integrity="' . esc_attr( self::BOOTSTRAP['css_sri'] ) . '" crossorigin="anonymous">';
@@ -5630,7 +6189,7 @@ final class Screen {
 		$out .= '</div>' . ( $screen['actions'] ?? '' ) . '</div></div>';
 
 		$out .= '<main class="container py-4">' . self::notice() . $screen['body'] . '</main>';
-		$out .= '<footer class="fmc-foot"><div class="container">Aplicativo de formación' . $chrome['footer'] . '</div></footer>';
+		$out .= '<footer class="fmc-foot"><div class="container">' . esc_html( self::APP_NAME ) . $chrome['footer'] . '</div></footer>';
 
 
 		$out .= '<script src="' . esc_url( self::BOOTSTRAP['js'] ) . '" integrity="' . esc_attr( self::BOOTSTRAP['js_sri'] ) . '" crossorigin="anonymous"></script>';
@@ -5715,7 +6274,7 @@ final class Screen {
 		$user = wp_get_current_user();
 		$name = (string) $user->display_name;
 		$out  = '<header class="fmc-top"><div class="container fmc-top-in">' . $brand;
-		$out .= '<a class="fmc-brand" href="' . esc_url( home_url( '/' ) ) . '">Formación</a>';
+		$out .= '<a class="fmc-brand" href="' . esc_url( home_url( '/' ) ) . '">' . esc_html( self::APP_NAME ) . '</a>';
 		$out .= '<details class="fmc-yo"><summary><span class="fmc-avatar" aria-hidden="true">' . esc_html( strtoupper( mb_substr( $name, 0, 1 ) ) ) . '</span>';
 		$out .= '<span class="fmc-yo-txt"><strong>' . esc_html( $name ) . '</strong><small>' . esc_html( self::role_label( $user ) ) . '</small></span></summary><div class="fmc-yo-menu">';
 		if ( current_user_can( 'manage_options' ) ) {
@@ -5747,7 +6306,7 @@ final class Screen {
 		$in = is_user_logged_in()
 			? '<a class="btn btn-outline-primary btn-sm" href="' . esc_url( home_url( '/' ) ) . '">Ir al aplicativo</a>'
 			: '<a class="btn btn-outline-primary btn-sm" href="' . esc_url( wp_login_url( home_url( '/' ) ) ) . '">Entrar</a>';
-		return '<header class="fmc-top"><div class="container fmc-top-in">' . $brand . '<a class="fmc-brand" href="' . esc_url( Catalogue::url() ) . '">Formación</a><span class="ms-auto">' . $in . '</span></div></header>';
+		return '<header class="fmc-top"><div class="container fmc-top-in">' . $brand . '<a class="fmc-brand" href="' . esc_url( Catalogue::url() ) . '">' . esc_html( self::APP_NAME ) . '</a><span class="ms-auto">' . $in . '</span></div></header>';
 	}
 
 
@@ -6265,6 +6824,8 @@ final class App {
 		add_action( 'init', array( Taxonomies::class, 'register' ), 9 );
 		add_action( 'init', array( PostTypes::class, 'register' ), 10 );
 		add_action( 'init', array( PostTypes::class, 'grant_caps_to_roles' ), 11 );
+		add_filter( 'map_meta_cap', array( PostTypes::class, 'lock_archived' ), 10, 4 );
+		add_filter( 'map_meta_cap', array( PostTypes::class, 'hide_unfinished' ), 10, 4 );
 
 		MetaRegistration::register();
 
@@ -6560,6 +7121,14 @@ body.has-panel { overflow: hidden; }
 .fmc .fmc-star { color: #d4a106; margin-right: .3em; }
 .fmc .tooltip-inner { max-width: 320px; text-align: left; white-space: pre-line; }
 .fmc .fmc-rec { background: #fff3cd; color: #7a5a00; font-weight: 600; }
+
+/* «Ha impartido» del ponente: el recuento abre un menú con sus acciones. La
+   posición es fija para que la tabla, que recorta lo que sobresale, no lo corte. */
+.fmc .fmc-given-toggle { text-decoration: none; white-space: nowrap; }
+.fmc .fmc-given-toggle:hover, .fmc .fmc-given-toggle:focus { text-decoration: underline; }
+.fmc .fmc-given-menu { min-width: 20rem; max-width: min(32rem, 90vw); max-height: 60vh; overflow-y: auto; font-size: .9rem; }
+.fmc .fmc-given-menu .dropdown-item { white-space: normal; }
+.fmc .fmc-given-date { color: var(--fmc-text-2); font-variant-numeric: tabular-nums; margin-right: .35em; }
 ',
   'js/fmc-app.js' => '/**
  * Formación: los dos comportamientos del lado del navegador.

@@ -123,3 +123,30 @@ repositorio es público y no puede decir de quién es el despliegue (ADR-0002)?
 - Los datos de una instalación ya en marcha necesitan una pasada que lleve
   `fmc_zone` de meta a término. Hoy no hay ninguna instalación en marcha: la
   migración va a un sitio limpio (ADR-0008).
+
+## Adenda — 2026-10-27: el docente en activo, por etapa
+
+En la segunda revisión con la validación, el 2026-10-27, se pidió distinguir
+la etapa del docente en activo. La lista cerrada pasa a tener siete valores
+(`SpeakerMetaKeys::PROFESSIONS`):
+
+- `primary_teacher`: Docente de infantil y primaria.
+- `secondary_teacher`: Docente de secundaria y bachillerato.
+- `vocational_teacher`: Docente de formación profesional.
+- `language_teacher`: Docente de escuela oficial de idiomas.
+- `teacher`: Docente en activo, sin etapa indicada. Es el de antes, y se queda
+  para quien no dijo la etapa, que en el sistema anterior es la mayoría (medido
+  en `.local/`).
+- `retired_teacher` y `external`, sin cambios.
+
+La migración solo pone la etapa cuando el texto libre la dice. Si dice
+«maestro», «primaria» o «infantil», es infantil y primaria. Si dice «EOI», es
+escuela oficial de idiomas. Si dice «FP» o «profesor técnico», y no dice
+secundaria, es formación profesional. Si dice «secundaria», «bachillerato» o
+una materia de instituto, es secundaria y bachillerato. «Docente» o
+«profesora» a secas se quedan en `teacher`: no se adivina. La validación
+confirmó que las escuelas oficiales de idiomas y la formación profesional van
+aparte. La decisión de esta ADR no cambia: sigue siendo una lista cerrada que
+se amplía en el código.
+
+Asistencia de IA: Claude Code (claude-opus-5-5).

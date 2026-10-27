@@ -34,17 +34,17 @@ class Test_Documents extends WP_UnitTestCase {
 	}
 
 	/**
-	 * An adviser, logged in, with a draft design of her own.
+	 * Validation, logged in, with a draft design of its own.
 	 *
 	 * @return int Design ID.
 	 */
-	private function adviser_design(): int {
-		$adviser = self::factory()->user->create( array( 'role' => 'fmc_adviser' ) );
-		wp_set_current_user( $adviser );
+	private function curator_design(): int {
+		$curator = self::factory()->user->create( array( 'role' => 'fmc_curator' ) );
+		wp_set_current_user( $curator );
 		return self::factory()->post->create(
 			array(
 				'post_type'   => PostTypes::DESIGN,
-				'post_author' => $adviser,
+				'post_author' => $curator,
 				'post_status' => 'draft',
 			)
 		);
@@ -125,7 +125,7 @@ class Test_Documents extends WP_UnitTestCase {
 	 * La imagen pasa a ser la destacada; una segunda sustituye a la primera, y quitarla la quita.
 	 */
 	public function test_the_image_is_single_and_becomes_the_thumbnail() {
-		$id = $this->adviser_design();
+		$id = $this->curator_design();
 
 		$this->assertSame( array(), Documents::apply( $id, array( 'image' => array( $this->png( 'una.png' ) ) ), array() ) );
 		$first = Documents::of( $id )['image'];
@@ -150,7 +150,7 @@ class Test_Documents extends WP_UnitTestCase {
 	 * Varias de una clase a la vez, cada una con su clase; lo que no vale se cuenta y no entra.
 	 */
 	public function test_many_documents_at_once_and_one_problem_per_bad_file() {
-		$id = $this->adviser_design();
+		$id = $this->curator_design();
 
 		$problems = Documents::apply(
 			$id,
@@ -174,7 +174,7 @@ class Test_Documents extends WP_UnitTestCase {
 	 * Cambiar un documento por otro que no vale deja el que había.
 	 */
 	public function test_a_bad_replacement_keeps_the_original() {
-		$id = $this->adviser_design();
+		$id = $this->curator_design();
 		Documents::apply( $id, array( 'design' => array( $this->upload( 'bueno.pdf', self::PDF ) ) ), array() );
 		$old = Documents::of( $id )['design'][0]->ID;
 
@@ -189,7 +189,7 @@ class Test_Documents extends WP_UnitTestCase {
 	 * El cambiado ocupa el sitio del anterior en la lista.
 	 */
 	public function test_a_replacement_keeps_its_place_in_the_list() {
-		$id = $this->adviser_design();
+		$id = $this->curator_design();
 		Documents::apply( $id, array( 'design' => array( $this->upload( 'uno.pdf', self::PDF ), $this->upload( 'dos.pdf', self::PDF ) ) ), array() );
 		list( $first, $second ) = Documents::of( $id )['design'];
 		wp_update_post(
@@ -218,8 +218,8 @@ class Test_Documents extends WP_UnitTestCase {
 	 * Solo cuentan los adjuntos con clase; los de otro diseño ni se cambian ni se ven.
 	 */
 	public function test_only_attachments_with_a_kind_are_documents() {
-		$other = $this->adviser_design();
-		$id    = $this->adviser_design();
+		$other = $this->curator_design();
+		$id    = $this->curator_design();
 		$loose = self::factory()->attachment->create( array( 'post_parent' => $id ) );
 		$alien = self::factory()->attachment->create( array( 'post_parent' => $other ) );
 		update_post_meta( $alien, Documents::KIND_META, 'design' );
@@ -244,13 +244,18 @@ class Test_Documents extends WP_UnitTestCase {
 	}
 
 	/**
-	 * El servicio de formación no sube nada; la validación, en cualquier diseño.
+	 * Ni el servicio de formación ni la asesoría suben nada; la validación, en cualquier diseño.
 	 */
 	public function test_who_manages_documents() {
-		$id = $this->adviser_design();
+		$id = $this->curator_design();
 		$this->assertTrue( Documents::can_manage( $id ) );
 
 		wp_set_current_user( self::factory()->user->create( array( 'role' => 'fmc_training_service' ) ) );
+		$this->assertFalse( Documents::can_manage( $id ) );
+
+		// La asesoría consulta los documentos, pero no los cambia (ADR-0017).
+		wp_publish_post( $id );
+		wp_set_current_user( self::factory()->user->create( array( 'role' => 'fmc_adviser' ) ) );
 		$this->assertFalse( Documents::can_manage( $id ) );
 
 		wp_set_current_user( self::factory()->user->create( array( 'role' => 'fmc_curator' ) ) );

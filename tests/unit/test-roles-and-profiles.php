@@ -75,4 +75,18 @@ class Test_Roles_And_Profiles extends WP_UnitTestCase {
 
 		get_role( 'fmc_curator' )->remove_cap( 'unfiltered_html' );
 	}
+
+	/**
+	 * La asesoría ya no sube documentos: el permiso se le quita también en un
+	 * sitio que ya lo tenía, y es lo único que se quita (ADR-0017).
+	 */
+	public function test_the_adviser_loses_upload_files() {
+		fmc_register_roles();
+		get_role( 'fmc_adviser' )->add_cap( 'upload_files' );
+
+		fmc_register_roles();
+
+		$this->assertArrayNotHasKey( 'upload_files', get_role( 'fmc_adviser' )->capabilities );
+		$this->assertTrue( get_role( 'fmc_curator' )->has_cap( 'upload_files' ), 'la validación sigue subiendo' );
+	}
 }
