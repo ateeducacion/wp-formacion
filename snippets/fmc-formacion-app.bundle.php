@@ -1998,7 +1998,7 @@ final class Fields {
 			),
 			array(
 				'title'  => 'Documentos',
-				'help'   => 'El diseño, el minutaje y el material de apoyo. Cada documento se puede cambiar por otro o quitar; los cambios se guardan con el diseño.',
+				'help'   => 'El diseño, la escaleta y las presentaciones, en editable; los recursos, en PDF, para conservar la versión. Cada documento se puede cambiar por otro o quitar; los cambios se guardan con el diseño.',
 				'fields' => array(
 					'docs' => array(
 						'label' => 'Documentos',
@@ -2442,12 +2442,19 @@ final class Documents {
 
 
 	public static function kinds(): array {
-		$texts = array(
-			'pdf'  => 'application/pdf',
+
+
+		$texts  = array(
 			'doc'  => 'application/msword',
 			'docx' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
 			'odt'  => 'application/vnd.oasis.opendocument.text',
 		);
+		$slides = array(
+			'ppt'  => 'application/vnd.ms-powerpoint',
+			'pptx' => 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+			'odp'  => 'application/vnd.oasis.opendocument.presentation',
+		);
+		$pdf    = array( 'pdf' => 'application/pdf' );
 		return array(
 			'image'    => array(
 				'label'    => 'Imagen representativa',
@@ -2462,29 +2469,36 @@ final class Documents {
 			),
 			'design'   => array(
 				'label'    => 'Diseño del curso',
-				'help'     => 'PDF, DOC, DOCX u ODT.',
+				'help'     => 'El editable: DOC, DOCX u ODT.',
 				'mimes'    => $texts,
 				'multiple' => true,
 				'max_mb'   => 20,
 			),
 			'sessions' => array(
-				'label'    => 'Minutaje detallado de las sesiones',
-				'help'     => 'PDF, DOC, DOCX u ODT.',
+				'label'    => 'Escaleta de las sesiones',
+				'help'     => 'El editable: DOC, DOCX u ODT.',
 				'mimes'    => $texts,
 				'multiple' => true,
 				'max_mb'   => 20,
 			),
+			'slides'   => array(
+				'label'    => 'Presentaciones',
+				'help'     => 'Las editables: PPT, PPTX u ODP.',
+				'mimes'    => $slides,
+				'multiple' => true,
+				'max_mb'   => 50,
+			),
 			'support'  => array(
-				'label'    => 'Documentos de apoyo',
-				'help'     => 'PDF, DOC, DOCX o ZIP.',
-				'mimes'    => array_merge( array_slice( $texts, 0, 3, true ), array( 'zip' => 'application/zip' ) ),
+				'label'    => 'Recursos en PDF',
+				'help'     => 'En PDF, para conservar la versión.',
+				'mimes'    => $pdf,
 				'multiple' => true,
 				'max_mb'   => 50,
 			),
 			'extra'    => array(
 				'label'    => 'Otros documentos',
 				'help'     => 'Cualquier otro documento del diseño: PDF, DOC, DOCX, ODT o ZIP.',
-				'mimes'    => array_merge( $texts, array( 'zip' => 'application/zip' ) ),
+				'mimes'    => array_merge( $pdf, $texts, array( 'zip' => 'application/zip' ) ),
 				'multiple' => true,
 				'max_mb'   => 50,
 			),

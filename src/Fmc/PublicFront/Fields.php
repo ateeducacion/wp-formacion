@@ -280,7 +280,7 @@ final class Fields {
 			),
 			array(
 				'title'  => 'Documentos',
-				'help'   => 'El diseño, el minutaje y el material de apoyo. Cada documento se puede cambiar por otro o quitar; los cambios se guardan con el diseño.',
+				'help'   => 'El diseño, la escaleta y las presentaciones, en editable; los recursos, en PDF, para conservar la versión. Cada documento se puede cambiar por otro o quitar; los cambios se guardan con el diseño.',
 				'fields' => array(
 					'docs' => array(
 						'label' => 'Documentos',

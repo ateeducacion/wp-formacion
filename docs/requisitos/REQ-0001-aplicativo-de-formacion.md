@@ -76,8 +76,9 @@ confirmado. Queda como pregunta abierta (§8).
   teleformación, autodirigido, intervención en aula), modalidad (presencial, en
   línea, mixta), horas presenciales y en línea, temática, programas, áreas de
   competencia digital, descripción, destinatarios, objetivos, contenidos,
-  metodología, fase práctica, temporalización, observaciones, autoría y tres
-  documentos (diseño, minutaje de las sesiones, material de apoyo). Las áreas
+  metodología, fase práctica, temporalización, observaciones, autoría y sus
+  documentos: el diseño, la escaleta de las sesiones y las presentaciones, en
+  editable, y los recursos en PDF, para conservar la versión (ver §10). Las áreas
   de competencia digital salen del formulario (ver §9).
 - **RF-2.** Un diseño lleva un **código** único y estable que se asigna solo
   (ver §9).
@@ -210,6 +211,9 @@ en parte, lo dicen.
    (ADR-0019, §10). Lo del centro, sin contestar.
 9. ¿Se genera el documento del diseño desde su ficha? ¿Y se abre un
    formulario público para que las empresas proveedoras rellenen el diseño?
+   *Contestada el 2026-10-27:* no se genera ni se lee de un documento (issues
+   #10 y #12, descartadas). Se suben los editables y, para conservar la
+   versión, el PDF (issue #11, §10).
 10. ¿Los ficheros maestros del diseño se guardan en el aplicativo, en vez de en
     un almacenamiento en la nube externo?
 11. ¿Cuál es la lista nueva de temáticas, y qué términos de programa repetidos
@@ -349,6 +353,10 @@ por etapa.
   también a quien se recomienda para un diseño con esas palabras. En el
   listado, «N acción(es)» abre un menú con las acciones que ha impartido, cada
   una a su ficha (adenda de la ADR-0012).
+- **Documentos del diseño (RF-1).** El diseño y la escaleta de las sesiones se
+  suben en editable (DOC, DOCX u ODT) y las presentaciones en PPT, PPTX u ODP.
+  Los recursos, para conservar la versión, en PDF. «Otros documentos» sigue
+  admitiendo de todo (issue #11).
 - **Cargo del ponente (RF-15).** El docente en activo se distingue por etapa:
   infantil y primaria, secundaria y bachillerato, formación profesional, o
   escuela oficial de idiomas. Se queda un valor para quien no dijo la etapa
@@ -378,9 +386,8 @@ por etapa.
 - **Limpieza de los datos migrados**: los borradores que el sistema anterior
   dejó sin marca de histórico, los ponentes que ya no deben estar, y las
   acciones sin diseño. Es una tarea de la migración (ADR-0008), no del código.
-- **Temáticas** (§8, pregunta 11; issue #27) y **documento del diseño
-  generado** desde su ficha (§8, pregunta 9; issues #10, #11 y #12): siguen
-  abiertas.
+- **Programas repetidos** (§8, pregunta 11; issue #27): qué se funde en
+  cuál, y la revisión del mapa provisional de temáticas.
 - **Correo del ponente.** Se habló de que la ficha avise cuando el correo del
   ponente no es de la organización, pero hay ponentes externos que no lo
   tienen. No se decidió.

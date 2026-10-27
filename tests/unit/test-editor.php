@@ -434,25 +434,25 @@ class Test_Editor extends WP_UnitTestCase {
 		$problems = Documents::apply(
 			$id,
 			array(
-				'design' => array( $this->upload( 'diseno.pdf', $pdf ) ),
-				'extra'  => array( $this->upload( 'falso.pdf', 'esto es texto' ) ),
+				'support' => array( $this->upload( 'recurso.pdf', $pdf ) ),
+				'extra'   => array( $this->upload( 'falso.pdf', 'esto es texto' ) ),
 			),
 			array()
 		);
 		$this->assertCount( 1, $problems, 'el texto con extensión .pdf no entra' );
 		$docs = Documents::of( $id );
-		$this->assertCount( 1, $docs['design'] );
+		$this->assertCount( 1, $docs['support'] );
 		$this->assertCount( 0, $docs['extra'] );
 
-		$old = $docs['design'][0]->ID;
-		Documents::apply( $id, array( 'replace' => array( $old => $this->upload( 'diseno-v2.pdf', $pdf ) ) ), array() );
+		$old = $docs['support'][0]->ID;
+		Documents::apply( $id, array( 'replace' => array( $old => $this->upload( 'recurso-v2.pdf', $pdf ) ) ), array() );
 		$docs = Documents::of( $id );
-		$this->assertCount( 1, $docs['design'] );
-		$this->assertNotSame( $old, $docs['design'][0]->ID );
+		$this->assertCount( 1, $docs['support'] );
+		$this->assertNotSame( $old, $docs['support'][0]->ID );
 		$this->assertNull( get_post( $old ) );
 
-		Documents::apply( $id, array(), array( $docs['design'][0]->ID ) );
-		$this->assertCount( 0, Documents::of( $id )['design'] );
+		Documents::apply( $id, array(), array( $docs['support'][0]->ID ) );
+		$this->assertCount( 0, Documents::of( $id )['support'] );
 	}
 
 	/**

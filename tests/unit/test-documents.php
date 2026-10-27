@@ -71,6 +71,29 @@ class Test_Documents extends WP_UnitTestCase {
 	}
 
 	/**
+	 * An ODT upload that `finfo` recognises: a ZIP whose first entry, stored, is its mime type.
+	 *
+	 * @param string $name File name.
+	 * @return array<string, mixed>
+	 */
+	private function odt( string $name ): array {
+		$tmp = wp_tempnam( $name );
+		$zip = new ZipArchive();
+		$zip->open( $tmp, ZipArchive::OVERWRITE );
+		$zip->addFromString( 'mimetype', 'application/vnd.oasis.opendocument.text' );
+		$zip->setCompressionName( 'mimetype', ZipArchive::CM_STORE );
+		$zip->addFromString( 'content.xml', '<?xml version="1.0" encoding="UTF-8"?><office:document-content xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"/>' );
+		$zip->close();
+		return array(
+			'name'     => $name,
+			'type'     => '',
+			'tmp_name' => $tmp,
+			'error'    => 0,
+			'size'     => (int) filesize( $tmp ),
+		);
+	}
+
+	/**
 	 * A PNG upload.
 	 *
 	 * @param string $name File name.
@@ -82,29 +105,39 @@ class Test_Documents extends WP_UnitTestCase {
 	}
 
 	/**
-	 * La imagen es una sola y pequeña; el resto, listas, y el apoyo admite ZIP y no ODT.
+	 * La imagen es una sola y pequeña; el resto, listas. Del diseño, la
+	 * escaleta y las presentaciones, los editables; los recursos, en PDF (#11).
 	 */
 	public function test_each_kind_accepts_its_own_formats() {
 		$kinds = Documents::kinds();
 
-		$this->assertSame( array( 'image', 'design', 'sessions', 'support', 'extra' ), array_keys( $kinds ) );
+		$this->assertSame( array( 'image', 'design', 'sessions', 'slides', 'support', 'extra' ), array_keys( $kinds ) );
 		$this->assertFalse( $kinds['image']['multiple'] );
 		$this->assertSame( 3, $kinds['image']['max_mb'] );
 		$this->assertTrue( $kinds['design']['multiple'] );
-		$this->assertContains( 'application/zip', $kinds['support']['mimes'] );
-		$this->assertNotContains( 'application/vnd.oasis.opendocument.text', $kinds['support']['mimes'] );
-		$this->assertNotContains( 'application/zip', $kinds['design']['mimes'] );
+		foreach ( array( 'design', 'sessions' ) as $editable ) {
+			$this->assertContains( 'application/vnd.oasis.opendocument.text', $kinds[ $editable ]['mimes'], $editable );
+			$this->assertNotContains( 'application/pdf', $kinds[ $editable ]['mimes'], $editable );
+		}
+		$this->assertContains( 'application/vnd.openxmlformats-officedocument.presentationml.presentation', $kinds['slides']['mimes'] );
+		$this->assertContains( 'application/vnd.oasis.opendocument.presentation', $kinds['slides']['mimes'] );
+		$this->assertSame( array( 'pdf' => 'application/pdf' ), $kinds['support']['mimes'] );
+		$this->assertContains( 'application/zip', $kinds['extra']['mimes'] );
 	}
 
 	/**
 	 * Lo que no se puede guardar se dice con su motivo.
 	 */
 	public function test_check_rejects_with_a_reason() {
+		$odt = $this->odt( 'diseno.odt' );
 		$pdf = $this->upload( 'diseno.pdf', self::PDF );
 
-		$this->assertSame( '', Documents::check( 'design', $pdf ) );
-		$this->assertSame( 'Clase de documento desconocida.', Documents::check( 'poster', $pdf ) );
-		$this->assertSame( 'No se pudo subir «diseno.pdf».', Documents::check( 'design', array( 'error' => UPLOAD_ERR_PARTIAL ) + $pdf ) );
+		$this->assertSame( '', Documents::check( 'design', $odt ) );
+		$this->assertSame( '', Documents::check( 'support', $pdf ) );
+		$this->assertStringContainsString( '«diseno.pdf» no es de un formato admitido aquí: El editable', Documents::check( 'design', $pdf ), 'del diseño, el editable' );
+		$this->assertStringContainsString( 'no es de un formato admitido aquí: En PDF', Documents::check( 'support', $odt ), 'los recursos, en PDF' );
+		$this->assertSame( 'Clase de documento desconocida.', Documents::check( 'poster', $odt ) );
+		$this->assertSame( 'No se pudo subir «diseno.odt».', Documents::check( 'design', array( 'error' => UPLOAD_ERR_PARTIAL ) + $odt ) );
 
 		$big = $this->png( 'grande.png' );
 		$this->assertSame( '', Documents::check( 'image', $big ) );
@@ -116,7 +149,8 @@ class Test_Documents extends WP_UnitTestCase {
 	 * Cuenta el contenido, no la extensión: un texto con .pdf no es un PDF, y una imagen no es un diseño.
 	 */
 	public function test_check_looks_at_the_real_file_type() {
-		$this->assertStringContainsString( 'no es de un formato admitido', Documents::check( 'design', $this->upload( 'falso.pdf', 'esto es texto' ) ) );
+		$this->assertStringContainsString( 'no es de un formato admitido', Documents::check( 'support', $this->upload( 'falso.pdf', 'esto es texto' ) ) );
+		$this->assertStringContainsString( 'no es de un formato admitido', Documents::check( 'design', $this->upload( 'falso.odt', 'esto es texto' ) ) );
 		$this->assertStringContainsString( 'no es de un formato admitido', Documents::check( 'design', $this->png( 'foto.png' ) ) );
 		$this->assertStringContainsString( 'no es de un formato admitido', Documents::check( 'image', $this->upload( 'diseno.png', self::PDF ) ) );
 	}
@@ -155,8 +189,8 @@ class Test_Documents extends WP_UnitTestCase {
 		$problems = Documents::apply(
 			$id,
 			array(
-				'design'   => array( $this->upload( 'a.pdf', self::PDF ), $this->upload( 'b.pdf', self::PDF ) ),
-				'sessions' => array( $this->upload( 'minutaje.pdf', self::PDF ) ),
+				'design'   => array( $this->odt( 'a.odt' ), $this->odt( 'b.odt' ) ),
+				'sessions' => array( $this->odt( 'escaleta.odt' ) ),
 				'support'  => array( $this->upload( 'mal.pdf', 'texto' ), $this->png( 'foto.png' ) ),
 			),
 			array()
@@ -175,7 +209,7 @@ class Test_Documents extends WP_UnitTestCase {
 	 */
 	public function test_a_bad_replacement_keeps_the_original() {
 		$id = $this->curator_design();
-		Documents::apply( $id, array( 'design' => array( $this->upload( 'bueno.pdf', self::PDF ) ) ), array() );
+		Documents::apply( $id, array( 'design' => array( $this->odt( 'bueno.odt' ) ) ), array() );
 		$old = Documents::of( $id )['design'][0]->ID;
 
 		$problems = Documents::apply( $id, array( 'replace' => array( $old => $this->upload( 'malo.pdf', 'texto' ) ) ), array() );
@@ -190,7 +224,7 @@ class Test_Documents extends WP_UnitTestCase {
 	 */
 	public function test_a_replacement_keeps_its_place_in_the_list() {
 		$id = $this->curator_design();
-		Documents::apply( $id, array( 'design' => array( $this->upload( 'uno.pdf', self::PDF ), $this->upload( 'dos.pdf', self::PDF ) ) ), array() );
+		Documents::apply( $id, array( 'design' => array( $this->odt( 'uno.odt' ), $this->odt( 'dos.odt' ) ) ), array() );
 		list( $first, $second ) = Documents::of( $id )['design'];
 		wp_update_post(
 			array(
@@ -206,7 +240,7 @@ class Test_Documents extends WP_UnitTestCase {
 		);
 		$this->assertSame( array( $second->ID, $first->ID ), wp_list_pluck( Documents::of( $id )['design'], 'ID' ) );
 
-		Documents::apply( $id, array( 'replace' => array( $first->ID => $this->upload( 'uno-v2.pdf', self::PDF ) ) ), array() );
+		Documents::apply( $id, array( 'replace' => array( $first->ID => $this->odt( 'uno-v2.odt' ) ) ), array() );
 
 		$docs = Documents::of( $id )['design'];
 		$this->assertSame( $second->ID, $docs[0]->ID );
