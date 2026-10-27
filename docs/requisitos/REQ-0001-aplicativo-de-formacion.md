@@ -6,7 +6,7 @@ date: 2026-09-30
 related:
   issues: []
   prs: []
-  adrs: [ADR-0002, ADR-0003, ADR-0004, ADR-0005, ADR-0006, ADR-0007, ADR-0008, ADR-0009, ADR-0010, ADR-0011, ADR-0012, ADR-0013, ADR-0014, ADR-0015, ADR-0016, ADR-0017, ADR-0018]
+  adrs: [ADR-0002, ADR-0003, ADR-0004, ADR-0005, ADR-0006, ADR-0007, ADR-0008, ADR-0009, ADR-0010, ADR-0011, ADR-0012, ADR-0013, ADR-0014, ADR-0015, ADR-0016, ADR-0017, ADR-0018, ADR-0019]
   sdds: []
 supersedes: []
 superseded_by: []
@@ -199,7 +199,9 @@ en parte, lo dicen.
 7. La sección «Estado» de la acción —expediente, situación y campos del
    servicio—, ¿se le oculta a la asesoría o se le enseña de solo lectura?
 8. ¿Las asesorías pasan a ser una lista cerrada, y el centro donde se imparte
-   se rellena por su código?
+   se rellena por su código? *En parte, el 2026-10-27:* las asesorías son un
+   directorio, como los ponentes, con su tipo (ADR-0019, §10). Lo del centro,
+   sin contestar.
 9. ¿Se genera el documento del diseño desde su ficha? ¿Y se abre un
    formulario público para que las empresas proveedoras rellenen el diseño?
 10. ¿Los ficheros maestros del diseño se guardan en el aplicativo, en vez de en
@@ -288,9 +290,9 @@ referencia aquí.
   términos de programa repetidos —y los valores de «quién la asume» que los
   mezclan— se limpian como datos en la migración, no en el código (ADR-0003,
   ADR-0008) (§8, pregunta 11).
-- **Asesorías como lista**, y el centro donde se imparte rellenado por su
-  código, sobre el catálogo de centros externo que se hereda de eventos
-  (ADR-0002) (§8, pregunta 8).
+- **El centro donde se imparte rellenado por su código**, sobre el catálogo
+  de centros externo que se hereda de eventos (ADR-0002) (§8, pregunta 8). Las
+  asesorías ya son un directorio (§10).
 - **Documento del diseño generado** desde su ficha, en vez de un documento
   subido que se desincroniza; y un **formulario público** para que las
   empresas proveedoras rellenen el diseño. Lo segundo no tiene acuerdo: hay
@@ -312,6 +314,7 @@ datos migrados. El material de la reunión está en `.local/`.
 |---|---|---|---|
 | Lo que ya no se imparte pasa a un estado propio, «Histórico». Sale del listado de vigentes, del catálogo público y de toda elección. Al finalizar un diseño, los que sustituye pasan a histórico. «Recomendado para» y el diseño de una acción ofrecen solo los finalizados | La migración traía lo histórico como borrador o como finalizado. «Fuera del catálogo» no es lo mismo que «histórico». Un borrador no se imparte | RF-3, RF-4, RF-6, RF-7, RF-15, RF-17 | [ADR-0016](../adr/ADR-0016-lo-que-ya-no-se-imparte-es-un-estado-del-diseno.md) |
 | Si la acción la asume el servicio de formación, su programa es el activo que cubre el diseño; si no hay ninguno, la asume el centro. Los programas llevan una casilla «Activo». Los nombres de «Asumida por» los pone cada despliegue | Respuesta de la validación en la issue #27: quien agenda no tiene que saber de qué programa sale el dinero | RF-8, RF-14 | [ADR-0018](../adr/ADR-0018-el-servicio-imputa-la-accion-al-programa-activo-de-su-diseno.md) |
+| La asesoría responsable de una acción se elige de un directorio de asesorías, cada una con su tipo (TIC, STEAM u otra) y, si la tiene, la cuenta de quien la ocupa | Respuesta de la validación en la issue #25: se cuenta por asesoría aunque cambie la persona, y hay asesorías que no son TIC ni entran en el aplicativo | RF-8, RF-14 | [ADR-0019](../adr/ADR-0019-las-asesorias-son-un-directorio-propio.md) |
 | La asesoría no escribe diseños ni sube ficheros. Los consulta, solo los finalizados, en la misma ficha de solo lectura y con sus documentos. Ni borradores ni histórico, tampoco por la dirección | Los diseños los hace el área. La asesoría los necesita para saber de qué va un curso antes de agendarlo. Se pidió una sola ficha y no dos | RF-3 | [ADR-0017](../adr/ADR-0017-la-asesoria-consulta-los-disenos-finalizados-y-no-los-escribe.md) |
 
 Y tres adendas: la ADR-0004 recoge las dos decisiones; la ADR-0012, la
@@ -343,8 +346,8 @@ por etapa.
   infantil y primaria, secundaria y bachillerato, formación profesional, o
   escuela oficial de idiomas. Se queda un valor para quien no dijo la etapa
   (adenda de la ADR-0015).
-- **Asesoría responsable.** Si todavía no hay ninguna cuenta de asesoría, la
-  ficha de la acción dice por qué la lista sale vacía.
+- **Asesoría responsable.** Si el directorio de asesorías está vacío, la ficha
+  de la acción dice por qué la lista sale vacía.
 - **Temáticas (§8, pregunta 11).** La validación dio en la issue #27 una lista
   nueva de catorce temáticas, con lo que engloba cada una y su relación con el
   marco de referencia de la competencia digital docente. Son datos: las crea

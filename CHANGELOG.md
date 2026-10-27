@@ -19,7 +19,9 @@ Lo que sale de la segunda revisión del aplicativo, el 2026-10-27: el porqué es
 - Solo la validación pasa un diseño a histórico o lo recupera
 - **Lo que ha impartido cada ponente, acción por acción**: en el listado, «N acción(es)» abre un menú con las más recientes, cada una a su ficha, y el enlace al listado de acciones de ese ponente
 - **Buscar ponentes por lo que se les recomienda**: el filtro «Impartido o recomendado» encuentra también a quien se recomienda para un diseño con esas palabras en el título o en el código, aunque todavía no lo haya impartido
-- **Si no hay ninguna cuenta de asesoría**, la ficha de la acción dice por qué «Asesoría responsable» sale vacía
+- **Directorio de asesorías** ([ADR-0019](docs/adr/ADR-0019-las-asesorias-son-un-directorio-propio.md)): una pestaña nueva, «Asesorías», donde la validación da de alta cada asesoría con su nombre, su tipo (TIC, STEAM u otra) y, si entra en el aplicativo, la cuenta de quien la ocupa
+- La asesoría responsable de una acción se elige de ese directorio, con su tipo al lado, y el listado y el calendario de acciones se filtran por asesoría
+- Si el directorio está vacío, la ficha de la acción dice por qué «Asesoría responsable» sale vacía
 - **El programa se imputa solo** ([ADR-0018](docs/adr/ADR-0018-el-servicio-imputa-la-accion-al-programa-activo-de-su-diseno.md)): si la acción la asume el servicio de formación, su programa es el programa activo que cubre el diseño
 - Si el diseño no está en ningún programa activo, la acción no se guarda con el servicio de formación y se avisa de que la asume el centro
 - Los programas llevan una casilla «Activo» en el escritorio de WordPress, que marca la administración
@@ -54,6 +56,7 @@ Lo que sale de la segunda revisión del aplicativo, el 2026-10-27: el porqué es
 - **Desplegar también el snippet de roles**, que es el que le quita a la asesoría el permiso de subir ficheros
 - **Marcar los programas activos** en el escritorio de WordPress: la migración no marca ninguno
 - **Revisar el mapa de temáticas** viejas a nuevas, que es provisional, antes de importar
+- **Poner el tipo a cada asesoría** del directorio: la migración las crea sin él
 
 ## [0.0.4] — 2026-10-22
 

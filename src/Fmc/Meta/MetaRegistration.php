@@ -39,6 +39,7 @@ final class MetaRegistration {
 			PostTypes::ACTION   => ActionMetaKeys::map(),
 			PostTypes::SPEAKER  => SpeakerMetaKeys::map(),
 			PostTypes::INCIDENT => IncidentMetaKeys::map(),
+			PostTypes::ADVISORY => AdvisoryMetaKeys::map(),
 		);
 	}
 
@@ -65,6 +66,9 @@ final class MetaRegistration {
 			),
 			PostTypes::INCIDENT => array(
 				IncidentMetaKeys::RESOLUTION => IncidentMetaKeys::RESOLUTIONS,
+			),
+			PostTypes::ADVISORY => array(
+				AdvisoryMetaKeys::KIND => AdvisoryMetaKeys::KINDS,
 			),
 		);
 	}

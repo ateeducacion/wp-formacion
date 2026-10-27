@@ -289,16 +289,18 @@ final class ActionMetaKeys {
 	public const NOTES            = 'fmc_notes';
 	public const PROCESS          = 'fmc_process';
 	public const SITUATION        = 'fmc_situation';
-	public const ADVISER          = 'fmc_adviser';
-	public const SPEAKERS         = 'fmc_speakers';
-	public const ENROLLED_MEN     = 'fmc_enrolled_men';
-	public const ENROLLED_WOMEN   = 'fmc_enrolled_women';
-	public const ATTENDED_MEN     = 'fmc_attended_men';
-	public const ATTENDED_WOMEN   = 'fmc_attended_women';
-	public const CERTIFIED_MEN    = 'fmc_certified_men';
-	public const CERTIFIED_WOMEN  = 'fmc_certified_women';
-	public const DOCS_DELIVERED   = 'fmc_docs_delivered';
-	public const COMPLETED        = 'fmc_completed';
+
+	public const ADVISER         = 'fmc_adviser';
+	public const ADVISORY        = 'fmc_advisory';
+	public const SPEAKERS        = 'fmc_speakers';
+	public const ENROLLED_MEN    = 'fmc_enrolled_men';
+	public const ENROLLED_WOMEN  = 'fmc_enrolled_women';
+	public const ATTENDED_MEN    = 'fmc_attended_men';
+	public const ATTENDED_WOMEN  = 'fmc_attended_women';
+	public const CERTIFIED_MEN   = 'fmc_certified_men';
+	public const CERTIFIED_WOMEN = 'fmc_certified_women';
+	public const DOCS_DELIVERED  = 'fmc_docs_delivered';
+	public const COMPLETED       = 'fmc_completed';
 
 
 
@@ -416,6 +418,7 @@ final class ActionMetaKeys {
 			self::PROCESS          => MetaTypes::STRING,
 			self::SITUATION        => MetaTypes::STRING,
 			self::ADVISER          => MetaTypes::INT,
+			self::ADVISORY         => MetaTypes::INT,
 			self::SPEAKERS         => MetaTypes::IDS,
 			self::ENROLLED_MEN     => MetaTypes::INT,
 			self::ENROLLED_WOMEN   => MetaTypes::INT,
@@ -574,6 +577,51 @@ final class IncidentMetaKeys {
 
 namespace Fmc\Meta;
 
+
+
+
+
+
+
+
+if ( ! class_exists( 'Fmc\Meta\AdvisoryMetaKeys', false ) ) {
+final class AdvisoryMetaKeys {
+
+	public const KIND = 'fmc_advisory_kind';
+	public const USER = 'fmc_user';
+
+
+
+
+	public const KINDS = array(
+		'ict'   => 'TIC',
+		'steam' => 'STEAM',
+		'other' => 'Otra',
+	);
+
+
+
+
+
+
+	public static function map(): array {
+		return array(
+			self::KIND => MetaTypes::STRING,
+			self::USER => MetaTypes::INT,
+		);
+	}
+}
+}
+
+
+
+
+
+
+
+
+namespace Fmc\Meta;
+
 use Fmc\PostType\PostTypes;
 
 
@@ -607,6 +655,7 @@ final class MetaRegistration {
 			PostTypes::ACTION   => ActionMetaKeys::map(),
 			PostTypes::SPEAKER  => SpeakerMetaKeys::map(),
 			PostTypes::INCIDENT => IncidentMetaKeys::map(),
+			PostTypes::ADVISORY => AdvisoryMetaKeys::map(),
 		);
 	}
 
@@ -633,6 +682,9 @@ final class MetaRegistration {
 			),
 			PostTypes::INCIDENT => array(
 				IncidentMetaKeys::RESOLUTION => IncidentMetaKeys::RESOLUTIONS,
+			),
+			PostTypes::ADVISORY => array(
+				AdvisoryMetaKeys::KIND => AdvisoryMetaKeys::KINDS,
 			),
 		);
 	}
@@ -883,6 +935,7 @@ final class PostTypes {
 	public const ACTION   = 'fmc_action';
 	public const SPEAKER  = 'fmc_speaker';
 	public const INCIDENT = 'fmc_incident';
+	public const ADVISORY = 'fmc_advisory';
 
 
 
@@ -937,6 +990,14 @@ final class PostTypes {
 				'new'      => 'Nueva incidencia',
 				'public'   => false,
 				'icon'     => 'dashicons-flag',
+			),
+
+			self::ADVISORY => array(
+				'singular' => 'Asesoría',
+				'plural'   => 'Asesorías',
+				'new'      => 'Nueva asesoría',
+				'public'   => false,
+				'icon'     => 'dashicons-id',
 			),
 		);
 	}
@@ -1067,6 +1128,8 @@ final class PostTypes {
 
 				self::SPEAKER  => array_merge( $own, array( 'delete_others', 'delete_published' ) ),
 				self::INCIDENT => array( 'edit', 'publish' ),
+
+				self::ADVISORY => array(),
 			),
 
 
@@ -1450,10 +1513,12 @@ final class Assets {
 namespace Fmc\PublicFront;
 
 use Fmc\Meta\ActionMetaKeys as A;
+use Fmc\Meta\AdvisoryMetaKeys as K;
 use Fmc\Meta\DesignMetaKeys as D;
 use Fmc\Meta\IncidentMetaKeys as I;
 use Fmc\Meta\SpeakerMetaKeys as S;
 use Fmc\PostType\PostTypes;
+
 
 
 
@@ -1489,6 +1554,7 @@ final class Fields {
 			PostTypes::ACTION   => 'action',
 			PostTypes::SPEAKER  => 'speaker',
 			PostTypes::INCIDENT => 'incident',
+			PostTypes::ADVISORY => 'advisory',
 		);
 		if ( ! isset( $builders[ $type ] ) ) {
 			return array();
@@ -1572,6 +1638,9 @@ final class Fields {
 			),
 			PostTypes::INCIDENT => array(
 				I::RESOLUTION_NOTES => array( 'show' => array( I::RESOLUTION => array( 'approved', 'denied' ) ) ),
+			),
+			PostTypes::ADVISORY => array(
+				'post_title' => array( 'unique' => true ),
 			),
 		);
 	}
@@ -1760,9 +1829,10 @@ final class Fields {
 						'col'   => 6,
 						'req'   => true,
 					),
-					A::ADVISER         => array(
+
+					A::ADVISORY        => array(
 						'label' => 'Asesoría responsable',
-						'w'     => 'adviser',
+						'w'     => 'advisory',
 						'col'   => 6,
 					),
 					A::VENUE_CENTRE    => array(
@@ -2077,6 +2147,41 @@ final class Fields {
 						'label' => 'Observaciones',
 						'w'     => 'textarea',
 						'help'  => 'Salen en un bocadillo junto al nombre, en el listado y al elegir ponentes para una acción.',
+					),
+				),
+			),
+		);
+	}
+
+
+
+
+
+
+	private static function advisory(): array {
+		return array(
+			array(
+				'title'  => 'La asesoría',
+				'help'   => 'Una asesoría del directorio: se elige como responsable de las acciones. Si quien la ocupa cambia, se cambia la cuenta y la asesoría sigue siendo la misma.',
+				'fields' => array(
+					'post_title' => array(
+						'label' => 'Nombre',
+						'w'     => 'text',
+						'req'   => true,
+						'help'  => 'Como se la conoce: el puesto o la persona.',
+					),
+					K::KIND      => array(
+						'label'   => 'Tipo',
+						'w'       => 'select',
+						'choices' => K::KINDS,
+						'col'     => 6,
+						'req'     => true,
+					),
+					K::USER      => array(
+						'label' => 'Cuenta en el aplicativo',
+						'w'     => 'adviser',
+						'col'   => 6,
+						'help'  => 'Si la asesoría entra en el aplicativo, la cuenta de quien la ocupa. Puede no tenerla.',
 					),
 				),
 			),
@@ -2776,6 +2881,7 @@ namespace Fmc\PublicFront;
 
 use Fmc\Domain\SchoolYear;
 use Fmc\Meta\ActionMetaKeys as A;
+use Fmc\Meta\AdvisoryMetaKeys as K;
 use Fmc\Meta\DesignMetaKeys as D;
 use Fmc\Meta\IncidentMetaKeys as I;
 use Fmc\Meta\SpeakerMetaKeys as S;
@@ -2801,6 +2907,7 @@ final class Lists {
 		PostTypes::DESIGN   => 'El catálogo y la mesa de trabajo: los borradores se escriben aquí hasta que la validación los da por finalizados, y lo que ya no se imparte pasa a histórico.',
 		PostTypes::SPEAKER  => 'Datos personales: solo para quien gestiona acciones. Busque por lo que han impartido, con sus acciones y sus horas.',
 		PostTypes::INCIDENT => 'Cambios pedidos sobre una acción. Se abren desde la propia acción.',
+		PostTypes::ADVISORY => 'El directorio de asesorías: de él se elige la responsable de cada acción, con su tipo y, si entra en el aplicativo, su cuenta.',
 	);
 
 
@@ -2838,9 +2945,10 @@ final class Lists {
 
 
 	public const ADD_LABELS = array(
-		PostTypes::ACTION  => 'Agendar acción formativa',
-		PostTypes::DESIGN  => 'Añadir diseño',
-		PostTypes::SPEAKER => 'Añadir ponente',
+		PostTypes::ACTION   => 'Agendar acción formativa',
+		PostTypes::DESIGN   => 'Añadir diseño',
+		PostTypes::SPEAKER  => 'Añadir ponente',
+		PostTypes::ADVISORY => 'Añadir asesoría',
 	);
 
 
@@ -2904,6 +3012,7 @@ final class Lists {
 			'Ha impartido' => 'actions',
 		),
 		PostTypes::INCIDENT => array( 'Creada' => 'date' ),
+		PostTypes::ADVISORY => array( 'Asesoría' => 'title' ),
 	);
 
 
@@ -3074,6 +3183,7 @@ final class Lists {
 				$term( 'fmc_programme', self::arg( 'fmc_programme' ) );
 				$meta( A::MODALITY, self::arg( 'fmc_modality' ) );
 				$meta( A::PROCESS, self::arg( 'fmc_process' ) );
+				$meta( A::ADVISORY, absint( self::arg( 'fmc_advisory' ) ) ? (string) absint( self::arg( 'fmc_advisory' ) ) : '' );
 
 				if ( isset( D::TYPES[ self::arg( 'fmc_type' ) ] ) ) {
 					$designs              = get_posts(
@@ -3152,6 +3262,9 @@ final class Lists {
 				if ( $with_state ) {
 					$meta( I::RESOLUTION, self::arg( 'fmc_resolution' ) );
 				}
+				break;
+			case PostTypes::ADVISORY:
+				$meta( K::KIND, self::arg( 'fmc_kind' ) );
 				break;
 		}
 		return self::sorted( $type, $args );
@@ -3472,7 +3585,7 @@ final class Lists {
 
 
 
-		$plain = PostTypes::SPEAKER === $type || ( PostTypes::DESIGN === $type && ! self::writes_designs() );
+		$plain = in_array( $type, array( PostTypes::SPEAKER, PostTypes::ADVISORY ), true ) || ( PostTypes::DESIGN === $type && ! self::writes_designs() );
 		$body  = $plain ? '' : self::counters_html( $tab, self::counters( $type ) );
 		$body .= self::filters_html( $tab, $type );
 		$body .= $plain ? self::found_html( $tab, (int) $q->found_posts, $type ) : '';
@@ -3497,8 +3610,12 @@ final class Lists {
 
 
 	private static function found_html( string $tab, int $found, string $type = PostTypes::SPEAKER ): string {
-		if ( PostTypes::DESIGN === $type ) {
-			return '<p class="fmc-found">' . esc_html( sprintf( '%s diseño(s) finalizado(s)', number_format_i18n( $found ) ) ) . '</p>';
+		$counts = array(
+			PostTypes::DESIGN   => '%s diseño(s) finalizado(s)',
+			PostTypes::ADVISORY => '%s asesoría(s)',
+		);
+		if ( isset( $counts[ $type ] ) ) {
+			return '<p class="fmc-found">' . esc_html( sprintf( $counts[ $type ], number_format_i18n( $found ) ) ) . '</p>';
 		}
 		$trash = self::speaker_trash();
 		$out   = '<p class="fmc-found">' . esc_html( sprintf( $trash ? '%s en la papelera' : '%s ponente(s)', number_format_i18n( $found ) ) );
@@ -3539,7 +3656,7 @@ final class Lists {
 
 	private static function current_filters(): array {
 		$out = array();
-		foreach ( array( 'fmc_s', 'fmc_scope', 'fmc_programme', 'fmc_topic', 'fmc_modality', 'fmc_process', 'fmc_situation', 'fmc_year', 'fmc_type', 'fmc_status', 'fmc_zone', 'fmc_available', 'fmc_resolution', 'fmc_month', 'fmc_speaker', 'fmc_from', 'fmc_to', 'fmc_catalogue', 'fmc_recommended', 'fmc_file', 'fmc_incident', 'fmc_given', 'fmc_sort', 'fmc_dir', 'fmc_view' ) as $key ) {
+		foreach ( array( 'fmc_s', 'fmc_scope', 'fmc_programme', 'fmc_topic', 'fmc_modality', 'fmc_process', 'fmc_situation', 'fmc_year', 'fmc_type', 'fmc_status', 'fmc_zone', 'fmc_available', 'fmc_resolution', 'fmc_month', 'fmc_speaker', 'fmc_from', 'fmc_to', 'fmc_catalogue', 'fmc_recommended', 'fmc_file', 'fmc_incident', 'fmc_given', 'fmc_sort', 'fmc_dir', 'fmc_view', 'fmc_advisory', 'fmc_kind' ) as $key ) {
 			if ( '' !== self::arg( $key ) ) {
 				$out[ $key ] = self::arg( $key );
 			}
@@ -3556,8 +3673,9 @@ final class Lists {
 
 	public static function filters_html( string $tab, string $type ): string {
 		$placeholders = array(
-			PostTypes::ACTION  => 'Título, subtítulo o expediente…',
-			PostTypes::SPEAKER => 'Nombre…',
+			PostTypes::ACTION   => 'Título, subtítulo o expediente…',
+			PostTypes::SPEAKER  => 'Nombre…',
+			PostTypes::ADVISORY => 'Nombre…',
 		);
 		$fields       = array( self::search_field( $placeholders[ $type ] ?? 'Título…' ) );
 		switch ( $type ) {
@@ -3571,6 +3689,7 @@ final class Lists {
 				$fields[] = self::select( 'fmc_process', 'Estado', A::PROCESSES, 'Todos' );
 				$fields[] = self::select( 'fmc_situation', 'Situación', A::SITUATIONS, 'Todas' );
 				$fields[] = self::select( 'fmc_speaker', 'Ponente', self::post_choices( PostTypes::SPEAKER ), 'Todos', true );
+				$fields[] = self::select( 'fmc_advisory', 'Asesoría', self::post_choices( PostTypes::ADVISORY ), 'Todas', true );
 				$fields[] = self::select(
 					'fmc_incident',
 					'Incidencias',
@@ -3624,6 +3743,9 @@ final class Lists {
 				break;
 			case PostTypes::INCIDENT:
 				$fields[] = self::select( 'fmc_resolution', 'Resolución', I::RESOLUTIONS, 'Todas' );
+				break;
+			case PostTypes::ADVISORY:
+				$fields[] = self::select( 'fmc_kind', 'Tipo', K::KINDS, 'Todos' );
 				break;
 		}
 
@@ -3908,6 +4030,8 @@ final class Lists {
 				return implode( ', ', array_map( 'get_the_title', array_filter( array_map( 'intval', (array) $value ) ) ) );
 			case 'adviser':
 				return $value ? (string) get_the_author_meta( 'display_name', (int) $value ) : '';
+			case 'advisory':
+				return $value ? get_the_title( (int) $value ) : '';
 			case 'rich':
 			case 'textarea':
 				return trim( wp_strip_all_tags( (string) $value ) );
@@ -3958,6 +4082,11 @@ final class Lists {
 					'Isla o zona'      => static fn( $p ) => self::terms( $p->ID, Taxonomies::ZONE ),
 					'Ha impartido'     => static fn( $p ) => isset( $stats[ $p->ID ] ) ? array( 'html' => self::given_html( $p->ID, $stats[ $p->ID ] ) ) : '—',
 					'Recomendado para' => static fn( $p ) => implode( "\n", array_slice( self::design_titles( (array) get_post_meta( $p->ID, S::RECOMMENDED, true ) ), 0, 3 ) ),
+				);
+			case PostTypes::ADVISORY:
+				return array(
+					'Tipo'   => static fn( $p ) => K::KINDS[ $m( $p, K::KIND ) ] ?? '',
+					'Cuenta' => static fn( $p ) => $m( $p, K::USER ) ? (string) get_the_author_meta( 'display_name', (int) $m( $p, K::USER ) ) : '',
 				);
 			default:
 				return array(
@@ -4742,6 +4871,7 @@ final class Calendar {
 namespace Fmc\PublicFront;
 
 use Fmc\Meta\ActionMetaKeys as A;
+use Fmc\Meta\AdvisoryMetaKeys;
 use Fmc\Meta\DesignMetaKeys as D;
 use Fmc\Domain\DigComp;
 use Fmc\Meta\IncidentMetaKeys as I;
@@ -5155,11 +5285,14 @@ final class Editor {
 			$help .= '<div class="form-text fst-italic">Lo rellena el servicio de formación.</div>';
 		}
 
-
-
 		if ( $can && 'adviser' === $f['w'] && array() === self::advisers() ) {
-			$help .= '<div class="form-text">Aún no hay ninguna asesoría con cuenta en el aplicativo: la administración las da de alta en «Usuarios», con el rol «Asesoría de formación».</div>';
+			$help .= '<div class="form-text">Aún no hay ninguna cuenta de asesoría: la administración las da de alta en «Usuarios», con el rol «Asesoría de formación».</div>';
 		}
+		if ( $can && 'advisory' === $f['w'] && array() === self::advisories() ) {
+			$help .= '<div class="form-text">Aún no hay ninguna asesoría en el directorio: la validación las da de alta en la pestaña «Asesorías».</div>';
+		}
+
+
 		if ( $can && ! empty( $f['add'] ) && current_user_can( get_post_type_object( $f['add'] )->cap->create_posts ) ) {
 			$help .= '<div class="form-text"><a href="' . esc_url(
 				Screen::url(
@@ -5185,6 +5318,7 @@ final class Editor {
 			case 'term':
 			case 'design':
 			case 'adviser':
+			case 'advisory':
 				$choices = self::choices( $f, $key );
 				$current = is_array( $value ) ? (string) ( $value[0] ?? '' ) : (string) $value;
 
@@ -5359,6 +5493,9 @@ final class Editor {
 		if ( 'adviser' === $f['w'] ) {
 			return self::advisers();
 		}
+		if ( 'advisory' === $f['w'] ) {
+			return self::advisories();
+		}
 		$type = 'speakers' === $f['w'] ? PostTypes::SPEAKER : PostTypes::DESIGN;
 
 
@@ -5403,6 +5540,29 @@ final class Editor {
 		$kind  = D::TYPES[ (string) get_post_meta( $p->ID, D::TYPE, true ) ] ?? '';
 		$notes = array_filter( array( $kind, 'publish' !== $p->post_status ? Lists::DESIGN_STATUSES[ $p->post_status ][0] ?? '' : '' ) );
 		return ( '' !== $code ? $code . ' · ' : '' ) . get_the_title( $p ) . ( $notes ? ' (' . implode( ', ', $notes ) . ')' : '' );
+	}
+
+
+
+
+
+
+	private static function advisories(): array {
+		$out = array();
+		foreach ( get_posts(
+			array(
+				'post_type'      => PostTypes::ADVISORY,
+				'post_status'    => 'publish',
+				'posts_per_page' => -1,
+				'orderby'        => 'title',
+				'order'          => 'ASC',
+				'no_found_rows'  => true,
+			)
+		) as $p ) {
+			$kind          = AdvisoryMetaKeys::KINDS[ (string) get_post_meta( $p->ID, AdvisoryMetaKeys::KIND, true ) ] ?? '';
+			$out[ $p->ID ] = get_the_title( $p ) . ( '' !== $kind ? ' · ' . $kind : '' );
+		}
+		return $out;
 	}
 
 
@@ -5984,10 +6144,14 @@ final class Editor {
 		$errors = array();
 		foreach ( $values as $key => $value ) {
 			$w = $fields[ $key ]['w'];
-			if ( ! in_array( $w, array( 'design', 'designs', 'speakers' ), true ) || '' === $value || array() === $value ) {
+			if ( ! in_array( $w, array( 'design', 'designs', 'speakers', 'advisory' ), true ) || '' === $value || array() === $value ) {
 				continue;
 			}
-			$type   = 'speakers' === $w ? PostTypes::SPEAKER : PostTypes::DESIGN;
+			$types  = array(
+				'speakers' => PostTypes::SPEAKER,
+				'advisory' => PostTypes::ADVISORY,
+			);
+			$type   = $types[ $w ] ?? PostTypes::DESIGN;
 			$active = 'designs' !== $w || ! empty( $fields[ $key ]['active'] );
 			$stored = array_map( 'intval', (array) self::value( $post, $key ) );
 			$ok     = static function ( int $id ) use ( $type, $active, $stored ): bool {
@@ -6003,6 +6167,12 @@ final class Editor {
 			if ( 'design' === $w ) {
 				if ( ! $ok( absint( $value ) ) ) {
 					$errors[ $key ] = 'El diseño elegido no está finalizado: solo se agenda una acción con un diseño finalizado.';
+				}
+				continue;
+			}
+			if ( 'advisory' === $w ) {
+				if ( ! $ok( absint( $value ) ) ) {
+					$errors[ $key ] = 'La asesoría elegida no está en el directorio.';
 				}
 				continue;
 			}
@@ -6122,10 +6292,11 @@ final class Screen {
 
 
 	public const TITLES = array(
-		'actions'   => 'Planificación de acciones formativas',
-		'designs'   => 'Diseño de acciones formativas',
-		'speakers'  => 'Ponentes',
-		'incidents' => 'Incidencias',
+		'actions'    => 'Planificación de acciones formativas',
+		'designs'    => 'Diseño de acciones formativas',
+		'speakers'   => 'Ponentes',
+		'incidents'  => 'Incidencias',
+		'advisories' => 'Asesorías',
 	);
 
 
@@ -6255,6 +6426,12 @@ final class Screen {
 				'type'  => PostTypes::INCIDENT,
 			);
 		}
+		if ( current_user_can( 'edit_fmc_advisorys' ) ) {
+			$tabs['advisories'] = array(
+				'label' => self::TITLES['advisories'],
+				'type'  => PostTypes::ADVISORY,
+			);
+		}
 		return $tabs;
 	}
 
@@ -6270,6 +6447,7 @@ final class Screen {
 			PostTypes::DESIGN   => 'designs',
 			PostTypes::SPEAKER  => 'speakers',
 			PostTypes::INCIDENT => 'incidents',
+			PostTypes::ADVISORY => 'advisories',
 		);
 		return $map[ $type ] ?? 'designs';
 	}

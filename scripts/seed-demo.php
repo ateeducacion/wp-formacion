@@ -9,6 +9,7 @@
  */
 
 use Fmc\Meta\ActionMetaKeys;
+use Fmc\Meta\AdvisoryMetaKeys;
 use Fmc\Meta\DesignMetaKeys;
 use Fmc\PostType\PostTypes;
 use Fmc\Taxonomy\Taxonomies;
@@ -132,6 +133,21 @@ fmc_seed_post(
 	)
 );
 
+// La asesoría del directorio que ocupa la cuenta de ejemplo (ADR-0019).
+$fmc_advisory = fmc_seed_post(
+	array(
+		'post_type'   => PostTypes::ADVISORY,
+		'post_name'   => 'demo-asesoria',
+		'post_title'  => 'Asesoría TIC de ejemplo',
+		'post_status' => 'publish',
+		'post_author' => $fmc_curator,
+	),
+	array(
+		AdvisoryMetaKeys::KIND => 'ict',
+		AdvisoryMetaKeys::USER => $fmc_adviser,
+	)
+);
+
 fmc_seed_post(
 	array(
 		'post_type'   => PostTypes::ACTION,
@@ -150,7 +166,7 @@ fmc_seed_post(
 		ActionMetaKeys::END          => gmdate( 'Y-m-d', strtotime( '+6 weeks' ) ),
 		ActionMetaKeys::PROCESS      => 'draft',
 		ActionMetaKeys::SITUATION    => 'managing',
-		ActionMetaKeys::ADVISER      => $fmc_adviser,
+		ActionMetaKeys::ADVISORY     => $fmc_advisory,
 		ActionMetaKeys::FUNDED_BY    => 'centre',
 	),
 	array( Taxonomies::SCOPE => 'ambito-1' )

@@ -420,8 +420,9 @@ class Test_Screen extends WP_UnitTestCase {
 	 */
 	public function test_tabs_depend_on_the_role() {
 		$expected = array(
-			'administrator'        => array( 'actions', 'designs', 'speakers', 'incidents' ),
-			'fmc_curator'          => array( 'actions', 'designs', 'speakers', 'incidents' ),
+			// El directorio de asesorías, la validación y la administración (ADR-0019).
+			'administrator'        => array( 'actions', 'designs', 'speakers', 'incidents', 'advisories' ),
+			'fmc_curator'          => array( 'actions', 'designs', 'speakers', 'incidents', 'advisories' ),
 			'fmc_adviser'          => array( 'actions', 'designs', 'speakers', 'incidents' ),
 			// El servicio lee acciones e incidencias, pero los ponentes no son cosa suya.
 			'fmc_training_service' => array( 'actions', 'designs', 'incidents' ),

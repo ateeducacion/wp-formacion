@@ -113,6 +113,19 @@
 				<element value="delete_others_fmc_incidents"/>
 				<element value="delete_private_fmc_incidents"/>
 				<element value="delete_published_fmc_incidents"/>
+				<element value="edit_fmc_advisory"/>
+				<element value="read_fmc_advisory"/>
+				<element value="delete_fmc_advisory"/>
+				<element value="edit_fmc_advisorys"/>
+				<element value="edit_others_fmc_advisorys"/>
+				<element value="edit_private_fmc_advisorys"/>
+				<element value="edit_published_fmc_advisorys"/>
+				<element value="publish_fmc_advisorys"/>
+				<element value="read_private_fmc_advisorys"/>
+				<element value="delete_fmc_advisorys"/>
+				<element value="delete_others_fmc_advisorys"/>
+				<element value="delete_private_fmc_advisorys"/>
+				<element value="delete_published_fmc_advisorys"/>
 			</property>
 		</properties>
 	</rule>

@@ -8,6 +8,7 @@
 namespace Fmc\PublicFront;
 
 use Fmc\Meta\ActionMetaKeys as A;
+use Fmc\Meta\AdvisoryMetaKeys;
 use Fmc\Meta\DesignMetaKeys as D;
 use Fmc\Domain\DigComp;
 use Fmc\Meta\IncidentMetaKeys as I;
@@ -419,12 +420,15 @@ final class Editor {
 		if ( ! $can && isset( MetaRegistration::guarded()[ $type ][ $key ] ) ) {
 			$help .= '<div class="form-text fst-italic">Lo rellena el servicio de formación.</div>';
 		}
+		// Una lista vacía dice por qué: sin cuentas de asesoría, o sin asesorías en el directorio.
+		if ( $can && 'adviser' === $f['w'] && array() === self::advisers() ) {
+			$help .= '<div class="form-text">Aún no hay ninguna cuenta de asesoría: la administración las da de alta en «Usuarios», con el rol «Asesoría de formación».</div>';
+		}
+		if ( $can && 'advisory' === $f['w'] && array() === self::advisories() ) {
+			$help .= '<div class="form-text">Aún no hay ninguna asesoría en el directorio: la validación las da de alta en la pestaña «Asesorías».</div>';
+		}
 		// «Añadir ponente nuevo no incluido en la lista», como en el formulario
 		// anterior: se abre en otra pestaña y luego se elige aquí.
-		// Sin cuentas de asesoría, la lista sale vacía: que se sepa por qué.
-		if ( $can && 'adviser' === $f['w'] && array() === self::advisers() ) {
-			$help .= '<div class="form-text">Aún no hay ninguna asesoría con cuenta en el aplicativo: la administración las da de alta en «Usuarios», con el rol «Asesoría de formación».</div>';
-		}
 		if ( $can && ! empty( $f['add'] ) && current_user_can( get_post_type_object( $f['add'] )->cap->create_posts ) ) {
 			$help .= '<div class="form-text"><a href="' . esc_url(
 				Screen::url(
@@ -450,6 +454,7 @@ final class Editor {
 			case 'term':
 			case 'design':
 			case 'adviser':
+			case 'advisory':
 				$choices = self::choices( $f, $key );
 				$current = is_array( $value ) ? (string) ( $value[0] ?? '' ) : (string) $value;
 				// El diseño guardado de una acción antigua se conserva aunque ya no
@@ -624,6 +629,9 @@ final class Editor {
 		if ( 'adviser' === $f['w'] ) {
 			return self::advisers();
 		}
+		if ( 'advisory' === $f['w'] ) {
+			return self::advisories();
+		}
 		$type = 'speakers' === $f['w'] ? PostTypes::SPEAKER : PostTypes::DESIGN;
 		// El diseño de una acción, como los recomendados, ha de estar finalizado:
 		// un borrador aún no se imparte (ADR-0016).
@@ -668,6 +676,29 @@ final class Editor {
 		$kind  = D::TYPES[ (string) get_post_meta( $p->ID, D::TYPE, true ) ] ?? '';
 		$notes = array_filter( array( $kind, 'publish' !== $p->post_status ? Lists::DESIGN_STATUSES[ $p->post_status ][0] ?? '' : '' ) );
 		return ( '' !== $code ? $code . ' · ' : '' ) . get_the_title( $p ) . ( $notes ? ' (' . implode( ', ', $notes ) . ')' : '' );
+	}
+
+	/**
+	 * The advisories of the directory, with their kind (ADR-0019).
+	 *
+	 * @return array<int, string>
+	 */
+	private static function advisories(): array {
+		$out = array();
+		foreach ( get_posts(
+			array(
+				'post_type'      => PostTypes::ADVISORY,
+				'post_status'    => 'publish',
+				'posts_per_page' => -1,
+				'orderby'        => 'title',
+				'order'          => 'ASC',
+				'no_found_rows'  => true,
+			)
+		) as $p ) {
+			$kind          = AdvisoryMetaKeys::KINDS[ (string) get_post_meta( $p->ID, AdvisoryMetaKeys::KIND, true ) ] ?? '';
+			$out[ $p->ID ] = get_the_title( $p ) . ( '' !== $kind ? ' · ' . $kind : '' );
+		}
+		return $out;
 	}
 
 	/**
@@ -1249,10 +1280,14 @@ final class Editor {
 		$errors = array();
 		foreach ( $values as $key => $value ) {
 			$w = $fields[ $key ]['w'];
-			if ( ! in_array( $w, array( 'design', 'designs', 'speakers' ), true ) || '' === $value || array() === $value ) {
+			if ( ! in_array( $w, array( 'design', 'designs', 'speakers', 'advisory' ), true ) || '' === $value || array() === $value ) {
 				continue;
 			}
-			$type   = 'speakers' === $w ? PostTypes::SPEAKER : PostTypes::DESIGN;
+			$types  = array(
+				'speakers' => PostTypes::SPEAKER,
+				'advisory' => PostTypes::ADVISORY,
+			);
+			$type   = $types[ $w ] ?? PostTypes::DESIGN;
 			$active = 'designs' !== $w || ! empty( $fields[ $key ]['active'] );
 			$stored = array_map( 'intval', (array) self::value( $post, $key ) );
 			$ok     = static function ( int $id ) use ( $type, $active, $stored ): bool {
@@ -1268,6 +1303,12 @@ final class Editor {
 			if ( 'design' === $w ) {
 				if ( ! $ok( absint( $value ) ) ) {
 					$errors[ $key ] = 'El diseño elegido no está finalizado: solo se agenda una acción con un diseño finalizado.';
+				}
+				continue;
+			}
+			if ( 'advisory' === $w ) {
+				if ( ! $ok( absint( $value ) ) ) {
+					$errors[ $key ] = 'La asesoría elegida no está en el directorio.';
 				}
 				continue;
 			}

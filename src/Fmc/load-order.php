@@ -21,6 +21,7 @@ return array(
 	'Meta/ActionMetaKeys.php',
 	'Meta/SpeakerMetaKeys.php',
 	'Meta/IncidentMetaKeys.php',
+	'Meta/AdvisoryMetaKeys.php',
 	'Meta/MetaRegistration.php',
 	'Domain/SchoolYear.php',
 	'Domain/DigComp.php',
