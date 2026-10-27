@@ -105,7 +105,9 @@ confirmado. Queda como pregunta abierta (§8).
   matrícula, enlace de matrícula, lista provisional, reclamaciones, lista
   definitiva—, fechas de inicio y fin, calendario de sesiones en texto,
   criterios de certificación, espacio del curso en la plataforma de
-  aprendizaje y observaciones.
+  aprendizaje y observaciones. Los plazos y el enlace de matrícula ya no se
+  piden: los lleva el sistema de gestión del servicio (adenda de la ADR-0005,
+  ver §10).
 - **RF-9.** Estado administrativo (borrador → pagada por el centro → entregada
   al área → cerrada y entregada al servicio) y situación (gestionándose,
   impartiéndose, realizada, aplazada, cancelada).
@@ -363,6 +365,11 @@ por etapa.
   infantil y primaria, secundaria y bachillerato, formación profesional, o
   escuela oficial de idiomas. Se queda un valor para quien no dijo la etapa
   (adenda de la ADR-0015).
+- **Fechas de la acción (RF-8).** Solo la de inicio y la de fin, y los días y
+  horas de cada sesión, en texto, si tiene más de una. Los plazos de
+  matrícula, su enlace, las listas y las reclamaciones se rellenan en el
+  sistema de gestión del servicio y salen de la ficha y del CSV (issue #35,
+  adenda de la ADR-0005).
 - **Asesoría responsable.** Si todavía no hay ninguna cuenta de asesoría, la
   ficha de la acción dice por qué la lista sale vacía.
 - **Temáticas (§8, pregunta 11).** La validación dio en la issue #27 una lista

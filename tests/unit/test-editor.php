@@ -82,6 +82,23 @@ class Test_Editor extends WP_UnitTestCase {
 	}
 
 	/**
+	 * Los plazos de matrícula, su enlace y las listas se llevan en el sistema de
+	 * gestión del servicio: no salen en la ficha ni en el CSV, y sus claves
+	 * siguen registradas para lo migrado (issue #35, adenda de la ADR-0005).
+	 */
+	public function test_the_action_has_no_enrolment_deadlines() {
+		$fields = Fields::all( PostTypes::ACTION );
+		foreach ( array( ActionMetaKeys::START, ActionMetaKeys::END, ActionMetaKeys::SCHEDULE ) as $key ) {
+			$this->assertArrayHasKey( $key, $fields, $key );
+		}
+		$gone = array( ActionMetaKeys::ENROL_START, ActionMetaKeys::ENROL_END, ActionMetaKeys::ENROL_URL, ActionMetaKeys::PROVISIONAL_LIST, ActionMetaKeys::CLAIMS_START, ActionMetaKeys::CLAIMS_END, ActionMetaKeys::FINAL_LIST );
+		foreach ( $gone as $key ) {
+			$this->assertArrayNotHasKey( $key, $fields, $key );
+			$this->assertArrayHasKey( $key, MetaRegistration::maps()[ PostTypes::ACTION ], $key );
+		}
+	}
+
+	/**
 	 * La asesoría que manda el expediente a mano en su propia acción no lo guarda.
 	 */
 	public function test_an_adviser_cannot_smuggle_the_file_number() {

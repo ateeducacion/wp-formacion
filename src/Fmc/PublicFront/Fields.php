@@ -427,59 +427,26 @@ final class Fields {
 				),
 			),
 			array(
-				'title'  => 'Fechas y plazos',
-				'help'   => 'De la fecha de inicio sale el curso escolar y el sitio en el calendario.',
+				'title'  => 'Fechas',
+				'help'   => 'De la fecha de inicio sale el curso escolar y el sitio en el calendario. Los plazos de matrícula, el enlace y las listas se llevan en el sistema de gestión del servicio de formación.',
+				// Los plazos de matrícula y las listas no se piden aquí: los lleva el sistema
+				// del servicio. Sus claves siguen registradas para lo migrado (issue #35, adenda de la ADR-0005).
 				'fields' => array(
-					A::START            => array(
+					A::START    => array(
 						'label' => 'Fecha de inicio',
 						'w'     => 'date',
 						'col'   => 6,
 						'req'   => true,
 					),
-					A::END              => array(
+					A::END      => array(
 						'label' => 'Fecha de fin',
 						'w'     => 'date',
 						'col'   => 6,
 					),
-					A::SCHEDULE         => array(
+					A::SCHEDULE => array(
 						'label' => 'Días y horas',
 						'w'     => 'textarea',
-						'help'  => 'Por ejemplo: 20 y 27 de marzo y 3 y 24 de abril, de 16:00 a 20:00.',
-					),
-					A::ENROL_START      => array(
-						'label' => 'Inicio de matrícula',
-						'w'     => 'date',
-						'col'   => 4,
-					),
-					A::ENROL_END        => array(
-						'label' => 'Fin de matrícula',
-						'w'     => 'date',
-						'col'   => 4,
-					),
-					A::ENROL_URL        => array(
-						'label' => 'Enlace de matrícula',
-						'w'     => 'url',
-						'col'   => 4,
-					),
-					A::PROVISIONAL_LIST => array(
-						'label' => 'Lista provisional',
-						'w'     => 'date',
-						'col'   => 3,
-					),
-					A::CLAIMS_START     => array(
-						'label' => 'Inicio de reclamaciones',
-						'w'     => 'date',
-						'col'   => 3,
-					),
-					A::CLAIMS_END       => array(
-						'label' => 'Fin de reclamaciones',
-						'w'     => 'date',
-						'col'   => 3,
-					),
-					A::FINAL_LIST       => array(
-						'label' => 'Lista definitiva',
-						'w'     => 'date',
-						'col'   => 3,
+						'help'  => 'Si tiene más de una sesión, los días y el horario de cada una. Por ejemplo: 20 y 27 de marzo y 3 y 24 de abril, de 16:00 a 20:00.',
 					),
 				),
 			),

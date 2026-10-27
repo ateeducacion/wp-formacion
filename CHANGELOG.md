@@ -61,6 +61,7 @@ Lo que sale de la segunda revisión del aplicativo, el 2026-10-27: el porqué es
 - El número de un diseño borrado no vuelve a darse, aunque se borre definitivamente
 - **Documentos del diseño**: el diseño y la escaleta de las sesiones se suben en editable (DOC, DOCX u ODT), las presentaciones en PPT, PPTX u ODP, y los recursos en PDF, para conservar la versión
 - El centro escrito a mano antes se conserva, y la ficha lo enseña hasta que se elige uno de la lista; ya no se escribe a mano
+- **La acción ya no pide los plazos de matrícula**: el inicio y el fin de la matrícula, su enlace, las listas provisional y definitiva y las reclamaciones se rellenan en el sistema de gestión del servicio; quedan la fecha de inicio, la de fin y los días y horas de las sesiones
 - **El cargo del ponente distingue la etapa**: infantil y primaria, secundaria y bachillerato, formación profesional, escuela oficial de idiomas, o docente en activo sin etapa indicada
 
 ### Pendiente antes de desplegar

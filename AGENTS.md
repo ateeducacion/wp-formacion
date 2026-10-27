@@ -64,8 +64,9 @@ sus números de formulario, de campo y de vista— está en `.local/`.
 | El centro donde se imparte, de una lista de centros copiada a mano o escrito a mano | El código del catálogo de centros, que se pone al día solo (ADR-0021) |
 
 **La matrícula no es de este aplicativo** (ADR-0005): la lleva el sistema de
-gestión del servicio de formación. Aquí se registra la acción, sus plazos, su
-enlace de matrícula y sus cifras finales.
+gestión del servicio de formación, y también sus plazos, su enlace y sus
+listas. Aquí se registra la acción: sus fechas de inicio y fin y los días y
+horas de sus sesiones.
 
 ---
 
