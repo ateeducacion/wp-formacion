@@ -56,6 +56,7 @@ Lo que sale de la segunda revisión del aplicativo, el 2026-10-27: el porqué es
 - **Las horas del diseño son obligatorias según la modalidad**: presencial, las presenciales; en línea, las en línea; mixta, las dos
 - **El código del diseño lleva tres cifras**, y tras el `A999` viene el `B001`
 - El número de un diseño borrado no vuelve a darse, aunque se borre definitivamente
+- **Documentos del diseño**: el diseño y la escaleta de las sesiones se suben en editable (DOC, DOCX u ODT), las presentaciones en PPT, PPTX u ODP, y los recursos en PDF, para conservar la versión
 - **El cargo del ponente distingue la etapa**: infantil y primaria, secundaria y bachillerato, formación profesional, escuela oficial de idiomas, o docente en activo sin etapa indicada
 
 ### Pendiente antes de desplegar

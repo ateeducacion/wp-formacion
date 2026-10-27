@@ -609,8 +609,10 @@ class Test_Editor_Render extends WP_UnitTestCase {
 		$this->assertStringContainsString( 'Cambiar la imagen', $body );
 		$this->assertStringContainsString( 'Sistema anterior', $body );
 		$this->assertStringContainsString( '>apoyo curso.zip</a>', $body );
-		$this->assertSame( 2, substr_count( $body, 'Ninguno.' ), 'minutaje y otros, vacíos' );
-		$this->assertSame( '.pdf,.doc,.docx,.odt', $this->find( $body, '//input[@name="fmc_doc[design][]"]' )->item( 0 )->getAttribute( 'accept' ) );
+		$this->assertSame( 3, substr_count( $body, 'Ninguno.' ), 'escaleta, presentaciones y otros, vacíos' );
+		$this->assertSame( '.doc,.docx,.odt', $this->find( $body, '//input[@name="fmc_doc[design][]"]' )->item( 0 )->getAttribute( 'accept' ) );
+		$this->assertSame( '.ppt,.pptx,.odp', $this->find( $body, '//input[@name="fmc_doc[slides][]"]' )->item( 0 )->getAttribute( 'accept' ) );
+		$this->assertSame( '.pdf', $this->find( $body, '//input[@name="fmc_doc[support][]"]' )->item( 0 )->getAttribute( 'accept' ) );
 
 		// La asesoría, en el diseño finalizado, abre los materiales y no cambia nada (ADR-0017).
 		wp_publish_post( $design );
