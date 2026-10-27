@@ -140,7 +140,7 @@ Un estado registrado con `register_post_status()`, con el rótulo «Histórico»
   cualquier número (`Editor::check_choices()`): una acción con un borrador no
   se guarda, y un recomendado que no es un diseño finalizado se descarta. Lo
   ya guardado se conserva y lleva su estado al lado, por ejemplo «(Curso,
-  Histórico)». Una acción nueva desde un diseño (`?fmc_design=`) solo se
+  Histórico)». Una acción nueva desde un diseño (`?fmc_diseno=`) solo se
   precarga si está finalizado.
 - **Catálogo público.** Sigue pidiendo finalizado y la casilla
   (`Catalogue::is_listed()`): un histórico no sale, aunque conserve la casilla

@@ -182,9 +182,9 @@ final class Editor {
 		$writable = false;
 		$parent   = $post ? (int) $post->post_parent : absint( $values['_parent'] ?? Lists::arg( Screen::ARG_PARENT ) );
 
-		// Una acción nueva desde un diseño (`fmc_design`): trae su modalidad y sus
+		// Una acción nueva desde un diseño (`fmc_diseno`): trae su modalidad y sus
 		// horas. Solo si está finalizado: de otro, ni el título (ADR-0016).
-		$from = absint( Lists::arg( 'fmc_design' ) );
+		$from = absint( Lists::arg( Screen::ARG_DESIGN ) );
 		if ( ! $post && PostTypes::ACTION === $type && $from && PostTypes::DESIGN === get_post_type( $from ) && 'publish' === get_post_status( $from ) ) {
 			$values += array(
 				A::DESIGN_ID    => $from,
@@ -346,8 +346,8 @@ final class Editor {
 				$out .= '<a class="btn btn-primary btn-sm fmc-abre-panel" title="Nueva acción formativa" href="' . esc_url(
 					Screen::url(
 						array(
-							Screen::ARG_NEW => PostTypes::ACTION,
-							'fmc_design'    => $post->ID,
+							Screen::ARG_NEW    => PostTypes::ACTION,
+							Screen::ARG_DESIGN => $post->ID,
 						)
 					)
 				) . '">Agendar una acción con este diseño</a> ';
@@ -461,11 +461,16 @@ final class Editor {
 				}
 				// Las listas largas llevan buscador (Tom Select); las cortas, el select de siempre.
 				$search = count( $choices ) > 10 ? ' data-fmc-ts data-placeholder="Escriba para buscar…"' : '';
-				$input  = '<select class="form-select' . $invalid . '" id="' . esc_attr( $id ) . '" name="' . esc_attr( $name ) . '"' . $search . $disabled . '><option value="">—</option>';
+				// Lo que significa cada término, si lo dice: al pasar por la opción y debajo del elegido.
+				$hints = 0 === strpos( $key, 'tax:' ) ? self::term_hints( substr( $key, 4 ) ) : array();
+				$input = '<select class="form-select' . $invalid . '" id="' . esc_attr( $id ) . '" name="' . esc_attr( $name ) . '"' . $search . ( $hints ? ' data-fmc-hints' : '' ) . $disabled . '><option value="">—</option>';
 				foreach ( $choices as $v => $text ) {
-					$input .= '<option value="' . esc_attr( (string) $v ) . '"' . selected( $current, (string) $v, false ) . '>' . esc_html( $text ) . '</option>';
+					$input .= '<option value="' . esc_attr( (string) $v ) . '"' . selected( $current, (string) $v, false ) . ( isset( $hints[ $v ] ) ? ' data-fmc-hint="' . esc_attr( $hints[ $v ] ) . '"' : '' ) . '>' . esc_html( $text ) . '</option>';
 				}
 				$input .= '</select>';
+				if ( $hints ) {
+					$input .= '<div class="form-text fmc-hint" data-fmc-hint-for="' . esc_attr( $id ) . '">' . esc_html( $hints[ (int) $current ] ?? '' ) . '</div>';
+				}
 				break;
 			case 'speakers':
 			case 'designs':
@@ -1004,6 +1009,9 @@ final class Editor {
 				$values[ A::HOURS_ONLINE ] = (string) get_post_meta( $design, D::HOURS_ONLINE, true );
 			}
 		}
+		if ( PostTypes::ACTION === $type && ! isset( $errors[ A::DESIGN_ID ] ) ) {
+			$errors += self::impute_programme( $values, $post );
+		}
 
 		// Las reglas se miran con los valores ya reunidos: `show` depende de otro campo.
 		$read = static function ( string $k ) use ( &$values, $post ) {
@@ -1165,6 +1173,62 @@ final class Editor {
 			$done[] = $old;
 		}
 		update_post_meta( $design, self::ARCHIVED_META, array_values( array_filter( $done ) ) );
+	}
+
+	/**
+	 * Charge the action to the active programme that covers its design (ADR-0018).
+	 *
+	 * Si la asume quien cobra a programas, el programa no se elige: es el
+	 * activo que cubre el diseño. Si no hay ninguno, la asume el centro de
+	 * formación, y se dice. Una acción ya guardada a la que no se le cambia ni
+	 * quién paga ni el diseño se deja como está: su programa ha podido cerrarse
+	 * después.
+	 *
+	 * @param array<string, mixed> $values Submitted values; the programme is set here.
+	 * @param \WP_Post|null        $post   Action being saved.
+	 * @return array<string, string> Field key => what is wrong with it.
+	 */
+	private static function impute_programme( array &$values, ?\WP_Post $post ): array {
+		$read   = static fn( string $key ) => array_key_exists( $key, $values ) ? $values[ $key ] : self::value( $post, $key );
+		$funder = (string) $read( A::FUNDED_BY );
+		$design = (int) $read( A::DESIGN_ID );
+		if ( A::PROGRAMME_FUNDER !== $funder || ! $design ) {
+			return array();
+		}
+		if ( $post && (string) self::value( $post, A::FUNDED_BY ) === $funder && (int) self::value( $post, A::DESIGN_ID ) === $design ) {
+			return array();
+		}
+		$terms   = wp_get_object_terms( $design, Taxonomies::PROGRAMME, array( 'fields' => 'ids' ) );
+		$covered = array_values( array_intersect( is_array( $terms ) ? array_map( 'intval', $terms ) : array(), Taxonomies::active_programmes() ) );
+		if ( array() === $covered ) {
+			$names = A::funders();
+			return array( A::FUNDED_BY => sprintf( 'El diseño no está en ningún programa activo, así que no la puede asumir «%1$s»: la asume «%2$s».', $names[ A::PROGRAMME_FUNDER ], $names[ A::FALLBACK_FUNDER ] ) );
+		}
+		$values[ 'tax:' . Taxonomies::PROGRAMME ] = array_map( 'strval', $covered );
+		return array();
+	}
+
+	/**
+	 * What each term of a taxonomy means: its description, as plain text.
+	 *
+	 * @param string $taxonomy Taxonomy.
+	 * @return array<int, string> Term ID => description, only the ones that have it.
+	 */
+	private static function term_hints( string $taxonomy ): array {
+		$terms = get_terms(
+			array(
+				'taxonomy'   => $taxonomy,
+				'hide_empty' => false,
+			)
+		);
+		$out   = array();
+		foreach ( is_array( $terms ) ? $terms : array() as $t ) {
+			$text = trim( wp_strip_all_tags( (string) $t->description ) );
+			if ( '' !== $text ) {
+				$out[ (int) $t->term_id ] = $text;
+			}
+		}
+		return $out;
 	}
 
 	/**

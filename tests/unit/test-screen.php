@@ -9,6 +9,7 @@ use Fmc\Meta\SpeakerMetaKeys;
 use Fmc\PostType\PostTypes;
 use Fmc\PublicFront\Assets;
 use Fmc\PublicFront\Catalogue;
+use Fmc\PublicFront\Editor;
 use Fmc\PublicFront\Screen;
 
 /**
@@ -242,6 +243,27 @@ class Test_Screen extends WP_UnitTestCase {
 		$this->as_role( 'subscriber' );
 		$this->visit( array( Screen::ARG_TAB => 'speakers' ) );
 		$this->assertSame( 'document:Diseño de acciones formativas', $this->route() );
+	}
+
+	/**
+	 * «Agendar una acción con este diseño» abre la acción nueva con el diseño
+	 * puesto: su enlace no puede chocar con la consulta del tipo de contenido.
+	 */
+	public function test_the_schedule_link_of_a_design_opens_a_new_action() {
+		$this->as_role( 'fmc_curator' );
+		$design = self::factory()->post->create(
+			array(
+				'post_type'   => PostTypes::DESIGN,
+				'post_status' => 'publish',
+				'post_title'  => 'Robótica en el aula',
+			)
+		);
+		preg_match( '/href="([^"]+)"[^>]*>Agendar una acción con este diseño</', Editor::screen( $design, '' )['actions'], $m );
+		$this->assertNotEmpty( $m, 'la ficha lleva el enlace' );
+
+		$this->go_to( html_entity_decode( $m[1] ) );
+
+		$this->assertSame( 'document:Nueva acción formativa', $this->route() );
 	}
 
 	/**

@@ -46,6 +46,9 @@
 				// Las opciones se repintan: un tooltip abierto se quedaría huérfano.
 				settings.onDropdownClose = hideTips;
 			}
+			if ( s.hasAttribute( 'data-fmc-hints' ) ) {
+				settings.render = { option: hintHtml };
+			}
 			// eslint-disable-next-line no-new
 			new window.TomSelect( s, settings );
 			n++;
@@ -80,6 +83,23 @@
 	function speakerItem( data, escape ) {
 		const p = speakerParts( data, escape );
 		return '<div' + ( p.set.fmcOff ? ' class="fmc-off"' : '' ) + '>' + p.star + p.name + p.note + '</div>';
+	}
+
+	// Un término con lo que significa: el nombre, y al pasar por él, su
+	// descripción (`data-fmc-hint`), como un bocadillo del navegador.
+	function hintHtml( data, escape ) {
+		const hint = ( data.$option && data.$option.dataset && data.$option.dataset.fmcHint ) || '';
+		return '<div' + ( hint ? ' title="' + escape( hint ) + '"' : '' ) + '>' + escape( data.text ) + '</div>';
+	}
+
+	// Debajo del elegido, lo que significa; cambia al elegir otro.
+	function showHint( select ) {
+		const box = select.id ? document.querySelector( '.fmc-hint[data-fmc-hint-for="' + select.id + '"]' ) : null;
+		if ( ! box ) {
+			return;
+		}
+		const option = select.options[ select.selectedIndex ];
+		box.textContent = ( option && option.dataset.fmcHint ) || '';
 	}
 
 	// La estrella del recomendado sigue al diseño elegido, sin recargar, y los
@@ -191,6 +211,9 @@
 				} );
 				label.textContent = names.length ? 'Se subirá al guardar: ' + names.join( ', ' ) : '';
 			}
+		}
+		if ( target.hasAttribute && target.hasAttribute( 'data-fmc-hints' ) ) {
+			showHint( target );
 		}
 		const form = target.closest( 'form' );
 		if ( form ) {
@@ -600,6 +623,7 @@
 		onToolClick: onToolClick,
 		onNoteClick: onNoteClick,
 		speakerHtml: speakerHtml,
+		hintHtml: hintHtml,
 		speakerItem: speakerItem,
 		initTips: initTips,
 		hideTips: hideTips,

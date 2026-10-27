@@ -248,7 +248,7 @@ class Test_Editor_Render extends WP_UnitTestCase {
 		$this->assertStringNotContainsString( 'Agendar una acción', $old['actions'], 'un histórico ya no se imparte' );
 		$this->assertStringContainsString( 'Finalizado', $screen['badges'] );
 		$this->assertStringContainsString( 'Agendar una acción con este diseño', $screen['actions'] );
-		$this->assertStringContainsString( 'fmc_design=' . $done, $screen['actions'] );
+		$this->assertStringContainsString( Screen::ARG_DESIGN . '=' . $done, $screen['actions'] );
 		// Finalizado pero fuera del catálogo: no tiene ficha pública que ver.
 		$this->assertStringNotContainsString( 'Ver en el catálogo', $screen['actions'] );
 		update_post_meta( $done, D::IN_CATALOGUE, '1' );
@@ -391,7 +391,7 @@ class Test_Editor_Render extends WP_UnitTestCase {
 		update_post_meta( $design, D::MODALITY, 'blended' );
 		update_post_meta( $design, D::HOURS_ONSITE, 9 );
 		update_post_meta( $design, D::HOURS_ONLINE, 3 );
-		$_GET['fmc_design'] = (string) $design;
+		$_GET[ Screen::ARG_DESIGN ] = (string) $design;
 
 		$body = Editor::screen( 0, PostTypes::ACTION )['body'];
 
@@ -745,7 +745,7 @@ class Test_Editor_Render extends WP_UnitTestCase {
 	}
 
 	/**
-	 * `?fmc_design=` solo precarga un diseño finalizado: de un borrador o un
+	 * `?fmc_diseno=` solo precarga un diseño finalizado: de un borrador o un
 	 * histórico no sale ni el título.
 	 */
 	public function test_only_a_finalised_design_is_prefilled() {
@@ -755,8 +755,8 @@ class Test_Editor_Render extends WP_UnitTestCase {
 		$this->as_role( 'fmc_adviser' );
 
 		foreach ( array( $draft, $old ) as $design ) {
-			$_GET['fmc_design'] = (string) $design;
-			$body               = Editor::screen( 0, PostTypes::ACTION )['body'];
+			$_GET[ Screen::ARG_DESIGN ] = (string) $design;
+			$body                       = Editor::screen( 0, PostTypes::ACTION )['body'];
 			$this->assertSame( 0, $this->find( $body, '//select[@name="f[fmc_design_id]"]/option[@selected]' )->length );
 			$this->assertStringNotContainsString( 'secreto', $body );
 		}
@@ -785,5 +785,36 @@ class Test_Editor_Render extends WP_UnitTestCase {
 
 		$this->as_role( 'fmc_adviser' );
 		$this->assertSame( array( $old => 'Un diseño que ya no se ofrece' ), $options() );
+	}
+
+	/**
+	 * Cada temática dice lo que engloba: al pasar por la opción, y debajo de la elegida.
+	 */
+	public function test_a_topic_says_what_it_covers() {
+		$curator = $this->as_role( 'fmc_curator' );
+		$robots  = self::factory()->term->create(
+			array(
+				'taxonomy'    => Taxonomies::TOPIC,
+				'name'        => 'Robótica',
+				'description' => '<p>Programación y <strong>robots</strong>.</p>',
+			)
+		);
+		self::factory()->term->create(
+			array(
+				'taxonomy'    => Taxonomies::TOPIC,
+				'name'        => 'Sin descripción',
+				'description' => '',
+			)
+		);
+		$design = $this->post( PostTypes::DESIGN, $curator, 'draft' );
+		wp_set_object_terms( $design, array( $robots ), Taxonomies::TOPIC );
+
+		$body = $this->screen_of( $design )['body'];
+
+		$this->assertTrue( $this->find( $body, '//select[@name="f[tax:fmc_topic]"]' )->item( 0 )->hasAttribute( 'data-fmc-hints' ) );
+		$this->assertSame( 'Programación y robots.', $this->find( $body, '//option[.="Robótica"]' )->item( 0 )->getAttribute( 'data-fmc-hint' ) );
+		$this->assertFalse( $this->find( $body, '//option[.="Sin descripción"]' )->item( 0 )->hasAttribute( 'data-fmc-hint' ) );
+		$this->assertSame( 'Programación y robots.', $this->find( $body, '//div[@data-fmc-hint-for="f-tax-fmc_topic"]' )->item( 0 )->textContent );
+		$this->assertSame( 0, $this->find( $this->screen_of( $this->post( PostTypes::SPEAKER, $curator ) )['body'], '//select[@data-fmc-hints]' )->length, 'sin descripciones, nada' );
 	}
 }

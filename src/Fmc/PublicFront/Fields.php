@@ -210,7 +210,7 @@ final class Fields {
 					'tax:fmc_programme' => array(
 						'label' => 'Programas',
 						'w'     => 'terms',
-						'help'  => 'El programa o proyecto para el que se crea. Puede ser más de uno.',
+						'help'  => sprintf( 'Los programas o proyectos que cubren este diseño. Puede ser más de uno. Mientras un programa esté activo, las acciones de este diseño que asuma «%s» se le imputan.', A::funders()[ A::PROGRAMME_FUNDER ] ),
 					),
 					'tax:fmc_topic'     => array(
 						'label' => 'Temática',
@@ -294,6 +294,7 @@ final class Fields {
 	 * @return list<array<string, mixed>>
 	 */
 	private static function action(): array {
+		$funders = A::funders();
 		return array(
 			array(
 				'title'  => 'La acción',
@@ -340,18 +341,20 @@ final class Fields {
 			),
 			array(
 				'title'  => 'Financiación',
-				'help'   => 'Quién la paga y con cargo a qué programa. Si la paga el servicio de formación con fondos de un programa, elija el servicio y el programa: es lo que le dice qué expediente ponerle.',
+				// Quién paga se elige; el programa, si paga quien cobra a programas, sale del diseño (ADR-0018).
+				'help'   => sprintf( 'Quién la paga y con cargo a qué programa. Si la asume «%1$s», el programa se pone solo al guardar: el programa activo que cubre el diseño. Si el diseño no está en ninguno, la asume «%2$s».', $funders[ A::PROGRAMME_FUNDER ], $funders[ A::FALLBACK_FUNDER ] ),
 				'fields' => array(
 					A::FUNDED_BY        => array(
 						'label'   => 'Asumida por',
 						'w'       => 'select',
-						'choices' => A::FUNDERS,
+						'choices' => $funders,
 						'col'     => 6,
 					),
 					'tax:fmc_programme' => array(
 						'label' => 'Con cargo al programa',
 						'w'     => 'terms',
 						'col'   => 6,
+						'help'  => sprintf( 'Con «%s», lo pone el aplicativo.', $funders[ A::PROGRAMME_FUNDER ] ),
 					),
 					A::STRATEGIC_LINE   => array(
 						'label' => 'Línea estratégica',
