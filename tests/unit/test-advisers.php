@@ -107,6 +107,26 @@ class Test_Advisers extends WP_UnitTestCase {
 	}
 
 	/**
+	 * El campo sale en el perfil propio y en el de otra cuenta, se guarda desde
+	 * los dos, y el listado de usuarios lleva su columna.
+	 */
+	public function test_the_kind_is_hooked_into_the_profile_and_the_users_list() {
+		Advisers::hooks();
+
+		foreach ( array( 'show_user_profile', 'edit_user_profile' ) as $hook ) {
+			$this->assertNotFalse( has_action( $hook, array( Advisers::class, 'profile_field' ) ), $hook );
+		}
+		foreach ( array( 'personal_options_update', 'edit_user_profile_update' ) as $hook ) {
+			$this->assertNotFalse( has_action( $hook, array( Advisers::class, 'save_profile' ) ), $hook );
+		}
+		$this->assertArrayHasKey( Advisers::KIND, apply_filters( 'manage_users_columns', array() ) );
+
+		$adviser = $this->account( 'fmc_adviser', 'Ana' );
+		update_user_option( $adviser, Advisers::KIND, 'ict' );
+		$this->assertSame( 'TIC', apply_filters( 'manage_users_custom_column', '', Advisers::KIND, $adviser ) );
+	}
+
+	/**
 	 * Al elegir la asesoría responsable, cada cuenta lleva su tipo; el
 	 * servicio de formación no es asesoría.
 	 */
