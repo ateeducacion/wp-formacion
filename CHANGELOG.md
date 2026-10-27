@@ -34,6 +34,9 @@ Lo que sale de la segunda revisión del aplicativo, el 2026-10-27: el porqué es
 - **La acción se guarda en borrador o se entrega**: el borrador sale marcado en el calendario y solo lo ven quien lo escribe y quien gestiona; entregada, la asesoría ya no la cambia y pide los cambios con una incidencia
 - El listado de acciones se filtra por borrador o entregada, y el CSV lleva la situación
 - **Cada temática dice lo que engloba**: al pasar por ella en el selector y debajo de la elegida, con la descripción del término
+- **El centro donde se imparte se elige del catálogo de centros** ([ADR-0021](docs/adr/ADR-0021-el-centro-donde-se-imparte-se-elige-del-catalogo-por-su-codigo.md)), buscando por su nombre o su código; la acción guarda el código, y el nombre al lado para el calendario, el listado y el CSV
+- El catálogo es una copia local que se pone al día sola cada día; si una descarga llega mal, se sigue con la copia anterior
+- **«Ajustes → Centros educativos»** en el escritorio: la administración pone la dirección del listado de centros, ve el estado de la copia y la actualiza sin esperar
 
 ### Cambiado
 
@@ -57,6 +60,7 @@ Lo que sale de la segunda revisión del aplicativo, el 2026-10-27: el porqué es
 - **El código del diseño lleva tres cifras**, y tras el `A999` viene el `B001`
 - El número de un diseño borrado no vuelve a darse, aunque se borre definitivamente
 - **Documentos del diseño**: el diseño y la escaleta de las sesiones se suben en editable (DOC, DOCX u ODT), las presentaciones en PPT, PPTX u ODP, y los recursos en PDF, para conservar la versión
+- El centro escrito a mano antes se conserva, y la ficha lo enseña hasta que se elige uno de la lista; ya no se escribe a mano
 - **El cargo del ponente distingue la etapa**: infantil y primaria, secundaria y bachillerato, formación profesional, escuela oficial de idiomas, o docente en activo sin etapa indicada
 
 ### Pendiente antes de desplegar

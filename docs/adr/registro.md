@@ -30,8 +30,9 @@ la validación, el 2026-10-21; su material también está en `.local/`.
 
 La ADR-0016 y la ADR-0017 salen de la segunda revisión, el 2026-10-27, que
 también deja adendas en la ADR-0004, la ADR-0012 y la ADR-0015. La ADR-0018
-sale de la respuesta de la validación en la issue #27, la ADR-0019, de la de
-la issue #25, y la ADR-0020, de las de la #24 y la #23, el mismo día.
+sale de la respuesta de la validación en la issue #27, la ADR-0019 y la
+ADR-0021, de la de la issue #25, y la ADR-0020, de las de la #24 y la #23, el
+mismo día.
 
 El perfil que estas ADR llaman «curaduría» se llama hoy **validación**: da los
 diseños por finalizados (rol `fmc_curator`, «Validación de formación»). Las ADR
@@ -59,3 +60,4 @@ con commit no se reescriben por un cambio de nombre; esta nota lo traduce.
 | [ADR-0018](ADR-0018-el-servicio-imputa-la-accion-al-programa-activo-de-su-diseno.md) | Lo que asume el servicio de formación se imputa al programa activo del diseño | Propuesta |
 | [ADR-0019](ADR-0019-la-asesoria-es-una-cuenta-del-sitio-con-su-tipo.md) | La asesoría es una cuenta del sitio, con su tipo en el perfil | Propuesta |
 | [ADR-0020](ADR-0020-la-situacion-se-calcula-y-la-accion-se-entrega.md) | La situación de la acción se calcula, y la acción se entrega | Propuesta |
+| [ADR-0021](ADR-0021-el-centro-donde-se-imparte-se-elige-del-catalogo-por-su-codigo.md) | El centro donde se imparte se elige del catálogo de centros, por su código | Propuesta |

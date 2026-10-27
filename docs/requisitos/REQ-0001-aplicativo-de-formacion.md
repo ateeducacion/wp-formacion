@@ -208,7 +208,8 @@ en parte, lo dicen.
 8. ¿Las asesorías pasan a ser una lista cerrada, y el centro donde se imparte
    se rellena por su código? *En parte, el 2026-10-27:* la asesoría sigue
    siendo la cuenta del sitio, y su tipo (TIC, STEAM u otra) va en su perfil
-   (ADR-0019, §10). Lo del centro, sin contestar.
+   (ADR-0019, §10). Y el centro, el mismo día: se elige del catálogo de
+   centros por su código, y lo escrito a mano se conserva (ADR-0021, §10).
 9. ¿Se genera el documento del diseño desde su ficha? ¿Y se abre un
    formulario público para que las empresas proveedoras rellenen el diseño?
    *Contestada el 2026-10-27:* no se genera ni se lee de un documento (issues
@@ -326,6 +327,7 @@ datos migrados. El material de la reunión está en `.local/`.
 | Si la acción la asume el servicio de formación, su programa es el activo que cubre el diseño; si no hay ninguno, la asume el centro. Los programas llevan una casilla «Activo». Los nombres de «Asumida por» los pone cada despliegue | Respuesta de la validación en la issue #27: quien agenda no tiene que saber de qué programa sale el dinero | RF-8, RF-14 | [ADR-0018](../adr/ADR-0018-el-servicio-imputa-la-accion-al-programa-activo-de-su-diseno.md) |
 | La asesoría responsable sigue siendo una cuenta del sitio, que la administración da de alta; su tipo (TIC, STEAM u otra) va en su perfil del escritorio, por sitio, y sale al elegirla. Las acciones se filtran por asesoría y por tipo | Respuesta de la validación en la issue #25. Un directorio aparte duplicaría el alta y la baja de cuentas, que ya hace la administración | RF-8, RF-14 | [ADR-0019](../adr/ADR-0019-la-asesoria-es-una-cuenta-del-sitio-con-su-tipo.md) |
 | La situación de la acción se calcula de sus fechas, y una incidencia que pide aplazarla o cancelarla la deja así. La acción se guarda en borrador o se entrega, y entregada la asesoría ya no la edita: los cambios, por incidencia, que avisa por correo. Una cancelada no cuenta horas. El expediente lo pone solo el servicio, y el proceso, el negociado y el responsable salen | Respuestas de la validación en las issues #24 y #23 | RF-9, RF-10, RF-13, RF-14, RF-18 | [ADR-0020](../adr/ADR-0020-la-situacion-se-calcula-y-la-accion-se-entrega.md) |
+| El centro donde se imparte se elige del catálogo de centros, por su nombre o su código, y se guarda el código con el nombre al lado. El catálogo es una copia local que se pone al día sola cada día desde su fuente, que pone cada despliegue. Lo escrito a mano se conserva mientras no se elija un centro, y la migración casa lo que puede | Respuesta de la validación en la issue #25: buscar por código y conservar lo escrito a mano. Un centro, un código, para contar y filtrar por él | RF-8 | [ADR-0021](../adr/ADR-0021-el-centro-donde-se-imparte-se-elige-del-catalogo-por-su-codigo.md) |
 | La asesoría no escribe diseños ni sube ficheros. Los consulta, solo los finalizados, en la misma ficha de solo lectura y con sus documentos. Ni borradores ni histórico, tampoco por la dirección | Los diseños los hace el área. La asesoría los necesita para saber de qué va un curso antes de agendarlo. Se pidió una sola ficha y no dos | RF-3 | [ADR-0017](../adr/ADR-0017-la-asesoria-consulta-los-disenos-finalizados-y-no-los-escribe.md) |
 
 Y tres adendas: la ADR-0004 recoge las dos decisiones; la ADR-0012, la

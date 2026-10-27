@@ -325,9 +325,10 @@ final class Fields {
 						'w'     => 'adviser',
 						'col'   => 6,
 					),
-					A::VENUE_CENTRE    => array(
+					// El centro se elige del catálogo por su código; el nombre se guarda aparte, como estaba (ADR-0021).
+					A::VENUE_CODE      => array(
 						'label' => 'Centro donde se imparte',
-						'w'     => 'text',
+						'w'     => 'centre',
 						'col'   => 8,
 					),
 					A::VIDEOCONFERENCE => array(

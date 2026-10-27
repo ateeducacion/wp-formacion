@@ -7,6 +7,7 @@
 
 namespace Fmc\PublicFront;
 
+use Fmc\Centre\CentreCatalogue;
 use Fmc\Meta\ActionMetaKeys as A;
 use Fmc\Meta\DesignMetaKeys as D;
 use Fmc\Domain\DigComp;
@@ -433,6 +434,9 @@ final class Editor {
 		if ( $can && 'adviser' === $f['w'] && array() === Advisers::choices() ) {
 			$help .= '<div class="form-text">Aún no hay ninguna asesoría con cuenta en el aplicativo: la administración las da de alta en «Usuarios», con el rol «Asesoría de formación».</div>';
 		}
+		if ( 'centre' === $f['w'] ) {
+			$help .= self::centre_help( (int) ( $f['post'] ?? 0 ), is_string( $value ) ? $value : '', $can );
+		}
 		if ( $can && ! empty( $f['add'] ) && current_user_can( get_post_type_object( $f['add'] )->cap->create_posts ) ) {
 			$help .= '<div class="form-text"><a href="' . esc_url(
 				Screen::url(
@@ -458,6 +462,7 @@ final class Editor {
 			case 'term':
 			case 'design':
 			case 'adviser':
+			case 'centre':
 				$choices = self::choices( $f, $key );
 				$current = is_array( $value ) ? (string) ( $value[0] ?? '' ) : (string) $value;
 				// El diseño guardado de una acción antigua se conserva aunque ya no
@@ -632,6 +637,9 @@ final class Editor {
 		if ( 'adviser' === $f['w'] ) {
 			return Advisers::choices();
 		}
+		if ( 'centre' === $f['w'] ) {
+			return self::centre_choices( (string) ( $f['stored'] ?? '' ), (int) ( $f['post'] ?? 0 ) );
+		}
 		$type = 'speakers' === $f['w'] ? PostTypes::SPEAKER : PostTypes::DESIGN;
 		// El diseño de una acción, como los recomendados, ha de estar finalizado:
 		// un borrador aún no se imparte (ADR-0016).
@@ -646,6 +654,50 @@ final class Editor {
 		// Un diseño no se sustituye a sí mismo.
 		unset( $out[ (int) ( $f['post'] ?? 0 ) ] );
 		return $out;
+	}
+
+	/**
+	 * The active centres of the catalogue, and the one an action already has.
+	 *
+	 * El centro guardado se conserva aunque haya dejado de estar activo, con
+	 * el nombre que tenía al elegirlo (ADR-0021).
+	 *
+	 * @param string $stored Code stored in the action.
+	 * @param int    $action Action ID; 0 when new.
+	 * @return array<string, string> Code => «name (code)».
+	 */
+	private static function centre_choices( string $stored, int $action ): array {
+		$out = array();
+		foreach ( CentreCatalogue::active_options() as $code => $name ) {
+			$out[ $code ] = CentreCatalogue::label( (string) $code, $name );
+		}
+		if ( '' !== $stored && ! isset( $out[ $stored ] ) ) {
+			$out[ $stored ] = CentreCatalogue::label( $stored, (string) get_post_meta( $action, A::VENUE_CENTRE, true ) ) . ' — ya no está activo';
+		}
+		return $out;
+	}
+
+	/**
+	 * What the centre field says below it.
+	 *
+	 * El centro escrito a mano en el sistema anterior se enseña hasta que se
+	 * elige uno de la lista; y si la lista está vacía, por qué.
+	 *
+	 * @param int    $action Action ID; 0 when new.
+	 * @param string $code   Code in the field.
+	 * @param bool   $can    Whether the viewer can change it.
+	 * @return string
+	 */
+	private static function centre_help( int $action, string $code, bool $can ): string {
+		$help   = '';
+		$legacy = '' === $code && $action ? (string) get_post_meta( $action, A::VENUE_CENTRE, true ) : '';
+		if ( '' !== $legacy ) {
+			$help .= '<div class="form-text">Escrito a mano en el sistema anterior: «' . esc_html( $legacy ) . '».' . ( $can ? ' Elija el centro de la lista para sustituirlo.' : '' ) . '</div>';
+		}
+		if ( $can && 0 === CentreCatalogue::active_count() ) {
+			$help .= '<div class="form-text">El catálogo de centros está vacío: la administración lo actualiza en «Ajustes → Centros educativos».</div>';
+		}
+		return $help;
 	}
 
 	/**
@@ -972,6 +1024,7 @@ final class Editor {
 		// Lo que la acción era antes de guardar: una aplazada sale de ahí con fechas nuevas.
 		$was_start     = $post ? (string) get_post_meta( $post->ID, A::START, true ) : '';
 		$was_situation = $post ? (string) get_post_meta( $post->ID, A::SITUATION, true ) : '';
+		$was_venue     = $post ? (string) get_post_meta( $post->ID, A::VENUE_CODE, true ) : '';
 		// Lo que pasa a histórico no se completa: ni obligatorios ni título único.
 		$archiving = PostTypes::DESIGN === $type && PostTypes::ARCHIVED === self::next_status( $type, $post, $status );
 		foreach ( $fields as $key => $f ) {
@@ -1125,6 +1178,9 @@ final class Editor {
 		if ( PostTypes::ACTION === $type && 'postponed' === $was_situation && (string) get_post_meta( $id, A::START, true ) !== $was_start ) {
 			delete_post_meta( $id, A::SITUATION );
 		}
+		if ( PostTypes::ACTION === $type && array_key_exists( A::VENUE_CODE, $values ) ) {
+			self::venue_name( $id, (string) $values[ A::VENUE_CODE ], $was_venue );
+		}
 
 		$problems = array();
 		if ( PostTypes::DESIGN === $type && ( $files || $remove ) ) {
@@ -1141,6 +1197,28 @@ final class Editor {
 			'errors'   => array(),
 			'problems' => $problems,
 		);
+	}
+
+	/**
+	 * Keep the name of the venue next to its code.
+	 *
+	 * El nombre se guarda al elegir el centro: lo leen el calendario, el
+	 * listado y el CSV, y se queda aunque el centro cierre y salga del
+	 * catálogo. Lo escrito a mano antes se conserva mientras no se elija un
+	 * centro; quitar el que había lo borra (ADR-0021).
+	 *
+	 * @param int    $action Action ID.
+	 * @param string $code   Code saved.
+	 * @param string $was    Code it had before.
+	 * @return void
+	 */
+	private static function venue_name( int $action, string $code, string $was ): void {
+		$centre = CentreCatalogue::find( $code );
+		if ( null !== $centre ) {
+			update_post_meta( $action, A::VENUE_CENTRE, $centre['name'] );
+		} elseif ( '' === $code && '' !== $was ) {
+			delete_post_meta( $action, A::VENUE_CENTRE );
+		}
 	}
 
 	/**
@@ -1255,6 +1333,10 @@ final class Editor {
 			$w = $fields[ $key ]['w'];
 			if ( 'adviser' === $w && '' !== $value && ! isset( Advisers::choices()[ absint( $value ) ] ) && absint( $value ) !== absint( self::value( $post, $key ) ) ) {
 				$errors[ $key ] = 'La asesoría elegida no es una cuenta de asesoría de este sitio.';
+				continue;
+			}
+			if ( 'centre' === $w && '' !== $value && ! CentreCatalogue::is_active( (string) $value ) && (string) self::value( $post, $key ) !== $value ) {
+				$errors[ $key ] = 'El centro elegido no está en el catálogo de centros activos.';
 				continue;
 			}
 			if ( ! in_array( $w, array( 'design', 'designs', 'speakers' ), true ) || '' === $value || array() === $value ) {

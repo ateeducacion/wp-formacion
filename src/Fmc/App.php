@@ -7,6 +7,8 @@
 
 namespace Fmc;
 
+use Fmc\Centre\CentreCatalogueSync;
+use Fmc\Centre\CentreSettings;
 use Fmc\Meta\MetaRegistration;
 use Fmc\PostType\PostTypes;
 use Fmc\PublicFront\Catalogue;
@@ -40,6 +42,9 @@ final class App {
 		add_action( 'init', array( Taxonomies::class, 'register' ), 9 );
 		Taxonomies::hooks();
 		Advisers::hooks();
+		// El catálogo de centros se copia de su fuente una vez al día (ADR-0021).
+		CentreCatalogueSync::register_cron();
+		CentreSettings::register();
 		add_action( 'init', array( PostTypes::class, 'register' ), 10 );
 		add_action( 'init', array( PostTypes::class, 'grant_caps_to_roles' ), 11 );
 		add_filter( 'map_meta_cap', array( PostTypes::class, 'lock_archived' ), 10, 4 );

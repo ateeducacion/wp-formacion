@@ -34,6 +34,7 @@ final class ActionMetaKeys {
 	public const FUNDED_BY        = 'fmc_funded_by';
 	public const VIDEOCONFERENCE  = 'fmc_videoconference';
 	public const VENUE_CENTRE     = 'fmc_venue_centre';
+	public const VENUE_CODE       = 'fmc_venue_centre_code';
 	public const PLACES           = 'fmc_places';
 	public const MODALITY         = 'fmc_modality';
 	public const HOURS_ONSITE     = 'fmc_hours_onsite';
@@ -186,6 +187,7 @@ final class ActionMetaKeys {
 			self::FUNDED_BY        => MetaTypes::STRING,
 			self::VIDEOCONFERENCE  => MetaTypes::BOOL,
 			self::VENUE_CENTRE     => MetaTypes::STRING,
+			self::VENUE_CODE       => MetaTypes::STRING,
 			self::PLACES           => MetaTypes::INT,
 			self::MODALITY         => MetaTypes::STRING,
 			self::HOURS_ONSITE     => MetaTypes::NUMBER,

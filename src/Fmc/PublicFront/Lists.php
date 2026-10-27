@@ -7,6 +7,7 @@
 
 namespace Fmc\PublicFront;
 
+use Fmc\Centre\CentreCatalogue;
 use Fmc\Domain\SchoolYear;
 use Fmc\Domain\Situation;
 use Fmc\Meta\ActionMetaKeys as A;
@@ -1219,6 +1220,8 @@ final class Lists {
 				return implode( ', ', array_map( 'get_the_title', array_filter( array_map( 'intval', (array) $value ) ) ) );
 			case 'adviser':
 				return $value ? (string) get_the_author_meta( 'display_name', (int) $value ) : '';
+			case 'centre':
+				return CentreCatalogue::label( (string) $value, (string) get_post_meta( $post->ID, A::VENUE_CENTRE, true ) );
 			case 'rich':
 			case 'textarea':
 				return trim( wp_strip_all_tags( (string) $value ) );
