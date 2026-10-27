@@ -115,7 +115,8 @@ final class ActionMetaKeys {
 	}
 
 	/**
-	 * Administrative process, in order.
+	 * Administrative process, in order. Ya no se rellena: la acción se guarda
+	 * en borrador o se entrega (ADR-0020). Queda para lo migrado.
 	 */
 	public const PROCESSES = array(
 		'draft'     => 'En borrador',
@@ -128,12 +129,37 @@ final class ActionMetaKeys {
 	 * What happened to the action. Each one is a colour in the calendar.
 	 */
 	public const SITUATIONS = array(
-		'managing'  => 'Gestionándose',
 		'running'   => 'Impartiéndose',
 		'done'      => 'Realizada',
 		'postponed' => 'Aplazada',
 		'cancelled' => 'Cancelada',
 	);
+
+	/**
+	 * The two states of an action's record: a draft, or delivered (ADR-0020).
+	 */
+	public const DELIVERY = array(
+		'draft'   => 'Borrador',
+		'publish' => 'Entregada',
+	);
+
+	/**
+	 * The situation of an action today, from its dates and its incidents.
+	 *
+	 * En la meta solo se guarda lo que deja una incidencia —aplazada o
+	 * cancelada—; lo demás se calcula (`Domain\Situation`).
+	 *
+	 * @param int $action Action ID.
+	 * @return string A key of `SITUATIONS`, or '' when it has not started.
+	 */
+	public static function situation( int $action ): string {
+		return \Fmc\Domain\Situation::of(
+			(string) get_post_meta( $action, self::START, true ),
+			(string) get_post_meta( $action, self::END, true ),
+			(string) get_post_meta( $action, self::SITUATION, true ),
+			current_time( 'Y-m-d' )
+		);
+	}
 
 	/**
 	 * Every key with its value type.

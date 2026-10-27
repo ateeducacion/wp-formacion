@@ -8,6 +8,7 @@
 namespace Fmc\PublicFront;
 
 use Fmc\Domain\SchoolYear;
+use Fmc\Domain\Situation;
 use Fmc\Meta\ActionMetaKeys as A;
 use Fmc\Meta\DesignMetaKeys as D;
 use Fmc\Meta\IncidentMetaKeys as I;
@@ -45,7 +46,6 @@ final class Lists {
 	 * Bootstrap colour of each action situation.
 	 */
 	public const SITUATION_COLOURS = array(
-		'managing'  => 'secondary',
 		'running'   => 'primary',
 		'done'      => 'success',
 		'postponed' => 'warning',
@@ -306,7 +306,10 @@ final class Lists {
 				$term( 'fmc_scope', self::arg( 'fmc_scope' ) );
 				$term( 'fmc_programme', self::arg( 'fmc_programme' ) );
 				$meta( A::MODALITY, self::arg( 'fmc_modality' ) );
-				$meta( A::PROCESS, self::arg( 'fmc_process' ) );
+				// Borrador o entregada (ADR-0020).
+				if ( isset( A::DELIVERY[ self::arg( 'fmc_status' ) ] ) ) {
+					$args['post_status'] = self::arg( 'fmc_status' );
+				}
 				// Por la asesoría responsable, o por las de un tipo (ADR-0019).
 				$meta( A::ADVISER, absint( self::arg( 'fmc_adviser' ) ) ? (string) absint( self::arg( 'fmc_adviser' ) ) : '' );
 				if ( isset( Advisers::KINDS[ self::arg( 'fmc_adviser_kind' ) ] ) ) {
@@ -355,8 +358,8 @@ final class Lists {
 						);
 					}
 				}
-				if ( $with_state ) {
-					$meta( A::SITUATION, self::arg( 'fmc_situation' ) );
+				if ( $with_state && isset( A::SITUATIONS[ self::arg( 'fmc_situation' ) ] ) ) {
+					$args['meta_query'][] = self::situation_clause( self::arg( 'fmc_situation' ) );
 				}
 				$year = self::arg( 'fmc_year' );
 				if ( preg_match( '/^(\d{4})-\d{4}$/', $year, $m ) ) {
@@ -398,6 +401,73 @@ final class Lists {
 				break;
 		}
 		return self::sorted( $type, $args );
+	}
+
+	/**
+	 * The meta query of a situation, as `Situation::of()` computes it (ADR-0020).
+	 *
+	 * Aplazada y cancelada están guardadas; impartiéndose y realizada salen de
+	 * las fechas de hoy, sin fecha de fin la acción dura un día, y lo que
+	 * guardó una incidencia manda.
+	 *
+	 * @param string $key Situation.
+	 * @return array<string|int, mixed>
+	 */
+	private static function situation_clause( string $key ): array {
+		if ( in_array( $key, Situation::SET_BY_INCIDENT, true ) ) {
+			return array(
+				'key'   => A::SITUATION,
+				'value' => $key,
+			);
+		}
+		$today  = current_time( 'Y-m-d' );
+		$date   = static fn( string $meta, string $compare ): array => array(
+			'key'     => $meta,
+			'value'   => $today,
+			'compare' => $compare,
+			'type'    => 'DATE',
+		);
+		$open   = array(
+			'relation' => 'OR',
+			array(
+				'key'     => A::SITUATION,
+				'compare' => 'NOT EXISTS',
+			),
+			array(
+				'key'     => A::SITUATION,
+				'value'   => Situation::SET_BY_INCIDENT,
+				'compare' => 'NOT IN',
+			),
+		);
+		$no_end = array(
+			'key'     => A::END,
+			'compare' => 'NOT EXISTS',
+		);
+		$until  = 'running' === $key
+			? array(
+				'relation' => 'OR',
+				$date( A::END, '>=' ),
+				array(
+					'relation' => 'AND',
+					$no_end,
+					$date( A::START, '=' ),
+				),
+			)
+			: array(
+				'relation' => 'OR',
+				$date( A::END, '<' ),
+				array(
+					'relation' => 'AND',
+					$no_end,
+					$date( A::START, '<' ),
+				),
+			);
+		return array(
+			'relation' => 'AND',
+			$open,
+			$date( A::START, '<=' ),
+			$until,
+		);
 	}
 
 	/**
@@ -618,17 +688,9 @@ final class Lists {
 						'fmc_situation',
 						$key,
 						array(
-							'meta_query' => array_merge( // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_query -- contadores del listado.
-								$base['meta_query'],
-								array(
-									array(
-										'key'   => A::SITUATION,
-										'value' => $key,
-									),
-								)
-							),
+							'meta_query' => array_merge( $base['meta_query'], array( self::situation_clause( $key ) ) ), // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_query -- contadores del listado.
 						),
-					); // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_query
+					);
 				}
 				break;
 			case PostTypes::DESIGN:
@@ -811,7 +873,7 @@ final class Lists {
 				$fields[] = self::select( 'fmc_programme', 'Programa', self::term_choices( 'fmc_programme' ), 'Todos' );
 				$fields[] = self::select( 'fmc_modality', 'Modalidad', D::MODALITIES, 'Todas' );
 				$fields[] = self::select( 'fmc_type', 'Tipo', D::TYPES, 'Todos' );
-				$fields[] = self::select( 'fmc_process', 'Estado', A::PROCESSES, 'Todos' );
+				$fields[] = self::select( 'fmc_status', 'Estado', A::DELIVERY, 'Todos' );
 				$fields[] = self::select( 'fmc_situation', 'Situación', A::SITUATIONS, 'Todas' );
 				$fields[] = self::select( 'fmc_speaker', 'Ponente', self::post_choices( PostTypes::SPEAKER ), 'Todos', true );
 				$fields[] = self::select( 'fmc_adviser', 'Asesoría', Advisers::choices(), 'Todas', true );
@@ -1100,7 +1162,7 @@ final class Lists {
 			$head[] = $f['label'];
 		}
 		if ( PostTypes::ACTION === $type ) {
-			$head = array_merge( $head, array( 'Tipo de formación', 'Curso escolar', 'Horas totales' ) );
+			$head = array_merge( $head, array( 'Tipo de formación', 'Curso escolar', 'Horas totales', 'Situación' ) );
 		}
 
 		nocache_headers();
@@ -1110,15 +1172,19 @@ final class Lists {
 		fwrite( $out, "\xEF\xBB\xBF" ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fwrite -- BOM para las hojas de cálculo.
 		fputcsv( $out, $head, ';' );
 		foreach ( get_posts( $args + array( 'suppress_filters' => false ) ) as $post ) {
-			$row = array_merge( array( $post->ID, get_post_status_object( $post->post_status )->label ?? $post->post_status ), $titled ? array( get_the_title( $post ) ) : array() );
+			$state = PostTypes::ACTION === $type ? ( A::DELIVERY[ $post->post_status ] ?? $post->post_status ) : ( get_post_status_object( $post->post_status )->label ?? $post->post_status );
+			$row   = array_merge( array( $post->ID, $state ), $titled ? array( get_the_title( $post ) ) : array() );
 			foreach ( $fields as $key => $f ) {
 				$row[] = self::plain( $post, $key, $f );
 			}
 			if ( PostTypes::ACTION === $type ) {
-				$n     = static fn( string $k ): float => (float) get_post_meta( $post->ID, $k, true );
-				$row[] = D::TYPES[ (string) get_post_meta( (int) get_post_meta( $post->ID, A::DESIGN_ID, true ), D::TYPE, true ) ] ?? '';
-				$row[] = SchoolYear::of( (string) get_post_meta( $post->ID, A::START, true ) );
-				$row[] = ( $n( A::HOURS_ONSITE ) + $n( A::HOURS_ONLINE ) ) * max( 1, (int) $n( A::REPLICAS ) );
+				$n         = static fn( string $k ): float => (float) get_post_meta( $post->ID, $k, true );
+				$row[]     = D::TYPES[ (string) get_post_meta( (int) get_post_meta( $post->ID, A::DESIGN_ID, true ), D::TYPE, true ) ] ?? '';
+				$row[]     = SchoolYear::of( (string) get_post_meta( $post->ID, A::START, true ) );
+				$situation = A::situation( $post->ID );
+				// Una cancelada no cuenta horas en las sumas de la hoja (ADR-0020).
+				$row[] = 'cancelled' === $situation ? 0 : ( $n( A::HOURS_ONSITE ) + $n( A::HOURS_ONLINE ) ) * max( 1, (int) $n( A::REPLICAS ) );
+				$row[] = A::SITUATIONS[ $situation ] ?? '';
 			}
 			fputcsv( $out, $row, ';' );
 		}
@@ -1180,7 +1246,7 @@ final class Lists {
 					'Ponentes'        => static fn( $p ) => implode( "\n", array_map( 'get_the_title', array_filter( array_map( 'intval', (array) get_post_meta( $p->ID, A::SPEAKERS, true ) ) ) ) ),
 					'Tipo y horas'    => static fn( $p ) => ( D::TYPES[ (string) get_post_meta( (int) $m( $p, A::DESIGN_ID ), D::TYPE, true ) ] ?? '' ) . "\n" . trim( ( D::MODALITIES[ $m( $p, A::MODALITY ) ] ?? '' ) . ' · ' . self::hours( $m( $p, A::HOURS_ONSITE ), $m( $p, A::HOURS_ONLINE ) ), ' ·' ),
 					'Fechas'          => static fn( $p ) => self::dates( $m( $p, A::START ), $m( $p, A::END ) ) . "\n" . wp_trim_words( $m( $p, A::SCHEDULE ), 12 ),
-					'Estado'          => static fn( $p ) => ( A::PROCESSES[ $m( $p, A::PROCESS ) ] ?? '' ) . "\n" . SchoolYear::of( $m( $p, A::START ) ),
+					'Estado'          => static fn( $p ) => ( A::DELIVERY[ $p->post_status ] ?? '' ) . "\n" . SchoolYear::of( $m( $p, A::START ) ),
 				);
 			case PostTypes::DESIGN:
 				return array(
@@ -1292,7 +1358,7 @@ final class Lists {
 		$label = ( $edit ? 'Editar' : 'Ver' ) . ' «' . self::title( $post ) . '»';
 		$out   = '<a class="btn btn-sm btn-outline-primary fmc-icon fmc-abre-panel" title="' . esc_attr( $edit ? 'Editar' : 'Ver' ) . '" aria-label="' . esc_attr( $label ) . '" href="' . esc_url( Screen::url( array( Screen::ARG_EDIT => $post->ID ) ) ) . '"><i class="bi ' . ( $edit ? 'bi-pencil' : 'bi-eye' ) . '" aria-hidden="true"></i></a>';
 		// Como en el sistema anterior, la incidencia se abre desde la fila de su acción.
-		if ( PostTypes::ACTION === $post->post_type && $edit && current_user_can( 'edit_fmc_incidents' ) ) {
+		if ( PostTypes::ACTION === $post->post_type && Editor::can_open_incident( $post->ID ) ) {
 			$out .= ' <a class="btn btn-sm btn-outline-secondary fmc-icon fmc-abre-panel" title="Abrir una incidencia" aria-label="' . esc_attr( 'Abrir una incidencia sobre «' . self::title( $post ) . '»' ) . '" href="' . esc_url(
 				Screen::url(
 					array(
@@ -1327,8 +1393,9 @@ final class Lists {
 	 */
 	public static function badge( \WP_Post $post ): string {
 		if ( PostTypes::ACTION === $post->post_type ) {
-			$s = (string) get_post_meta( $post->ID, A::SITUATION, true );
-			return ( isset( A::SITUATIONS[ $s ] ) ? ' <span class="badge rounded-pill text-bg-' . esc_attr( self::SITUATION_COLOURS[ $s ] ) . '">' . esc_html( A::SITUATIONS[ $s ] ) . '</span>' : '' ) . self::incident_badge( $post->ID );
+			$s = A::situation( $post->ID );
+			return ( 'draft' === $post->post_status ? ' <span class="badge rounded-pill text-bg-light border">Borrador</span>' : '' )
+				. ( isset( A::SITUATIONS[ $s ] ) ? ' <span class="badge rounded-pill text-bg-' . esc_attr( self::SITUATION_COLOURS[ $s ] ) . '">' . esc_html( A::SITUATIONS[ $s ] ) . '</span>' : '' ) . self::incident_badge( $post->ID );
 		}
 		if ( PostTypes::DESIGN === $post->post_type && isset( self::DESIGN_STATUSES[ $post->post_status ] ) ) {
 			list( $label, $colour ) = self::DESIGN_STATUSES[ $post->post_status ];

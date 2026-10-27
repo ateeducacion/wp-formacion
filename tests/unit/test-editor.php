@@ -48,13 +48,15 @@ class Test_Editor extends WP_UnitTestCase {
 	/**
 	 * An action owned by a user.
 	 *
-	 * @param int $author Author.
+	 * @param int    $author Author.
+	 * @param string $status Status.
 	 * @return int
 	 */
-	private function action( int $author ): int {
+	private function action( int $author, string $status = 'publish' ): int {
 		return self::factory()->post->create(
 			array(
 				'post_type'   => PostTypes::ACTION,
+				'post_status' => $status,
 				'post_author' => $author,
 				'post_title'  => 'Acción',
 			)
@@ -84,7 +86,7 @@ class Test_Editor extends WP_UnitTestCase {
 	 */
 	public function test_an_adviser_cannot_smuggle_the_file_number() {
 		$adviser = $this->as_role( 'fmc_adviser' );
-		$action  = $this->action( $adviser );
+		$action  = $this->action( $adviser, 'draft' );
 
 		$result = Editor::apply(
 			PostTypes::ACTION,
@@ -183,6 +185,7 @@ class Test_Editor extends WP_UnitTestCase {
 			PostTypes::INCIDENT,
 			0,
 			array(
+				IncidentMetaKeys::REQUEST    => 'change',
 				IncidentMetaKeys::REASON     => 'Motivo',
 				IncidentMetaKeys::PROPOSAL   => 'Cambio',
 				IncidentMetaKeys::RESOLUTION => 'approved',
@@ -535,12 +538,10 @@ class Test_Editor extends WP_UnitTestCase {
 	public function test_csv_values_are_readable() {
 		$this->as_role( 'fmc_curator' );
 		$action = $this->action( get_current_user_id() );
-		update_post_meta( $action, ActionMetaKeys::SITUATION, 'done' );
 		update_post_meta( $action, ActionMetaKeys::VIDEOCONFERENCE, true );
 		$fields = Fields::all( PostTypes::ACTION );
 		$post   = get_post( $action );
 
-		$this->assertSame( 'Realizada', Lists::plain( $post, ActionMetaKeys::SITUATION, $fields[ ActionMetaKeys::SITUATION ] ) );
 		$this->assertSame( 'Sí', Lists::plain( $post, ActionMetaKeys::VIDEOCONFERENCE, $fields[ ActionMetaKeys::VIDEOCONFERENCE ] ) );
 
 		// Sin ponentes, la columna sale vacía: nada de `get_the_title( 0 )`,

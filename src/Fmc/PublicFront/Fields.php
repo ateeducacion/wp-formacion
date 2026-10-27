@@ -129,6 +129,9 @@ final class Fields {
 			),
 			PostTypes::INCIDENT => array(
 				I::RESOLUTION_NOTES => array( 'show' => array( I::RESOLUTION => array( 'approved', 'denied' ) ) ),
+				// Las fechas nuevas, solo al pedir aplazarla.
+				I::NEW_START        => array( 'show' => array( I::REQUEST => array( 'postpone' ) ) ),
+				I::NEW_END          => array( 'show' => array( I::REQUEST => array( 'postpone' ) ) ),
 			),
 		);
 	}
@@ -499,35 +502,14 @@ final class Fields {
 			),
 			array(
 				'title'  => 'Estado',
-				'help'   => 'El proceso lo lleva quien gestiona la acción; la situación, el expediente y el personal del servicio, el servicio de formación.',
+				// La situación no se teclea, ni el proceso: la acción se guarda o se entrega (ADR-0020).
+				'help'   => 'La situación la pone el aplicativo: impartiéndose en sus fechas y realizada cuando pasan; una incidencia la aplaza o la cancela. El expediente lo pone el servicio de formación.',
 				'fields' => array(
-					A::PROCESS         => array(
-						'label'   => 'Proceso',
-						'w'       => 'select',
-						'choices' => A::PROCESSES,
-						'col'     => 6,
-					),
-					A::SITUATION       => array(
-						'label'   => 'Situación',
-						'w'       => 'select',
-						'choices' => A::SITUATIONS,
-						'col'     => 6,
-					),
 					A::FILE_NUMBER     => array(
 						'label' => 'Expediente',
 						'w'     => 'text',
-						'col'   => 4,
-						'help'  => 'Solo cuando se haya creado en el sistema de gestión.',
-					),
-					A::SERVICE_OFFICER => array(
-						'label' => 'Negociado del servicio',
-						'w'     => 'text',
-						'col'   => 4,
-					),
-					A::SERVICE_MANAGER => array(
-						'label' => 'Responsable del servicio',
-						'w'     => 'text',
-						'col'   => 4,
+						'col'   => 6,
+						'help'  => 'Cuando el servicio de formación la haya creado en su sistema de gestión.',
 					),
 					A::COMPANY_TECH    => array(
 						'label' => 'Técnico de la empresa',
@@ -649,19 +631,36 @@ final class Fields {
 		return array(
 			array(
 				'title'  => 'La incidencia',
-				'help'   => 'Una vez enviada ya no se puede cambiar: si hay que corregirla, se abre otra.',
+				'help'   => 'Una vez enviada ya no se puede cambiar: si hay que corregirla, se abre otra. Si pide aplazar o cancelar la acción, la acción queda aplazada o cancelada al enviarla.',
 				'fields' => array(
-					I::REASON   => array(
+					I::REQUEST   => array(
+						'label'   => 'Qué se pide',
+						'w'       => 'radio',
+						'choices' => I::REQUESTS,
+						'req'     => true,
+					),
+					I::NEW_START => array(
+						'label' => 'Nueva fecha de inicio',
+						'w'     => 'date',
+						'col'   => 6,
+						'help'  => 'Si ya se sabe.',
+					),
+					I::NEW_END   => array(
+						'label' => 'Nueva fecha de fin',
+						'w'     => 'date',
+						'col'   => 6,
+					),
+					I::REASON    => array(
 						'label' => 'Motivos',
 						'w'     => 'textarea',
 						'req'   => true,
 					),
-					I::PROPOSAL => array(
+					I::PROPOSAL  => array(
 						'label' => 'Cambios que se proponen',
 						'w'     => 'textarea',
 						'req'   => true,
 					),
-					I::HAS_COST => array(
+					I::HAS_COST  => array(
 						'label' => 'El cambio conlleva coste',
 						'w'     => 'checkbox',
 						'help'  => 'Con coste es, por ejemplo, duplicar el curso; sin coste, cambiar ponente, fechas o número de plazas.',

@@ -159,14 +159,14 @@ class Test_Post_Types extends WP_UnitTestCase {
 	}
 
 	/**
-	 * Una asesoría no edita la acción de otra.
+	 * Una asesoría no edita la acción de otra; la suya, mientras es un borrador.
 	 */
 	public function test_an_adviser_cannot_edit_someone_elses_action() {
 		$owner  = self::factory()->user->create( array( 'role' => 'fmc_adviser' ) );
 		$action = self::factory()->post->create(
 			array(
 				'post_type'   => PostTypes::ACTION,
-				'post_status' => 'publish',
+				'post_status' => 'draft',
 				'post_author' => $owner,
 			)
 		);
@@ -258,9 +258,12 @@ class Test_Post_Types extends WP_UnitTestCase {
 	}
 
 	/**
-	 * Su acción la publica y la sigue editando, pero publicada ya no la borra.
+	 * Su acción la entrega, y entregada ya no la edita ni la borra: los
+	 * cambios, por incidencia (ADR-0020). En un sitio ya desplegado se le quita.
 	 */
-	public function test_an_adviser_keeps_editing_but_cannot_delete_a_published_action() {
+	public function test_an_adviser_delivers_and_then_cannot_edit_the_action() {
+		get_role( 'fmc_adviser' )->add_cap( 'edit_published_fmc_actions' );
+		PostTypes::grant_caps_to_roles();
 		$adviser = $this->as_role( 'fmc_adviser' );
 		$action  = self::factory()->post->create(
 			array(
@@ -270,7 +273,8 @@ class Test_Post_Types extends WP_UnitTestCase {
 			)
 		);
 
-		$this->assertTrue( current_user_can( 'edit_post', $action ) );
+		$this->assertFalse( current_user_can( 'edit_post', $action ) );
+		$this->assertFalse( current_user_can( 'edit_published_fmc_actions' ) );
 		$this->assertTrue( current_user_can( 'publish_fmc_actions' ) );
 		$this->assertFalse( current_user_can( 'delete_post', $action ) );
 		$this->assertFalse( current_user_can( 'read_private_fmc_actions' ) );

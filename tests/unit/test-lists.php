@@ -158,23 +158,60 @@ class Test_Lists extends WP_UnitTestCase {
 	}
 
 	/**
-	 * La pantalla trae el título del tipo, sus filas y los contadores por situación.
+	 * La pantalla trae el título del tipo, sus filas y los contadores por
+	 * situación, que sale de las fechas y de las incidencias (ADR-0020).
 	 */
 	public function test_the_actions_screen_lists_rows_and_counts_them_by_situation() {
 		$this->as_role( 'fmc_curator' );
-		$this->post( PostTypes::ACTION, 'Robótica', array( A::SITUATION => 'done' ) );
-		$this->post( PostTypes::ACTION, 'Ajedrez', array( A::SITUATION => 'done' ) );
-		$this->post( PostTypes::ACTION, 'Teatro', array( A::SITUATION => 'running' ) );
+		$today = current_time( 'Y-m-d' );
+		$this->post(
+			PostTypes::ACTION,
+			'Robótica',
+			array(
+				A::START => '2020-03-01',
+				A::END   => '2020-03-05',
+			)
+		);
+		$this->post( PostTypes::ACTION, 'Ajedrez', array( A::START => '2020-03-01' ) );
+		$this->post(
+			PostTypes::ACTION,
+			'Teatro',
+			array(
+				A::START => '2020-03-01',
+				A::END   => '2099-03-01',
+			)
+		);
+		$this->post( PostTypes::ACTION, 'Hoy', array( A::START => $today ) );
+		$this->post(
+			PostTypes::ACTION,
+			'Suspendida',
+			array(
+				A::START     => '2020-03-01',
+				A::SITUATION => 'cancelled',
+			)
+		);
+		$this->post( PostTypes::ACTION, 'Más adelante', array( A::START => '2099-03-01' ) );
+		// Lo que se guardaba a mano antes no cuenta: la situación sale de las fechas.
+		$this->post(
+			PostTypes::ACTION,
+			'Migrada',
+			array(
+				A::START     => '2099-03-01',
+				A::SITUATION => 'done',
+			)
+		);
 
 		$screen   = Lists::screen( 'actions', PostTypes::ACTION );
 		$counters = $this->counters( $screen['body'] );
 
 		$this->assertSame( 'actions', $screen['tab'] );
 		$this->assertSame( 'Planificación de acciones formativas', $screen['title'] );
-		$this->assertSame( 3, $counters['En total'] );
+		$this->assertSame( 7, $counters['En total'] );
 		$this->assertSame( 2, $counters['Realizada'] );
-		$this->assertSame( 1, $counters['Impartiéndose'] );
-		$this->assertSame( 0, $counters['Cancelada'] );
+		$this->assertSame( 2, $counters['Impartiéndose'] );
+		$this->assertSame( 1, $counters['Cancelada'] );
+		$this->assertSame( 0, $counters['Aplazada'] );
+		$this->assertArrayNotHasKey( 'Gestionándose', $counters );
 		$this->assertStringContainsString( 'text-bg-success">Realizada</span>', $screen['body'] );
 		$this->assertStringContainsString( '+ Agendar acción formativa', $screen['actions'] );
 	}
@@ -185,8 +222,8 @@ class Test_Lists extends WP_UnitTestCase {
 	 */
 	public function test_the_situation_filter_narrows_the_rows_but_not_the_counters() {
 		$this->as_role( 'fmc_curator' );
-		$this->post( PostTypes::ACTION, 'Robótica', array( A::SITUATION => 'done' ) );
-		$this->post( PostTypes::ACTION, 'Teatro', array( A::SITUATION => 'running' ) );
+		$this->post( PostTypes::ACTION, 'Robótica', array( A::START => '2020-03-01' ) );
+		$this->post( PostTypes::ACTION, 'Teatro', array( A::START => current_time( 'Y-m-d' ) ) );
 		$_GET['fmc_situation'] = 'done';
 		$_GET['fmc_page']      = '1';
 		$_GET['fmc_tab']       = 'actions';
@@ -402,20 +439,19 @@ class Test_Lists extends WP_UnitTestCase {
 				A::START        => '2026-03-10',
 				A::END          => '2026-03-24',
 				A::SCHEDULE     => 'Martes y jueves por la tarde',
-				A::PROCESS      => 'paid',
 			)
 		);
 		$this->term( 'fmc_scope', 'Ámbito norte', array( $id ) );
 
 		$body = Lists::screen( 'actions', PostTypes::ACTION )['body'];
 
-		// El expediente, debajo del título.
-		$this->assertStringContainsString( '>Acción</a><div class="small text-secondary">EXP-42</div></td>', $body );
+		// El expediente, debajo del título; y su situación, que sale de las fechas (ADR-0020).
+		$this->assertStringContainsString( '>Acción</a> <span class="badge rounded-pill text-bg-success">Realizada</span><div class="small text-secondary">EXP-42</div></td>', $body );
 		$this->assertStringContainsString( '<td>Ámbito norte<div class="small text-secondary">Centro de formación Norte</div></td>', $body );
 		$this->assertStringContainsString( '<td>Ponente Uno</td>', $body );
 		$this->assertStringContainsString( '<td>Teleformación<div class="small text-secondary">En línea · 20 h</div></td>', $body );
 		$this->assertStringContainsString( '<td>10/03/2026 – 24/03/2026<div class="small text-secondary">Martes y jueves por la tarde</div></td>', $body );
-		$this->assertStringContainsString( '<td>Pagada por el centro<div class="small text-secondary">2025-2026</div></td>', $body );
+		$this->assertStringContainsString( '<td>Entregada<div class="small text-secondary">2025-2026</div></td>', $body );
 	}
 
 	/**
@@ -441,8 +477,8 @@ class Test_Lists extends WP_UnitTestCase {
 			array(
 				A::START    => '2026-03-10',
 				A::MODALITY => 'onsite',
-				A::PROCESS  => 'paid',
-			)
+			),
+			array( 'post_status' => 'draft' )
 		);
 		$june  = $this->post(
 			PostTypes::ACTION,
@@ -460,7 +496,7 @@ class Test_Lists extends WP_UnitTestCase {
 			array( array( 'fmc_scope' => $scope->slug ), array( 'Marzo' ) ),
 			array( array( 'fmc_programme' => $programme->slug ), array( 'Junio' ) ),
 			array( array( 'fmc_modality' => 'online' ), array( 'Junio' ) ),
-			array( array( 'fmc_process' => 'paid' ), array( 'Marzo' ) ),
+			array( array( 'fmc_status' => 'draft' ), array( 'Marzo' ) ),
 			array( array( 'fmc_from' => '2026-06-01' ), array( 'Octubre', 'Junio' ) ),
 			array( array( 'fmc_to' => '2026-06-10' ), array( 'Junio', 'Marzo' ) ),
 			array(
@@ -621,11 +657,23 @@ class Test_Lists extends WP_UnitTestCase {
 		$this->post( PostTypes::ACTION, 'Acción', array(), array( 'post_author' => $adviser ) );
 		$post = get_post( $this->post( PostTypes::ACTION, 'Otra', array(), array( 'post_author' => $adviser ) ) );
 
-		// La asesoría edita la suya y abre una incidencia desde la fila.
+		// Entregada, la asesoría la ve y abre una incidencia desde la fila (ADR-0020).
 		$buttons = Lists::row_buttons( $post );
-		$this->assertMatchesRegularExpression( '/title="Editar" aria-label="Editar «Otra»" href="[^"]*"><i class="bi bi-pencil" aria-hidden="true"><\/i><\/a>/', $buttons );
+		$this->assertMatchesRegularExpression( '/title="Ver" aria-label="Ver «Otra»" href="[^"]*"><i class="bi bi-eye" aria-hidden="true"><\/i><\/a>/', $buttons );
 		$this->assertStringContainsString( 'title="Abrir una incidencia" aria-label="Abrir una incidencia sobre «Otra»"', $buttons );
 		$this->assertMatchesRegularExpression( '/fmc_new=fmc_incident&(amp;|#038;)?fmc_parent=' . $post->ID . '/', $buttons );
+		$draft = get_post(
+			$this->post(
+				PostTypes::ACTION,
+				'Borrador',
+				array(),
+				array(
+					'post_author' => $adviser,
+					'post_status' => 'draft',
+				)
+			)
+		);
+		$this->assertStringContainsString( 'title="Editar" aria-label="Editar «Borrador»"', Lists::row_buttons( $draft ), 'su borrador sí lo edita' );
 
 		$this->as_role( 'fmc_training_service' );
 		$screen  = Lists::screen( 'actions', PostTypes::ACTION );
@@ -766,7 +814,6 @@ class Test_Lists extends WP_UnitTestCase {
 			PostTypes::ACTION,
 			'Hecha',
 			array(
-				A::SITUATION    => 'done',
 				A::DESIGN_ID    => $design,
 				A::START        => '2025-10-01',
 				A::HOURS_ONSITE => 4,
@@ -775,7 +822,14 @@ class Test_Lists extends WP_UnitTestCase {
 				A::SUBTITLE     => 'Edición de otoño',
 			)
 		);
-		$this->post( PostTypes::ACTION, 'Aplazada', array( A::SITUATION => 'postponed' ) );
+		$this->post(
+			PostTypes::ACTION,
+			'Aplazada',
+			array(
+				A::START     => '2025-10-01',
+				A::SITUATION => 'postponed',
+			)
+		);
 		$_GET['fmc_situation'] = 'done';
 
 		list( $raw, $rows ) = $this->csv( PostTypes::ACTION );
@@ -784,12 +838,12 @@ class Test_Lists extends WP_UnitTestCase {
 		$head = $rows[0];
 		// El título no está en la ficha de la acción —es el del diseño—, pero la hoja lo lleva.
 		$this->assertSame( array( 'ID', 'Estado de la ficha', 'Título', 'Diseño', 'Subtítulo' ), array_slice( $head, 0, 5 ) );
-		$this->assertSame( array( 'Tipo de formación', 'Curso escolar', 'Horas totales' ), array_slice( $head, -3 ) );
+		$this->assertSame( array( 'Tipo de formación', 'Curso escolar', 'Horas totales', 'Situación' ), array_slice( $head, -4 ) );
 		$this->assertNotContains( 'Matriculados', $head, 'las cifras de cierre ya no son de aquí (ADR-0010)' );
 		$this->assertCount( 2, $rows, 'Solo la acción filtrada' );
 		$row = array_combine( $head, $rows[1] );
 		$this->assertSame( (string) $done, $row['ID'] );
-		$this->assertSame( get_post_status_object( 'publish' )->label, $row['Estado de la ficha'] );
+		$this->assertSame( 'Entregada', $row['Estado de la ficha'] );
 		$this->assertSame( 'Diseño', $row['Diseño'] );
 		$this->assertSame( 'Realizada', $row['Situación'] );
 		$this->assertSame( 'Curso', $row['Tipo de formación'] );

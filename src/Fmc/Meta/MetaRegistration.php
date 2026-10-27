@@ -65,6 +65,7 @@ final class MetaRegistration {
 			),
 			PostTypes::INCIDENT => array(
 				IncidentMetaKeys::RESOLUTION => IncidentMetaKeys::RESOLUTIONS,
+				IncidentMetaKeys::REQUEST    => IncidentMetaKeys::REQUESTS,
 			),
 		);
 	}

@@ -477,13 +477,13 @@ final class Calendar {
 	 */
 	public static function card( \WP_Post $post ): string {
 		$m          = static fn( string $key ): string => (string) get_post_meta( $post->ID, $key, true );
-		$situation  = $m( A::SITUATION );
+		$situation  = A::situation( $post->ID );
 		$funded     = $m( A::FUNDED_BY );
 		$replicas   = (int) $m( A::REPLICAS );
 		$incomplete = ! $m( A::DESIGN_ID ) || ! $m( A::PLACES ) || ! $m( A::MODALITY );
 
 		$dot = isset( self::FUNDER_COLOURS[ $funded ] ) && 'none' !== $funded ? '<i class="fmc-dot" style="background:' . esc_attr( self::FUNDER_COLOURS[ $funded ] ) . '" title="' . esc_attr( 'Asume: ' . A::funders()[ $funded ] ) . '"></i>' : '';
-		$out = '<a class="fmc-ev fmc-abre-panel fmc-sit-' . esc_attr( '' !== $situation ? $situation : 'none' ) . '" href="' . esc_url( Screen::url( array( Screen::ARG_EDIT => $post->ID ) ) ) . '" title="' . esc_attr( get_the_title( $post ) ) . '">';
+		$out = '<a class="fmc-ev fmc-abre-panel fmc-sit-' . esc_attr( '' !== $situation ? $situation : 'none' ) . ( 'draft' === $post->post_status ? ' is-draft' : '' ) . '" href="' . esc_url( Screen::url( array( Screen::ARG_EDIT => $post->ID ) ) ) . '" title="' . esc_attr( get_the_title( $post ) ) . '">';
 		if ( $replicas > 1 ) {
 			$out .= '<span class="fmc-ribbon">×' . esc_html( (string) $replicas ) . '</span>';
 		}
@@ -491,7 +491,11 @@ final class Calendar {
 			$out .= '<span class="fmc-ribbon is-warn" title="Datos incompletos">!</span>';
 		}
 		$out .= '<span class="fmc-ev-title">' . esc_html( get_the_title( $post ) ) . '</span>';
-		$sub  = $m( A::SUBTITLE );
+		// Un borrador solo lo ve quien lo escribe y quien gestiona: que se note que no está entregado.
+		if ( 'draft' === $post->post_status ) {
+			$out .= '<span class="fmc-ev-meta">Borrador, sin entregar</span>';
+		}
+		$sub = $m( A::SUBTITLE );
 		if ( '' !== $sub ) {
 			$out .= '<span class="fmc-ev-meta">' . esc_html( $sub ) . '</span>';
 		}

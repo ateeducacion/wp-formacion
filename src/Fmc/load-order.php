@@ -23,6 +23,7 @@ return array(
 	'Meta/IncidentMetaKeys.php',
 	'Meta/MetaRegistration.php',
 	'Domain/SchoolYear.php',
+	'Domain/Situation.php',
 	'Domain/DigComp.php',
 	'PostType/PostTypes.php',
 	'Taxonomy/Taxonomies.php',
