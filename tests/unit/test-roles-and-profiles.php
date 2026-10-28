@@ -60,8 +60,30 @@ class Test_Roles_And_Profiles extends WP_UnitTestCase {
 
 		fmc_register_roles();
 
-		$this->assertSame( 'Validación de formación', wp_roles()->role_names['fmc_curator'] );
-		$this->assertSame( 'Validación de formación', get_option( wp_roles()->role_key )['fmc_curator']['name'], 'guardado, no solo en memoria' );
+		$this->assertSame( 'Coordinación de formación', wp_roles()->role_names['fmc_curator'] );
+		$this->assertSame( 'Coordinación de formación', get_option( wp_roles()->role_key )['fmc_curator']['name'], 'guardado, no solo en memoria' );
+	}
+
+	/**
+	 * El despliegue pone el rótulo de cada perfil, y nada más (ADR-0002).
+	 */
+	public function test_the_deployment_renames_a_role_without_touching_its_caps() {
+		$filter = static function ( $labels ) {
+			$labels['fmc_curator'] = 'Coordinación del área';
+			$labels['fmc_adviser'] = '  ';
+			return $labels;
+		};
+		add_filter( 'fmc_role_labels', $filter );
+
+		$definitions = fmc_role_definitions();
+		fmc_register_roles();
+
+		$this->assertSame( 'Coordinación del área', $definitions['fmc_curator']['label'] );
+		$this->assertSame( 'Coordinación del área', wp_roles()->role_names['fmc_curator'] );
+		$this->assertSame( 'Asesoría de formación', $definitions['fmc_adviser']['label'], 'un rótulo en blanco no pisa el del código' );
+		$this->assertSame( array( 'read', 'upload_files' ), $definitions['fmc_curator']['caps'], 'el filtro no reparte capacidades' );
+
+		remove_filter( 'fmc_role_labels', $filter );
 	}
 
 	/**
@@ -87,6 +109,6 @@ class Test_Roles_And_Profiles extends WP_UnitTestCase {
 		fmc_register_roles();
 
 		$this->assertArrayNotHasKey( 'upload_files', get_role( 'fmc_adviser' )->capabilities );
-		$this->assertTrue( get_role( 'fmc_curator' )->has_cap( 'upload_files' ), 'la validación sigue subiendo' );
+		$this->assertTrue( get_role( 'fmc_curator' )->has_cap( 'upload_files' ), 'la coordinación sigue subiendo' );
 	}
 }

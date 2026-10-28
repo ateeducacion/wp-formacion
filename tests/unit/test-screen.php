@@ -176,7 +176,7 @@ class Test_Screen extends WP_UnitTestCase {
 	}
 
 	/**
-	 * Con sesión y sin pestaña, se abre la primera que le toca: el calendario a la validación.
+	 * Con sesión y sin pestaña, se abre la primera que le toca: el calendario a la coordinación.
 	 */
 	public function test_without_a_tab_the_first_allowed_tab_opens() {
 		$this->as_role( 'fmc_curator' );
@@ -341,7 +341,7 @@ class Test_Screen extends WP_UnitTestCase {
 	}
 
 	/**
-	 * La validación puede borrar por capacidad, pero borrar es solo de la administración.
+	 * La coordinación puede borrar por capacidad, pero borrar es solo de la administración.
 	 */
 	public function test_only_administration_may_delete() {
 		$this->as_role( 'fmc_curator' );
@@ -489,8 +489,8 @@ class Test_Screen extends WP_UnitTestCase {
 		$label = static fn( string $role ) => Screen::role_label( get_userdata( self::factory()->user->create( array( 'role' => $role ) ) ) );
 
 		$this->assertSame( 'Administración', $label( 'administrator' ) );
-		$this->assertSame( 'Validación de formación', $label( 'fmc_curator' ) );
-		$this->assertSame( 'Servicio de formación', $label( 'fmc_training_service' ) );
+		$this->assertSame( 'Coordinación de formación', $label( 'fmc_curator' ) );
+		$this->assertSame( 'Servicio de Perfeccionamiento', $label( 'fmc_training_service' ) );
 		$this->assertSame( '', $label( 'subscriber' ) );
 	}
 
@@ -581,7 +581,7 @@ class Test_Screen extends WP_UnitTestCase {
 		$this->assertStringContainsString( '<strong>ana &lt;Ruiz&gt;</strong>', $html );
 		$this->assertStringNotContainsString( '<Ruiz>', $html );
 		$this->assertStringContainsString( '>A</span>', $html );
-		$this->assertStringContainsString( 'Servicio de formación', $html );
+		$this->assertStringContainsString( 'Servicio de Perfeccionamiento', $html );
 		$this->assertStringContainsString( esc_url( wp_logout_url( home_url( '/' ) ) ), $html );
 		$this->assertStringNotContainsString( '>Escritorio</a>', $html, 'el escritorio es solo de la administración' );
 

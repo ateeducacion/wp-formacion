@@ -255,7 +255,7 @@ class Test_Editor extends WP_UnitTestCase {
 	}
 
 	/**
-	 * Borrar es solo de administración, ni siquiera de la validación.
+	 * Borrar es solo de administración, ni siquiera de la coordinación.
 	 */
 	public function test_only_administration_can_delete() {
 		$action = get_post( self::factory()->post->create( array( 'post_type' => PostTypes::ACTION ) ) );
@@ -292,7 +292,7 @@ class Test_Editor extends WP_UnitTestCase {
 		}
 		// El directorio es compartido: cualquier asesoría mantiene al día la
 		// ficha de otro, no solo la suya (ADR-0022).
-		$this->assertStringNotContainsString( 'Solo lectura', Editor::screen( $speaker->ID, '' )['body'], 'la validación sí' );
+		$this->assertStringNotContainsString( 'Solo lectura', Editor::screen( $speaker->ID, '' )['body'], 'la coordinación sí' );
 		$this->as_role( 'fmc_adviser' );
 		$this->assertStringNotContainsString( 'Solo lectura', Editor::screen( $speaker->ID, '' )['body'], 'y la asesoría también' );
 

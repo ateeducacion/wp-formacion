@@ -267,7 +267,7 @@ class Test_Lists extends WP_UnitTestCase {
 
 	/**
 	 * La asesoría ve lo finalizado, y nada más: ni lo suyo de antes ni el
-	 * histórico (ADR-0017); la validación, todo lo vigente.
+	 * histórico (ADR-0017); la coordinación, todo lo vigente.
 	 */
 	public function test_an_adviser_only_sees_finalised_designs() {
 		$other = self::factory()->user->create( array( 'role' => 'fmc_adviser' ) );
@@ -650,7 +650,7 @@ class Test_Lists extends WP_UnitTestCase {
 	}
 
 	/**
-	 * El servicio de formación lee las acciones, pero no añade ni edita.
+	 * El servicio de perfeccionamiento lee las acciones, pero no añade ni edita.
 	 */
 	public function test_the_training_service_reads_actions_without_editing_them() {
 		$adviser = $this->as_role( 'fmc_adviser' );
@@ -1109,7 +1109,7 @@ class Test_Lists extends WP_UnitTestCase {
 	}
 
 	/**
-	 * La papelera de ponentes, con el motivo, solo para la validación.
+	 * La papelera de ponentes, con el motivo, solo para la coordinación.
 	 */
 	public function test_the_speaker_trash_shows_who_and_why() {
 		$curator = $this->as_role( 'fmc_curator' );
@@ -1151,7 +1151,7 @@ class Test_Lists extends WP_UnitTestCase {
 		$ana   = $this->post( PostTypes::SPEAKER, 'Ana', array( S::RECOMMENDED => array( $old ) ) );
 		$this->post( PostTypes::SPEAKER, 'Luis' );
 
-		$this->assertSame( array( $ana ), Speakers::recommended_matching( 'secretos' ), 'la validación lee el borrador' );
+		$this->assertSame( array( $ana ), Speakers::recommended_matching( 'secretos' ), 'la coordinación lee el borrador' );
 
 		$this->as_role( 'fmc_adviser' );
 		$this->assertSame( array(), Speakers::recommended_matching( 'secretos' ) );

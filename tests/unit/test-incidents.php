@@ -98,7 +98,7 @@ class Test_Incidents extends WP_UnitTestCase {
 
 	/**
 	 * La asesoría guarda en borrador o entrega; entregada no la vuelve a
-	 * borrador ni la edita, y la validación sí.
+	 * borrador ni la edita, y la coordinación sí.
 	 */
 	public function test_an_action_is_saved_as_draft_or_delivered() {
 		$adviser = $this->as_role( 'fmc_adviser' );
@@ -234,7 +234,7 @@ class Test_Incidents extends WP_UnitTestCase {
 	}
 
 	/**
-	 * El expediente lo escribe el servicio de formación, y la validación ya no;
+	 * El expediente lo escribe el servicio de perfeccionamiento, y la coordinación ya no;
 	 * en un sitio ya desplegado se le quita.
 	 */
 	public function test_only_the_service_writes_the_file_number() {

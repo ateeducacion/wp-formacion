@@ -16,7 +16,7 @@ use Fmc\Meta\ActionMetaKeys;
  * quién hace qué se decide aquí, en un mapa, y no en cada pantalla. El ciclo
  * del diseño sale de los estados nativos (ADR-0004) más uno propio,
  * «Histórico», para lo que ya no se imparte (ADR-0016). Los diseños los
- * escribe y los finaliza la validación; la asesoría los consulta, y solo los
+ * escribe y los finaliza la coordinación; la asesoría los consulta, y solo los
  * finalizados (ADR-0017).
  */
 final class PostTypes {
@@ -191,7 +191,7 @@ final class PostTypes {
 	 *
 	 * Una incidencia cuenta lo que le pasa a una acción y quién la abrió: la ve
 	 * quien la abrió, quien es la asesoría responsable de su acción y quien las
-	 * resuelve —el servicio de formación, la curaduría y la administración, que
+	 * resuelve —el servicio de perfeccionamiento, la coordinación y la administración, que
 	 * tienen `read_private_fmc_incidents` o `edit_others_fmc_incidents`—. Es
 	 * aquí y no en el listado donde se acota, que es lo único que cierra también
 	 * el enlace directo (ADR-0022).
@@ -245,7 +245,7 @@ final class PostTypes {
 				self::SPEAKER  => array_merge( $own, array( 'edit_others', 'delete_others', 'delete_published' ) ),
 				self::INCIDENT => array( 'edit', 'publish' ),
 			),
-			// El servicio de formación no edita nada por la vía general: lee y
+			// El servicio de perfeccionamiento no edita nada por la vía general: lee y
 			// tiene sus dos capacidades propias (ADR-0006).
 			'fmc_training_service' => array(
 				self::ACTION   => array( 'read_private' ),
@@ -267,7 +267,7 @@ final class PostTypes {
 			// La asesoría ya no escribe diseños (ADR-0017), ni edita la acción
 			// que ha entregado (ADR-0020).
 			'fmc_adviser' => array( 'edit_fmc_designs', 'delete_fmc_designs', 'edit_published_fmc_actions' ),
-			// El expediente, solo el servicio de formación (ADR-0020).
+			// El expediente, solo el servicio de perfeccionamiento (ADR-0020).
 			'fmc_curator' => array( self::CAP_SERVICE_FIELDS ),
 		);
 	}

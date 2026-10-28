@@ -38,9 +38,9 @@ if ( ! function_exists( 'fmc_dev_demo_accounts' ) ) {
 				'label' => 'Administración (lo ve todo)',
 			),
 			array(
-				'login' => 'validacion',
+				'login' => 'coordinacion',
 				'pass'  => 'password',
-				'label' => 'Validación (Ámbito 1): da los diseños por finalizados',
+				'label' => 'Coordinación (Ámbito 1): da los diseños por finalizados',
 			),
 			array(
 				'login' => 'asesoria',
@@ -55,7 +55,7 @@ if ( ! function_exists( 'fmc_dev_demo_accounts' ) ) {
 			array(
 				'login' => 'servicio',
 				'pass'  => 'password',
-				'label' => 'Servicio de formación: expediente e incidencias',
+				'label' => 'Servicio de Perfeccionamiento: expediente e incidencias',
 			),
 		);
 	}

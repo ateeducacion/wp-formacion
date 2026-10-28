@@ -20,13 +20,13 @@ ai_assistance:
 **Estado:** propuesta. Se escribe el 2026-09-30 a partir de una reunión de
 revisión del sistema actual y de la foto de ese sistema tomada el mismo día. Se
 valida con quien gestiona hoy la formación antes de pasar a
-`Aceptada` (PLAN-0001, fase 1). La primera revisión con la validación fue el
+`Aceptada` (PLAN-0001, fase 1). La primera revisión con la coordinación fue el
 2026-10-21: lo que cambió está en el §9. La segunda, el 2026-10-27: está en el
 §10.
 **Fuentes:**
 
 - Una reunión de revisión con quien usa el sistema, el 2026-09-30, y las dos
-  revisiones del aplicativo con la validación, el 2026-10-21 y el 2026-10-27.
+  revisiones del aplicativo con la coordinación, el 2026-10-21 y el 2026-10-27.
   El material de todas está en `.local/`.
 - Una exportación del sistema actual, tomada **solo con lecturas**. El análisis,
   con sus identificadores, está en `.local/`.
@@ -59,9 +59,9 @@ que el sistema actual hace bien. Quien lo usa lo resume así: la aplicación
 | Actor | Qué hace | Rol |
 |---|---|---|
 | Administración | Todo, y administrar el aplicativo | `administrator` |
-| Validación | Escribe los diseños, los da por finalizados y los pasa a histórico; gestiona todas las acciones | `fmc_curator` |
+| Coordinación | Escribe los diseños, los da por finalizados y los pasa a histórico; gestiona todas las acciones | `fmc_curator` |
 | Asesoría | Consulta los diseños finalizados; agenda y mantiene sus acciones, abre incidencias, da de alta ponentes (ver §10) | `fmc_adviser` |
-| Servicio de formación | Pone el número de expediente de la acción y resuelve las incidencias; nada más | `fmc_training_service` |
+| Servicio de Perfeccionamiento | Pone el número de expediente de la acción y resuelve las incidencias; nada más | `fmc_training_service` |
 | Visitante | Consulta el catálogo de diseños finalizados | — |
 
 Hay un quinto perfil en el sistema actual —una empresa que rellena la
@@ -83,7 +83,7 @@ confirmado. Queda como pregunta abierta (§8).
 - **RF-2.** Un diseño lleva un **código** único y estable que se asigna solo
   (ver §9).
 - **RF-3.** Ciclo: **borrador → pendiente de revisión → finalizado →
-  histórico**. **Solo la validación** escribe diseños, los da por finalizados
+  histórico**. **Solo la coordinación** escribe diseños, los da por finalizados
   y los pasa a histórico; la asesoría los consulta finalizados, de solo
   lectura (ADR-0004, ADR-0016, ADR-0017; ver §10).
 - **RF-4.** Estar en el catálogo público es una decisión aparte de estar
@@ -115,7 +115,7 @@ confirmado. Queda como pregunta abierta (§8).
   **Los totales se calculan**, no se teclean. Queda sin efecto: las cifras
   se llevan en el sistema de gestión del servicio (ADR-0010, ver §9).
 - **RF-11.** El **curso escolar** se deduce de la fecha de inicio.
-- **RF-12.** El **número de expediente** lo pone solo el servicio de formación.
+- **RF-12.** El **número de expediente** lo pone solo el servicio de perfeccionamiento.
 - **RF-13.** **Calendario** de acciones con un **código de colores** que diga de
   un vistazo la situación y quién la asume, con los filtros del actual
   (ámbito, tipo, modalidad, estado, situación, ponente). Menos texto que hoy.
@@ -140,7 +140,7 @@ confirmado. Queda como pregunta abierta (§8).
   proponen y si conllevan coste.
 - **RF-19.** La abre quien puede editar la acción; **la acción la fija el
   aplicativo**, no la URL (ADR-0007).
-- **RF-20.** Solo el servicio de formación la aprueba o la deniega, con
+- **RF-20.** Solo el servicio de perfeccionamiento la aprueba o la deniega, con
   observaciones; quien la abrió recibe aviso. El protocolo con el servicio está
   por cerrar (§8, pregunta 6).
 
@@ -185,18 +185,18 @@ en parte, lo dicen.
    trató.*
 2. ¿Valida siempre el área, o también la asesoría puede validar lo suyo?
    *Contestada el 2026-10-27:* los diseños los escribe y los finaliza la
-   validación, que es el área; la asesoría los consulta (ADR-0017, §10).
+   coordinación, que es el área; la asesoría los consulta (ADR-0017, §10).
 3. ¿Se unifican el catálogo TIC y los cursos recomendados de otros programas, o
    se mantienen como catálogos separados? *En parte:* el catálogo es público y
    estar en él es una casilla aparte (RF-4); que un diseño sea de un programa
    lo dice su término de programa (ADR-0003). Falta decidir si hay un catálogo
    o varios.
 4. ¿Se sigue usando el sistema de incidencias? *Sí.* Pero no hay protocolo con
-   el servicio de formación: pasa a la pregunta 6.
+   el servicio de perfeccionamiento: pasa a la pregunta 6.
 5. ¿Qué webs consumen hoy los listados como API y quién las mantiene? *En
    parte:* al menos la web del área muestra el catálogo. Falta el inventario.
 6. ¿Cuál es el protocolo de incidencias y cancelaciones entre asesoría,
-   validación y servicio de formación? Quién abre, quién cierra, y cómo una
+   coordinación y servicio de perfeccionamiento? Quién abre, quién cierra, y cómo una
    cancelación tramitada en el sistema de gestión del servicio llega también
    aquí. *Contestada el 2026-10-27:* la incidencia la abre la asesoría, aquí y
    en el sistema de gestión del servicio; aplazar o cancelar cambia la
@@ -222,9 +222,9 @@ en parte, lo dicen.
 11. ¿Cuál es la lista nueva de temáticas, y qué términos de programa repetidos
     se funden en uno?
 
-## 9. Revisión con la validación (2026-10-21)
+## 9. Revisión con la coordinación (2026-10-21)
 
-Primera sesión de la fase 1 del PLAN-0001: la validación recorrió el aplicativo
+Primera sesión de la fase 1 del PLAN-0001: la coordinación recorrió el aplicativo
 sobre el entorno local. El material de la reunión está en `.local/`. Este
 apartado dice qué cambió y por qué; las secciones anteriores solo llevan una
 referencia aquí.
@@ -275,7 +275,7 @@ referencia aquí.
   finalizados que están en el catálogo, y de cada uno solo una parte: la
   descripción, los destinatarios, los objetivos, los contenidos y el perfil de
   competencia digital ([ADR-0013](../adr/ADR-0013-el-catalogo-publico-es-una-pantalla-del-aplicativo.md)).
-  Qué campos son públicos hay que confirmarlo con la validación.
+  Qué campos son públicos hay que confirmarlo con la coordinación.
 
 ### 9.3 Lo que se confirma
 
@@ -291,8 +291,8 @@ referencia aquí.
 
 ### 9.4 Pendiente
 
-- **Protocolo de incidencias y cancelaciones** entre asesorías, validación y
-  servicio de formación: quién abre, quién cierra. Una cancelación tramitada
+- **Protocolo de incidencias y cancelaciones** entre asesorías, coordinación y
+  servicio de perfeccionamiento: quién abre, quién cierra. Una cancelación tramitada
   en el sistema de gestión del servicio tiene que constar también aquí; si no,
   una acción cancelada se cuenta como impartida (§8, pregunta 6).
 - **La sección «Estado» de la acción** —expediente, situación y campos del
@@ -314,9 +314,9 @@ referencia aquí.
 - **Ficheros maestros en el aplicativo**, no en un almacenamiento en la nube
   externo cuyos enlaces han cambiado varias veces. Pide dimensionar el espacio
   de subida del sitio (§8, pregunta 10).
-- **Siguiente sesión**, con el servicio de formación y una o dos asesorías.
+- **Siguiente sesión**, con el servicio de perfeccionamiento y una o dos asesorías.
 
-## 10. Segunda revisión con la validación (2026-10-27)
+## 10. Segunda revisión con la coordinación (2026-10-27)
 
 Segunda sesión de la fase 1 del PLAN-0001, sobre el sitio de pruebas con los
 datos migrados. El material de la reunión está en `.local/`.
@@ -326,10 +326,10 @@ datos migrados. El material de la reunión está en `.local/`.
 | Qué cambia | Por qué | Afecta a | ADR |
 |---|---|---|---|
 | Lo que ya no se imparte pasa a un estado propio, «Histórico». Sale del listado de vigentes, del catálogo público y de toda elección. Al finalizar un diseño, los que sustituye pasan a histórico. «Recomendado para» y el diseño de una acción ofrecen solo los finalizados | La migración traía lo histórico como borrador o como finalizado. «Fuera del catálogo» no es lo mismo que «histórico». Un borrador no se imparte | RF-3, RF-4, RF-6, RF-7, RF-15, RF-17 | [ADR-0016](../adr/ADR-0016-lo-que-ya-no-se-imparte-es-un-estado-del-diseno.md) |
-| Si la acción la asume el servicio de formación, su programa es el activo que cubre el diseño; si no hay ninguno, la asume el centro. Los programas llevan una casilla «Activo». Los nombres de «Asumida por» los pone cada despliegue | Respuesta de la validación en la issue #27: quien agenda no tiene que saber de qué programa sale el dinero | RF-8, RF-14 | [ADR-0018](../adr/ADR-0018-el-servicio-imputa-la-accion-al-programa-activo-de-su-diseno.md) |
-| La asesoría responsable sigue siendo una cuenta del sitio, que la administración da de alta; su tipo (TIC, STEAM u otra) va en su perfil del escritorio, por sitio, y sale al elegirla. Las acciones se filtran por asesoría y por tipo | Respuesta de la validación en la issue #25. Un directorio aparte duplicaría el alta y la baja de cuentas, que ya hace la administración | RF-8, RF-14 | [ADR-0019](../adr/ADR-0019-la-asesoria-es-una-cuenta-del-sitio-con-su-tipo.md) |
-| La situación de la acción se calcula de sus fechas, y una incidencia que pide aplazarla o cancelarla la deja así. La acción se guarda en borrador o se entrega, y entregada la asesoría ya no la edita: los cambios, por incidencia, que avisa por correo. Una cancelada no cuenta horas. El expediente lo pone solo el servicio, y el proceso, el negociado y el responsable salen | Respuestas de la validación en las issues #24 y #23 | RF-9, RF-10, RF-13, RF-14, RF-18 | [ADR-0020](../adr/ADR-0020-la-situacion-se-calcula-y-la-accion-se-entrega.md) |
-| El centro donde se imparte se elige del catálogo de centros, por su nombre o su código, y se guarda el código con el nombre al lado. El catálogo es una copia local que se pone al día sola cada día desde su fuente, que pone cada despliegue. Lo escrito a mano se conserva mientras no se elija un centro, y la migración casa lo que puede | Respuesta de la validación en la issue #25: buscar por código y conservar lo escrito a mano. Un centro, un código, para contar y filtrar por él | RF-8 | [ADR-0021](../adr/ADR-0021-el-centro-donde-se-imparte-se-elige-del-catalogo-por-su-codigo.md) |
+| Si la acción la asume el servicio de perfeccionamiento, su programa es el activo que cubre el diseño; si no hay ninguno, la asume el centro. Los programas llevan una casilla «Activo». Los nombres de «Asumida por» los pone cada despliegue | Respuesta de la coordinación en la issue #27: quien agenda no tiene que saber de qué programa sale el dinero | RF-8, RF-14 | [ADR-0018](../adr/ADR-0018-el-servicio-imputa-la-accion-al-programa-activo-de-su-diseno.md) |
+| La asesoría responsable sigue siendo una cuenta del sitio, que la administración da de alta; su tipo (TIC, STEAM u otra) va en su perfil del escritorio, por sitio, y sale al elegirla. Las acciones se filtran por asesoría y por tipo | Respuesta de la coordinación en la issue #25. Un directorio aparte duplicaría el alta y la baja de cuentas, que ya hace la administración | RF-8, RF-14 | [ADR-0019](../adr/ADR-0019-la-asesoria-es-una-cuenta-del-sitio-con-su-tipo.md) |
+| La situación de la acción se calcula de sus fechas, y una incidencia que pide aplazarla o cancelarla la deja así. La acción se guarda en borrador o se entrega, y entregada la asesoría ya no la edita: los cambios, por incidencia, que avisa por correo. Una cancelada no cuenta horas. El expediente lo pone solo el servicio, y el proceso, el negociado y el responsable salen | Respuestas de la coordinación en las issues #24 y #23 | RF-9, RF-10, RF-13, RF-14, RF-18 | [ADR-0020](../adr/ADR-0020-la-situacion-se-calcula-y-la-accion-se-entrega.md) |
+| El centro donde se imparte se elige del catálogo de centros, por su nombre o su código, y se guarda el código con el nombre al lado. El catálogo es una copia local que se pone al día sola cada día desde su fuente, que pone cada despliegue. Lo escrito a mano se conserva mientras no se elija un centro, y la migración casa lo que puede | Respuesta de la coordinación en la issue #25: buscar por código y conservar lo escrito a mano. Un centro, un código, para contar y filtrar por él | RF-8 | [ADR-0021](../adr/ADR-0021-el-centro-donde-se-imparte-se-elige-del-catalogo-por-su-codigo.md) |
 | La asesoría no escribe diseños ni sube ficheros. Los consulta, solo los finalizados, en la misma ficha de solo lectura y con sus documentos. Ni borradores ni histórico, tampoco por la dirección | Los diseños los hace el área. La asesoría los necesita para saber de qué va un curso antes de agendarlo. Se pidió una sola ficha y no dos | RF-3 | [ADR-0017](../adr/ADR-0017-la-asesoria-consulta-los-disenos-finalizados-y-no-los-escribe.md) |
 
 Y tres adendas: la ADR-0004 recoge las dos decisiones; la ADR-0012, la
@@ -372,7 +372,7 @@ por etapa.
   adenda de la ADR-0005).
 - **Asesoría responsable.** Si todavía no hay ninguna cuenta de asesoría, la
   ficha de la acción dice por qué la lista sale vacía.
-- **Temáticas (§8, pregunta 11).** La validación dio en la issue #27 una lista
+- **Temáticas (§8, pregunta 11).** La coordinación dio en la issue #27 una lista
   nueva de catorce temáticas, con lo que engloba cada una y su relación con el
   marco de referencia de la competencia digital docente. Son datos: las crea
   la migración, con esa explicación como descripción del término, y la ficha
@@ -400,4 +400,4 @@ por etapa.
 - **Correo del ponente.** Se habló de que la ficha avise cuando el correo del
   ponente no es de la organización, pero hay ponentes externos que no lo
   tienen. No se decidió.
-- **Siguiente sesión**, con el servicio de formación y dos asesorías.
+- **Siguiente sesión**, con el servicio de perfeccionamiento y dos asesorías.

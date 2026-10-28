@@ -8,6 +8,14 @@ lee de la cabecera superior y la escribe en el `@version` del bundle.
 `make release` crea el tag y la release en GitHub; el despliegue de los snippets
 en el sitio de destino se hace después.
 
+## [0.0.7] — 2026-10-28
+
+### Cambiado
+
+- **Los perfiles se llaman como los llama quien los usa**: el rol que da los diseños por finalizados pasa de «Validación de formación» a «Coordinación de formación», y «Servicio de formación», a «Servicio de Perfeccionamiento». Los sitios ya desplegados cogen el rótulo nuevo en la siguiente carga; los permisos y los identificadores de los roles no cambian
+- El rótulo de cada rol se puede poner desde el despliegue con el filtro `fmc_role_labels`, porque cómo se llama un perfil en un organigrama no se versiona (adenda de la [ADR-0002](docs/adr/ADR-0002-se-hereda-la-plataforma-del-aplicativo-de-eventos.md)). El filtro cambia el rótulo y nada más: las capacidades siguen saliendo del código
+- Los documentos, las ayudas de las fichas y los datos de ejemplo dicen «coordinación» y «servicio de perfeccionamiento». Las ADR ya publicadas no se reescriben: la traducción de nombres está en el [registro de ADR](docs/adr/registro.md)
+
 ## [0.0.6] — 2026-10-28
 
 ### Añadido

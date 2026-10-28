@@ -96,3 +96,25 @@ formación.
 
 - Las pantallas, los guiones de navegador y las capturas de eventos no se
   copian: llegan con la primera pantalla propia.
+
+## Adenda — 2026-10-28
+
+**El rótulo de un rol también es configuración.** Los tres roles del aplicativo
+se llamaban por su función tal como la nombra una organización concreta. Cómo
+se llama un perfil en el organigrama de quien despliega es exactamente lo que
+esta ADR saca del repositorio —igual que la marca, el pie o los nombres de
+quien financia—, y además cambia sin que cambie el aplicativo: una
+reorganización renombra el servicio y el código no tiene nada que ver con eso.
+
+Así que `fmc_role_definitions()` (en `snippets/roles-and-profiles.php`) trae
+rótulos genéricos —«Coordinación de formación», «Asesoría de formación»,
+«Servicio de Perfeccionamiento»— y los pasa por el filtro **`fmc_role_labels`**,
+un mapa `slug => rótulo` vacío por defecto, que el despliegue rellena fuera del
+repositorio. El filtro cambia solo el rótulo: las capacidades se reparten en el
+código (ADR-0006) y no se tocan desde fuera, y un rótulo en blanco deja el del
+código. `fmc_register_roles()` ya escribía el nombre del rol cuando difería, así
+que un sitio desplegado lo coge en la siguiente carga.
+
+Los slugs no cambian: `fmc_curator`, `fmc_adviser` y `fmc_training_service`
+siguen siendo los mismos, porque son identificadores y están escritos en las
+capacidades y en los perfiles ya creados.

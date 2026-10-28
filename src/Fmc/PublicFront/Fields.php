@@ -428,7 +428,7 @@ final class Fields {
 			),
 			array(
 				'title'  => 'Fechas',
-				'help'   => 'De la fecha de inicio sale el curso escolar y el sitio en el calendario. Los plazos de matrícula, el enlace y las listas se llevan en el sistema de gestión del servicio de formación.',
+				'help'   => 'De la fecha de inicio sale el curso escolar y el sitio en el calendario. Los plazos de matrícula, el enlace y las listas se llevan en el sistema de gestión del servicio de perfeccionamiento.',
 				// Los plazos de matrícula y las listas no se piden aquí: los lleva el sistema
 				// del servicio. Sus claves siguen registradas para lo migrado (issue #35, adenda de la ADR-0005).
 				'fields' => array(
@@ -471,13 +471,13 @@ final class Fields {
 			array(
 				'title'  => 'Estado',
 				// La situación no se teclea, ni el proceso: la acción se guarda o se entrega (ADR-0020).
-				'help'   => 'La situación la pone el aplicativo: impartiéndose en sus fechas y realizada cuando pasan; una incidencia la aplaza o la cancela. El expediente lo pone el servicio de formación.',
+				'help'   => 'La situación la pone el aplicativo: impartiéndose en sus fechas y realizada cuando pasan; una incidencia la aplaza o la cancela. El expediente lo pone el servicio de perfeccionamiento.',
 				'fields' => array(
 					A::FILE_NUMBER     => array(
 						'label' => 'Expediente',
 						'w'     => 'text',
 						'col'   => 6,
-						'help'  => 'Cuando el servicio de formación la haya creado en su sistema de gestión.',
+						'help'  => 'Cuando el servicio de perfeccionamiento la haya creado en su sistema de gestión.',
 					),
 					A::COMPANY_TECH    => array(
 						'label' => 'Técnico de la empresa',
@@ -637,7 +637,7 @@ final class Fields {
 			),
 			array(
 				'title'  => 'Resolución',
-				'help'   => 'La resuelve el servicio de formación.',
+				'help'   => 'La resuelve el servicio de perfeccionamiento.',
 				'fields' => array(
 					I::RESOLUTION       => array(
 						'label'   => 'Resolución',

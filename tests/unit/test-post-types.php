@@ -91,7 +91,7 @@ class Test_Post_Types extends WP_UnitTestCase {
 
 	/**
 	 * Un histórico está cerrado como un finalizado: quien solo edita lo suyo
-	 * no lo toca, aunque sea suyo; la validación, sí.
+	 * no lo toca, aunque sea suyo; la coordinación, sí.
 	 */
 	public function test_an_archived_design_is_locked_like_a_finalised_one() {
 		add_role(
@@ -136,11 +136,11 @@ class Test_Post_Types extends WP_UnitTestCase {
 
 		$this->assertArrayNotHasKey( 'edit_fmc_designs', get_role( 'fmc_adviser' )->capabilities );
 		$this->assertArrayNotHasKey( 'delete_fmc_designs', get_role( 'fmc_adviser' )->capabilities );
-		$this->assertTrue( get_role( 'fmc_curator' )->has_cap( 'edit_fmc_designs' ), 'a la validación no se le quita' );
+		$this->assertTrue( get_role( 'fmc_curator' )->has_cap( 'edit_fmc_designs' ), 'a la coordinación no se le quita' );
 	}
 
 	/**
-	 * Finalizado, la asesoría ya no lo toca; la validación sí.
+	 * Finalizado, la asesoría ya no lo toca; la coordinación sí.
 	 */
 	public function test_a_finalised_design_is_locked_for_its_adviser() {
 		$adviser = $this->as_role( 'fmc_adviser' );
@@ -179,7 +179,7 @@ class Test_Post_Types extends WP_UnitTestCase {
 	}
 
 	/**
-	 * El servicio de formación no edita acciones por la vía general: tiene sus dos capacidades.
+	 * El servicio de perfeccionamiento no edita acciones por la vía general: tiene sus dos capacidades.
 	 */
 	public function test_the_training_service_only_holds_its_own_caps() {
 		$this->as_role( 'fmc_training_service' );
@@ -213,7 +213,7 @@ class Test_Post_Types extends WP_UnitTestCase {
 	}
 
 	/**
-	 * La validación finaliza, edita y borra diseños ajenos.
+	 * La coordinación finaliza, edita y borra diseños ajenos.
 	 */
 	public function test_a_curator_finalises_someone_elses_design() {
 		$adviser = self::factory()->user->create( array( 'role' => 'fmc_adviser' ) );

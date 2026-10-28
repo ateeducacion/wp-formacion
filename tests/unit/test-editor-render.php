@@ -183,7 +183,7 @@ class Test_Editor_Render extends WP_UnitTestCase {
 	}
 
 	/**
-	 * La validación, en un diseño nuevo: borrador, revisión o finalizado.
+	 * La coordinación, en un diseño nuevo: borrador, revisión o finalizado.
 	 */
 	public function test_a_new_design_for_a_curator() {
 		$this->as_role( 'fmc_curator' );
@@ -209,7 +209,7 @@ class Test_Editor_Render extends WP_UnitTestCase {
 	}
 
 	/**
-	 * La validación finaliza; en uno finalizado, guarda, lo devuelve a borrador
+	 * La coordinación finaliza; en uno finalizado, guarda, lo devuelve a borrador
 	 * o lo pasa a histórico; y uno histórico lo recupera (ADR-0016).
 	 */
 	public function test_design_buttons_for_a_curator() {
@@ -253,7 +253,7 @@ class Test_Editor_Render extends WP_UnitTestCase {
 		$this->assertStringNotContainsString( 'Ver en el catálogo', $screen['actions'] );
 		update_post_meta( $done, D::IN_CATALOGUE, '1' );
 		$this->assertStringContainsString( 'fmc_curso=' . $done . '" target="_blank" rel="noopener">Ver en el catálogo</a>', $this->screen_of( $done )['actions'] );
-		$this->assertStringNotContainsString( 'fmc_delete', $screen['actions'], 'la validación no borra' );
+		$this->assertStringNotContainsString( 'fmc_delete', $screen['actions'], 'la coordinación no borra' );
 
 		$this->as_role( 'administrator' );
 		$this->assertStringContainsString( 'name="_fmc_nonce"', $this->screen_of( $done )['actions'], 'la administración, sí' );
@@ -293,7 +293,7 @@ class Test_Editor_Render extends WP_UnitTestCase {
 		$this->assertSame( 0, $this->find( $body, '//*[@name="f[' . A::SITUATION . ']"]' )->length, 'la situación no se teclea' );
 		$this->assertSame( 0, $this->find( $body, '//*[@name="f[' . A::PROCESS . ']"]' )->length, 'ni el proceso' );
 		$this->assertFalse( $this->disabled( $body, A::PLACES ) );
-		$this->assertStringContainsString( 'Lo rellena el servicio de formación.', $body );
+		$this->assertStringContainsString( 'Lo rellena el servicio de perfeccionamiento.', $body );
 		$this->assertStringContainsString( '¿No está en la lista?', $body, 'puede crear ponentes' );
 		$this->assertSame(
 			array(
@@ -316,7 +316,7 @@ class Test_Editor_Render extends WP_UnitTestCase {
 		$this->assertFalse( $this->disabled( $body, A::FILE_NUMBER ) );
 		$this->assertTrue( $this->disabled( $body, A::PLACES ) );
 		$this->assertTrue( $this->disabled( $body, A::SUBTITLE ) );
-		$this->assertStringNotContainsString( 'Lo rellena el servicio de formación.', $body );
+		$this->assertStringNotContainsString( 'Lo rellena el servicio de perfeccionamiento.', $body );
 		$this->assertStringNotContainsString( '¿No está en la lista?', $body );
 		$this->assertSame( array( 'Guardar' => '' ), $this->buttons( $body ), 'tiene algo que guardar' );
 	}
@@ -470,8 +470,8 @@ class Test_Editor_Render extends WP_UnitTestCase {
 	 */
 	public function design_choosers(): array {
 		return array(
-			'asesoría'   => array( 'fmc_adviser' ),
-			'validación' => array( 'fmc_curator' ),
+			'asesoría'     => array( 'fmc_adviser' ),
+			'coordinación' => array( 'fmc_curator' ),
 		);
 	}
 
@@ -503,7 +503,7 @@ class Test_Editor_Render extends WP_UnitTestCase {
 		$body = Editor::screen( 0, PostTypes::ACTION )['body'];
 
 		$advisers = $this->find( $body, '//select[@name="f[fmc_adviser]"]/option[@value!=""]' );
-		$this->assertSame( 1, $advisers->length, 'el servicio de formación no es asesoría' );
+		$this->assertSame( 1, $advisers->length, 'el servicio de perfeccionamiento no es asesoría' );
 		$this->assertSame( (string) $curator, $advisers->item( 0 )->getAttribute( 'value' ) );
 		$this->assertFalse( $this->find( $body, '//select[@name="f[fmc_adviser]"]' )->item( 0 )->hasAttribute( 'data-fmc-ts' ) );
 

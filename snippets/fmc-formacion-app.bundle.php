@@ -6,7 +6,7 @@
  * Priority: 15
  *
  * @package Fmc
- * @version 0.0.6
+ * @version 0.0.7
  */
 
 // phpcs:disable
@@ -317,7 +317,7 @@ final class ActionMetaKeys {
 		'none'    => 'Sin coste',
 		'centre'  => 'Centro de formación',
 		'area'    => 'Área',
-		'service' => 'Servicio de formación',
+		'service' => 'Servicio de Perfeccionamiento',
 	);
 
 
@@ -3036,7 +3036,7 @@ final class Fields {
 			),
 			array(
 				'title'  => 'Fechas',
-				'help'   => 'De la fecha de inicio sale el curso escolar y el sitio en el calendario. Los plazos de matrícula, el enlace y las listas se llevan en el sistema de gestión del servicio de formación.',
+				'help'   => 'De la fecha de inicio sale el curso escolar y el sitio en el calendario. Los plazos de matrícula, el enlace y las listas se llevan en el sistema de gestión del servicio de perfeccionamiento.',
 
 
 				'fields' => array(
@@ -3079,13 +3079,13 @@ final class Fields {
 			array(
 				'title'  => 'Estado',
 
-				'help'   => 'La situación la pone el aplicativo: impartiéndose en sus fechas y realizada cuando pasan; una incidencia la aplaza o la cancela. El expediente lo pone el servicio de formación.',
+				'help'   => 'La situación la pone el aplicativo: impartiéndose en sus fechas y realizada cuando pasan; una incidencia la aplaza o la cancela. El expediente lo pone el servicio de perfeccionamiento.',
 				'fields' => array(
 					A::FILE_NUMBER     => array(
 						'label' => 'Expediente',
 						'w'     => 'text',
 						'col'   => 6,
-						'help'  => 'Cuando el servicio de formación la haya creado en su sistema de gestión.',
+						'help'  => 'Cuando el servicio de perfeccionamiento la haya creado en su sistema de gestión.',
 					),
 					A::COMPANY_TECH    => array(
 						'label' => 'Técnico de la empresa',
@@ -3245,7 +3245,7 @@ final class Fields {
 			),
 			array(
 				'title'  => 'Resolución',
-				'help'   => 'La resuelve el servicio de formación.',
+				'help'   => 'La resuelve el servicio de perfeccionamiento.',
 				'fields' => array(
 					I::RESOLUTION       => array(
 						'label'   => 'Resolución',
@@ -3947,7 +3947,7 @@ final class Lists {
 
 	public const SUBTITLES = array(
 		PostTypes::ACTION   => 'Cada edición de un diseño: dónde, cuándo, para cuántos y cómo fue.',
-		PostTypes::DESIGN   => 'El catálogo y la mesa de trabajo: los borradores se escriben aquí hasta que la validación los da por finalizados, y lo que ya no se imparte pasa a histórico.',
+		PostTypes::DESIGN   => 'El catálogo y la mesa de trabajo: los borradores se escriben aquí hasta que la coordinación los da por finalizados, y lo que ya no se imparte pasa a histórico.',
 		PostTypes::SPEAKER  => 'Datos personales: solo para quien gestiona acciones. Busque por lo que han impartido, con sus acciones y sus horas.',
 		PostTypes::INCIDENT => 'Cambios pedidos sobre una acción. Se abren desde la propia acción.',
 	);
@@ -6434,7 +6434,7 @@ final class Editor {
 		$label    = '<label class="form-label fw-semibold" for="' . esc_attr( $id ) . '">' . esc_html( $f['label'] ) . ( ! empty( $f['req'] ) ? ' <span class="text-danger" aria-hidden="true">*</span>' : '' ) . '</label>';
 		$help     = ! empty( $f['help'] ) ? '<div class="form-text">' . esc_html( $f['help'] ) . '</div>' : '';
 		if ( ! $can && isset( MetaRegistration::guarded()[ $type ][ $key ] ) ) {
-			$help .= '<div class="form-text fst-italic">Lo rellena el servicio de formación.</div>';
+			$help .= '<div class="form-text fst-italic">Lo rellena el servicio de perfeccionamiento.</div>';
 		}
 
 
