@@ -73,7 +73,9 @@ final class Editor {
 				// La que sale en el calendario se puede abrir para verla; se edita si es tuya.
 				return 'publish' === $post->post_status && ( current_user_can( 'read_private_fmc_actions' ) || current_user_can( 'edit_fmc_actions' ) );
 			case PostTypes::INCIDENT:
-				return current_user_can( 'read_private_fmc_incidents' ) || current_user_can( PostTypes::CAP_RESOLVE );
+				// La abrió, es la asesoría de su acción, o la resuelve: lo decide
+				// la capacidad, no la pantalla (ADR-0022).
+				return current_user_can( PostTypes::CAP_RESOLVE ) || current_user_can( 'read_post', $post->ID );
 			case PostTypes::SPEAKER:
 				return 'publish' === $post->post_status && current_user_can( 'edit_fmc_speakers' );
 		}
@@ -194,6 +196,18 @@ final class Editor {
 				A::HOURS_ONSITE => get_post_meta( $from, D::HOURS_ONSITE, true ),
 				A::HOURS_ONLINE => get_post_meta( $from, D::HOURS_ONLINE, true ),
 			);
+		}
+
+		// Una acción nueva la crea casi siempre la asesoría que la gestiona: se
+		// proponen ella misma y el ámbito de su centro de referencia, y las dos
+		// se pueden cambiar antes de guardar (ADR-0022).
+		if ( ! $post && PostTypes::ACTION === $type ) {
+			$me = get_current_user_id();
+			if ( isset( Advisers::choices()[ $me ] ) ) {
+				$values += array( A::ADVISER => $me );
+				$scope   = Advisers::scope( $me );
+				$values += $scope ? array( 'tax:' . Taxonomies::SCOPE => array( $scope ) ) : array();
+			}
 		}
 
 		// El código del diseño nuevo: el que le tocará al guardar.

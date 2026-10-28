@@ -290,10 +290,11 @@ class Test_Editor extends WP_UnitTestCase {
 			$this->assertStringContainsString( 'name="fmc_reason" required', $form, $role . ': sin JavaScript, el motivo se pide en la página' );
 			$this->assertStringContainsString( 'Datos personales.', $form, 'el aviso de protección de datos' );
 		}
-		// La asesoría la abre para consultarla, pero no edita la ficha de otro.
+		// El directorio es compartido: cualquier asesoría mantiene al día la
+		// ficha de otro, no solo la suya (ADR-0022).
 		$this->assertStringNotContainsString( 'Solo lectura', Editor::screen( $speaker->ID, '' )['body'], 'la validación sí' );
 		$this->as_role( 'fmc_adviser' );
-		$this->assertStringContainsString( 'Solo lectura', Editor::screen( $speaker->ID, '' )['body'] );
+		$this->assertStringNotContainsString( 'Solo lectura', Editor::screen( $speaker->ID, '' )['body'], 'y la asesoría también' );
 
 		$this->as_role( 'fmc_training_service' );
 		$this->assertFalse( Screen::can_delete( $speaker ) );

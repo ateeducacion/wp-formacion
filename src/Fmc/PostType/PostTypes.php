@@ -7,6 +7,8 @@
 
 namespace Fmc\PostType;
 
+use Fmc\Meta\ActionMetaKeys;
+
 /**
  * Designs, actions, speakers and incidents.
  *
@@ -185,6 +187,38 @@ final class PostTypes {
 	}
 
 	/**
+	 * An incident is only its own adviser's business.
+	 *
+	 * Una incidencia cuenta lo que le pasa a una acción y quién la abrió: la ve
+	 * quien la abrió, quien es la asesoría responsable de su acción y quien las
+	 * resuelve —el servicio de formación, la curaduría y la administración, que
+	 * tienen `read_private_fmc_incidents` o `edit_others_fmc_incidents`—. Es
+	 * aquí y no en el listado donde se acota, que es lo único que cierra también
+	 * el enlace directo (ADR-0022).
+	 *
+	 * @param string[] $caps    Primitive caps required.
+	 * @param string   $cap     Meta cap asked for.
+	 * @param int      $user_id User.
+	 * @param mixed[]  $args    Post ID first.
+	 * @return string[]
+	 */
+	public static function own_incidents( $caps, $cap, $user_id, $args ) {
+		if ( ! in_array( $cap, array( 'read_post', 'edit_post', 'delete_post' ), true ) || empty( $args[0] ) ) {
+			return $caps;
+		}
+		$post = get_post( $args[0] );
+		if ( ! $post instanceof \WP_Post || self::INCIDENT !== $post->post_type ) {
+			return $caps;
+		}
+		if ( user_can( $user_id, 'read_private_fmc_incidents' ) || user_can( $user_id, 'edit_others_fmc_incidents' ) ) {
+			return $caps;
+		}
+		$mine = (int) $post->post_author === (int) $user_id
+			|| ( $post->post_parent && (int) get_post_meta( (int) $post->post_parent, ActionMetaKeys::ADVISER, true ) === (int) $user_id );
+		return $mine ? $caps : array( 'do_not_allow' );
+	}
+
+	/**
 	 * Capabilities each role holds on each type.
 	 *
 	 * Las primitivas de WordPress por tipo, sin el sufijo: `edit` es
@@ -205,9 +239,10 @@ final class PostTypes {
 				// Los diseños los consulta, finalizados, y no los escribe (ADR-0017).
 				self::DESIGN   => array(),
 				self::ACTION   => $deliver,
-				// Los ponentes son un directorio compartido: edita los suyos, pero
-				// cualquier ficha se puede dar de baja con motivo (ADR-0011).
-				self::SPEAKER  => array_merge( $own, array( 'delete_others', 'delete_published' ) ),
+				// Los ponentes son un directorio compartido: cualquier asesoría
+				// mantiene al día cualquier ficha y la puede dar de baja con
+				// motivo (ADR-0011, adenda de ADR-0022).
+				self::SPEAKER  => array_merge( $own, array( 'edit_others', 'delete_others', 'delete_published' ) ),
 				self::INCIDENT => array( 'edit', 'publish' ),
 			),
 			// El servicio de formación no edita nada por la vía general: lee y

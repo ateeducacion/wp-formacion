@@ -194,18 +194,36 @@ final class Lists {
 	}
 
 	/**
-	 * `fmc_visible` query arg: published, or authored by the current user.
+	 * What the current user may see: `fmc_visible` (published, or their own)
+	 * and `fmc_own_incidents` (opened by them, or on an action they advise).
+	 *
+	 * La incidencia se publica al abrirla, así que «publicada o mía» las
+	 * enseñaría todas: cada asesoría ve las de sus acciones y las que abrió
+	 * (ADR-0022). Es la misma condición que `PostTypes::own_incidents()`
+	 * aplica a la capacidad, aquí en SQL para no paginar lo que no se abriría.
 	 *
 	 * @param string    $where SQL.
 	 * @param \WP_Query $query Query.
 	 * @return string
 	 */
 	public static function visible_where( $where, $query ) {
-		if ( ! $query instanceof \WP_Query || ! $query->get( 'fmc_visible' ) ) {
+		if ( ! $query instanceof \WP_Query ) {
 			return $where;
 		}
 		global $wpdb;
-		return $where . $wpdb->prepare( " AND ( $wpdb->posts.post_status = 'publish' OR $wpdb->posts.post_author = %d )", get_current_user_id() );
+		$me = get_current_user_id();
+		if ( $query->get( 'fmc_own_incidents' ) ) {
+			return $where . $wpdb->prepare(
+				" AND ( $wpdb->posts.post_author = %d OR EXISTS ( SELECT 1 FROM $wpdb->postmeta fmc_a WHERE fmc_a.post_id = $wpdb->posts.post_parent AND fmc_a.meta_key = %s AND fmc_a.meta_value = %s ) )",
+				$me,
+				A::ADVISER,
+				(string) $me
+			);
+		}
+		if ( ! $query->get( 'fmc_visible' ) ) {
+			return $where;
+		}
+		return $where . $wpdb->prepare( " AND ( $wpdb->posts.post_status = 'publish' OR $wpdb->posts.post_author = %d )", $me );
 	}
 
 	/**
@@ -399,6 +417,12 @@ final class Lists {
 				if ( $with_state ) {
 					$meta( I::RESOLUTION, self::arg( 'fmc_resolution' ) );
 				}
+				// Cada asesoría ve las incidencias de sus acciones y las que ha
+				// abierto, y nada más (ADR-0022). Quien las resuelve, todas.
+				if ( ! current_user_can( 'read_private_fmc_incidents' ) && ! current_user_can( 'edit_others_fmc_incidents' ) ) {
+					unset( $args['fmc_visible'] );
+					$args['fmc_own_incidents'] = true;
+				}
 				break;
 		}
 		return self::sorted( $type, $args );
@@ -489,7 +513,9 @@ final class Lists {
 	 * @return bool
 	 */
 	private static function speaker_trash(): bool {
-		return 'trash' === self::arg( 'fmc_status' ) && current_user_can( 'edit_others_fmc_speakers' );
+		// La papelera dice quién dio de baja a quién y por qué: es de la
+		// validación, aunque cualquier asesoría mantenga las fichas (ADR-0011).
+		return 'trash' === self::arg( 'fmc_status' ) && current_user_can( 'read_private_fmc_speakers' );
 	}
 
 	/**
@@ -808,7 +834,7 @@ final class Lists {
 		}
 		$trash = self::speaker_trash();
 		$out   = '<p class="fmc-found">' . esc_html( sprintf( $trash ? '%s en la papelera' : '%s ponente(s)', number_format_i18n( $found ) ) );
-		if ( current_user_can( 'edit_others_fmc_speakers' ) ) {
+		if ( current_user_can( 'read_private_fmc_speakers' ) ) {
 			$args = array_merge( self::current_filters(), array( Screen::ARG_TAB => $tab ) );
 			// La papelera se abre con los filtros puestos, y se vuelve con ellos.
 			$args['fmc_status'] = $trash ? '' : 'trash';

@@ -49,6 +49,7 @@ final class App {
 		add_action( 'init', array( PostTypes::class, 'grant_caps_to_roles' ), 11 );
 		add_filter( 'map_meta_cap', array( PostTypes::class, 'lock_archived' ), 10, 4 );
 		add_filter( 'map_meta_cap', array( PostTypes::class, 'hide_unfinished' ), 10, 4 );
+		add_filter( 'map_meta_cap', array( PostTypes::class, 'own_incidents' ), 10, 4 );
 
 		MetaRegistration::register();
 

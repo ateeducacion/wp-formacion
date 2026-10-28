@@ -150,3 +150,17 @@ rastro.
   de exfiltración, es quitar la vía fácil.
 - El acotado por ámbito de la fase 2 (`fmc_scope`) no se aplica a los
   ponentes: el directorio es de todas las asesorías a propósito.
+
+## Adenda — 2026-10-28
+
+El directorio se comparte también para **editarlo**: cualquier asesoría corrige
+la ficha de cualquier ponente, y no solo la que ella dio de alta
+([ADR-0022](ADR-0022-la-asesoria-pertenece-a-un-centro-y-solo-ve-sus-incidencias.md)).
+La razón es la de esta misma ADR llevada hasta el final: si todas las asesorías
+leen todas las fichas y comparten el directorio, que un teléfono equivocado solo
+lo pueda arreglar quien lo escribió deja el dato mal a propósito.
+
+Lo que **no** cambia: la baja sigue siendo motivada y con rastro, y la papelera
+—que dice quién dio de baja a quién y por qué— sigue siendo de la validación.
+Pasa a pedir `read_private_fmc_speakers`, porque `edit_others_fmc_speakers`, que
+era lo que la cerraba, ya lo tiene la asesoría.
