@@ -8,6 +8,17 @@ lee de la cabecera superior y la escribe en el `@version` del bundle.
 `make release` crea el tag y la release en GitHub; el despliegue de los snippets
 en el sitio de destino se hace después.
 
+## [0.0.8] — 2026-10-28
+
+### Añadido
+
+- **Una campana en la cabecera con las incidencias pendientes** y un enlace a ellas (adenda de la [ADR-0007](docs/adr/ADR-0007-la-incidencia-cuelga-de-su-accion.md)). La ve solo quien las resuelve —el servicio de perfeccionamiento, la coordinación y la administración—, porque es su cola de trabajo y se vacía al resolverlas
+
+### Cambiado
+
+- La lista de incidencias se abre por las **pendientes**. «Todas» y el contador del total siguen trayéndolas todas
+- Una incidencia sin resolución guardada cuenta como pendiente: es lo que trae lo importado, y es justo lo que hay que ver
+
 ## [0.0.7] — 2026-10-28
 
 ### Cambiado

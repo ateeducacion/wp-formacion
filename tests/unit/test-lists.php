@@ -595,15 +595,21 @@ class Test_Lists extends WP_UnitTestCase {
 			array( 'post_date' => '2026-02-01 10:00:00' )
 		);
 
+		// Sin filtro en la URL, la lista se abre por lo que hay que resolver.
 		$screen = Lists::screen( 'incidents', PostTypes::INCIDENT );
 
-		$this->assertSame( array( 'Nueva', '(sin título)' ), $this->rows( PostTypes::INCIDENT ) );
+		$this->assertSame( array( '(sin título)' ), $this->rows( PostTypes::INCIDENT ) );
 		$this->assertStringContainsString( '<td>EXP-9<div class="small text-secondary">Sur</div></td>', $screen['body'] );
 		$this->assertStringContainsString( '<td>Cambio de fechas</td><td>Con coste</td><td>Pendiente</td>', $screen['body'] );
-		$this->assertStringContainsString( '<td>Sin coste</td><td>Aprobada</td>', $screen['body'] );
-		$this->assertSame( 1, $this->counters( $screen['body'] )['Aprobada'] );
+		$this->assertSame( 1, $this->counters( $screen['body'] )['Aprobada'], 'los contadores no se filtran' );
 		// La incidencia se abre desde su acción: aquí no hay botón de añadir.
 		$this->assertStringNotContainsString( 'Añadir', $screen['actions'] );
+
+		// El contador del total las trae todas.
+		$_GET['fmc_resolution'] = 'all';
+		$screen                 = Lists::screen( 'incidents', PostTypes::INCIDENT );
+		$this->assertSame( array( 'Nueva', '(sin título)' ), $this->rows( PostTypes::INCIDENT ) );
+		$this->assertStringContainsString( '<td>Sin coste</td><td>Aprobada</td>', $screen['body'] );
 
 		$_GET['fmc_resolution'] = 'approved';
 		$this->assertSame( array( 'Nueva' ), $this->rows( PostTypes::INCIDENT ) );
