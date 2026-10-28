@@ -225,7 +225,7 @@ class Test_Meta extends WP_UnitTestCase {
 
 	/**
 	 * El permiso registrado por campo: los campos del servicio, la administración
-	 * sí; ni la validación (ADR-0020) ni la asesoría.
+	 * sí; ni la coordinación (ADR-0020) ni la asesoría.
 	 */
 	public function test_the_registered_auth_callback_guards_service_fields() {
 		$owner  = self::factory()->user->create( array( 'role' => 'fmc_adviser' ) );

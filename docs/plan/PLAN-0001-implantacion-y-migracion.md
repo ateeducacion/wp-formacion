@@ -18,7 +18,7 @@ ai_assistance:
 # PLAN-0001 — Implantación por fases y migración
 
 **Estado:** propuesta. La **fase 0 está hecha** y la **fase 1, en marcha**:
-la primera sesión con la validación fue el 2026-10-21. Las demás son el orden
+la primera sesión con la coordinación fue el 2026-10-21. Las demás son el orden
 propuesto; a 2026-09-30 no se ha tocado nada en el sitio de destino.
 **Basado en:** [REQ-0001](../requisitos/REQ-0001-aplicativo-de-formacion.md),
 las ADR del [registro](../adr/registro.md) y el análisis del sistema actual, que
@@ -51,7 +51,7 @@ el entorno local con los datos de demostración:
 
 **Sale:** REQ-0001 en `Aceptada`, adendas donde toque.
 
-**Hecho, 2026-10-21:** primera sesión, con la validación. La reunión se cortó
+**Hecho, 2026-10-21:** primera sesión, con la coordinación. La reunión se cortó
 antes de recorrerlo todo. Lo que cambió está en el
 [§9 de REQ-0001](../requisitos/REQ-0001-aplicativo-de-formacion.md), y las
 decisiones, en cuatro ADR propuestas:
@@ -62,7 +62,7 @@ y [ADR-0012](../adr/ADR-0012-un-diseno-puede-sustituir-a-otro-y-los-ponentes-se-
 Las incidencias se siguen usando. Quién cura y el perfil de empresa siguen
 sin cerrar.
 
-**Hecho, 2026-10-27:** segunda sesión, con la validación, sobre el sitio de
+**Hecho, 2026-10-27:** segunda sesión, con la coordinación, sobre el sitio de
 pruebas con los datos migrados. Lo que cambió está en el
 [§10 de REQ-0001](../requisitos/REQ-0001-aplicativo-de-formacion.md), y las
 decisiones, en dos ADR propuestas:
@@ -72,7 +72,7 @@ decisiones, en dos ADR propuestas:
 (la asesoría consulta los diseños y no los escribe). Con esta última queda
 contestado quién valida: el área. El perfil de empresa sigue sin cerrar.
 
-**Siguiente:** una sesión con el servicio de formación y una o dos asesorías
+**Siguiente:** una sesión con el servicio de perfeccionamiento y una o dos asesorías
 de las que más tiempo llevan, para cerrar:
 
 - el protocolo de incidencias y cancelaciones —quién abre, quién cierra, y
@@ -126,7 +126,7 @@ pruebas en navegador, que vuelven aquí):
 - alta de acción a partir de un diseño (hereda y ajusta);
 - **calendario con código de colores** por situación y financiación, y con los
   filtros actuales;
-- vista mínima del servicio de formación: la acción y **solo** su expediente,
+- vista mínima del servicio de perfeccionamiento: la acción y **solo** su expediente,
   y la bandeja de incidencias, según el protocolo que salga de la fase 1;
 - asesorías como lista, y el centro donde se imparte rellenado por su código,
   sobre el catálogo de centros que se hereda de eventos (ADR-0002) —adelantado:
@@ -155,7 +155,7 @@ pruebas en navegador, que vuelven aquí):
    casan con las listas cerradas, diseños sin acción y acciones sin diseño.
    Los títulos de las acciones se importan tal cual, aunque no sean el de su
    diseño (ADR-0009); las cifras de cierre van a sus claves, que se conservan
-   (ADR-0010). Antes, la validación da la lista nueva de temáticas y decide qué
+   (ADR-0010). Antes, la coordinación da la lista nueva de temáticas y decide qué
    términos de programa repetidos —y qué valores de «quién la asume»— se funden
    (ADR-0003); y, si quiere, qué diseños históricos sustituye cada uno
    (ADR-0012).

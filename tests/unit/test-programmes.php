@@ -161,7 +161,7 @@ class Test_Programmes extends WP_UnitTestCase {
 		$result = Editor::apply( PostTypes::ACTION, 0, $this->fields( $design, A::PROGRAMME_FUNDER ), '', 0 );
 
 		$this->assertSame( 'invalid', $result['outcome'] );
-		$this->assertSame( 'El diseño no está en ningún programa activo, así que no la puede asumir «Servicio de formación»: la asume «El centro propio».', $result['errors'][ A::FUNDED_BY ] );
+		$this->assertSame( 'El diseño no está en ningún programa activo, así que no la puede asumir «Servicio de Perfeccionamiento»: la asume «El centro propio».', $result['errors'][ A::FUNDED_BY ] );
 	}
 
 	/**
@@ -196,7 +196,7 @@ class Test_Programmes extends WP_UnitTestCase {
 
 		wp_set_current_user( self::factory()->user->create( array( 'role' => 'fmc_curator' ) ) );
 		$send( true );
-		$this->assertSame( array(), Taxonomies::active_programmes(), 'la validación no administra vocabularios' );
+		$this->assertSame( array(), Taxonomies::active_programmes(), 'la coordinación no administra vocabularios' );
 
 		wp_set_current_user( self::factory()->user->create( array( 'role' => 'administrator' ) ) );
 		$_POST = array( 'fmc_active' => '1' );

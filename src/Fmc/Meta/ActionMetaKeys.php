@@ -82,7 +82,7 @@ final class ActionMetaKeys {
 		'none'    => 'Sin coste',
 		'centre'  => 'Centro de formación',
 		'area'    => 'Área',
-		'service' => 'Servicio de formación',
+		'service' => 'Servicio de Perfeccionamiento',
 	);
 
 	/**

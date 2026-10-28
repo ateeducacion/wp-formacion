@@ -150,7 +150,7 @@ class Test_Editor_Save extends WP_UnitTestCase {
 	}
 
 	/**
-	 * La validación finaliza y devuelve a borrador; un estado inventado no cambia nada.
+	 * La coordinación finaliza y devuelve a borrador; un estado inventado no cambia nada.
 	 */
 	public function test_a_curator_finalises_and_returns_to_draft() {
 		$adviser = self::factory()->user->create( array( 'role' => 'fmc_adviser' ) );
@@ -538,7 +538,7 @@ class Test_Editor_Save extends WP_UnitTestCase {
 	}
 
 	/**
-	 * El servicio de formación resuelve la incidencia, pero no reescribe lo que se pidió.
+	 * El servicio de perfeccionamiento resuelve la incidencia, pero no reescribe lo que se pidió.
 	 */
 	public function test_the_training_service_resolves_an_incident() {
 		$adviser  = self::factory()->user->create( array( 'role' => 'fmc_adviser' ) );

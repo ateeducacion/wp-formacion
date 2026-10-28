@@ -7,8 +7,8 @@
 Un aplicativo para WordPress que gestiona la **formación del profesorado**: el
 catálogo de **diseños de acciones formativas**, las **acciones formativas** que
 se imparten a partir de ellos, sus **ponentes** y las **incidencias** que se
-abren sobre una acción. La validación escribe y finaliza los diseños; la
-asesoría los consulta y agenda sus acciones; el servicio de formación pone el
+abren sobre una acción. La coordinación escribe y finaliza los diseños; la
+asesoría los consulta y agenda sus acciones; el servicio de perfeccionamiento pone el
 expediente y resuelve las incidencias. La matrícula no: esa la lleva el sistema de gestión del servicio.
 
 No es un plugin: se instala pegando un único **Code Snippet**, generado desde
@@ -33,7 +33,7 @@ La contraseña es `password` en todos. Los crea `scripts/seed-demo.php`.
 | Usuario | Rol | Qué puede hacer |
 |---------|-----|-----------------|
 | `admin` | administrator | Todo |
-| `validacion` | `fmc_curator` | Escribir, finalizar y pasar a histórico los diseños; gestionar todas las acciones |
+| `coordinacion` | `fmc_curator` | Escribir, finalizar y pasar a histórico los diseños; gestionar todas las acciones |
 | `asesoria`, `asesoria2` | `fmc_adviser` | Consultar los diseños finalizados; agendar sus acciones; abrir incidencias; dar de alta ponentes |
 | `servicio` | `fmc_training_service` | Poner el expediente de una acción y resolver incidencias |
 

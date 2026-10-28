@@ -79,9 +79,9 @@ class Test_Advisers extends WP_UnitTestCase {
 	public function test_administration_sets_the_kind_in_the_profile() {
 		$adviser = $this->account( 'fmc_adviser', 'Ana' );
 
-		wp_set_current_user( $this->account( 'fmc_curator', 'Validación' ) );
+		wp_set_current_user( $this->account( 'fmc_curator', 'Coordinación' ) );
 		$this->send( $adviser, 'steam' );
-		$this->assertSame( '', Advisers::kind( $adviser ), 'la validación no gestiona cuentas' );
+		$this->assertSame( '', Advisers::kind( $adviser ), 'la coordinación no gestiona cuentas' );
 		ob_start();
 		Advisers::profile_field( get_userdata( $adviser ) );
 		$this->assertSame( '', ob_get_clean() );
@@ -128,7 +128,7 @@ class Test_Advisers extends WP_UnitTestCase {
 
 	/**
 	 * Al elegir la asesoría responsable, cada cuenta lleva su tipo; el
-	 * servicio de formación no es asesoría.
+	 * servicio de perfeccionamiento no es asesoría.
 	 */
 	public function test_the_choices_carry_the_kind() {
 		$ana  = $this->account( 'fmc_adviser', 'Ana', 'ict' );
@@ -178,7 +178,7 @@ class Test_Advisers extends WP_UnitTestCase {
 	 * Las acciones se filtran por asesoría y por tipo de asesoría.
 	 */
 	public function test_actions_filter_by_adviser_and_kind() {
-		wp_set_current_user( $this->account( 'fmc_curator', 'Validación' ) );
+		wp_set_current_user( $this->account( 'fmc_curator', 'Coordinación' ) );
 		$ana    = $this->account( 'fmc_adviser', 'Ana', 'ict' );
 		$luis   = $this->account( 'fmc_adviser', 'Luis', 'steam' );
 		$action = static function ( string $title, int $adviser ): void {

@@ -26,17 +26,27 @@ viven en `.local/`. Las decisiones transversales que se heredan del aplicativo
 de eventos no se copian aquí: las enumera la [ADR-0002](ADR-0002-se-hereda-la-plataforma-del-aplicativo-de-eventos.md).
 
 De la ADR-0009 a la ADR-0014 salen de la primera revisión del aplicativo con
-la validación, el 2026-10-21; su material también está en `.local/`.
+la coordinación, el 2026-10-21; su material también está en `.local/`.
 
 La ADR-0016 y la ADR-0017 salen de la segunda revisión, el 2026-10-27, que
 también deja adendas en la ADR-0004, la ADR-0012 y la ADR-0015. La ADR-0018
-sale de la respuesta de la validación en la issue #27, la ADR-0019 y la
+sale de la respuesta de la coordinación en la issue #27, la ADR-0019 y la
 ADR-0021, de la de la issue #25, y la ADR-0020, de las de la #24 y la #23, el
 mismo día.
 
-El perfil que estas ADR llaman «curaduría» se llama hoy **validación**: da los
-diseños por finalizados (rol `fmc_curator`, «Validación de formación»). Las ADR
-con commit no se reescriben por un cambio de nombre; esta nota lo traduce.
+Dos perfiles han cambiado de nombre, y las ADR con commit no se reescriben por
+eso; esta nota lo traduce:
+
+- lo que estas ADR llaman «curaduría» o «validación» es hoy la
+  **coordinación**, que da los diseños por finalizados (rol `fmc_curator`);
+- lo que llaman «servicio de formación» es hoy el **servicio de
+  perfeccionamiento** (rol `fmc_training_service`).
+
+Los rótulos que se versionan son genéricos —«Coordinación de formación»,
+«Servicio de Perfeccionamiento»—, y cómo se llama cada perfil en el organigrama
+de quien despliega lo pone el filtro `fmc_role_labels`
+([ADR-0002](ADR-0002-se-hereda-la-plataforma-del-aplicativo-de-eventos.md),
+adenda del 2026-10-28).
 
 | ID | Título | Estado |
 |----|--------|--------|

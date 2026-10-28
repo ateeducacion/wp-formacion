@@ -54,17 +54,17 @@ sus números de formulario, de campo y de vista— está en `.local/`.
 | Un formulario de diseño de curso cuyas entradas son el catálogo | CPT `fmc_design`, público; la descripción en `post_content` |
 | El histórico marcado en el tipo («Histórico-curso») | Un estado del diseño, «Histórico» (`fmc_archived`): sale de toda elección y de lo que ve la asesoría (ADR-0016) |
 | Una casilla «Opciones» que mezcla *está en el catálogo*, *diseño finalizado* y *pertenece a tal programa* | El estado es el `post_status` (ADR-0004); el catálogo, una meta; el programa, un término de `fmc_programme` (ADR-0003) |
-| «Diseño finalizado» lo marca quien sea que vea la casilla | Solo la validación escribe y publica diseños: la asesoría los consulta finalizados, de solo lectura (ADR-0017) |
+| «Diseño finalizado» lo marca quien sea que vea la casilla | Solo la coordinación escribe y publica diseños: la asesoría los consulta finalizados, de solo lectura (ADR-0017) |
 | Un formulario de acción formativa enorme, con campos «obsoletos» dentro | CPT `fmc_action` que apunta a su diseño (`fmc_design_id`) y guarda solo lo suyo; los totales se suman, no se teclean |
 | Tres listas de «asumida por» que repiten los mismos programas | Quién paga es `fmc_funded_by` (lista cerrada, con los nombres del despliegue por `fmc_funders`); de qué programa, un término, que si paga el servicio es el activo del diseño (ADR-0018) |
-| Campos que solo rellena el servicio de formación, escondidos a los demás por la vista | Permiso por campo en el servidor: `auth_callback` de la meta (ADR-0006) |
+| Campos que solo rellena el servicio de perfeccionamiento, escondidos a los demás por la vista | Permiso por campo en el servidor: `auth_callback` de la meta (ADR-0006) |
 | Una incidencia que recibe el identificador de la acción por la URL | `fmc_incident` cuelga de su acción por `post_parent`, y lo fija el aplicativo (ADR-0007) |
 | Los ponentes, con NIF y teléfono, en un formulario que alimenta listados | CPT `fmc_speaker`, no público y fuera de REST |
 | El curso escolar, un shortcode que se evalúa al guardar | Se deduce de la fecha de inicio: `Domain/SchoolYear` |
 | El centro donde se imparte, de una lista de centros copiada a mano o escrito a mano | El código del catálogo de centros, que se pone al día solo (ADR-0021) |
 
 **La matrícula no es de este aplicativo** (ADR-0005): la lleva el sistema de
-gestión del servicio de formación, y también sus plazos, su enlace y sus
+gestión del servicio de perfeccionamiento, y también sus plazos, su enlace y sus
 listas. Aquí se registra la acción: sus fechas de inicio y fin y los días y
 horas de sus sesiones.
 

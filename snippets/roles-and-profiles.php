@@ -1,7 +1,7 @@
 <?php
 /**
  * Snippet Name: FMC — Roles
- * Description: Registra los tres roles del aplicativo de formación —validación, asesoría y servicio de formación— y la capacidad de administrarlo. Las capacidades de los tipos de contenido las reparte el aplicativo.
+ * Description: Registra los tres roles del aplicativo de formación —coordinación, asesoría y servicio de perfeccionamiento— y la capacidad de administrarlo. Las capacidades de los tipos de contenido las reparte el aplicativo.
  * Scope: global
  * Priority: 5
  *
@@ -17,16 +17,21 @@ if ( ! function_exists( 'fmc_role_definitions' ) ) {
 	 * Role labels and the capabilities this snippet owns.
 	 *
 	 * Solo las capacidades generales. Las de los tipos de contenido
-	 * (`edit_fmc_designs`, …) y las dos propias del servicio de formación las
-	 * reparte `Fmc\PostType\PostTypes::grant_caps_to_roles()` en `init` 11,
-	 * para no tener el mismo mapa escrito en dos sitios (ADR-0006).
+	 * (`edit_fmc_designs`, …) y las dos propias del servicio las reparte
+	 * `Fmc\PostType\PostTypes::grant_caps_to_roles()` en `init` 11, para no
+	 * tener el mismo mapa escrito en dos sitios (ADR-0006).
+	 *
+	 * Los rótulos son genéricos a propósito: cómo se llama cada perfil en el
+	 * organigrama de quien despliega es configuración y no se versiona
+	 * (ADR-0002, adenda). El filtro `fmc_role_labels` los cambia, uno a uno y
+	 * por su slug; las capacidades no salen de aquí.
 	 *
 	 * @return array<string, array{label:string, caps:string[]}>
 	 */
 	function fmc_role_definitions(): array {
-		return array(
+		$roles = array(
 			'fmc_curator'          => array(
-				'label' => 'Validación de formación',
+				'label' => 'Coordinación de formación',
 				'caps'  => array( 'read', 'upload_files' ),
 			),
 			// Sin `upload_files`: ya no sube documentos de diseño (ADR-0017), y con
@@ -36,10 +41,24 @@ if ( ! function_exists( 'fmc_role_definitions' ) ) {
 				'caps'  => array( 'read' ),
 			),
 			'fmc_training_service' => array(
-				'label' => 'Servicio de formación',
+				'label' => 'Servicio de Perfeccionamiento',
 				'caps'  => array( 'read' ),
 			),
 		);
+
+		/**
+		 * Filters the label of each product role.
+		 *
+		 * @param array<string, string> $labels Role slug => label. Vacío por defecto.
+		 */
+		$labels = (array) apply_filters( 'fmc_role_labels', array() );
+		foreach ( $roles as $slug => $def ) {
+			$label = isset( $labels[ $slug ] ) ? trim( (string) $labels[ $slug ] ) : '';
+			if ( '' !== $label ) {
+				$roles[ $slug ]['label'] = $label;
+			}
+		}
+		return $roles;
 	}
 }
 

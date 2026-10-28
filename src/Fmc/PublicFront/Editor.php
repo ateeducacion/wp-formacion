@@ -24,7 +24,7 @@ use Fmc\User\Advisers;
  *
  * Todo lo que no se puede escribir sale deshabilitado, y **además** el
  * guardado lo vuelve a comprobar campo a campo: deshabilitar en la pantalla no
- * protege nada (ADR-0006). Quien solo tiene un campo —el servicio de formación
+ * protege nada (ADR-0006). Quien solo tiene un campo —el servicio de perfeccionamiento
  * con el expediente— ve la acción entera y puede guardar solo ese.
  */
 final class Editor {
@@ -382,7 +382,7 @@ final class Editor {
 
 	/**
 	 * Save buttons: the design ones move it through its cycle (ADR-0004,
-	 * ADR-0016). Solo la validación finaliza, pasa a histórico y lo recupera.
+	 * ADR-0016). Solo la coordinación finaliza, pasa a histórico y lo recupera.
 	 *
 	 * @param string        $type Post type.
 	 * @param \WP_Post|null $post Post.
@@ -440,7 +440,7 @@ final class Editor {
 		$label    = '<label class="form-label fw-semibold" for="' . esc_attr( $id ) . '">' . esc_html( $f['label'] ) . ( ! empty( $f['req'] ) ? ' <span class="text-danger" aria-hidden="true">*</span>' : '' ) . '</label>';
 		$help     = ! empty( $f['help'] ) ? '<div class="form-text">' . esc_html( $f['help'] ) . '</div>' : '';
 		if ( ! $can && isset( MetaRegistration::guarded()[ $type ][ $key ] ) ) {
-			$help .= '<div class="form-text fst-italic">Lo rellena el servicio de formación.</div>';
+			$help .= '<div class="form-text fst-italic">Lo rellena el servicio de perfeccionamiento.</div>';
 		}
 		// «Añadir ponente nuevo no incluido en la lista», como en el formulario
 		// anterior: se abre en otra pestaña y luego se elige aquí.
@@ -897,7 +897,7 @@ final class Editor {
 		$m        = static fn( string $k ): float => (float) get_post_meta( $post->ID, $k, true );
 		$hours    = $m( A::HOURS_ONSITE ) + $m( A::HOURS_ONLINE );
 		$replicas = max( 1, (int) $m( A::REPLICAS ) );
-		// Las cifras de matrícula y certificación las lleva el servicio de formación (ADR-0010).
+		// Las cifras de matrícula y certificación las lleva el servicio de perfeccionamiento (ADR-0010).
 		$items = array(
 			'Curso escolar' => \Fmc\Domain\SchoolYear::of( (string) get_post_meta( $post->ID, A::START, true ) ),
 			// Una cancelada no se imparte: sus horas no cuentan (ADR-0020).
@@ -1424,7 +1424,7 @@ final class Editor {
 	public static function next_status( string $type, ?\WP_Post $post, string $requested ): string {
 		$current = $post ? $post->post_status : '';
 		if ( PostTypes::DESIGN === $type ) {
-			// Finalizar, pasar a histórico y sacar de él, solo la validación.
+			// Finalizar, pasar a histórico y sacar de él, solo la coordinación.
 			$moves = in_array( $requested, array( 'publish', PostTypes::ARCHIVED ), true ) || ( PostTypes::ARCHIVED === $current && '' !== $requested );
 			if ( $moves && ! current_user_can( 'publish_fmc_designs' ) ) {
 				return '' !== $current ? $current : 'draft';
