@@ -10,6 +10,8 @@ use Fmc\Meta\IncidentMetaKeys as I;
 use Fmc\Meta\MetaRegistration;
 use Fmc\PostType\PostTypes;
 use Fmc\PublicFront\Editor;
+use Fmc\PublicFront\Lists;
+use Fmc\PublicFront\Screen;
 use Fmc\PublicFront\Speakers;
 
 /**
@@ -33,6 +35,7 @@ class Test_Incidents extends WP_UnitTestCase {
 	 * Undo the filters.
 	 */
 	public function tear_down() {
+		$_GET = array();
 		remove_all_filters( 'fmc_incident_recipients' );
 		remove_all_filters( 'wp_mail_from' );
 		parent::tear_down();
@@ -247,5 +250,82 @@ class Test_Incidents extends WP_UnitTestCase {
 
 		$this->as_role( 'fmc_training_service' );
 		$this->assertTrue( Editor::can_write( PostTypes::ACTION, A::FILE_NUMBER, $this->action( 1 ) ) );
+	}
+
+	/**
+	 * The document of a list screen, where the chrome is.
+	 *
+	 * @return string
+	 */
+	private static function chrome(): string {
+		return Screen::document(
+			array(
+				'tab'   => 'incidents',
+				'title' => 'Incidencias',
+				'body'  => '',
+			)
+		);
+	}
+
+	/**
+	 * La lista de incidencias se abre por las pendientes, y «Todas» las trae.
+	 */
+	public function test_the_incident_list_opens_on_what_is_pending() {
+		$this->as_role( 'fmc_curator' );
+		$action   = $this->action( get_current_user_id() );
+		$pending  = $this->incident( $action, 'change' )['id'];
+		$resolved = $this->incident( $action, 'change' )['id'];
+		update_post_meta( $resolved, I::RESOLUTION, 'approved' );
+
+		$ids = wp_list_pluck( ( new WP_Query( Lists::query_args( PostTypes::INCIDENT ) ) )->posts, 'ID' );
+		$this->assertContains( $pending, $ids, 'sin filtro en la URL, las pendientes' );
+		$this->assertNotContains( $resolved, $ids );
+
+		// El desplegable en «Todas» manda la clave vacía; el contador del total, `all`.
+		foreach ( array( '', 'all' ) as $value ) {
+			$_GET['fmc_resolution'] = $value;
+			$ids                    = wp_list_pluck( ( new WP_Query( Lists::query_args( PostTypes::INCIDENT ) ) )->posts, 'ID' );
+			$this->assertContains( $pending, $ids );
+			$this->assertContains( $resolved, $ids, 'sin filtrar salen las dos' );
+		}
+
+		$_GET['fmc_resolution'] = 'approved';
+		$ids                    = wp_list_pluck( ( new WP_Query( Lists::query_args( PostTypes::INCIDENT ) ) )->posts, 'ID' );
+		$this->assertSame( array( $resolved ), $ids );
+	}
+
+	/**
+	 * Una incidencia sin la meta de resolución está pendiente: es lo que trae
+	 * el importador, y es justo la que hay que ver.
+	 */
+	public function test_an_incident_without_the_meta_counts_as_pending() {
+		$this->as_role( 'fmc_curator' );
+		$id = $this->incident( $this->action( get_current_user_id() ), 'change' )['id'];
+		delete_post_meta( $id, I::RESOLUTION );
+
+		$this->assertContains( $id, wp_list_pluck( ( new WP_Query( Lists::query_args( PostTypes::INCIDENT ) ) )->posts, 'ID' ) );
+		$counters = array_column( Lists::counters( PostTypes::INCIDENT ), 'n', 'label' );
+		$this->assertSame( 1, $counters['Pendiente'] );
+	}
+
+	/**
+	 * La campana es la cola de quien resuelve, y nadie más la ve.
+	 */
+	public function test_the_bell_counts_what_is_waiting_for_whoever_resolves() {
+		$this->as_role( 'fmc_adviser' );
+		$action = $this->action( get_current_user_id() );
+		$first  = $this->incident( $action, 'change' )['id'];
+		$this->incident( $action, 'change' );
+
+		$this->assertStringNotContainsString( '<a class="fmc-bell"', self::chrome(), 'la asesoría no la ve' );
+
+		$this->as_role( 'fmc_training_service' );
+		$html = self::chrome();
+		$this->assertStringContainsString( '<a class="fmc-bell"', $html );
+		$this->assertStringContainsString( '>2</span>', $html );
+		$this->assertStringContainsString( 'fmc_resolution=pending', $html );
+
+		update_post_meta( $first, I::RESOLUTION, 'approved' );
+		$this->assertStringContainsString( '>1</span>', self::chrome(), 'baja al resolverlas' );
 	}
 }

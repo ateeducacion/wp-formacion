@@ -276,7 +276,20 @@ final class Lists {
 	 */
 	public static function arg( string $key ): string {
 		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- filtros de lectura.
-		return isset( $_GET[ $key ] ) ? sanitize_text_field( wp_unslash( $_GET[ $key ] ) ) : '';
+		$set = isset( $_GET[ $key ] );
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- filtros de lectura.
+		$value = $set ? sanitize_text_field( wp_unslash( $_GET[ $key ] ) ) : '';
+		if ( 'fmc_resolution' !== $key ) {
+			return $value;
+		}
+		// La lista de incidencias se abre por las pendientes, que son las que
+		// hay que resolver; cualquier otra cosa —el desplegable en «Todas», el
+		// contador del total— es «sin filtrar», y como las URL no llevan
+		// parámetros vacíos, eso se dice con `all`.
+		if ( ! $set ) {
+			return 'pending';
+		}
+		return isset( I::RESOLUTIONS[ $value ] ) ? $value : 'all';
 	}
 
 	/**
@@ -414,8 +427,8 @@ final class Lists {
 				$args = self::speaker_args( $args, $with_state );
 				break;
 			case PostTypes::INCIDENT:
-				if ( $with_state ) {
-					$meta( I::RESOLUTION, self::arg( 'fmc_resolution' ) );
+				if ( $with_state && isset( I::RESOLUTIONS[ self::arg( 'fmc_resolution' ) ] ) ) {
+					$args['meta_query'][] = I::resolution_clause( self::arg( 'fmc_resolution' ) );
 				}
 				// Cada asesoría ve las incidencias de sus acciones y las que ha
 				// abierto, y nada más (ADR-0022). Quien las resuelve, todas.
@@ -702,8 +715,9 @@ final class Lists {
 				// Sin el histórico, que va en su contador.
 				'label' => PostTypes::DESIGN === $type && self::writes_designs() ? 'Vigentes' : 'En total',
 				'n'     => self::total( $base ),
-				'arg'   => '',
-				'value' => '',
+				// En incidencias, el total es un filtro más: saca el «Pendiente» de serie.
+				'arg'   => PostTypes::INCIDENT === $type ? 'fmc_resolution' : '',
+				'value' => PostTypes::INCIDENT === $type ? 'all' : '',
 			),
 		);
 		$by   = array();
@@ -739,12 +753,7 @@ final class Lists {
 						array(
 							'meta_query' => array_merge( // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_query -- contadores del listado.
 								$base['meta_query'],
-								array(
-									array(
-										'key'   => I::RESOLUTION,
-										'value' => $key,
-									),
-								)
+								array( I::resolution_clause( $key ) )
 							),
 						),
 					); // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_query
@@ -872,6 +881,11 @@ final class Lists {
 	private static function current_filters(): array {
 		$out = array();
 		foreach ( array( 'fmc_s', 'fmc_scope', 'fmc_programme', 'fmc_topic', 'fmc_modality', 'fmc_process', 'fmc_situation', 'fmc_year', 'fmc_type', 'fmc_status', 'fmc_zone', 'fmc_available', 'fmc_resolution', 'fmc_month', 'fmc_speaker', 'fmc_from', 'fmc_to', 'fmc_catalogue', 'fmc_recommended', 'fmc_file', 'fmc_incident', 'fmc_given', 'fmc_sort', 'fmc_dir', 'fmc_view', 'fmc_adviser', 'fmc_adviser_kind' ) as $key ) {
+			// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- filtros de lectura.
+			if ( 'fmc_resolution' === $key && ! isset( $_GET[ $key ] ) ) {
+				// El «Pendiente» de serie no se arrastra a los enlaces de las demás pestañas.
+				continue;
+			}
 			if ( '' !== self::arg( $key ) ) {
 				$out[ $key ] = self::arg( $key );
 			}

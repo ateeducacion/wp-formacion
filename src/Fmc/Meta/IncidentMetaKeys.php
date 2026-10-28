@@ -53,6 +53,36 @@ final class IncidentMetaKeys {
 	);
 
 	/**
+	 * The meta query of a resolution.
+	 *
+	 * Pendiente es también la incidencia que no tiene la meta: el aplicativo la
+	 * escribe al abrirla, pero lo que entró por el importador no la trae, y una
+	 * incidencia sin resolver es justo la que hay que ver.
+	 *
+	 * @param string $resolution One of RESOLUTIONS.
+	 * @return array<int|string, mixed>
+	 */
+	public static function resolution_clause( string $resolution ): array {
+		if ( 'pending' !== $resolution ) {
+			return array(
+				'key'   => self::RESOLUTION,
+				'value' => $resolution,
+			);
+		}
+		return array(
+			'relation' => 'OR',
+			array(
+				'key'   => self::RESOLUTION,
+				'value' => 'pending',
+			),
+			array(
+				'key'     => self::RESOLUTION,
+				'compare' => 'NOT EXISTS',
+			),
+		);
+	}
+
+	/**
 	 * Every key with its value type.
 	 *
 	 * @return array<string, string>

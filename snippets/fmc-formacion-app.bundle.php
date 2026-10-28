@@ -6,7 +6,7 @@
  * Priority: 15
  *
  * @package Fmc
- * @version 0.0.7
+ * @version 0.0.8
  */
 
 // phpcs:disable
@@ -596,6 +596,36 @@ final class IncidentMetaKeys {
 		'approved' => 'Aprobada',
 		'denied'   => 'Denegada',
 	);
+
+
+
+
+
+
+
+
+
+
+
+	public static function resolution_clause( string $resolution ): array {
+		if ( 'pending' !== $resolution ) {
+			return array(
+				'key'   => self::RESOLUTION,
+				'value' => $resolution,
+			);
+		}
+		return array(
+			'relation' => 'OR',
+			array(
+				'key'   => self::RESOLUTION,
+				'value' => 'pending',
+			),
+			array(
+				'key'     => self::RESOLUTION,
+				'compare' => 'NOT EXISTS',
+			),
+		);
+	}
 
 
 
@@ -4190,7 +4220,20 @@ final class Lists {
 
 	public static function arg( string $key ): string {
 
-		return isset( $_GET[ $key ] ) ? sanitize_text_field( wp_unslash( $_GET[ $key ] ) ) : '';
+		$set = isset( $_GET[ $key ] );
+
+		$value = $set ? sanitize_text_field( wp_unslash( $_GET[ $key ] ) ) : '';
+		if ( 'fmc_resolution' !== $key ) {
+			return $value;
+		}
+
+
+
+
+		if ( ! $set ) {
+			return 'pending';
+		}
+		return isset( I::RESOLUTIONS[ $value ] ) ? $value : 'all';
 	}
 
 
@@ -4328,8 +4371,8 @@ final class Lists {
 				$args = self::speaker_args( $args, $with_state );
 				break;
 			case PostTypes::INCIDENT:
-				if ( $with_state ) {
-					$meta( I::RESOLUTION, self::arg( 'fmc_resolution' ) );
+				if ( $with_state && isset( I::RESOLUTIONS[ self::arg( 'fmc_resolution' ) ] ) ) {
+					$args['meta_query'][] = I::resolution_clause( self::arg( 'fmc_resolution' ) );
 				}
 
 
@@ -4616,8 +4659,9 @@ final class Lists {
 
 				'label' => PostTypes::DESIGN === $type && self::writes_designs() ? 'Vigentes' : 'En total',
 				'n'     => self::total( $base ),
-				'arg'   => '',
-				'value' => '',
+
+				'arg'   => PostTypes::INCIDENT === $type ? 'fmc_resolution' : '',
+				'value' => PostTypes::INCIDENT === $type ? 'all' : '',
 			),
 		);
 		$by   = array();
@@ -4653,12 +4697,7 @@ final class Lists {
 						array(
 							'meta_query' => array_merge( 
 								$base['meta_query'],
-								array(
-									array(
-										'key'   => I::RESOLUTION,
-										'value' => $key,
-									),
-								)
+								array( I::resolution_clause( $key ) )
 							),
 						),
 					); 
@@ -4786,6 +4825,11 @@ final class Lists {
 	private static function current_filters(): array {
 		$out = array();
 		foreach ( array( 'fmc_s', 'fmc_scope', 'fmc_programme', 'fmc_topic', 'fmc_modality', 'fmc_process', 'fmc_situation', 'fmc_year', 'fmc_type', 'fmc_status', 'fmc_zone', 'fmc_available', 'fmc_resolution', 'fmc_month', 'fmc_speaker', 'fmc_from', 'fmc_to', 'fmc_catalogue', 'fmc_recommended', 'fmc_file', 'fmc_incident', 'fmc_given', 'fmc_sort', 'fmc_dir', 'fmc_view', 'fmc_adviser', 'fmc_adviser_kind' ) as $key ) {
+
+			if ( 'fmc_resolution' === $key && ! isset( $_GET[ $key ] ) ) {
+
+				continue;
+			}
 			if ( '' !== self::arg( $key ) ) {
 				$out[ $key ] = self::arg( $key );
 			}
@@ -7507,6 +7551,7 @@ final class Editor {
 
 namespace Fmc\PublicFront;
 
+use Fmc\Meta\IncidentMetaKeys;
 use Fmc\Meta\SpeakerMetaKeys;
 use Fmc\PostType\PostTypes;
 
@@ -7937,6 +7982,7 @@ final class Screen {
 		$name = (string) $user->display_name;
 		$out  = '<header class="fmc-top"><div class="container fmc-top-in">' . $brand;
 		$out .= '<a class="fmc-brand" href="' . esc_url( home_url( '/' ) ) . '">' . esc_html( self::APP_NAME ) . '</a>';
+		$out .= self::bell();
 		$out .= '<details class="fmc-yo"><summary><span class="fmc-avatar" aria-hidden="true">' . esc_html( strtoupper( mb_substr( $name, 0, 1 ) ) ) . '</span>';
 		$out .= '<span class="fmc-yo-txt"><strong>' . esc_html( $name ) . '</strong><small>' . esc_html( self::role_label( $user ) ) . '</small></span></summary><div class="fmc-yo-menu">';
 		if ( current_user_can( 'manage_options' ) ) {
@@ -7956,6 +8002,58 @@ final class Screen {
 		}
 		$out .= '</ul></div></nav>';
 		return $out;
+	}
+
+
+
+
+
+
+
+
+
+
+
+	private static function bell(): string {
+		if ( ! current_user_can( PostTypes::CAP_RESOLVE ) ) {
+			return '';
+		}
+		$n    = self::pending_incidents();
+		$text = 0 === $n ? 'No hay incidencias pendientes' : $n . ( 1 === $n ? ' incidencia pendiente' : ' incidencias pendientes' );
+		$out  = '<a class="fmc-bell" href="' . esc_url(
+			self::url(
+				array(
+					self::ARG_TAB    => 'incidents',
+					'fmc_resolution' => 'pending',
+				)
+			)
+		) . '" title="' . esc_attr( $text ) . '" aria-label="' . esc_attr( $text ) . '">';
+		$out .= '<i class="bi bi-bell" aria-hidden="true"></i>';
+		if ( $n > 0 ) {
+			$out .= '<span class="fmc-bell-n" aria-hidden="true">' . esc_html( number_format_i18n( $n ) ) . '</span>';
+		}
+		return $out . '</a>';
+	}
+
+
+
+
+
+
+	private static function pending_incidents(): int {
+		$q = new \WP_Query(
+			array(
+				'post_type'              => PostTypes::INCIDENT,
+				'post_status'            => 'publish',
+				'posts_per_page'         => 1,
+				'fields'                 => 'ids',
+				'ignore_sticky_posts'    => true,
+				'update_post_term_cache' => false,
+				'update_post_meta_cache' => false,
+				'meta_query'             => array( IncidentMetaKeys::resolution_clause( 'pending' ) ), 
+			)
+		);
+		return (int) $q->found_posts;
 	}
 
 
@@ -8551,6 +8649,10 @@ final class App {
 .fmc-top { background: #fff; border-bottom: 1px solid var(--fmc-line); }
 .fmc-top-in { display: flex; align-items: center; gap: 14px; min-height: 72px; flex-wrap: wrap; padding-top: 10px; padding-bottom: 10px; }
 .fmc-brand { color: var(--fmc-brand); font-weight: 700; font-size: 18px; letter-spacing: -.02em; text-decoration: none; }
+.fmc-bell { margin-left: auto; position: relative; display: grid; place-items: center; width: 40px; height: 40px; border-radius: 50%; color: var(--fmc-text-2); font-size: 19px; text-decoration: none; }
+.fmc-bell:hover { background: var(--fmc-sup-2); color: var(--fmc-brand); }
+.fmc-bell-n { position: absolute; top: 1px; right: 0; min-width: 18px; padding: 0 4px; border-radius: 9px; background: var(--bs-danger, #c7291f); color: #fff; font-size: 11px; font-weight: 700; line-height: 18px; }
+.fmc-bell + .fmc-yo { margin-left: 0; }
 .fmc-yo { margin-left: auto; position: relative; }
 .fmc-yo > summary { list-style: none; display: flex; align-items: center; gap: 10px; cursor: pointer; border-radius: 12px; padding: 4px 6px; }
 .fmc-yo > summary::-webkit-details-marker { display: none; }

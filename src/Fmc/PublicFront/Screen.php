@@ -7,6 +7,7 @@
 
 namespace Fmc\PublicFront;
 
+use Fmc\Meta\IncidentMetaKeys;
 use Fmc\Meta\SpeakerMetaKeys;
 use Fmc\PostType\PostTypes;
 
@@ -436,6 +437,7 @@ final class Screen {
 		$name = (string) $user->display_name;
 		$out  = '<header class="fmc-top"><div class="container fmc-top-in">' . $brand;
 		$out .= '<a class="fmc-brand" href="' . esc_url( home_url( '/' ) ) . '">' . esc_html( self::APP_NAME ) . '</a>';
+		$out .= self::bell();
 		$out .= '<details class="fmc-yo"><summary><span class="fmc-avatar" aria-hidden="true">' . esc_html( strtoupper( mb_substr( $name, 0, 1 ) ) ) . '</span>';
 		$out .= '<span class="fmc-yo-txt"><strong>' . esc_html( $name ) . '</strong><small>' . esc_html( self::role_label( $user ) ) . '</small></span></summary><div class="fmc-yo-menu">';
 		if ( current_user_can( 'manage_options' ) ) {
@@ -455,6 +457,58 @@ final class Screen {
 		}
 		$out .= '</ul></div></nav>';
 		return $out;
+	}
+
+	/**
+	 * The bell: how many incidents are waiting to be resolved.
+	 *
+	 * Solo la ve quien las resuelve —el servicio, la coordinación y la
+	 * administración—, porque es su cola de trabajo y se vacía al resolverlas.
+	 * La asesoría no: las suyas pendientes no las puede resolver ella, así que
+	 * el número no bajaría nunca (ADR-0007, adenda).
+	 *
+	 * @return string
+	 */
+	private static function bell(): string {
+		if ( ! current_user_can( PostTypes::CAP_RESOLVE ) ) {
+			return '';
+		}
+		$n    = self::pending_incidents();
+		$text = 0 === $n ? 'No hay incidencias pendientes' : $n . ( 1 === $n ? ' incidencia pendiente' : ' incidencias pendientes' );
+		$out  = '<a class="fmc-bell" href="' . esc_url(
+			self::url(
+				array(
+					self::ARG_TAB    => 'incidents',
+					'fmc_resolution' => 'pending',
+				)
+			)
+		) . '" title="' . esc_attr( $text ) . '" aria-label="' . esc_attr( $text ) . '">';
+		$out .= '<i class="bi bi-bell" aria-hidden="true"></i>';
+		if ( $n > 0 ) {
+			$out .= '<span class="fmc-bell-n" aria-hidden="true">' . esc_html( number_format_i18n( $n ) ) . '</span>';
+		}
+		return $out . '</a>';
+	}
+
+	/**
+	 * Incidents waiting for a resolution.
+	 *
+	 * @return int
+	 */
+	private static function pending_incidents(): int {
+		$q = new \WP_Query(
+			array(
+				'post_type'              => PostTypes::INCIDENT,
+				'post_status'            => 'publish',
+				'posts_per_page'         => 1,
+				'fields'                 => 'ids',
+				'ignore_sticky_posts'    => true,
+				'update_post_term_cache' => false,
+				'update_post_meta_cache' => false,
+				'meta_query'             => array( IncidentMetaKeys::resolution_clause( 'pending' ) ), // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_query -- el contador de la campana.
+			)
+		);
+		return (int) $q->found_posts;
 	}
 
 	/**
