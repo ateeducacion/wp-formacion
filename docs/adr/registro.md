@@ -61,3 +61,4 @@ con commit no se reescriben por un cambio de nombre; esta nota lo traduce.
 | [ADR-0019](ADR-0019-la-asesoria-es-una-cuenta-del-sitio-con-su-tipo.md) | La asesoría es una cuenta del sitio, con su tipo en el perfil | Propuesta |
 | [ADR-0020](ADR-0020-la-situacion-se-calcula-y-la-accion-se-entrega.md) | La situación de la acción se calcula, y la acción se entrega | Propuesta |
 | [ADR-0021](ADR-0021-el-centro-donde-se-imparte-se-elige-del-catalogo-por-su-codigo.md) | El centro donde se imparte se elige del catálogo de centros, por su código | Propuesta |
+| [ADR-0022](ADR-0022-la-asesoria-pertenece-a-un-centro-y-solo-ve-sus-incidencias.md) | La asesoría pertenece a un centro, y solo ve sus incidencias | Propuesta |

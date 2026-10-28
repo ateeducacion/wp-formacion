@@ -8,6 +8,23 @@ lee de la cabecera superior y la escribe en el `@version` del bundle.
 `make release` crea el tag y la release en GitHub; el despliegue de los snippets
 en el sitio de destino se hace después.
 
+## [0.0.6] — 2026-10-28
+
+### Añadido
+
+- **Centro de referencia de la asesoría** ([ADR-0022](docs/adr/ADR-0022-la-asesoria-pertenece-a-un-centro-y-solo-ve-sus-incidencias.md)): en el perfil del escritorio, elegido del catálogo de centros y guardado por su código
+- Una acción formativa nueva se abre con la asesoría responsable y el ámbito ya propuestos —quien la crea y el ámbito de su centro—, y los dos se pueden cambiar antes de guardar
+
+### Cambiado
+
+- Cada asesoría ve solo las incidencias de sus acciones y las que ha abierto; el servicio de formación y la validación las siguen viendo todas
+- Cualquier asesoría edita la ficha de cualquier ponente, y no solo la que dio de alta ella (adenda de la [ADR-0011](docs/adr/ADR-0011-los-ponentes-son-un-directorio-compartido-con-baja-motivada.md))
+- La papelera de ponentes, con quién dio de baja a quién y por qué, sigue siendo solo de la validación
+
+### Pendiente antes de desplegar
+
+- Rellenar el centro de referencia en el perfil de cada asesoría: sin él no se propone ámbito y todo queda como hoy
+
 ## [0.0.5] — 2026-10-27
 
 Lo que sale de la segunda revisión del aplicativo, el 2026-10-27: el porqué está en el §10 de [REQ-0001](docs/requisitos/REQ-0001-aplicativo-de-formacion.md), en la [ADR-0016](docs/adr/ADR-0016-lo-que-ya-no-se-imparte-es-un-estado-del-diseno.md) y la [ADR-0017](docs/adr/ADR-0017-la-asesoria-consulta-los-disenos-finalizados-y-no-los-escribe.md), y en las adendas de la 0004, la 0012 y la 0015.

@@ -6,7 +6,7 @@
  * Priority: 15
  *
  * @package Fmc
- * @version 0.0.5
+ * @version 0.0.6
  */
 
 // phpcs:disable
@@ -976,6 +976,8 @@ final class DigComp {
 
 namespace Fmc\PostType;
 
+use Fmc\Meta\ActionMetaKeys;
+
 
 
 
@@ -1162,6 +1164,38 @@ final class PostTypes {
 
 
 
+
+
+
+
+
+
+
+
+	public static function own_incidents( $caps, $cap, $user_id, $args ) {
+		if ( ! in_array( $cap, array( 'read_post', 'edit_post', 'delete_post' ), true ) || empty( $args[0] ) ) {
+			return $caps;
+		}
+		$post = get_post( $args[0] );
+		if ( ! $post instanceof \WP_Post || self::INCIDENT !== $post->post_type ) {
+			return $caps;
+		}
+		if ( user_can( $user_id, 'read_private_fmc_incidents' ) || user_can( $user_id, 'edit_others_fmc_incidents' ) ) {
+			return $caps;
+		}
+		$mine = (int) $post->post_author === (int) $user_id
+			|| ( $post->post_parent && (int) get_post_meta( (int) $post->post_parent, ActionMetaKeys::ADVISER, true ) === (int) $user_id );
+		return $mine ? $caps : array( 'do_not_allow' );
+	}
+
+
+
+
+
+
+
+
+
 	public static function role_caps(): array {
 		$all = array( 'edit', 'edit_others', 'edit_private', 'edit_published', 'publish', 'read_private', 'delete', 'delete_others', 'delete_private', 'delete_published' );
 		$own = array( 'edit', 'edit_published', 'publish', 'delete' );
@@ -1177,7 +1211,8 @@ final class PostTypes {
 				self::ACTION   => $deliver,
 
 
-				self::SPEAKER  => array_merge( $own, array( 'delete_others', 'delete_published' ) ),
+
+				self::SPEAKER  => array_merge( $own, array( 'edit_others', 'delete_others', 'delete_published' ) ),
 				self::INCIDENT => array( 'edit', 'publish' ),
 			),
 
@@ -1504,6 +1539,10 @@ final class Taxonomies {
 
 namespace Fmc\User;
 
+use Fmc\Centre\CentreCatalogue;
+use Fmc\Taxonomy\Taxonomies;
+
+
 
 
 
@@ -1520,6 +1559,11 @@ final class Advisers {
 
 
 	public const KIND = 'fmc_adviser_kind';
+
+
+
+
+	public const CENTRE = 'fmc_adviser_centre';
 
 
 
@@ -1558,6 +1602,39 @@ final class Advisers {
 	public static function kind( int $user_id ): string {
 		$kind = (string) get_user_option( self::KIND, $user_id );
 		return isset( self::KINDS[ $kind ] ) ? $kind : '';
+	}
+
+
+
+
+
+
+
+	public static function centre( int $user_id ): string {
+		$code = trim( (string) get_user_option( self::CENTRE, $user_id ) );
+		return null !== CentreCatalogue::find( $code ) ? $code : '';
+	}
+
+
+
+
+
+
+
+
+
+
+
+
+
+	public static function scope( int $user_id ): int {
+		$centre = CentreCatalogue::find( self::centre( $user_id ) );
+		$name   = trim( (string) ( $centre['name'] ?? '' ) );
+		if ( '' === $name ) {
+			return 0;
+		}
+		$term = get_term_by( 'name', $name, Taxonomies::SCOPE );
+		return $term instanceof \WP_Term ? (int) $term->term_id : 0;
 	}
 
 
@@ -1607,7 +1684,22 @@ final class Advisers {
 		foreach ( self::KINDS as $value => $label ) {
 			echo '<option value="' . esc_attr( $value ) . '"' . selected( $kind, $value, false ) . '>' . esc_html( $label ) . '</option>';
 		}
-		echo '</select><p class="description">Si la cuenta es de una asesoría, de qué tipo es en este sitio. Sale junto a su nombre al elegir la asesoría responsable de una acción.</p></td></tr></table>';
+		echo '</select><p class="description">Si la cuenta es de una asesoría, de qué tipo es en este sitio. Sale junto a su nombre al elegir la asesoría responsable de una acción.</p></td></tr>';
+
+		$code     = self::centre( (int) $user->ID );
+		$centres  = CentreCatalogue::active_options();
+		$centres += '' !== $code && ! isset( $centres[ $code ] ) ? array( $code => (string) ( CentreCatalogue::find( $code )['name'] ?? $code ) ) : array();
+		echo '<tr><th><label for="fmc-adviser-centre">Centro de referencia</label></th><td>';
+		if ( array() === $centres ) {
+			echo '<p class="description">Todavía no hay catálogo de centros. Actualícelo en «Ajustes → Centros educativos».</p>';
+		} else {
+			echo '<select id="fmc-adviser-centre" name="fmc_adviser_centre"><option value="">—</option>';
+			foreach ( $centres as $value => $label ) {
+				echo '<option value="' . esc_attr( (string) $value ) . '"' . selected( $code, (string) $value, false ) . '>' . esc_html( CentreCatalogue::label( (string) $value, $label ) ) . '</option>';
+			}
+			echo '</select>';
+		}
+		echo '<p class="description">El centro del profesorado al que pertenece. De él sale el ámbito que se propone al crear una acción formativa, que se puede cambiar.</p></td></tr></table>';
 	}
 
 
@@ -1625,6 +1717,15 @@ final class Advisers {
 			update_user_option( (int) $user_id, self::KIND, $kind );
 		} else {
 			delete_user_option( (int) $user_id, self::KIND );
+		}
+
+
+
+		$centre = isset( $_POST['fmc_adviser_centre'] ) ? sanitize_text_field( wp_unslash( $_POST['fmc_adviser_centre'] ) ) : '';
+		if ( null !== CentreCatalogue::find( $centre ) ) {
+			update_user_option( (int) $user_id, self::CENTRE, $centre );
+		} else {
+			delete_user_option( (int) $user_id, self::CENTRE );
 		}
 	}
 
@@ -4013,12 +4114,30 @@ final class Lists {
 
 
 
+
+
+
+
+
+
 	public static function visible_where( $where, $query ) {
-		if ( ! $query instanceof \WP_Query || ! $query->get( 'fmc_visible' ) ) {
+		if ( ! $query instanceof \WP_Query ) {
 			return $where;
 		}
 		global $wpdb;
-		return $where . $wpdb->prepare( " AND ( $wpdb->posts.post_status = 'publish' OR $wpdb->posts.post_author = %d )", get_current_user_id() );
+		$me = get_current_user_id();
+		if ( $query->get( 'fmc_own_incidents' ) ) {
+			return $where . $wpdb->prepare(
+				" AND ( $wpdb->posts.post_author = %d OR EXISTS ( SELECT 1 FROM $wpdb->postmeta fmc_a WHERE fmc_a.post_id = $wpdb->posts.post_parent AND fmc_a.meta_key = %s AND fmc_a.meta_value = %s ) )",
+				$me,
+				A::ADVISER,
+				(string) $me
+			);
+		}
+		if ( ! $query->get( 'fmc_visible' ) ) {
+			return $where;
+		}
+		return $where . $wpdb->prepare( " AND ( $wpdb->posts.post_status = 'publish' OR $wpdb->posts.post_author = %d )", $me );
 	}
 
 
@@ -4212,6 +4331,12 @@ final class Lists {
 				if ( $with_state ) {
 					$meta( I::RESOLUTION, self::arg( 'fmc_resolution' ) );
 				}
+
+
+				if ( ! current_user_can( 'read_private_fmc_incidents' ) && ! current_user_can( 'edit_others_fmc_incidents' ) ) {
+					unset( $args['fmc_visible'] );
+					$args['fmc_own_incidents'] = true;
+				}
 				break;
 		}
 		return self::sorted( $type, $args );
@@ -4302,7 +4427,9 @@ final class Lists {
 
 
 	private static function speaker_trash(): bool {
-		return 'trash' === self::arg( 'fmc_status' ) && current_user_can( 'edit_others_fmc_speakers' );
+
+
+		return 'trash' === self::arg( 'fmc_status' ) && current_user_can( 'read_private_fmc_speakers' );
 	}
 
 
@@ -4621,7 +4748,7 @@ final class Lists {
 		}
 		$trash = self::speaker_trash();
 		$out   = '<p class="fmc-found">' . esc_html( sprintf( $trash ? '%s en la papelera' : '%s ponente(s)', number_format_i18n( $found ) ) );
-		if ( current_user_can( 'edit_others_fmc_speakers' ) ) {
+		if ( current_user_can( 'read_private_fmc_speakers' ) ) {
 			$args = array_merge( self::current_filters(), array( Screen::ARG_TAB => $tab ) );
 
 			$args['fmc_status'] = $trash ? '' : 'trash';
@@ -5940,7 +6067,9 @@ final class Editor {
 
 				return 'publish' === $post->post_status && ( current_user_can( 'read_private_fmc_actions' ) || current_user_can( 'edit_fmc_actions' ) );
 			case PostTypes::INCIDENT:
-				return current_user_can( 'read_private_fmc_incidents' ) || current_user_can( PostTypes::CAP_RESOLVE );
+
+
+				return current_user_can( PostTypes::CAP_RESOLVE ) || current_user_can( 'read_post', $post->ID );
 			case PostTypes::SPEAKER:
 				return 'publish' === $post->post_status && current_user_can( 'edit_fmc_speakers' );
 		}
@@ -6061,6 +6190,18 @@ final class Editor {
 				A::HOURS_ONSITE => get_post_meta( $from, D::HOURS_ONSITE, true ),
 				A::HOURS_ONLINE => get_post_meta( $from, D::HOURS_ONLINE, true ),
 			);
+		}
+
+
+
+
+		if ( ! $post && PostTypes::ACTION === $type ) {
+			$me = get_current_user_id();
+			if ( isset( Advisers::choices()[ $me ] ) ) {
+				$values += array( A::ADVISER => $me );
+				$scope   = Advisers::scope( $me );
+				$values += $scope ? array( 'tax:' . Taxonomies::SCOPE => array( $scope ) ) : array();
+			}
 		}
 
 
@@ -8355,6 +8496,7 @@ final class App {
 		add_action( 'init', array( PostTypes::class, 'grant_caps_to_roles' ), 11 );
 		add_filter( 'map_meta_cap', array( PostTypes::class, 'lock_archived' ), 10, 4 );
 		add_filter( 'map_meta_cap', array( PostTypes::class, 'hide_unfinished' ), 10, 4 );
+		add_filter( 'map_meta_cap', array( PostTypes::class, 'own_incidents' ), 10, 4 );
 
 		MetaRegistration::register();
 
