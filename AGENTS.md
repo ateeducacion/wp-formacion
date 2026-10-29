@@ -113,7 +113,7 @@ src/Fmc/
 ├── Domain/DigComp.php            El perfil de competencia digital de elidd (su dirección), sus áreas y competencias. Puro
 ├── PostType/PostTypes.php        Los cuatro CPT, el estado «Histórico» y qué capacidades tiene cada rol en cada uno
 ├── Taxonomy/Taxonomies.php       Programa, temática, competencia digital, ámbito e isla o zona
-├── User/Advisers.php             Las cuentas de asesoría del sitio y su tipo (TIC, STEAM…), en el perfil del escritorio
+├── User/Advisers.php             Las cuentas de asesoría del sitio, su tipo (TIC, STEAM…) y su centro de referencia (ADR-0022), en el perfil del escritorio
 ├── Centre/CentreCatalogue.php    La copia local del catálogo de centros: código, nombre y si está activo (ADR-0021)
 ├── Centre/CentreCatalogueSync.php  La pone al día desde su fuente, una vez al día, comprobando el SHA-256 del manifest
 ├── Centre/CentreSettings.php     «Ajustes → Centros educativos»: la fuente, el estado de la copia y «Actualizar ahora»
@@ -371,6 +371,7 @@ ni en este fichero:
 |---|---|
 | URL de analítica, de avisos de cookies o de servicios de una organización, y sus identificadores | Configuración: el filtro `fmc_chrome`, vacío por defecto |
 | El nombre, el escudo, el rótulo o los enlaces legales de una organización | Lo mismo |
+| Cómo llama una instalación a sus perfiles o a quién paga | Configuración: los filtros `fmc_role_labels` y `fmc_funders`, en un snippet de despliegue que no se versiona |
 | El nombre de la red, del sitio o del subsitio de destino | El `.env`, que no se sube. `.env.dist` los trae **vacíos** |
 | Cómo era la instalación anterior por dentro: sus formularios, vistas, campos, fragmentos de código y sus números | `.local/`, que está en el `.gitignore` |
 | Cuánta gente hay, en qué áreas y con qué rol | `.local/`, o se escribe la decisión sin la cifra |
