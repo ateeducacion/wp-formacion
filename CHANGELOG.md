@@ -8,6 +8,14 @@ lee de la cabecera superior y la escribe en el `@version` del bundle.
 `make release` crea el tag y la release en GitHub; el despliegue de los snippets
 en el sitio de destino se hace después.
 
+## [0.0.9] — 2026-10-30
+
+### Corregido
+
+- **El listado de acciones formativas no llegaba a pintarse**: en un sitio con unos miles de acciones, cada contador de situación —«Impartiéndose», «Realizada», «Aplazada», «Cancelada»— tardaba medio minuto, así que la vista «Lista» agotaba el tiempo del servidor y el calendario parecía la única que funcionaba. Ahora la situación se consulta con subconsultas y los cinco contadores salen en milésimas
+- Filtrar el listado o el calendario por situación era igual de lento, y también se ha arreglado
+- Elegir la asesoría responsable, o filtrar por ella, hacía dos consultas por cada cuenta de asesoría del sitio; ahora se leen todas de una vez
+
 ## [0.0.8] — 2026-10-28
 
 ### Añadido
