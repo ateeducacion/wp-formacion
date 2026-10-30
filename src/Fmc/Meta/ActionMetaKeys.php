@@ -67,12 +67,12 @@ final class ActionMetaKeys {
 	public const COMPLETED        = 'fmc_completed';
 
 	/**
-	 * Where the action sits in the centres' own training plans.
+	 * Where the action sits in the centres' own training plans. El itinerario
+	 * formativo ya no existe: se quitó de la elección y lo guardado se queda.
 	 */
 	public const TRAINING_PLAN_KINDS = array(
-		'plan'      => 'Incluida en su plan de formación',
-		'itinerary' => 'Incluida en un itinerario formativo',
-		'seminar'   => 'Incluida en un seminario o grupo de trabajo',
+		'plan'    => 'Incluida en su plan de formación',
+		'seminar' => 'Incluida en un seminario o grupo de trabajo',
 	);
 
 	/**

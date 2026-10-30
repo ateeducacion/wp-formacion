@@ -186,16 +186,11 @@ final class Editor {
 		$writable = false;
 		$parent   = $post ? (int) $post->post_parent : absint( $values['_parent'] ?? Lists::arg( Screen::ARG_PARENT ) );
 
-		// Una acción nueva desde un diseño (`fmc_diseno`): trae su modalidad y sus
-		// horas. Solo si está finalizado: de otro, ni el título (ADR-0016).
+		// Una acción nueva desde un diseño (`fmc_diseno`): se abre con él
+		// elegido. Solo si está finalizado: de otro, ni el título (ADR-0016).
 		$from = absint( Lists::arg( Screen::ARG_DESIGN ) );
 		if ( ! $post && PostTypes::ACTION === $type && $from && PostTypes::DESIGN === get_post_type( $from ) && 'publish' === get_post_status( $from ) ) {
-			$values += array(
-				A::DESIGN_ID    => $from,
-				A::MODALITY     => get_post_meta( $from, D::MODALITY, true ),
-				A::HOURS_ONSITE => get_post_meta( $from, D::HOURS_ONSITE, true ),
-				A::HOURS_ONLINE => get_post_meta( $from, D::HOURS_ONLINE, true ),
-			);
+			$values += array( A::DESIGN_ID => $from );
 		}
 
 		// Una acción nueva la crea casi siempre la asesoría que la gestiona: se
@@ -900,6 +895,8 @@ final class Editor {
 		// Las cifras de matrícula y certificación las lleva el servicio de perfeccionamiento (ADR-0010).
 		$items = array(
 			'Curso escolar' => \Fmc\Domain\SchoolYear::of( (string) get_post_meta( $post->ID, A::START, true ) ),
+			// Del diseño, como las horas: aquí se ven sin abrirlo.
+			'Modalidad'     => D::MODALITIES[ (string) get_post_meta( $post->ID, A::MODALITY, true ) ] ?? '',
 			// Una cancelada no se imparte: sus horas no cuentan (ADR-0020).
 			'Horas totales' => 'cancelled' === A::situation( $post->ID ) ? 'Cancelada' : ( $hours ? ( $hours + 0 ) . ' h' . ( $replicas > 1 ? ' (' . ( $hours * $replicas + 0 ) . ' h con el desdoble)' : '' ) : '' ),
 			'Ponentes'      => (string) count( array_filter( (array) get_post_meta( $post->ID, A::SPEAKERS, true ) ) ),
@@ -1057,18 +1054,6 @@ final class Editor {
 
 		$errors = self::check_choices( $fields, $values, $post );
 
-		// Lo que se deja en blanco en la acción se toma del diseño, como hacía el
-		// formulario anterior al elegir la acción formativa.
-		if ( PostTypes::ACTION === $type && ! empty( $values[ A::DESIGN_ID ] ) && ! isset( $errors[ A::DESIGN_ID ] ) ) {
-			$design = (int) $values[ A::DESIGN_ID ];
-			if ( isset( $values[ A::MODALITY ] ) && '' === $values[ A::MODALITY ] ) {
-				$values[ A::MODALITY ] = (string) get_post_meta( $design, D::MODALITY, true );
-			}
-			if ( isset( $values[ A::HOURS_ONSITE ], $values[ A::HOURS_ONLINE ] ) && '' === $values[ A::HOURS_ONSITE ] . $values[ A::HOURS_ONLINE ] ) {
-				$values[ A::HOURS_ONSITE ] = (string) get_post_meta( $design, D::HOURS_ONSITE, true );
-				$values[ A::HOURS_ONLINE ] = (string) get_post_meta( $design, D::HOURS_ONLINE, true );
-			}
-		}
 		if ( PostTypes::ACTION === $type && ! isset( $errors[ A::DESIGN_ID ] ) ) {
 			$errors += self::impute_programme( $values, $post );
 		}
@@ -1120,6 +1105,19 @@ final class Editor {
 				'errors'   => $errors,
 				'problems' => array(),
 			);
+		}
+
+		// La modalidad y las horas no se teclean en la acción: son las del
+		// diseño que se ha elegido, y se copian al guardar para que el listado,
+		// el calendario y el CSV las tengan sin ir a buscarlas.
+		if ( PostTypes::ACTION === $type && ! empty( $values[ A::DESIGN_ID ] ) ) {
+			foreach ( array(
+				A::MODALITY     => D::MODALITY,
+				A::HOURS_ONSITE => D::HOURS_ONSITE,
+				A::HOURS_ONLINE => D::HOURS_ONLINE,
+			) as $key => $of_design ) {
+				$values[ $key ] = (string) get_post_meta( (int) $values[ A::DESIGN_ID ], $of_design, true );
+			}
 		}
 
 		$postarr = array( 'post_type' => $type );

@@ -10,6 +10,29 @@ en el sitio de destino se hace después.
 
 ## [0.0.9] — 2026-10-30
 
+Lo que salió de la reunión del 2026-10-30 con las asesorías TIC y el servicio
+de perfeccionamiento: la ficha de la acción se queda en lo que de verdad se
+rellena, y el listado vuelve a abrirse.
+
+### Cambiado
+
+- **El expediente es el primer campo de la ficha de la acción**: es el que más se busca y el único que rellena el servicio de perfeccionamiento, que ya no tiene que bajar hasta el final de la ficha para ponerlo
+- Una acción está **en un plan de formación, en un seminario o en ninguno**: ya no son tres casillas que se puedan marcar a la vez, sino una elección, con «No está incluida en ninguno» de serie
+- El expediente del plan o del seminario sale **justo debajo de esa elección**, y solo cuando se elige una de las dos
+- «Expediente de formación» se llama ahora **«Expediente del plan o del seminario»**, para que no se confunda con el expediente de la propia acción
+- La sección «Fechas» pasa a ser **«Fechas y horas»**: el horario de las sesiones se escribe ahí
+- **La modalidad y las horas son las del diseño**: no se teclean en la acción, se copian del diseño al guardar —y se actualizan si se cambia de diseño—, y la ficha las enseña en su resumen, junto al curso escolar y las horas totales
+
+### Eliminado
+
+- De la ficha de la acción: **plazas, modalidad, horas presenciales, horas en línea, desdoblar, horas con desplazamiento y matrícula en línea**. Las plazas y la matrícula las lleva el sistema de gestión del servicio; la modalidad y las horas son del diseño. Pedirlas aquí era duplicar el dato y arrastrar la diferencia
+- **Itinerario formativo**: ya no existe, ni como campo ni como opción
+- **Criterios de certificación** y **espacio del curso en la plataforma**: están en la ficha técnica del diseño y en la plataforma del servicio
+- **Técnico de la empresa** y **petición de servicio**: solo hacían falta cuando una empresa gestionaba la formación
+
+Ninguna de esas claves se borra del aplicativo: lo que guardó el sistema
+anterior se conserva y sigue saliendo en el CSV de lo migrado.
+
 ### Corregido
 
 - **El listado de acciones formativas no llegaba a pintarse**: en un sitio con unos miles de acciones, cada contador de situación —«Impartiéndose», «Realizada», «Aplazada», «Cancelada»— tardaba medio minuto, así que la vista «Lista» agotaba el tiempo del servidor y el calendario parecía la única que funcionaba. Ahora la situación se consulta con subconsultas y los cinco contadores salen en milésimas

@@ -122,7 +122,6 @@ class Test_Editor_Save extends WP_UnitTestCase {
 			array(
 				A::DESIGN_ID    => (string) $this->post( PostTypes::DESIGN, 1 ),
 				'tax:fmc_scope' => array( (string) self::factory()->term->create( array( 'taxonomy' => 'fmc_scope' ) ) ),
-				A::PLACES       => '20',
 				A::START        => '2026-10-01',
 			),
 			$over
@@ -220,47 +219,46 @@ class Test_Editor_Save extends WP_UnitTestCase {
 	}
 
 	/**
-	 * Mínimos y máximos de la acción: cero plazas o diez desdobles no valen.
+	 * Un número fuera de sus límites no se guarda, y se dice cuáles son.
 	 */
-	public function test_action_numbers_have_bounds() {
-		$this->as_role( 'fmc_adviser' );
+	public function test_design_numbers_have_bounds() {
+		$this->as_role( 'fmc_curator' );
 
 		$result = Editor::apply(
-			PostTypes::ACTION,
+			PostTypes::DESIGN,
 			0,
-			$this->action_fields(
-				array(
-					A::PLACES   => '0',
-					A::REPLICAS => '11',
-				)
-			),
-			'',
+			$this->design_fields( array( D::HOURS_ONSITE => '201' ) ),
+			'draft',
 			0
 		);
 
 		$this->assertSame( 'invalid', $result['outcome'] );
-		$this->assertSame( '«Plazas» tiene que estar entre 1 y 10000.', $result['errors'][ A::PLACES ] );
-		$this->assertSame( '«Desdoblar» tiene que estar entre 1 y 10.', $result['errors'][ A::REPLICAS ] );
+		$this->assertSame( '«Horas presenciales» tiene que estar entre 0 y 200.', $result['errors'][ D::HOURS_ONSITE ] );
 
-		$ok = Editor::apply( PostTypes::ACTION, 0, $this->action_fields( array( A::REPLICAS => '10' ) ), '', 0 );
+		$ok = Editor::apply( PostTypes::DESIGN, 0, $this->design_fields( array( D::HOURS_ONSITE => '200' ) ), 'draft', 0 );
 		$this->assertSame( 'created', $ok['outcome'] );
-		$this->assertEquals( 10, get_post_meta( $ok['id'], A::REPLICAS, true ) );
+		$this->assertEquals( 200, get_post_meta( $ok['id'], D::HOURS_ONSITE, true ) );
 	}
 
 	/**
-	 * Las horas cuentan según la modalidad: en una acción presencial, las de en línea se vacían.
+	 * La modalidad y las horas son las del diseño: en la acción no se teclean,
+	 * y lo que llegue a mano en esos campos no cuenta (ADR-0006).
 	 */
-	public function test_hours_follow_the_modality() {
+	public function test_the_modality_and_the_hours_come_from_the_design() {
 		$this->as_role( 'fmc_adviser' );
+		$design = $this->post( PostTypes::DESIGN, 1 );
+		update_post_meta( $design, D::MODALITY, 'blended' );
+		update_post_meta( $design, D::HOURS_ONSITE, 9 );
+		update_post_meta( $design, D::HOURS_ONLINE, 3 );
 
 		$result = Editor::apply(
 			PostTypes::ACTION,
 			0,
 			$this->action_fields(
 				array(
+					A::DESIGN_ID    => (string) $design,
 					A::MODALITY     => 'onsite',
-					A::HOURS_ONSITE => '12',
-					A::HOURS_ONLINE => '999',
+					A::HOURS_ONSITE => '999',
 				)
 			),
 			'',
@@ -268,8 +266,9 @@ class Test_Editor_Save extends WP_UnitTestCase {
 		);
 
 		$this->assertSame( 'created', $result['outcome'], implode( ' ', $result['errors'] ) );
-		$this->assertEquals( 12, get_post_meta( $result['id'], A::HOURS_ONSITE, true ) );
-		$this->assertFalse( metadata_exists( 'post', $result['id'], A::HOURS_ONLINE ), 'oculto no cuenta, ni para el máximo' );
+		$this->assertSame( 'blended', get_post_meta( $result['id'], A::MODALITY, true ) );
+		$this->assertEquals( 9, get_post_meta( $result['id'], A::HOURS_ONSITE, true ) );
+		$this->assertEquals( 3, get_post_meta( $result['id'], A::HOURS_ONLINE, true ) );
 	}
 
 	/**
@@ -283,28 +282,30 @@ class Test_Editor_Save extends WP_UnitTestCase {
 			0,
 			$this->action_fields(
 				array(
-					A::TRAINING_PLANS => array( '', 'seminar', 'inventado' ),
+					A::TRAINING_PLANS => 'seminar',
 					A::TRAINING_FILE  => 'EF-7',
 				)
 			),
 			'',
 			0
 		);
-		$this->assertSame( array( 'seminar' ), get_post_meta( $with['id'], A::TRAINING_PLANS, true ), 'el vacío y lo que no está en la lista se van' );
+		$this->assertSame( array( 'seminar' ), get_post_meta( $with['id'], A::TRAINING_PLANS, true ), 'uno solo, guardado como lista' );
 		$this->assertSame( 'EF-7', get_post_meta( $with['id'], A::TRAINING_FILE, true ) );
 
+		// «No está incluida en ninguno»: el expediente del plan deja de contar.
 		Editor::apply(
 			PostTypes::ACTION,
 			$with['id'],
 			$this->action_fields(
 				array(
-					A::TRAINING_PLANS => array( 'itinerary' ),
+					A::TRAINING_PLANS => '',
 					A::TRAINING_FILE  => 'EF-7',
 				)
 			),
 			'',
 			0
 		);
+		$this->assertSame( '', get_post_meta( $with['id'], A::TRAINING_PLANS, true ) );
 		$this->assertSame( '', get_post_meta( $with['id'], A::TRAINING_FILE, true ) );
 	}
 

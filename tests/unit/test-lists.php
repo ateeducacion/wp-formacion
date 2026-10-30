@@ -871,7 +871,7 @@ class Test_Lists extends WP_UnitTestCase {
 		$this->assertSame( "\xEF\xBB\xBF", substr( $raw, 0, 3 ) );
 		$head = $rows[0];
 		// El título no está en la ficha de la acción —es el del diseño—, pero la hoja lo lleva.
-		$this->assertSame( array( 'ID', 'Estado de la ficha', 'Título', 'Diseño', 'Subtítulo' ), array_slice( $head, 0, 5 ) );
+		$this->assertSame( array( 'ID', 'Estado de la ficha', 'Título', 'Expediente', 'Diseño', 'Subtítulo' ), array_slice( $head, 0, 6 ) );
 		$this->assertSame( array( 'Tipo de formación', 'Curso escolar', 'Horas totales', 'Situación' ), array_slice( $head, -4 ) );
 		$this->assertNotContains( 'Matriculados', $head, 'las cifras de cierre ya no son de aquí (ADR-0010)' );
 		$this->assertCount( 2, $rows, 'Solo la acción filtrada' );
