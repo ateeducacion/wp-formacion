@@ -123,7 +123,7 @@ final class Catalogue {
 			'paged'          => $page,
 			'orderby'        => 'title',
 			'order'          => 'ASC',
-			// Por el título o por el código: `Lists::text_where()`.
+			// Por el título o por el código: `Lists::where()`.
 			'fmc_text'       => Lists::arg( 'fmc_s' ),
 			'fmc_text_keys'  => array( D::CODE ),
 			// phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_query -- solo lo que está en el catálogo.

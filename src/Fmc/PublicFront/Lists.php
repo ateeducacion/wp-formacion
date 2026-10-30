@@ -88,8 +88,7 @@ final class Lists {
 	 * @return void
 	 */
 	public static function register(): void {
-		add_filter( 'posts_where', array( self::class, 'visible_where' ), 10, 2 );
-		add_filter( 'posts_where', array( self::class, 'text_where' ), 10, 2 );
+		add_filter( 'posts_where', array( self::class, 'where' ), 10, 2 );
 		add_filter( 'posts_clauses', array( self::class, 'order_by_meta' ), 10, 2 );
 	}
 
@@ -146,6 +145,11 @@ final class Lists {
 	private const DESCENDING = array( 'start', 'date', 'actions', 'hours' );
 
 	/**
+	 * Comparisons the situation condition compares meta with.
+	 */
+	private const COMPARISONS = array( '=', '<', '<=', '>', '>=' );
+
+	/**
 	 * The sort asked for (`fmc_sort`, `fmc_dir`), or the list's own.
 	 *
 	 * @param string $type Post type.
@@ -194,6 +198,21 @@ final class Lists {
 	}
 
 	/**
+	 * The conditions the app adds to a query: who may see the rows, the words
+	 * looked for and the situation asked for.
+	 *
+	 * @param string    $where SQL.
+	 * @param \WP_Query $query Query.
+	 * @return string
+	 */
+	public static function where( $where, $query ) {
+		if ( ! $query instanceof \WP_Query ) {
+			return $where;
+		}
+		return $where . self::visible_sql( $query ) . self::text_sql( $query ) . self::situation_sql( $query );
+	}
+
+	/**
 	 * What the current user may see: `fmc_visible` (published, or their own)
 	 * and `fmc_own_incidents` (opened by them, or on an action they advise).
 	 *
@@ -202,18 +221,14 @@ final class Lists {
 	 * (ADR-0022). Es la misma condición que `PostTypes::own_incidents()`
 	 * aplica a la capacidad, aquí en SQL para no paginar lo que no se abriría.
 	 *
-	 * @param string    $where SQL.
 	 * @param \WP_Query $query Query.
 	 * @return string
 	 */
-	public static function visible_where( $where, $query ) {
-		if ( ! $query instanceof \WP_Query ) {
-			return $where;
-		}
+	private static function visible_sql( \WP_Query $query ): string {
 		global $wpdb;
 		$me = get_current_user_id();
 		if ( $query->get( 'fmc_own_incidents' ) ) {
-			return $where . $wpdb->prepare(
+			return $wpdb->prepare(
 				" AND ( $wpdb->posts.post_author = %d OR EXISTS ( SELECT 1 FROM $wpdb->postmeta fmc_a WHERE fmc_a.post_id = $wpdb->posts.post_parent AND fmc_a.meta_key = %s AND fmc_a.meta_value = %s ) )",
 				$me,
 				A::ADVISER,
@@ -221,9 +236,9 @@ final class Lists {
 			);
 		}
 		if ( ! $query->get( 'fmc_visible' ) ) {
-			return $where;
+			return '';
 		}
-		return $where . $wpdb->prepare( " AND ( $wpdb->posts.post_status = 'publish' OR $wpdb->posts.post_author = %d )", $me );
+		return $wpdb->prepare( " AND ( $wpdb->posts.post_status = 'publish' OR $wpdb->posts.post_author = %d )", $me );
 	}
 
 	/**
@@ -233,20 +248,19 @@ final class Lists {
 	 * hay que encontrar también por el expediente y por el subtítulo, que es lo
 	 * que se teclea a diario (`fmc_text_keys`).
 	 *
-	 * @param string    $where SQL.
 	 * @param \WP_Query $query Query.
 	 * @return string
 	 */
-	public static function text_where( $where, $query ) {
-		if ( ! $query instanceof \WP_Query || '' === (string) $query->get( 'fmc_text' ) ) {
-			return $where;
+	private static function text_sql( \WP_Query $query ): string {
+		if ( '' === (string) $query->get( 'fmc_text' ) ) {
+			return '';
 		}
 		global $wpdb;
 		$like = '%' . $wpdb->esc_like( (string) $query->get( 'fmc_text' ) ) . '%';
 		$keys = array_map( 'strval', (array) $query->get( 'fmc_text_keys' ) );
 		$in   = implode( ', ', array_fill( 0, count( $keys ), '%s' ) );
 		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare, WordPress.DB.PreparedSQLPlaceholders.ReplacementsWrongNumber -- los marcadores se cuentan arriba.
-		return $where . $wpdb->prepare( " AND ( $wpdb->posts.post_title LIKE %s OR EXISTS ( SELECT 1 FROM $wpdb->postmeta fmc_t WHERE fmc_t.post_id = $wpdb->posts.ID AND fmc_t.meta_key IN ( $in ) AND fmc_t.meta_value LIKE %s ) )", array_merge( array( $like ), $keys, array( $like ) ) );
+		return $wpdb->prepare( " AND ( $wpdb->posts.post_title LIKE %s OR EXISTS ( SELECT 1 FROM $wpdb->postmeta fmc_t WHERE fmc_t.post_id = $wpdb->posts.ID AND fmc_t.meta_key IN ( $in ) AND fmc_t.meta_value LIKE %s ) )", array_merge( array( $like ), $keys, array( $like ) ) );
 	}
 
 	/**
@@ -391,7 +405,7 @@ final class Lists {
 					}
 				}
 				if ( $with_state && isset( A::SITUATIONS[ self::arg( 'fmc_situation' ) ] ) ) {
-					$args['meta_query'][] = self::situation_clause( self::arg( 'fmc_situation' ) );
+					$args['fmc_in_situation'] = self::arg( 'fmc_situation' );
 				}
 				$year = self::arg( 'fmc_year' );
 				if ( preg_match( '/^(\d{4})-\d{4}$/', $year, $m ) ) {
@@ -442,70 +456,57 @@ final class Lists {
 	}
 
 	/**
-	 * The meta query of a situation, as `Situation::of()` computes it (ADR-0020).
+	 * `fmc_in_situation` query arg: the actions in that situation, as
+	 * `Situation::of()` computes it (ADR-0020).
 	 *
 	 * Aplazada y cancelada están guardadas; impartiéndose y realizada salen de
 	 * las fechas de hoy, sin fecha de fin la acción dura un día, y lo que
 	 * guardó una incidencia manda.
 	 *
-	 * @param string $key Situation.
-	 * @return array<string|int, mixed>
+	 * Una subconsulta por condición, y no una unión por condición: las uniones
+	 * que escribe `meta_query` dentro de un `OR` van **sin la clave**
+	 * (`LEFT JOIN wp_postmeta AS mt1 ON ( ID = mt1.post_id )`), así que cada
+	 * una multiplica las filas por todas las metas de la entrada. Con cinco
+	 * uniones y unos miles de acciones eso eran miles de millones de
+	 * combinaciones: medio minuto por contador, y el listado sin pintarse. Un
+	 * `EXISTS` usa el índice `(post_id, meta_key)` y no multiplica nada.
+	 *
+	 * @param \WP_Query $query Query.
+	 * @return string
 	 */
-	private static function situation_clause( string $key ): array {
-		if ( in_array( $key, Situation::SET_BY_INCIDENT, true ) ) {
-			return array(
-				'key'   => A::SITUATION,
-				'value' => $key,
-			);
+	private static function situation_sql( \WP_Query $query ): string {
+		$key = (string) $query->get( 'fmc_in_situation' );
+		if ( ! isset( A::SITUATIONS[ $key ] ) ) {
+			return '';
 		}
-		$today  = current_time( 'Y-m-d' );
-		$date   = static fn( string $meta, string $compare ): array => array(
-			'key'     => $meta,
-			'value'   => $today,
-			'compare' => $compare,
-			'type'    => 'DATE',
-		);
-		$open   = array(
-			'relation' => 'OR',
-			array(
-				'key'     => A::SITUATION,
-				'compare' => 'NOT EXISTS',
-			),
-			array(
-				'key'     => A::SITUATION,
-				'value'   => Situation::SET_BY_INCIDENT,
-				'compare' => 'NOT IN',
-			),
-		);
-		$no_end = array(
-			'key'     => A::END,
-			'compare' => 'NOT EXISTS',
-		);
-		$until  = 'running' === $key
-			? array(
-				'relation' => 'OR',
-				$date( A::END, '>=' ),
-				array(
-					'relation' => 'AND',
-					$no_end,
-					$date( A::START, '=' ),
-				),
-			)
-			: array(
-				'relation' => 'OR',
-				$date( A::END, '<' ),
-				array(
-					'relation' => 'AND',
-					$no_end,
-					$date( A::START, '<' ),
-				),
-			);
-		return array(
-			'relation' => 'AND',
-			$open,
-			$date( A::START, '<=' ),
-			$until,
-		);
+		global $wpdb;
+		// «Tiene esa meta», y con `$comparison`, «y vale esto».
+		$exists = static function ( string $meta, string $comparison = '', string $value = '', bool $as_date = false ) use ( $wpdb ): string {
+			$test = '';
+			if ( in_array( $comparison, self::COMPARISONS, true ) ) {
+				$column = $as_date ? 'CAST( fmc_e.meta_value AS DATE )' : 'fmc_e.meta_value';
+				// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- la columna y la comparación son de listas cerradas.
+				$test = $wpdb->prepare( " AND $column $comparison %s", $value );
+			}
+			// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- la clave y el valor van preparados.
+			return "EXISTS ( SELECT 1 FROM $wpdb->postmeta fmc_e WHERE fmc_e.post_id = $wpdb->posts.ID AND fmc_e.meta_key = " . $wpdb->prepare( '%s', $meta ) . $test . ' )';
+		};
+		if ( in_array( $key, Situation::SET_BY_INCIDENT, true ) ) {
+			return ' AND ' . $exists( A::SITUATION, '=', $key );
+		}
+		$today = current_time( 'Y-m-d' );
+		// Lo que dejó una incidencia manda: ni impartiéndose ni realizada.
+		$open = array();
+		foreach ( Situation::SET_BY_INCIDENT as $set ) {
+			$open[] = 'NOT ' . $exists( A::SITUATION, '=', $set );
+		}
+		// Sin fecha de fin, la acción dura un día: acaba el día que empieza.
+		$ends = 'running' === $key
+			? array( $exists( A::END, '>=', $today, true ), $exists( A::START, '=', $today, true ) )
+			: array( $exists( A::END, '<', $today, true ), $exists( A::START, '<', $today, true ) );
+		return ' AND ' . implode( ' AND ', $open )
+			. ' AND ' . $exists( A::START, '<=', $today, true )
+			. ' AND ( ' . $ends[0] . ' OR ( NOT ' . $exists( A::END ) . ' AND ' . $ends[1] . ' ) )';
 	}
 
 	/**
@@ -698,7 +699,11 @@ final class Lists {
 	private static function total( array $args ): int {
 		$args['posts_per_page'] = 1;
 		$args['fields']         = 'ids';
-		$q                      = new \WP_Query( $args );
+		// Un contador no se ordena: ordenarlo añade una unión más y una
+		// ordenación de todas las filas para no mirar ninguna.
+		$args['orderby'] = 'none';
+		unset( $args['fmc_order_meta'] );
+		$q = new \WP_Query( $args );
 		return (int) $q->found_posts;
 	}
 
@@ -724,14 +729,7 @@ final class Lists {
 		switch ( $type ) {
 			case PostTypes::ACTION:
 				foreach ( A::SITUATIONS as $key => $label ) {
-					$by[] = array(
-						$label,
-						'fmc_situation',
-						$key,
-						array(
-							'meta_query' => array_merge( $base['meta_query'], array( self::situation_clause( $key ) ) ), // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_query -- contadores del listado.
-						),
-					);
+					$by[] = array( $label, 'fmc_situation', $key, array( 'fmc_in_situation' => $key ) );
 				}
 				break;
 			case PostTypes::DESIGN:

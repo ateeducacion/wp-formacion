@@ -242,6 +242,34 @@ class Test_Lists extends WP_UnitTestCase {
 	}
 
 	/**
+	 * Contar por situación no une `postmeta`: se cuenta con subconsultas.
+	 *
+	 * Una unión por condición multiplica las filas por todas las metas de cada
+	 * acción, y con unos miles el listado tardaba medio minuto por contador y
+	 * no llegaba a pintarse.
+	 */
+	public function test_counting_by_situation_joins_no_tables() {
+		$this->as_role( 'fmc_curator' );
+		$this->post( PostTypes::ACTION, 'Robótica', array( A::START => '2020-03-01' ) );
+		$requests = array();
+		add_filter(
+			'posts_request',
+			static function ( $request ) use ( &$requests ) {
+				$requests[] = $request;
+				return $request;
+			}
+		);
+
+		$counters = Lists::counters( PostTypes::ACTION );
+
+		$this->assertSame( 1, array_column( $counters, 'n', 'label' )['Realizada'] );
+		$this->assertCount( 5, $requests, 'el total y una por situación' );
+		foreach ( $requests as $request ) {
+			$this->assertStringNotContainsString( 'JOIN', $request );
+		}
+	}
+
+	/**
 	 * The hrefs of the counter cards.
 	 *
 	 * @param string $body Screen body.
