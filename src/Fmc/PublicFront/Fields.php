@@ -97,27 +97,7 @@ final class Fields {
 			),
 			PostTypes::ACTION   => array(
 				A::FILE_NUMBER   => array( 'unique' => true ),
-				A::PLACES        => array(
-					'min' => 1,
-					'max' => 10000,
-				),
-				A::HOURS_ONSITE  => array(
-					'max'  => 500,
-					'show' => array( A::MODALITY => $onsite ),
-				),
-				A::HOURS_ONLINE  => array(
-					'max'  => 500,
-					'show' => array( A::MODALITY => $online ),
-				),
-				A::REPLICAS      => array(
-					'min' => 1,
-					'max' => 10,
-				),
 				A::TRAINING_FILE => array( 'show' => array( A::TRAINING_PLANS => array( 'plan', 'seminar' ) ) ),
-				A::CERTIFICATION => array(
-					'w'    => 'rich',
-					'show' => array( A::MODALITY => $online ),
-				),
 				A::NOTES         => $rich,
 				A::SPEAKERS      => array( 'add' => PostTypes::SPEAKER ),
 			),
@@ -301,8 +281,17 @@ final class Fields {
 		return array(
 			array(
 				'title'  => 'La acción',
-				'help'   => 'De qué diseño sale y quién la gestiona. El título es siempre el del diseño; la modalidad y las horas se toman de él si se dejan en blanco.',
+				'help'   => 'De qué diseño sale y quién la gestiona. El título, la modalidad y las horas son siempre los del diseño.',
 				'fields' => array(
+					// El expediente, primero: es el campo que más se teclea y el
+					// que más se busca, y el único que rellena el servicio de
+					// perfeccionamiento.
+					A::FILE_NUMBER     => array(
+						'label' => 'Expediente',
+						'w'     => 'text',
+						'col'   => 6,
+						'help'  => 'El del sistema de gestión del servicio de perfeccionamiento, cuando lo haya creado allí. Es por el que busca el listado.',
+					),
 					A::DESIGN_ID       => array(
 						'label' => 'Diseño',
 						'w'     => 'design',
@@ -365,69 +354,28 @@ final class Fields {
 						'w'     => 'text',
 						'col'   => 6,
 					),
-					A::TRAINING_FILE    => array(
-						'label' => 'Expediente de formación',
-						'w'     => 'text',
-						'col'   => 6,
-						'help'  => 'Número del expediente en el que se incluye esta acción.',
-					),
+					// Una acción está en un plan de formación, en un seminario o
+					// en ninguno: no en dos a la vez. Y su expediente, el del
+					// plan o del seminario, va justo debajo de la elección.
 					A::TRAINING_PLANS   => array(
 						'label'   => 'Planes de formación de los centros',
-						'w'       => 'checks',
-						'choices' => A::TRAINING_PLAN_KINDS,
+						'w'       => 'radio',
+						'choices' => array( '' => 'No está incluida en ninguno' ) + A::TRAINING_PLAN_KINDS,
 					),
-					A::ITINERARY        => array(
-						'label' => 'Itinerario formativo',
+					A::TRAINING_FILE    => array(
+						'label' => 'Expediente del plan o del seminario',
 						'w'     => 'text',
+						'col'   => 6,
+						'help'  => 'El número de expediente del plan de formación del centro o del seminario en el que se incluye esta acción, para poder asociarla. No es el expediente de la acción, que lo pone el servicio de perfeccionamiento.',
 					),
 				),
 			),
+			// Las plazas, la modalidad, las horas, el desdoble, las horas con
+			// desplazamiento y la matrícula en línea no se piden aquí: las dos
+			// primeras las lleva el sistema de gestión del servicio, y la
+			// modalidad y las horas son del diseño, que las copia al guardar.
 			array(
-				'title'  => 'Plazas, modalidad y horas',
-				'help'   => 'Las horas totales y las del desdoble se calculan.',
-				'fields' => array(
-					A::PLACES       => array(
-						'label' => 'Plazas',
-						'w'     => 'number',
-						'col'   => 3,
-						'req'   => true,
-					),
-					A::MODALITY     => array(
-						'label'   => 'Modalidad',
-						'w'       => 'select',
-						'choices' => D::MODALITIES,
-						'col'     => 3,
-					),
-					A::HOURS_ONSITE => array(
-						'label' => 'Horas presenciales',
-						'w'     => 'number',
-						'col'   => 3,
-					),
-					A::HOURS_ONLINE => array(
-						'label' => 'Horas en línea',
-						'w'     => 'number',
-						'col'   => 3,
-					),
-					A::REPLICAS     => array(
-						'label' => 'Desdoblar',
-						'w'     => 'number',
-						'col'   => 3,
-						'help'  => 'Veces que se repite con el mismo expediente.',
-					),
-					A::TRAVEL_HOURS => array(
-						'label' => 'Horas con desplazamiento',
-						'w'     => 'checkbox',
-						'col'   => 3,
-					),
-					A::ONLINE_ENROL => array(
-						'label' => 'Matrícula en línea',
-						'w'     => 'checkbox',
-						'col'   => 3,
-					),
-				),
-			),
-			array(
-				'title'  => 'Fechas',
+				'title'  => 'Fechas y horas',
 				'help'   => 'De la fecha de inicio sale el curso escolar y el sitio en el calendario. Los plazos de matrícula, el enlace y las listas se llevan en el sistema de gestión del servicio de perfeccionamiento.',
 				// Los plazos de matrícula y las listas no se piden aquí: los lleva el sistema
 				// del servicio. Sus claves siguen registradas para lo migrado (issue #35, adenda de la ADR-0005).
@@ -450,46 +398,20 @@ final class Fields {
 					),
 				),
 			),
+			// Los criterios de certificación y el espacio del curso en la
+			// plataforma están en la ficha técnica y en el sistema del
+			// servicio; el técnico de la empresa y la petición de servicio solo
+			// hacían falta cuando una empresa gestionaba la formación.
 			array(
-				'title'  => 'Desarrollo',
-				'help'   => '',
+				'title'  => 'Observaciones',
+				// La situación no se teclea, ni el proceso: la acción se guarda o se entrega (ADR-0020).
+				'help'   => 'La situación la pone el aplicativo: impartiéndose en sus fechas y realizada cuando pasan; una incidencia la aplaza o la cancela.',
 				'fields' => array(
-					A::CERTIFICATION    => array(
-						'label' => 'Criterios de certificación',
-						'w'     => 'textarea',
-					),
-					A::COURSE_SPACE_URL => array(
-						'label' => 'Espacio del curso en la plataforma',
-						'w'     => 'url',
-					),
-					A::NOTES            => array(
+					A::NOTES        => array(
 						'label' => 'Observaciones',
 						'w'     => 'textarea',
 					),
-				),
-			),
-			array(
-				'title'  => 'Estado',
-				// La situación no se teclea, ni el proceso: la acción se guarda o se entrega (ADR-0020).
-				'help'   => 'La situación la pone el aplicativo: impartiéndose en sus fechas y realizada cuando pasan; una incidencia la aplaza o la cancela. El expediente lo pone el servicio de perfeccionamiento.',
-				'fields' => array(
-					A::FILE_NUMBER     => array(
-						'label' => 'Expediente',
-						'w'     => 'text',
-						'col'   => 6,
-						'help'  => 'Cuando el servicio de perfeccionamiento la haya creado en su sistema de gestión.',
-					),
-					A::COMPANY_TECH    => array(
-						'label' => 'Técnico de la empresa',
-						'w'     => 'text',
-						'col'   => 6,
-					),
-					A::SERVICE_REQUEST => array(
-						'label' => 'Petición de servicio',
-						'w'     => 'checkbox',
-						'col'   => 6,
-					),
-					A::INTERNAL_REF    => array(
+					A::INTERNAL_REF => array(
 						'label' => 'Referencia interna',
 						'w'     => 'text',
 						'col'   => 6,

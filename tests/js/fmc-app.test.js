@@ -312,7 +312,7 @@ describe( 'campos que dependen de otro', () => {
 		document.body.innerHTML = '<form><select name="f[fmc_modality]"><option value="">—</option><option value="onsite">Presencial</option><option value="online">En línea</option><option value="blended">Mixta</option></select>'
 			+ '<div id="on" data-fmc-show="f[fmc_modality]" data-fmc-show-values="onsite,blended"></div>'
 			+ '<div id="off" data-fmc-show="f[fmc_modality]" data-fmc-show-values="online,blended"></div>'
-			+ '<input type="checkbox" name="f[fmc_training_plans][]" value="plan"><div id="plan" data-fmc-show="f[fmc_training_plans]" data-fmc-show-values="plan,seminar"></div>'
+			+ '<input type="radio" name="f[fmc_training_plans]" value="" checked><input type="radio" name="f[fmc_training_plans]" value="plan"><div id="plan" data-fmc-show="f[fmc_training_plans]" data-fmc-show-values="plan,seminar"></div>'
 			+ '<input class="fmc-file" type="file" id="up"><span class="fmc-file-name" data-for="up"></span></form>';
 		await load();
 	} );
@@ -334,12 +334,16 @@ describe( 'campos que dependen de otro', () => {
 		expect( document.getElementById( 'off' ).classList.contains( 'd-none' ) ).toBe( false );
 	} );
 
-	it( 'una casilla de una lista también cuenta', () => {
-		const box = document.querySelector( 'input[type=checkbox]' );
+	it( 'una opción de una lista también cuenta, y «ninguno» no', () => {
+		const [ none, plan ] = document.querySelectorAll( 'input[type=radio]' );
 		expect( document.getElementById( 'plan' ).classList.contains( 'd-none' ) ).toBe( true );
-		box.checked = true;
-		change( box );
+		plan.checked = true;
+		change( plan );
 		expect( document.getElementById( 'plan' ).classList.contains( 'd-none' ) ).toBe( false );
+		none.checked = true;
+		plan.checked = false;
+		change( none );
+		expect( document.getElementById( 'plan' ).classList.contains( 'd-none' ) ).toBe( true );
 	} );
 
 	it( 'el fichero elegido se nombra', () => {

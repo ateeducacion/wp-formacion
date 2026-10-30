@@ -292,7 +292,7 @@ class Test_Editor_Render extends WP_UnitTestCase {
 		$this->assertTrue( $this->disabled( $body, A::FILE_NUMBER ) );
 		$this->assertSame( 0, $this->find( $body, '//*[@name="f[' . A::SITUATION . ']"]' )->length, 'la situación no se teclea' );
 		$this->assertSame( 0, $this->find( $body, '//*[@name="f[' . A::PROCESS . ']"]' )->length, 'ni el proceso' );
-		$this->assertFalse( $this->disabled( $body, A::PLACES ) );
+		$this->assertFalse( $this->disabled( $body, A::SUBTITLE ) );
 		$this->assertStringContainsString( 'Lo rellena el servicio de perfeccionamiento.', $body );
 		$this->assertStringContainsString( '¿No está en la lista?', $body, 'puede crear ponentes' );
 		$this->assertSame(
@@ -307,15 +307,15 @@ class Test_Editor_Render extends WP_UnitTestCase {
 		// Entregada, la asesoría ya no la cambia, pero abre incidencias sobre ella (ADR-0020).
 		wp_publish_post( $action );
 		$screen = $this->screen_of( $action );
-		$this->assertTrue( $this->disabled( $screen['body'], A::PLACES ) );
+		$this->assertTrue( $this->disabled( $screen['body'], A::SUBTITLE ) );
 		$this->assertSame( array(), $this->buttons( $screen['body'] ) );
 		$this->assertStringContainsString( 'Abrir una incidencia', $screen['body'] );
 
 		$this->as_role( 'fmc_training_service' );
 		$body = $this->screen_of( $action )['body'];
 		$this->assertFalse( $this->disabled( $body, A::FILE_NUMBER ) );
-		$this->assertTrue( $this->disabled( $body, A::PLACES ) );
 		$this->assertTrue( $this->disabled( $body, A::SUBTITLE ) );
+		$this->assertTrue( $this->disabled( $body, A::SCHEDULE ) );
 		$this->assertStringNotContainsString( 'Lo rellena el servicio de perfeccionamiento.', $body );
 		$this->assertStringNotContainsString( '¿No está en la lista?', $body );
 		$this->assertSame( array( 'Guardar' => '' ), $this->buttons( $body ), 'tiene algo que guardar' );
@@ -399,21 +399,20 @@ class Test_Editor_Render extends WP_UnitTestCase {
 	}
 
 	/**
-	 * Una acción nueva desde un diseño trae su modalidad y sus horas.
+	 * Una acción nueva desde un diseño se abre con él elegido. Su modalidad y
+	 * sus horas no se teclean: son las del diseño y no están en la ficha.
 	 */
-	public function test_a_new_action_from_a_design_is_prefilled() {
+	public function test_a_new_action_from_a_design_opens_with_it_chosen() {
 		$this->as_role( 'fmc_adviser' );
 		$design = $this->post( PostTypes::DESIGN, 1 );
 		update_post_meta( $design, D::MODALITY, 'blended' );
-		update_post_meta( $design, D::HOURS_ONSITE, 9 );
-		update_post_meta( $design, D::HOURS_ONLINE, 3 );
 		$_GET[ Screen::ARG_DESIGN ] = (string) $design;
 
 		$body = Editor::screen( 0, PostTypes::ACTION )['body'];
 
 		$this->assertSame( (string) $design, $this->find( $body, '//select[@name="f[fmc_design_id]"]/option[@selected]' )->item( 0 )->getAttribute( 'value' ) );
-		$this->assertSame( 'blended', $this->find( $body, '//select[@name="f[fmc_modality]"]/option[@selected]' )->item( 0 )->getAttribute( 'value' ) );
-		$this->assertSame( '9', $this->find( $body, '//input[@name="f[fmc_hours_onsite]"]' )->item( 0 )->getAttribute( 'value' ) );
+		$this->assertSame( 0, $this->find( $body, '//*[@name="f[' . A::MODALITY . ']"]' )->length, 'la modalidad es del diseño' );
+		$this->assertSame( 0, $this->find( $body, '//*[@name="f[' . A::HOURS_ONSITE . ']"]' )->length, 'y las horas' );
 		$this->assertSame(
 			array(
 				'Guardar borrador' => 'draft',
