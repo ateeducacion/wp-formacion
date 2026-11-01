@@ -145,7 +145,7 @@ A partir de ahora, en la ficha del diseño y en la de la acción:
 - el programa que la entrada **ya tenía** se sigue ofreciendo, con el aviso de
   que dejó de estar vigente, para que guardar la ficha no lo borre. Es la misma
   regla que el diseño histórico que una acción antigua conserva
-  ([ADR-0016](ADR-0016-el-historico-es-un-estado-del-diseno.md));
+  ([ADR-0016](ADR-0016-lo-que-ya-no-se-imparte-es-un-estado-del-diseno.md));
 - si **nadie** ha marcado ningún programa como vigente, se ofrecen todos. La
   casilla se pone a mano, y una instalación que no la haya usado todavía se
   encontraría la elección vacía, que es peor que la lista entera.
