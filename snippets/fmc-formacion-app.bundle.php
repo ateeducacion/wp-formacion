@@ -304,10 +304,10 @@ final class ActionMetaKeys {
 
 
 
+
 	public const TRAINING_PLAN_KINDS = array(
-		'plan'      => 'Incluida en su plan de formación',
-		'itinerary' => 'Incluida en un itinerario formativo',
-		'seminar'   => 'Incluida en un seminario o grupo de trabajo',
+		'plan'    => 'Incluida en su plan de formación',
+		'seminar' => 'Incluida en un seminario o grupo de trabajo',
 	);
 
 
@@ -2739,27 +2739,7 @@ final class Fields {
 			),
 			PostTypes::ACTION   => array(
 				A::FILE_NUMBER   => array( 'unique' => true ),
-				A::PLACES        => array(
-					'min' => 1,
-					'max' => 10000,
-				),
-				A::HOURS_ONSITE  => array(
-					'max'  => 500,
-					'show' => array( A::MODALITY => $onsite ),
-				),
-				A::HOURS_ONLINE  => array(
-					'max'  => 500,
-					'show' => array( A::MODALITY => $online ),
-				),
-				A::REPLICAS      => array(
-					'min' => 1,
-					'max' => 10,
-				),
 				A::TRAINING_FILE => array( 'show' => array( A::TRAINING_PLANS => array( 'plan', 'seminar' ) ) ),
-				A::CERTIFICATION => array(
-					'w'    => 'rich',
-					'show' => array( A::MODALITY => $online ),
-				),
 				A::NOTES         => $rich,
 				A::SPEAKERS      => array( 'add' => PostTypes::SPEAKER ),
 			),
@@ -2943,8 +2923,17 @@ final class Fields {
 		return array(
 			array(
 				'title'  => 'La acción',
-				'help'   => 'De qué diseño sale y quién la gestiona. El título es siempre el del diseño; la modalidad y las horas se toman de él si se dejan en blanco.',
+				'help'   => 'De qué diseño sale y quién la gestiona. El título, la modalidad y las horas son siempre los del diseño.',
 				'fields' => array(
+
+
+
+					A::FILE_NUMBER     => array(
+						'label' => 'Expediente',
+						'w'     => 'text',
+						'col'   => 6,
+						'help'  => 'El del sistema de gestión del servicio de perfeccionamiento, cuando lo haya creado allí. Es por el que busca el listado.',
+					),
 					A::DESIGN_ID       => array(
 						'label' => 'Diseño',
 						'w'     => 'design',
@@ -3007,69 +2996,28 @@ final class Fields {
 						'w'     => 'text',
 						'col'   => 6,
 					),
-					A::TRAINING_FILE    => array(
-						'label' => 'Expediente de formación',
-						'w'     => 'text',
-						'col'   => 6,
-						'help'  => 'Número del expediente en el que se incluye esta acción.',
-					),
+
+
+
 					A::TRAINING_PLANS   => array(
 						'label'   => 'Planes de formación de los centros',
-						'w'       => 'checks',
-						'choices' => A::TRAINING_PLAN_KINDS,
+						'w'       => 'radio',
+						'choices' => array( '' => 'No está incluida en ninguno' ) + A::TRAINING_PLAN_KINDS,
 					),
-					A::ITINERARY        => array(
-						'label' => 'Itinerario formativo',
+					A::TRAINING_FILE    => array(
+						'label' => 'Expediente del plan o del seminario',
 						'w'     => 'text',
+						'col'   => 6,
+						'help'  => 'El número de expediente del plan de formación del centro o del seminario en el que se incluye esta acción, para poder asociarla. No es el expediente de la acción, que lo pone el servicio de perfeccionamiento.',
 					),
 				),
 			),
+
+
+
+
 			array(
-				'title'  => 'Plazas, modalidad y horas',
-				'help'   => 'Las horas totales y las del desdoble se calculan.',
-				'fields' => array(
-					A::PLACES       => array(
-						'label' => 'Plazas',
-						'w'     => 'number',
-						'col'   => 3,
-						'req'   => true,
-					),
-					A::MODALITY     => array(
-						'label'   => 'Modalidad',
-						'w'       => 'select',
-						'choices' => D::MODALITIES,
-						'col'     => 3,
-					),
-					A::HOURS_ONSITE => array(
-						'label' => 'Horas presenciales',
-						'w'     => 'number',
-						'col'   => 3,
-					),
-					A::HOURS_ONLINE => array(
-						'label' => 'Horas en línea',
-						'w'     => 'number',
-						'col'   => 3,
-					),
-					A::REPLICAS     => array(
-						'label' => 'Desdoblar',
-						'w'     => 'number',
-						'col'   => 3,
-						'help'  => 'Veces que se repite con el mismo expediente.',
-					),
-					A::TRAVEL_HOURS => array(
-						'label' => 'Horas con desplazamiento',
-						'w'     => 'checkbox',
-						'col'   => 3,
-					),
-					A::ONLINE_ENROL => array(
-						'label' => 'Matrícula en línea',
-						'w'     => 'checkbox',
-						'col'   => 3,
-					),
-				),
-			),
-			array(
-				'title'  => 'Fechas',
+				'title'  => 'Fechas y horas',
 				'help'   => 'De la fecha de inicio sale el curso escolar y el sitio en el calendario. Los plazos de matrícula, el enlace y las listas se llevan en el sistema de gestión del servicio de perfeccionamiento.',
 
 
@@ -3092,46 +3040,20 @@ final class Fields {
 					),
 				),
 			),
+
+
+
+
 			array(
-				'title'  => 'Desarrollo',
-				'help'   => '',
+				'title'  => 'Observaciones',
+
+				'help'   => 'La situación la pone el aplicativo: impartiéndose en sus fechas y realizada cuando pasan; una incidencia la aplaza o la cancela.',
 				'fields' => array(
-					A::CERTIFICATION    => array(
-						'label' => 'Criterios de certificación',
-						'w'     => 'textarea',
-					),
-					A::COURSE_SPACE_URL => array(
-						'label' => 'Espacio del curso en la plataforma',
-						'w'     => 'url',
-					),
-					A::NOTES            => array(
+					A::NOTES        => array(
 						'label' => 'Observaciones',
 						'w'     => 'textarea',
 					),
-				),
-			),
-			array(
-				'title'  => 'Estado',
-
-				'help'   => 'La situación la pone el aplicativo: impartiéndose en sus fechas y realizada cuando pasan; una incidencia la aplaza o la cancela. El expediente lo pone el servicio de perfeccionamiento.',
-				'fields' => array(
-					A::FILE_NUMBER     => array(
-						'label' => 'Expediente',
-						'w'     => 'text',
-						'col'   => 6,
-						'help'  => 'Cuando el servicio de perfeccionamiento la haya creado en su sistema de gestión.',
-					),
-					A::COMPANY_TECH    => array(
-						'label' => 'Técnico de la empresa',
-						'w'     => 'text',
-						'col'   => 6,
-					),
-					A::SERVICE_REQUEST => array(
-						'label' => 'Petición de servicio',
-						'w'     => 'checkbox',
-						'col'   => 6,
-					),
-					A::INTERNAL_REF    => array(
+					A::INTERNAL_REF => array(
 						'label' => 'Referencia interna',
 						'w'     => 'text',
 						'col'   => 6,
@@ -5193,9 +5115,11 @@ final class Lists {
 				return $value ? 'Sí' : 'No';
 			case 'select':
 			case 'radio':
-				return (string) ( $f['choices'][ (string) $value ] ?? $value );
 			case 'checks':
-				return implode( ', ', array_map( static fn( $v ) => $f['choices'][ $v ] ?? $v, (array) $value ) );
+
+
+				$chosen = array_filter( array_map( 'strval', (array) $value ), 'strlen' );
+				return implode( ', ', array_map( static fn( $v ) => $f['choices'][ $v ] ?? $v, $chosen ) );
 			case 'term':
 			case 'terms':
 				return implode( ', ', array_map( static fn( $id ) => get_term( (int) $id )->name ?? '', (array) $value ) );
@@ -6230,12 +6154,7 @@ final class Editor {
 
 		$from = absint( Lists::arg( Screen::ARG_DESIGN ) );
 		if ( ! $post && PostTypes::ACTION === $type && $from && PostTypes::DESIGN === get_post_type( $from ) && 'publish' === get_post_status( $from ) ) {
-			$values += array(
-				A::DESIGN_ID    => $from,
-				A::MODALITY     => get_post_meta( $from, D::MODALITY, true ),
-				A::HOURS_ONSITE => get_post_meta( $from, D::HOURS_ONSITE, true ),
-				A::HOURS_ONLINE => get_post_meta( $from, D::HOURS_ONLINE, true ),
-			);
+			$values += array( A::DESIGN_ID => $from );
 		}
 
 
@@ -6941,6 +6860,8 @@ final class Editor {
 		$items = array(
 			'Curso escolar' => \Fmc\Domain\SchoolYear::of( (string) get_post_meta( $post->ID, A::START, true ) ),
 
+			'Modalidad'     => D::MODALITIES[ (string) get_post_meta( $post->ID, A::MODALITY, true ) ] ?? '',
+
 			'Horas totales' => 'cancelled' === A::situation( $post->ID ) ? 'Cancelada' : ( $hours ? ( $hours + 0 ) . ' h' . ( $replicas > 1 ? ' (' . ( $hours * $replicas + 0 ) . ' h con el desdoble)' : '' ) : '' ),
 			'Ponentes'      => (string) count( array_filter( (array) get_post_meta( $post->ID, A::SPEAKERS, true ) ) ),
 		);
@@ -7097,18 +7018,6 @@ final class Editor {
 
 		$errors = self::check_choices( $fields, $values, $post );
 
-
-
-		if ( PostTypes::ACTION === $type && ! empty( $values[ A::DESIGN_ID ] ) && ! isset( $errors[ A::DESIGN_ID ] ) ) {
-			$design = (int) $values[ A::DESIGN_ID ];
-			if ( isset( $values[ A::MODALITY ] ) && '' === $values[ A::MODALITY ] ) {
-				$values[ A::MODALITY ] = (string) get_post_meta( $design, D::MODALITY, true );
-			}
-			if ( isset( $values[ A::HOURS_ONSITE ], $values[ A::HOURS_ONLINE ] ) && '' === $values[ A::HOURS_ONSITE ] . $values[ A::HOURS_ONLINE ] ) {
-				$values[ A::HOURS_ONSITE ] = (string) get_post_meta( $design, D::HOURS_ONSITE, true );
-				$values[ A::HOURS_ONLINE ] = (string) get_post_meta( $design, D::HOURS_ONLINE, true );
-			}
-		}
 		if ( PostTypes::ACTION === $type && ! isset( $errors[ A::DESIGN_ID ] ) ) {
 			$errors += self::impute_programme( $values, $post );
 		}
@@ -7160,6 +7069,19 @@ final class Editor {
 				'errors'   => $errors,
 				'problems' => array(),
 			);
+		}
+
+
+
+
+		if ( PostTypes::ACTION === $type && ! empty( $values[ A::DESIGN_ID ] ) ) {
+			foreach ( array(
+				A::MODALITY     => D::MODALITY,
+				A::HOURS_ONSITE => D::HOURS_ONSITE,
+				A::HOURS_ONLINE => D::HOURS_ONLINE,
+			) as $key => $of_design ) {
+				$values[ $key ] = (string) get_post_meta( (int) $values[ A::DESIGN_ID ], $of_design, true );
+			}
 		}
 
 		$postarr = array( 'post_type' => $type );

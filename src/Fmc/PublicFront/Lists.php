@@ -1245,9 +1245,11 @@ final class Lists {
 				return $value ? 'Sí' : 'No';
 			case 'select':
 			case 'radio':
-				return (string) ( $f['choices'][ (string) $value ] ?? $value );
 			case 'checks':
-				return implode( ', ', array_map( static fn( $v ) => $f['choices'][ $v ] ?? $v, (array) $value ) );
+				// Uno de una lista cerrada o varios: lo guardado puede ser una
+				// cadena o una lista, y lo vacío no se escribe.
+				$chosen = array_filter( array_map( 'strval', (array) $value ), 'strlen' );
+				return implode( ', ', array_map( static fn( $v ) => $f['choices'][ $v ] ?? $v, $chosen ) );
 			case 'term':
 			case 'terms':
 				return implode( ', ', array_map( static fn( $id ) => get_term( (int) $id )->name ?? '', (array) $value ) );
