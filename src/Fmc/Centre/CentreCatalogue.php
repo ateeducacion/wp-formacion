@@ -50,11 +50,15 @@ final class CentreCatalogue {
 	/**
 	 * Map of active centres [ code => name ] sorted alphabetically by name.
 	 *
+	 * @param string $island Keep only the centres of this island; '' for all.
 	 * @return array<string, string>
 	 */
-	public static function active_options(): array {
+	public static function active_options( string $island = '' ): array {
 		$active = self::all_active();
-		$out    = array();
+		if ( '' !== $island ) {
+			$active = array_filter( $active, static fn( $centre ) => isset( $centre['island'] ) && (string) $centre['island'] === $island );
+		}
+		$out = array();
 		foreach ( $active as $code => $centre ) {
 			$name = isset( $centre['name'] ) ? trim( (string) $centre['name'] ) : '';
 			if ( '' !== $name ) {
@@ -70,6 +74,29 @@ final class CentreCatalogue {
 		);
 
 		return $out;
+	}
+
+	/**
+	 * Find a centre by its name, as the catalogue writes it.
+	 *
+	 * El término del ámbito se llama exactamente como el centro del profesorado
+	 * en el catálogo (ADR-0022), así que de un ámbito se llega a su centro y,
+	 * con él, a su isla.
+	 *
+	 * @param string $name Name.
+	 * @return array{code:string, name:string, island:string, municipality:string, type:string, active:bool}|null
+	 */
+	public static function find_by_name( string $name ): ?array {
+		$name = trim( $name );
+		if ( '' === $name ) {
+			return null;
+		}
+		foreach ( self::all() as $centre ) {
+			if ( isset( $centre['name'] ) && trim( (string) $centre['name'] ) === $name ) {
+				return $centre;
+			}
+		}
+		return null;
 	}
 
 	/**

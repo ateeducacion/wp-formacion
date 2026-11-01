@@ -247,9 +247,11 @@ final class Editor {
 				$writable = $writable || $can;
 				$value    = array_key_exists( $key, $values ) ? $values[ $key ] : self::value( $post, $key );
 				$shown    = self::shown( $field, static fn( $k ) => array_key_exists( $k, $values ) ? $values[ $k ] : self::value( $post, $k ) );
+				$scope    = (array) ( array_key_exists( 'tax:' . Taxonomies::SCOPE, $values ) ? $values[ 'tax:' . Taxonomies::SCOPE ] : self::value( $post, 'tax:' . Taxonomies::SCOPE ) );
 				$field   += array(
 					'design' => (int) ( array_key_exists( A::DESIGN_ID, $values ) ? $values[ A::DESIGN_ID ] : self::value( $post, A::DESIGN_ID ) ),
 					'post'   => $id,
+					'scope'  => (int) ( false !== reset( $scope ) ? reset( $scope ) : 0 ),
 					'stored' => self::value( $post, $key ),
 				);
 				$body    .= 'docs' === $field['w'] ? self::docs( $post, $can ) : self::field( $type, $key, $field, $value, $can, isset( $errors[ $key ] ), $shown );
@@ -444,7 +446,7 @@ final class Editor {
 			$help .= '<div class="form-text">Aún no hay ninguna asesoría con cuenta en el aplicativo: la administración las da de alta en «Usuarios», con el rol «Asesoría de formación».</div>';
 		}
 		if ( 'centre' === $f['w'] ) {
-			$help .= self::centre_help( (int) ( $f['post'] ?? 0 ), is_string( $value ) ? $value : '', $can );
+			$help .= self::centre_help( (int) ( $f['post'] ?? 0 ), is_string( $value ) ? $value : '', $can, (int) ( $f['scope'] ?? 0 ) );
 		}
 		if ( $can && ! empty( $f['add'] ) && current_user_can( get_post_type_object( $f['add'] )->cap->create_posts ) ) {
 			$help .= '<div class="form-text"><a href="' . esc_url(
@@ -647,7 +649,7 @@ final class Editor {
 			return Advisers::choices();
 		}
 		if ( 'centre' === $f['w'] ) {
-			return self::centre_choices( (string) ( $f['stored'] ?? '' ), (int) ( $f['post'] ?? 0 ) );
+			return self::centre_choices( (string) ( $f['stored'] ?? '' ), (int) ( $f['post'] ?? 0 ), (int) ( $f['scope'] ?? 0 ) );
 		}
 		$type = 'speakers' === $f['w'] ? PostTypes::SPEAKER : PostTypes::DESIGN;
 		// El diseño de una acción, como los recomendados, ha de estar finalizado:
@@ -668,22 +670,52 @@ final class Editor {
 	/**
 	 * The active centres of the catalogue, and the one an action already has.
 	 *
-	 * El centro guardado se conserva aunque haya dejado de estar activo, con
-	 * el nombre que tenía al elegirlo (ADR-0021).
+	 * Se ofrecen los de la isla del ámbito que gestiona la acción: una acción
+	 * de un centro del profesorado no se imparte en la otra punta de la
+	 * comunidad. El centro guardado se conserva aunque haya dejado de estar
+	 * activo o sea de otra isla, con el nombre que tenía al elegirlo
+	 * (ADR-0021).
 	 *
 	 * @param string $stored Code stored in the action.
 	 * @param int    $action Action ID; 0 when new.
+	 * @param int    $scope  Scope term chosen in the form; 0 for none.
 	 * @return array<string, string> Code => «name (code)».
 	 */
-	private static function centre_choices( string $stored, int $action ): array {
+	private static function centre_choices( string $stored, int $action, int $scope = 0 ): array {
 		$out = array();
-		foreach ( CentreCatalogue::active_options() as $code => $name ) {
+		foreach ( CentreCatalogue::active_options( self::scope_island( $scope ) ) as $code => $name ) {
 			$out[ $code ] = CentreCatalogue::label( (string) $code, $name );
 		}
 		if ( '' !== $stored && ! isset( $out[ $stored ] ) ) {
-			$out[ $stored ] = CentreCatalogue::label( $stored, (string) get_post_meta( $action, A::VENUE_CENTRE, true ) ) . ' — ya no está activo';
+			// Lo guardado no se pierde nunca: ni un centro que se desactivó, ni
+			// uno de otra isla que se eligió antes de acotar la lista.
+			$suffix         = CentreCatalogue::is_active( $stored ) ? ' — de otra isla' : ' — ya no está activo';
+			$out[ $stored ] = CentreCatalogue::label( $stored, (string) get_post_meta( $action, A::VENUE_CENTRE, true ) ) . $suffix;
 		}
 		return $out;
+	}
+
+	/**
+	 * The island of the centre that manages the action, '' when unknown.
+	 *
+	 * Una acción se imparte en los centros del ámbito que la gestiona, y el
+	 * ámbito se llama como su centro del profesorado en el catálogo (ADR-0022):
+	 * de ahí sale la isla con la que se acota la lista. Sin ámbito elegido, sin
+	 * término con ese nombre o sin isla en el catálogo, se ofrecen todos.
+	 *
+	 * @param int $scope Scope term ID.
+	 * @return string
+	 */
+	private static function scope_island( int $scope ): string {
+		if ( ! $scope ) {
+			return '';
+		}
+		$term = get_term( $scope, Taxonomies::SCOPE );
+		if ( ! $term instanceof \WP_Term ) {
+			return '';
+		}
+		$centre = CentreCatalogue::find_by_name( $term->name );
+		return (string) ( $centre['island'] ?? '' );
 	}
 
 	/**
@@ -695,10 +727,15 @@ final class Editor {
 	 * @param int    $action Action ID; 0 when new.
 	 * @param string $code   Code in the field.
 	 * @param bool   $can    Whether the viewer can change it.
+	 * @param int    $scope  Scope term chosen in the form; 0 for none.
 	 * @return string
 	 */
-	private static function centre_help( int $action, string $code, bool $can ): string {
+	private static function centre_help( int $action, string $code, bool $can, int $scope = 0 ): string {
 		$help   = '';
+		$island = self::scope_island( $scope );
+		if ( $can && '' !== $island ) {
+			$help .= '<div class="form-text">Solo los centros de ' . esc_html( $island ) . ', que es donde está el ámbito elegido arriba. Cambie el ámbito para ver los de otra isla.</div>';
+		}
 		$legacy = '' === $code && $action ? (string) get_post_meta( $action, A::VENUE_CENTRE, true ) : '';
 		if ( '' !== $legacy ) {
 			$help .= '<div class="form-text">Escrito a mano en el sistema anterior: «' . esc_html( $legacy ) . '».' . ( $can ? ' Elija el centro de la lista para sustituirlo.' : '' ) . '</div>';

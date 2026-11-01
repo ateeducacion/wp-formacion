@@ -1223,4 +1223,27 @@ class Test_Lists extends WP_UnitTestCase {
 		$this->as_role( 'fmc_adviser' );
 		$this->assertSame( 'Vigente', $titles() );
 	}
+
+	/**
+	 * The filter card shows four fields and keeps the rest folded away.
+	 */
+	public function test_the_advanced_filters_open_only_when_they_are_used() {
+		$_GET = array();
+		$card = Lists::filters_html( 'actions', PostTypes::ACTION );
+
+		$this->assertStringContainsString( 'name="fmc_s"', $card, 'Buscar está siempre a la vista.' );
+		$this->assertStringContainsString( 'name="fmc_adviser_kind"', $card, 'Y el tipo de asesoría, como se pidió.' );
+		$this->assertStringContainsString( 'id="fmc-advanced"', $card );
+		$this->assertStringNotContainsString( 'collapse show', $card, 'Sin filtros puestos, plegada.' );
+		$this->assertStringNotContainsString( 'badge', $card );
+
+		$_GET = array(
+			'fmc_modality' => 'blended',
+			'fmc_type'     => 'course',
+		);
+		$card = Lists::filters_html( 'actions', PostTypes::ACTION );
+
+		$this->assertStringContainsString( 'collapse show', $card, 'Con filtros avanzados puestos, abierta.' );
+		$this->assertStringContainsString( '>2</span>', $card, 'Y dice cuántos hay puestos.' );
+	}
 }

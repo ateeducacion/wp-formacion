@@ -320,6 +320,38 @@ class Test_Adviser_Centre extends WP_UnitTestCase {
 	}
 
 	/**
+	 * The venue list only offers the centres of the scope's island.
+	 */
+	public function test_the_venue_centres_are_the_ones_of_the_scope_island() {
+		$catalogue             = get_option( CentreCatalogue::OPTION_CATALOGUE );
+		$catalogue['38000002'] = array(
+			'code'         => '38000002',
+			'name'         => 'CEIP del Norte',
+			'island'       => 'Isla Norte',
+			'municipality' => 'Villa Norte',
+			'type'         => 'CEIP',
+			'active'       => true,
+		);
+		$catalogue['38000003'] = array(
+			'code'         => '38000003',
+			'name'         => 'CEIP del Sur',
+			'island'       => 'Isla Sur',
+			'municipality' => 'Villa Sur',
+			'type'         => 'CEIP',
+			'active'       => true,
+		);
+		update_option( CentreCatalogue::OPTION_CATALOGUE, $catalogue );
+		$this->scope_term();
+		$this->adviser();
+
+		$screen = Editor::render( PostTypes::ACTION, null, array(), array() );
+
+		$this->assertStringContainsString( 'value="38000002"', $screen['body'], 'Un centro de la isla del ámbito, sí.' );
+		$this->assertStringNotContainsString( 'value="38000003"', $screen['body'], 'Uno de otra isla, no.' );
+		$this->assertStringContainsString( 'Solo los centros de Isla Norte', $screen['body'], 'Y se dice por qué.' );
+	}
+
+	/**
 	 * Speakers are a shared directory: any adviser keeps any file up to date.
 	 */
 	public function test_an_adviser_edits_any_speaker() {

@@ -913,20 +913,24 @@ final class Lists {
 			PostTypes::ACTION  => 'Título, subtítulo o expediente…',
 			PostTypes::SPEAKER => 'Nombre…',
 		);
-		$fields       = array( self::search_field( $placeholders[ $type ] ?? 'Título…' ) );
+		$quick        = array();
+		$fields       = array();
 		switch ( $type ) {
 			case PostTypes::ACTION:
+				// A la vista, lo que se usa a diario; lo demás, en «Búsqueda
+				// avanzada». El tipo de asesoría se queda fuera a petición de
+				// la reunión del 2026-10-30.
+				$quick[]  = self::select( 'fmc_situation', 'Situación', A::SITUATIONS, 'Todas' );
+				$quick[]  = self::select( 'fmc_year', 'Curso escolar', self::school_years(), 'Todos' );
+				$quick[]  = self::select( 'fmc_adviser_kind', 'Tipo de asesoría', Advisers::KINDS, 'Todos' );
 				$fields[] = self::text_field( 'fmc_file', 'Expediente empieza por', 'Prefijo' );
 				$fields[] = self::select( 'fmc_scope', 'Ámbito', self::term_choices( 'fmc_scope' ), 'Todos' );
-				$fields[] = self::select( 'fmc_year', 'Curso escolar', self::school_years(), 'Todos' );
 				$fields[] = self::select( 'fmc_programme', 'Programa', self::term_choices( 'fmc_programme' ), 'Todos' );
 				$fields[] = self::select( 'fmc_modality', 'Modalidad', D::MODALITIES, 'Todas' );
 				$fields[] = self::select( 'fmc_type', 'Tipo', D::TYPES, 'Todos' );
 				$fields[] = self::select( 'fmc_status', 'Estado', A::DELIVERY, 'Todos' );
-				$fields[] = self::select( 'fmc_situation', 'Situación', A::SITUATIONS, 'Todas' );
 				$fields[] = self::select( 'fmc_speaker', 'Ponente', self::post_choices( PostTypes::SPEAKER ), 'Todos', true );
 				$fields[] = self::select( 'fmc_adviser', 'Asesoría', Advisers::choices(), 'Todas', true );
-				$fields[] = self::select( 'fmc_adviser_kind', 'Tipo de asesoría', Advisers::KINDS, 'Todos' );
 				$fields[] = self::select(
 					'fmc_incident',
 					'Incidencias',
@@ -940,7 +944,7 @@ final class Lists {
 				$fields[] = self::date_field( 'fmc_to', 'hasta' );
 				break;
 			case PostTypes::DESIGN:
-				$fields[] = self::select( 'fmc_type', 'Tipo', D::TYPES, 'Todos' );
+				$quick[]  = self::select( 'fmc_type', 'Tipo', D::TYPES, 'Todos' );
 				$fields[] = self::select( 'fmc_modality', 'Modalidad', D::MODALITIES, 'Todas' );
 				$fields[] = self::select( 'fmc_programme', 'Programa', self::term_choices( 'fmc_programme' ), 'Todos' );
 				$fields[] = self::select( 'fmc_topic', 'Temática', self::term_choices( 'fmc_topic' ), 'Todas' );
@@ -950,7 +954,7 @@ final class Lists {
 				$fields[] = self::select( 'fmc_catalogue', 'Catálogo', array( '1' => 'En el catálogo público' ), 'Todos' );
 				break;
 			case PostTypes::SPEAKER:
-				$fields[] = self::select( 'fmc_zone', 'Isla o zona', self::term_choices( Taxonomies::ZONE ), 'Todas' );
+				$quick[]  = self::select( 'fmc_zone', 'Isla o zona', self::term_choices( Taxonomies::ZONE ), 'Todas' );
 				$fields[] = self::select(
 					'fmc_available',
 					'Disponibilidad',
@@ -979,7 +983,7 @@ final class Lists {
 				);
 				break;
 			case PostTypes::INCIDENT:
-				$fields[] = self::select( 'fmc_resolution', 'Resolución', I::RESOLUTIONS, 'Todas' );
+				$quick[] = self::select( 'fmc_resolution', 'Resolución', I::RESOLUTIONS, 'Todas' );
 				break;
 		}
 
@@ -992,13 +996,29 @@ final class Lists {
 				$out .= '<input type="hidden" name="' . esc_attr( $key ) . '" value="' . esc_attr( self::arg( $key ) ) . '">';
 			}
 		}
-		$out  .= '<div class="row g-2 align-items-end">' . implode( '', $fields );
 		$reset = array(
 			Screen::ARG_TAB => $tab,
 			'fmc_view'      => self::arg( 'fmc_view' ),
 		);
-		$out  .= '<div class="col-auto"><button class="btn btn-outline-dark" type="submit">Filtrar</button> <a class="btn btn-link" href="' . esc_url( Screen::url( $reset ) ) . '">Quitar filtros</a></div>';
-		return $out . '</div></form>';
+		// Cuántos filtros avanzados traen valor: se cuenta sobre el HTML ya
+		// montado —cada campo lleva su `name`— para no repetir en otra lista
+		// qué filtro es avanzado en cada tipo.
+		$set = 0;
+		foreach ( $fields as $field ) {
+			$set += preg_match( '/name="(fmc_[a-z_]+)"/', $field, $m ) && '' !== self::arg( $m[1] ) ? 1 : 0;
+		}
+		$out .= '<div class="row g-2 align-items-end">' . self::search_field( $placeholders[ $type ] ?? 'Título…' ) . implode( '', $quick );
+		$out .= '<div class="col-auto"><button class="btn btn-outline-dark" type="submit">Filtrar</button>';
+		if ( array() !== $fields ) {
+			// El plegado es el de Bootstrap: sin guion propio, y sin JavaScript
+			// se ve la tarjeta entera, que es lo de antes.
+			$out .= ' <button class="btn btn-link" type="button" data-bs-toggle="collapse" data-bs-target="#fmc-advanced" aria-expanded="' . ( $set ? 'true' : 'false' ) . '" aria-controls="fmc-advanced">Búsqueda avanzada' . ( $set ? ' <span class="badge text-bg-secondary">' . (int) $set . '</span>' : '' ) . '</button>';
+		}
+		$out .= ' <a class="btn btn-link" href="' . esc_url( Screen::url( $reset ) ) . '">Quitar filtros</a></div></div>';
+		if ( array() !== $fields ) {
+			$out .= '<div class="collapse' . ( $set ? ' show' : '' ) . '" id="fmc-advanced"><div class="row g-2 align-items-end mt-1">' . implode( '', $fields ) . '</div></div>';
+		}
+		return $out . '</form>';
 	}
 
 	/**
