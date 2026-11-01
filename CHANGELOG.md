@@ -8,7 +8,7 @@ lee de la cabecera superior y la escribe en el `@version` del bundle.
 `make release` crea el tag y la release en GitHub; el despliegue de los snippets
 en el sitio de destino se hace después.
 
-## [0.0.9] — 2026-10-30
+## [0.0.9] — 2026-11-01
 
 Lo que salió de la reunión del 2026-10-30 con las asesorías TIC y el servicio
 de perfeccionamiento: la ficha de la acción se queda en lo que de verdad se
@@ -45,6 +45,11 @@ anterior se conserva y sigue saliendo en el CSV de lo migrado.
 - Filtrar el listado o el calendario por situación era igual de lento, y también se ha arreglado
 - Elegir la asesoría responsable, o filtrar por ella, hacía dos consultas por cada cuenta de asesoría del sitio; ahora se leen todas de una vez
 - **`make check` vuelve a estar en verde**: `make phpmd` llevaba en rojo desde antes de esta reunión. La comprobación de las opciones de la ficha se ha partido en tres y los avisos que quedan —cifras que pdepend no recalcula aunque el método se parta— están en la línea base, con el motivo escrito en ella
+
+### Pendiente antes de desplegar
+
+- **Poner al día el catálogo de centros** en «Ajustes → Centros educativos», con «Actualizar ahora». El acotado del centro donde se imparte necesita que la copia local diga a qué centro de referencia pertenece cada centro, y ese campo es nuevo en el catálogo maestro; mientras no se sincronice, se acota por isla. El cron lo hace una vez al día
+- **Rellenar «Centro de referencia»** en la ficha de cada cuenta de asesoría que no lo tenga: sin él, ni las incidencias del centro ni el acotado del centro donde se imparte cambian nada para esa persona
 
 ## [0.0.8] — 2026-10-28
 
