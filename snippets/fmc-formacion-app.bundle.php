@@ -8086,7 +8086,9 @@ final class Screen {
 		$out .= '</div>' . ( $screen['actions'] ?? '' ) . '</div></div>';
 
 		$out .= '<main class="container py-4">' . self::notice() . $screen['body'] . '</main>';
-		$out .= '<footer class="fmc-foot"><div class="container">' . esc_html( self::APP_NAME ) . $chrome['footer'] . '</div></footer>';
+
+
+		$out .= '<footer class="fmc-foot"><div class="container">' . $chrome['footer'] . '</div></footer>';
 
 
 		$out .= '<script src="' . esc_url( self::BOOTSTRAP['js'] ) . '" integrity="' . esc_attr( self::BOOTSTRAP['js_sri'] ) . '" crossorigin="anonymous"></script>';

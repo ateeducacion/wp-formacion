@@ -15,6 +15,7 @@ en el sitio de destino se hace después.
 - **El listado de acciones se abre por el curso en marcha**: es lo que se consulta a diario, y pedir de golpe las de todos los cursos era lo que hacía lenta la pantalla. El desplegable «Curso escolar» dice en qué curso se está mirando, y con «Todos» se busca en el histórico como antes. Los contadores de situación cuentan también ese curso
 - **«Tipo de asesoría» se va a «Búsqueda avanzada»**: a la vista se quedan «Buscar», «Situación» y «Curso escolar», que caben holgados; el tipo de asesoría, con los demás filtros, en el panel desplegable, donde la etiqueta cabe entera
 - **El panel de «Búsqueda avanzada» se cierra con una X** en su esquina, además de volviendo a pulsar el botón
+- **El pie ya no repite el nombre del aplicativo**: está en la cabecera de todas las pantallas. En el pie se queda solo lo que pone quien despliega: quién está detrás y los enlaces legales
 
 ## [0.0.10] — 2026-11-01
 
