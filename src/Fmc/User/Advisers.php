@@ -110,14 +110,18 @@ final class Advisers {
 	 * @return array<int, string> User ID => «Nombre · TIC».
 	 */
 	public static function choices(): array {
-		$out = array();
-		foreach ( get_users(
+		$out   = array();
+		$users = get_users(
 			array(
 				'role__in' => self::ROLES,
 				'orderby'  => 'display_name',
 				'fields'   => array( 'ID', 'display_name' ),
 			)
-		) as $u ) {
+		);
+		// Pedir solo dos columnas no deja nada en caché, y leer el tipo de cada
+		// cuenta sería una consulta por asesoría. Se traen todas de una vez.
+		cache_users( wp_list_pluck( $users, 'ID' ) );
+		foreach ( $users as $u ) {
 			$kind                = self::kind( (int) $u->ID );
 			$out[ (int) $u->ID ] = $u->display_name . ( '' !== $kind ? ' · ' . self::KINDS[ $kind ] : '' );
 		}

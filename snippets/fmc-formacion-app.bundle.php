@@ -6,7 +6,7 @@
  * Priority: 15
  *
  * @package Fmc
- * @version 0.0.8
+ * @version 0.0.9
  */
 
 // phpcs:disable
@@ -1673,14 +1673,18 @@ final class Advisers {
 
 
 	public static function choices(): array {
-		$out = array();
-		foreach ( get_users(
+		$out   = array();
+		$users = get_users(
 			array(
 				'role__in' => self::ROLES,
 				'orderby'  => 'display_name',
 				'fields'   => array( 'ID', 'display_name' ),
 			)
-		) as $u ) {
+		);
+
+
+		cache_users( wp_list_pluck( $users, 'ID' ) );
+		foreach ( $users as $u ) {
 			$kind                = self::kind( (int) $u->ID );
 			$out[ (int) $u->ID ] = $u->display_name . ( '' !== $kind ? ' · ' . self::KINDS[ $kind ] : '' );
 		}
@@ -4032,8 +4036,7 @@ final class Lists {
 
 
 	public static function register(): void {
-		add_filter( 'posts_where', array( self::class, 'visible_where' ), 10, 2 );
-		add_filter( 'posts_where', array( self::class, 'text_where' ), 10, 2 );
+		add_filter( 'posts_where', array( self::class, 'where' ), 10, 2 );
 		add_filter( 'posts_clauses', array( self::class, 'order_by_meta' ), 10, 2 );
 	}
 
@@ -4092,6 +4095,11 @@ final class Lists {
 
 
 
+	private const COMPARISONS = array( '=', '<', '<=', '>', '>=' );
+
+
+
+
 
 
 
@@ -4145,29 +4153,11 @@ final class Lists {
 
 
 
-
-
-
-
-
-	public static function visible_where( $where, $query ) {
+	public static function where( $where, $query ) {
 		if ( ! $query instanceof \WP_Query ) {
 			return $where;
 		}
-		global $wpdb;
-		$me = get_current_user_id();
-		if ( $query->get( 'fmc_own_incidents' ) ) {
-			return $where . $wpdb->prepare(
-				" AND ( $wpdb->posts.post_author = %d OR EXISTS ( SELECT 1 FROM $wpdb->postmeta fmc_a WHERE fmc_a.post_id = $wpdb->posts.post_parent AND fmc_a.meta_key = %s AND fmc_a.meta_value = %s ) )",
-				$me,
-				A::ADVISER,
-				(string) $me
-			);
-		}
-		if ( ! $query->get( 'fmc_visible' ) ) {
-			return $where;
-		}
-		return $where . $wpdb->prepare( " AND ( $wpdb->posts.post_status = 'publish' OR $wpdb->posts.post_author = %d )", $me );
+		return $where . self::visible_sql( $query ) . self::text_sql( $query ) . self::situation_sql( $query );
 	}
 
 
@@ -4181,16 +4171,44 @@ final class Lists {
 
 
 
-	public static function text_where( $where, $query ) {
-		if ( ! $query instanceof \WP_Query || '' === (string) $query->get( 'fmc_text' ) ) {
-			return $where;
+
+	private static function visible_sql( \WP_Query $query ): string {
+		global $wpdb;
+		$me = get_current_user_id();
+		if ( $query->get( 'fmc_own_incidents' ) ) {
+			return $wpdb->prepare(
+				" AND ( $wpdb->posts.post_author = %d OR EXISTS ( SELECT 1 FROM $wpdb->postmeta fmc_a WHERE fmc_a.post_id = $wpdb->posts.post_parent AND fmc_a.meta_key = %s AND fmc_a.meta_value = %s ) )",
+				$me,
+				A::ADVISER,
+				(string) $me
+			);
+		}
+		if ( ! $query->get( 'fmc_visible' ) ) {
+			return '';
+		}
+		return $wpdb->prepare( " AND ( $wpdb->posts.post_status = 'publish' OR $wpdb->posts.post_author = %d )", $me );
+	}
+
+
+
+
+
+
+
+
+
+
+
+	private static function text_sql( \WP_Query $query ): string {
+		if ( '' === (string) $query->get( 'fmc_text' ) ) {
+			return '';
 		}
 		global $wpdb;
 		$like = '%' . $wpdb->esc_like( (string) $query->get( 'fmc_text' ) ) . '%';
 		$keys = array_map( 'strval', (array) $query->get( 'fmc_text_keys' ) );
 		$in   = implode( ', ', array_fill( 0, count( $keys ), '%s' ) );
 
-		return $where . $wpdb->prepare( " AND ( $wpdb->posts.post_title LIKE %s OR EXISTS ( SELECT 1 FROM $wpdb->postmeta fmc_t WHERE fmc_t.post_id = $wpdb->posts.ID AND fmc_t.meta_key IN ( $in ) AND fmc_t.meta_value LIKE %s ) )", array_merge( array( $like ), $keys, array( $like ) ) );
+		return $wpdb->prepare( " AND ( $wpdb->posts.post_title LIKE %s OR EXISTS ( SELECT 1 FROM $wpdb->postmeta fmc_t WHERE fmc_t.post_id = $wpdb->posts.ID AND fmc_t.meta_key IN ( $in ) AND fmc_t.meta_value LIKE %s ) )", array_merge( array( $like ), $keys, array( $like ) ) );
 	}
 
 
@@ -4335,7 +4353,7 @@ final class Lists {
 					}
 				}
 				if ( $with_state && isset( A::SITUATIONS[ self::arg( 'fmc_situation' ) ] ) ) {
-					$args['meta_query'][] = self::situation_clause( self::arg( 'fmc_situation' ) );
+					$args['fmc_in_situation'] = self::arg( 'fmc_situation' );
 				}
 				$year = self::arg( 'fmc_year' );
 				if ( preg_match( '/^(\d{4})-\d{4}$/', $year, $m ) ) {
@@ -4395,61 +4413,48 @@ final class Lists {
 
 
 
-	private static function situation_clause( string $key ): array {
-		if ( in_array( $key, Situation::SET_BY_INCIDENT, true ) ) {
-			return array(
-				'key'   => A::SITUATION,
-				'value' => $key,
-			);
+
+
+
+
+
+
+
+
+
+	private static function situation_sql( \WP_Query $query ): string {
+		$key = (string) $query->get( 'fmc_in_situation' );
+		if ( ! isset( A::SITUATIONS[ $key ] ) ) {
+			return '';
 		}
-		$today  = current_time( 'Y-m-d' );
-		$date   = static fn( string $meta, string $compare ): array => array(
-			'key'     => $meta,
-			'value'   => $today,
-			'compare' => $compare,
-			'type'    => 'DATE',
-		);
-		$open   = array(
-			'relation' => 'OR',
-			array(
-				'key'     => A::SITUATION,
-				'compare' => 'NOT EXISTS',
-			),
-			array(
-				'key'     => A::SITUATION,
-				'value'   => Situation::SET_BY_INCIDENT,
-				'compare' => 'NOT IN',
-			),
-		);
-		$no_end = array(
-			'key'     => A::END,
-			'compare' => 'NOT EXISTS',
-		);
-		$until  = 'running' === $key
-			? array(
-				'relation' => 'OR',
-				$date( A::END, '>=' ),
-				array(
-					'relation' => 'AND',
-					$no_end,
-					$date( A::START, '=' ),
-				),
-			)
-			: array(
-				'relation' => 'OR',
-				$date( A::END, '<' ),
-				array(
-					'relation' => 'AND',
-					$no_end,
-					$date( A::START, '<' ),
-				),
-			);
-		return array(
-			'relation' => 'AND',
-			$open,
-			$date( A::START, '<=' ),
-			$until,
-		);
+		global $wpdb;
+
+		$exists = static function ( string $meta, string $comparison = '', string $value = '', bool $as_date = false ) use ( $wpdb ): string {
+			$test = '';
+			if ( in_array( $comparison, self::COMPARISONS, true ) ) {
+				$column = $as_date ? 'CAST( fmc_e.meta_value AS DATE )' : 'fmc_e.meta_value';
+
+				$test = $wpdb->prepare( " AND $column $comparison %s", $value );
+			}
+
+			return "EXISTS ( SELECT 1 FROM $wpdb->postmeta fmc_e WHERE fmc_e.post_id = $wpdb->posts.ID AND fmc_e.meta_key = " . $wpdb->prepare( '%s', $meta ) . $test . ' )';
+		};
+		if ( in_array( $key, Situation::SET_BY_INCIDENT, true ) ) {
+			return ' AND ' . $exists( A::SITUATION, '=', $key );
+		}
+		$today = current_time( 'Y-m-d' );
+
+		$open = array();
+		foreach ( Situation::SET_BY_INCIDENT as $set ) {
+			$open[] = 'NOT ' . $exists( A::SITUATION, '=', $set );
+		}
+
+		$ends = 'running' === $key
+			? array( $exists( A::END, '>=', $today, true ), $exists( A::START, '=', $today, true ) )
+			: array( $exists( A::END, '<', $today, true ), $exists( A::START, '<', $today, true ) );
+		return ' AND ' . implode( ' AND ', $open )
+			. ' AND ' . $exists( A::START, '<=', $today, true )
+			. ' AND ( ' . $ends[0] . ' OR ( NOT ' . $exists( A::END ) . ' AND ' . $ends[1] . ' ) )';
 	}
 
 
@@ -4642,7 +4647,11 @@ final class Lists {
 	private static function total( array $args ): int {
 		$args['posts_per_page'] = 1;
 		$args['fields']         = 'ids';
-		$q                      = new \WP_Query( $args );
+
+
+		$args['orderby'] = 'none';
+		unset( $args['fmc_order_meta'] );
+		$q = new \WP_Query( $args );
 		return (int) $q->found_posts;
 	}
 
@@ -4668,14 +4677,7 @@ final class Lists {
 		switch ( $type ) {
 			case PostTypes::ACTION:
 				foreach ( A::SITUATIONS as $key => $label ) {
-					$by[] = array(
-						$label,
-						'fmc_situation',
-						$key,
-						array(
-							'meta_query' => array_merge( $base['meta_query'], array( self::situation_clause( $key ) ) ), 
-						),
-					);
+					$by[] = array( $label, 'fmc_situation', $key, array( 'fmc_in_situation' => $key ) );
 				}
 				break;
 			case PostTypes::DESIGN:
