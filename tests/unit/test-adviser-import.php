@@ -6,6 +6,7 @@
  */
 
 use Fmc\Centre\CentreCatalogue;
+use Fmc\User\AdviserImport;
 use Fmc\User\AdviserRoster;
 use Fmc\User\Advisers;
 
@@ -43,6 +44,7 @@ class Test_Adviser_Import extends WP_UnitTestCase {
 	 * Leave the catalogue as it was.
 	 */
 	public function tear_down() {
+		$_POST = array();
 		delete_option( CentreCatalogue::OPTION_CATALOGUE );
 		parent::tear_down();
 	}
@@ -169,6 +171,83 @@ class Test_Adviser_Import extends WP_UnitTestCase {
 		$this->assertSame( 0, $id );
 		$this->assertSame( 'se crearía la cuenta', $what );
 		$this->assertFalse( get_user_by( 'login', '12345678Z' ) );
+	}
+
+	/**
+	 * Whoever may run the screen.
+	 *
+	 * @return int
+	 */
+	private function admin(): int {
+		$id   = self::factory()->user->create( array( 'role' => 'administrator' ) );
+		$user = get_user_by( 'id', $id );
+		$user->add_cap( AdviserImport::CAP );
+		wp_set_current_user( $id );
+		return $id;
+	}
+
+	/**
+	 * La pantalla recorre lo pegado y cuenta qué ha pasado con cada línea.
+	 */
+	public function test_the_screen_runs_the_pasted_list() {
+		$this->admin();
+		$_POST = array(
+			'_fmc_nonce' => wp_create_nonce( AdviserImport::ACTION ),
+			'fmc_kind'   => 'ict',
+			'fmc_list'   => "Ana;Pérez;ana.perez@ejemplo.org;12345678Z\n\ntexto suelto\n",
+			'fmc_dry'    => '1',
+		);
+
+		ob_start();
+		AdviserImport::render();
+		$html = (string) ob_get_clean();
+
+		$this->assertStringContainsString( 'Lo que haría', $html );
+		$this->assertStringContainsString( 'se crearía la cuenta', $html );
+		$this->assertStringContainsString( 'ni correo ni DNI: se omite', $html );
+		$this->assertStringContainsString( 'value="ict" selected=\'selected\'', $html );
+		$this->assertFalse( get_user_by( 'login', '12345678Z' ), 'El simulacro no escribe.' );
+	}
+
+	/**
+	 * Sin simulacro, da de alta y retira de verdad a quien no esté.
+	 */
+	public function test_the_screen_signs_up_and_retires() {
+		$this->admin();
+		$gone = self::factory()->user->create( array( 'role' => AdviserRoster::ROLE ) );
+		update_user_option( $gone, Advisers::KIND, 'ict' );
+		$_POST = array(
+			'_fmc_nonce' => wp_create_nonce( AdviserImport::ACTION ),
+			'fmc_kind'   => 'ict',
+			'fmc_list'   => 'Ana;Pérez;ana.perez@ejemplo.org;12345678Z',
+			'fmc_retire' => '1',
+		);
+
+		ob_start();
+		AdviserImport::render();
+		$html = (string) ob_get_clean();
+
+		$this->assertStringContainsString( 'Lo que ha hecho', $html );
+		$this->assertStringContainsString( 'cuenta creada', $html );
+		$this->assertStringContainsString( 'ya no es asesoría', $html );
+		$this->assertInstanceOf( WP_User::class, get_user_by( 'login', '12345678Z' ) );
+		$this->assertNotContains( AdviserRoster::ROLE, (array) get_user_by( 'id', $gone )->roles );
+	}
+
+	/**
+	 * Sin formulario enviado, la pantalla es solo el formulario.
+	 */
+	public function test_without_a_submitted_form_there_is_no_report() {
+		$this->admin();
+
+		ob_start();
+		AdviserImport::render();
+		$html = (string) ob_get_clean();
+
+		$this->assertStringNotContainsString( 'Lo que ha hecho', $html );
+		$this->assertStringNotContainsString( 'Lo que haría', $html );
+		$this->assertStringContainsString( 'name="fmc_list"', $html );
+		$this->assertStringContainsString( 'name="fmc_dry" value="1" checked', $html );
 	}
 
 	/**
