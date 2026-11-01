@@ -4010,16 +4010,6 @@ final class Lists {
 
 
 
-	public const SUBTITLES = array(
-		PostTypes::ACTION   => 'Cada edición de un diseño: dónde, cuándo, para cuántos y cómo fue.',
-		PostTypes::DESIGN   => 'El catálogo y la mesa de trabajo: los borradores se escriben aquí hasta que la coordinación los da por finalizados, y lo que ya no se imparte pasa a histórico.',
-		PostTypes::SPEAKER  => 'Datos personales: solo para quien gestiona acciones. Busque por lo que han impartido, con sus acciones y sus horas.',
-		PostTypes::INCIDENT => 'Cambios pedidos sobre una acción. Se abren desde la propia acción.',
-	);
-
-
-
-
 	public const SUBTITLE_DESIGN_READER = 'Los diseños finalizados, con su ficha y sus documentos.';
 
 
@@ -4817,7 +4807,10 @@ final class Lists {
 		return array(
 			'tab'      => $tab,
 			'title'    => Screen::TITLES[ $tab ] ?? $object->labels->name,
-			'subtitle' => PostTypes::DESIGN === $type && ! self::writes_designs() ? self::SUBTITLE_DESIGN_READER . ( current_user_can( 'edit_fmc_actions' ) ? ' Desde la ficha se agenda una acción.' : '' ) : self::SUBTITLES[ $type ],
+
+
+
+			'subtitle' => PostTypes::DESIGN === $type && ! self::writes_designs() ? self::SUBTITLE_DESIGN_READER . ( current_user_can( 'edit_fmc_actions' ) ? ' Desde la ficha se agenda una acción.' : '' ) : '',
 			'actions'  => $actions,
 			'body'     => $body,
 		);
@@ -5817,7 +5810,7 @@ final class Calendar {
 		return array(
 			'tab'      => 'actions',
 			'title'    => Screen::TITLES['actions'],
-			'subtitle' => Lists::SUBTITLES[ PostTypes::ACTION ],
+			'subtitle' => '',
 			'actions'  => self::views_html( $view ) . $add . ' ' . self::nav_link( $csv, 'Exportar CSV' ),
 			'body'     => Lists::filters_html( 'actions', PostTypes::ACTION ) . self::period_html( $period ) . self::legend() . $period['body'],
 		);
@@ -8078,8 +8071,15 @@ final class Screen {
 		$out .= '<style>' . Assets::css() . '</style>' . $bar['head'] . $chrome['head'] . '</head><body class="fmc' . ( '' !== $bar['body'] ? ' admin-bar' : '' ) . '">' . $bar['body'];
 		$out .= empty( $screen['public'] ) ? self::chrome( $screen['tab'], $chrome['brand'] ) : self::public_chrome( $chrome['brand'] );
 
-		$out .= '<div class="fmc-head"><div class="container d-flex flex-wrap align-items-start gap-3">';
-		$out .= '<div class="me-auto">' . ( $screen['back'] ?? '' ) . '<h1 class="fmc-h1">' . esc_html( $screen['title'] ) . ( $screen['badges'] ?? '' ) . '</h1>';
+
+
+
+
+		$tabs = empty( $screen['public'] ) ? self::tabs() : array();
+		$echo = (string) ( $tabs[ $screen['tab'] ]['label'] ?? '' ) === $screen['title'] && empty( $screen['back'] ) && empty( $screen['badges'] );
+		$bare = $echo && empty( $screen['subtitle'] );
+		$out .= '<div class="fmc-head' . ( $bare ? ' is-bare' : '' ) . '"><div class="container d-flex flex-wrap align-items-start gap-3">';
+		$out .= '<div class="me-auto">' . ( $screen['back'] ?? '' ) . '<h1 class="' . ( $echo ? 'visually-hidden' : 'fmc-h1' ) . '">' . esc_html( $screen['title'] ) . ( $screen['badges'] ?? '' ) . '</h1>';
 		if ( ! empty( $screen['subtitle'] ) ) {
 			$out .= '<p class="fmc-sub">' . esc_html( $screen['subtitle'] ) . '</p>';
 		}
@@ -8867,6 +8867,9 @@ final class App {
 
 /* Título de la pantalla */
 .fmc-head { padding: 28px 0 4px; }
+/* Sin título a la vista —lo dice la pestaña activa— la banda solo lleva los
+   botones de la pantalla, y no necesita tanto aire. */
+.fmc-head.is-bare { padding: 14px 0 0; }
 .fmc-h1 { font-size: 27px; font-weight: 700; letter-spacing: -.02em; margin: 0 0 4px; }
 .fmc-h1 .badge { font-size: .75rem; vertical-align: middle; margin-left: .35rem; }
 .fmc-sub { margin: 0; color: var(--fmc-text-2); font-size: 14.5px; }

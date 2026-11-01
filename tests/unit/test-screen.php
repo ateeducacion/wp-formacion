@@ -10,6 +10,7 @@ use Fmc\PostType\PostTypes;
 use Fmc\PublicFront\Assets;
 use Fmc\PublicFront\Catalogue;
 use Fmc\PublicFront\Editor;
+use Fmc\PublicFront\Lists;
 use Fmc\PublicFront\Screen;
 
 /**
@@ -519,6 +520,37 @@ class Test_Screen extends WP_UnitTestCase {
 		foreach ( $libraries as list( , $library, $version ) ) {
 			$this->assertSame( $version, $versions[ $library ] ?? null, $library . ' no tiene en package.json la versión del CDN' );
 		}
+	}
+
+	/**
+	 * El título que repite la pestaña activa no se pinta: lo dice la pestaña.
+	 */
+	public function test_a_title_that_repeats_the_active_tab_is_not_painted() {
+		$this->as_role( 'fmc_curator' );
+
+		$bare = Screen::document( $this->screen() );
+
+		$this->assertStringContainsString( '<div class="fmc-head is-bare">', $bare );
+		$this->assertStringContainsString( '<h1 class="visually-hidden">Diseño de acciones formativas</h1>', $bare, 'sigue siendo el encabezado del documento' );
+
+		// La línea de debajo se queda cuando dice algo que no se ve en pantalla.
+		$note = Screen::document( $this->screen( array( 'subtitle' => Lists::SUBTITLE_DESIGN_READER ) ) );
+
+		$this->assertStringContainsString( '<h1 class="visually-hidden">', $note );
+		$this->assertStringContainsString( '<p class="fmc-sub">' . Lists::SUBTITLE_DESIGN_READER . '</p>', $note );
+		$this->assertStringNotContainsString( '<div class="fmc-head is-bare">', $note );
+
+		$own = Screen::document(
+			$this->screen(
+				array(
+					'title'    => 'Robótica educativa',
+					'subtitle' => 'Ficha del diseño',
+				)
+			)
+		);
+
+		$this->assertStringContainsString( '<h1 class="fmc-h1">Robótica educativa</h1>', $own );
+		$this->assertStringContainsString( '<p class="fmc-sub">Ficha del diseño</p>', $own );
 	}
 
 	/**

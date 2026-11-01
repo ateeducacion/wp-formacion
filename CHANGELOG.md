@@ -15,6 +15,7 @@ en el sitio de destino se hace después.
 - **El listado de acciones se abre por el curso en marcha**: es lo que se consulta a diario, y pedir de golpe las de todos los cursos era lo que hacía lenta la pantalla. El desplegable «Curso escolar» dice en qué curso se está mirando, y con «Todos» se busca en el histórico como antes. Los contadores de situación cuentan también ese curso
 - **«Tipo de asesoría» se va a «Búsqueda avanzada»**: a la vista se quedan «Buscar», «Situación» y «Curso escolar», que caben holgados; el tipo de asesoría, con los demás filtros, en el panel desplegable, donde la etiqueta cabe entera
 - **El panel de «Búsqueda avanzada» se cierra con una X** en su esquina, además de volviendo a pulsar el botón
+- **Las pantallas no repiten el título de la pestaña**: el listado de acciones, el de diseños, el de ponentes, el de incidencias y el calendario se quedan sin el titular y sin la línea que describía la pantalla, porque la pestaña activa ya lo dice. La tabla empieza más arriba. El título sigue siendo el encabezado del documento para quien usa un lector de pantalla, y las fichas conservan el suyo, que es el nombre de lo que se está viendo. La única línea que se mantiene es la que avisa a la asesoría de que los diseños se consultan finalizados y de solo lectura
 - **El pie ya no repite el nombre del aplicativo**: está en la cabecera de todas las pantallas. En el pie se queda solo lo que pone quien despliega: quién está detrás y los enlaces legales
 
 ## [0.0.10] — 2026-11-01

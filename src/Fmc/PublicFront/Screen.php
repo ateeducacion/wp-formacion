@@ -346,8 +346,15 @@ final class Screen {
 		$out .= '<style>' . Assets::css() . '</style>' . $bar['head'] . $chrome['head'] . '</head><body class="fmc' . ( '' !== $bar['body'] ? ' admin-bar' : '' ) . '">' . $bar['body'];
 		$out .= empty( $screen['public'] ) ? self::chrome( $screen['tab'], $chrome['brand'] ) : self::public_chrome( $chrome['brand'] );
 
-		$out .= '<div class="fmc-head"><div class="container d-flex flex-wrap align-items-start gap-3">';
-		$out .= '<div class="me-auto">' . ( $screen['back'] ?? '' ) . '<h1 class="fmc-h1">' . esc_html( $screen['title'] ) . ( $screen['badges'] ?? '' ) . '</h1>';
+		// Un título que repite la pestaña activa no se pinta: ya está ahí arriba,
+		// y la pantalla gana el alto que ocupaban él y su descripción. Sigue
+		// siendo el `h1` del documento, escondido, para quien navega con lector
+		// de pantalla o salta de encabezado en encabezado.
+		$tabs = empty( $screen['public'] ) ? self::tabs() : array();
+		$echo = (string) ( $tabs[ $screen['tab'] ]['label'] ?? '' ) === $screen['title'] && empty( $screen['back'] ) && empty( $screen['badges'] );
+		$bare = $echo && empty( $screen['subtitle'] );
+		$out .= '<div class="fmc-head' . ( $bare ? ' is-bare' : '' ) . '"><div class="container d-flex flex-wrap align-items-start gap-3">';
+		$out .= '<div class="me-auto">' . ( $screen['back'] ?? '' ) . '<h1 class="' . ( $echo ? 'visually-hidden' : 'fmc-h1' ) . '">' . esc_html( $screen['title'] ) . ( $screen['badges'] ?? '' ) . '</h1>';
 		if ( ! empty( $screen['subtitle'] ) ) {
 			$out .= '<p class="fmc-sub">' . esc_html( $screen['subtitle'] ) . '</p>';
 		}

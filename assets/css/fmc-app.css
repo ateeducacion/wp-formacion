@@ -64,6 +64,9 @@
 
 /* Título de la pantalla */
 .fmc-head { padding: 28px 0 4px; }
+/* Sin título a la vista —lo dice la pestaña activa— la banda solo lleva los
+   botones de la pantalla, y no necesita tanto aire. */
+.fmc-head.is-bare { padding: 14px 0 0; }
 .fmc-h1 { font-size: 27px; font-weight: 700; letter-spacing: -.02em; margin: 0 0 4px; }
 .fmc-h1 .badge { font-size: .75rem; vertical-align: middle; margin-left: .35rem; }
 .fmc-sub { margin: 0; color: var(--fmc-text-2); font-size: 14.5px; }

@@ -29,16 +29,6 @@ final class Lists {
 	public const PER_PAGE = 50;
 
 	/**
-	 * What each list is for, under its title.
-	 */
-	public const SUBTITLES = array(
-		PostTypes::ACTION   => 'Cada edición de un diseño: dónde, cuándo, para cuántos y cómo fue.',
-		PostTypes::DESIGN   => 'El catálogo y la mesa de trabajo: los borradores se escriben aquí hasta que la coordinación los da por finalizados, y lo que ya no se imparte pasa a histórico.',
-		PostTypes::SPEAKER  => 'Datos personales: solo para quien gestiona acciones. Busque por lo que han impartido, con sus acciones y sus horas.',
-		PostTypes::INCIDENT => 'Cambios pedidos sobre una acción. Se abren desde la propia acción.',
-	);
-
-	/**
 	 * The designs list, for whoever only reads designs (ADR-0017).
 	 */
 	public const SUBTITLE_DESIGN_READER = 'Los diseños finalizados, con su ficha y sus documentos.';
@@ -838,7 +828,10 @@ final class Lists {
 		return array(
 			'tab'      => $tab,
 			'title'    => Screen::TITLES[ $tab ] ?? $object->labels->name,
-			'subtitle' => PostTypes::DESIGN === $type && ! self::writes_designs() ? self::SUBTITLE_DESIGN_READER . ( current_user_can( 'edit_fmc_actions' ) ? ' Desde la ficha se agenda una acción.' : '' ) : self::SUBTITLES[ $type ],
+			// De qué va cada listado ya lo dice su pestaña: solo lleva línea
+			// debajo la que dice algo que no se ve, como que los diseños se
+			// consultan finalizados y de solo lectura (ADR-0017).
+			'subtitle' => PostTypes::DESIGN === $type && ! self::writes_designs() ? self::SUBTITLE_DESIGN_READER . ( current_user_can( 'edit_fmc_actions' ) ? ' Desde la ficha se agenda una acción.' : '' ) : '',
 			'actions'  => $actions,
 			'body'     => $body,
 		);
