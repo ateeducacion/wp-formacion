@@ -6,7 +6,7 @@
  * Priority: 15
  *
  * @package Fmc
- * @version 0.0.9
+ * @version 0.0.10
  */
 
 // phpcs:disable
@@ -8023,6 +8023,9 @@ final class Screen {
 
 
 
+
+
+
 	public static function deployment_chrome(): array {
 		$chrome = (array) apply_filters(
 			'fmc_chrome',
@@ -8856,8 +8859,16 @@ final class App {
 .fmc-sub { margin: 0; color: var(--fmc-text-2); font-size: 14.5px; }
 
 /* Pie */
+/* El pie, como en los aplicativos hermanos: quién está detrás, a la izquierda;
+   los enlaces legales, a la derecha. El contenido lo pone quien despliega con
+   `fmc_chrome` (ADR-0002) y usa dos clases de aquí: `fmc-foot-legal` para el
+   grupo de enlaces y `fmc-foot-credit` para el crédito de quien lo desarrolla. */
 .fmc-foot { background: var(--fmc-foot-bg); color: #fff; font-size: 13px; padding: 18px 0; }
-.fmc-foot a { color: #fff; }
+.fmc-foot .container { display: flex; flex-wrap: wrap; gap: 8px 24px; align-items: baseline; }
+.fmc-foot a { color: #fff; text-decoration: underline; }
+.fmc-foot a:hover { color: #fff; text-decoration: none; }
+.fmc-foot-credit { color: rgba(255, 255, 255, 0.72); }
+.fmc-foot-legal { margin-left: auto; display: flex; flex-wrap: wrap; gap: 8px 18px; }
 
 /* Bootstrap con los colores del aplicativo: botones en píldora y tarjetas suaves */
 .fmc .btn { border-radius: 999px; font-weight: 600; }
@@ -8867,6 +8878,8 @@ final class App {
 .fmc .form-control, .fmc .form-select { border-color: #d3d8de; }
 
 @media (max-width: 640px) {
+	/* Envuelto, el grupo de enlaces ocupa su propia línea: sin empujarlo a la derecha. */
+	.fmc-foot-legal { margin-left: 0; }
 	.fmc-yo-txt { display: none; }
 	.fmc-h1 { font-size: 23px; }
 }
