@@ -21,6 +21,10 @@ en el sitio de destino se hace después.
 - **Los centros que se ofrecen siguen al ámbito elegido en la ficha**, sin tener que guardar: al cambiar el ámbito se vuelve a pedir ese campo, con su lista y su línea de ayuda. Antes se quedaban los del ámbito con el que se abrió la ficha —o el catálogo entero, en una acción nueva—, que es lo que hacía parecer que no filtraba
 - **La casilla «Por videoconferencia» se alinea con el campo del centro**, en vez de subirse a la altura de su etiqueta
 
+### Corregido
+
+- **La asesoría de una acción antigua ya no se pierde al guardar**: si quien la gestionó dejó de ser asesoría —cambió de destino o salió del reparto del curso—, su nombre desaparecía del desplegable y guardar la ficha dejaba la acción sin asesoría. Ahora se sigue ofreciendo, **en cursiva y con el aviso «— ya no es asesoría»**, para que se vea que está ahí porque la acción es antigua y no porque se pueda elegir. Elegir, solo se eligen las asesorías de ahora, que es lo que el servidor ya comprobaba
+
 ## [0.0.11] — 2026-11-01
 
 ### Cambiado

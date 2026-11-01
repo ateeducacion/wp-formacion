@@ -76,6 +76,10 @@
    fila de los campos; esto la centra con ellos. */
 .fmc-check-aligned { padding-top: 7px; }
 
+/* Lo que sigue guardado pero ya no se elige: se lee, pero no parece una
+   opción de ahora. */
+.fmc-gone { font-style: italic; color: var(--fmc-text-2); }
+
 /* Pie */
 /* El pie, como en los aplicativos hermanos: quién está detrás, a la izquierda;
    los enlaces legales, a la derecha. El contenido lo pone quien despliega con

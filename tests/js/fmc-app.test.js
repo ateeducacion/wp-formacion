@@ -495,6 +495,25 @@ describe( 'los ponentes de la acción', () => {
 	} );
 } );
 
+describe( 'lo que ya no se elige se lee en cursiva', () => {
+	beforeEach( async () => {
+		document.body.innerHTML = '';
+		await load();
+	} );
+	afterEach( () => {
+		detach();
+	} );
+
+	it( 'la opción marcada sale en cursiva y las demás, normales', () => {
+		const option = ( dataset ) => ( { text: 'Quien se fue — ya no es asesoría', $option: { dataset } } );
+		const escape = ( t ) => t;
+
+		expect( window.fmcApp.goneHtml( option( { fmcGone: '1' } ), escape ) ).toBe( '<div class="fmc-gone">Quien se fue — ya no es asesoría</div>' );
+		expect( window.fmcApp.goneHtml( option( {} ), escape ) ).toBe( '<div>Quien se fue — ya no es asesoría</div>' );
+		expect( window.fmcApp.goneHtml( { text: 'Sin opción' }, escape ) ).toBe( '<div>Sin opción</div>' );
+	} );
+} );
+
 describe( 'la asesoría pone el ámbito y el ámbito trae sus centros', () => {
 	const ficha = `<form class="fmc-form" method="post" action="/">
 		<input name="fmc_id" value="0"><input name="fmc_type" value="fmc_action">
