@@ -10,6 +10,7 @@ use Fmc\PostType\PostTypes;
 use Fmc\PublicFront\Assets;
 use Fmc\PublicFront\Catalogue;
 use Fmc\PublicFront\Editor;
+use Fmc\PublicFront\Lists;
 use Fmc\PublicFront\Screen;
 
 /**
@@ -522,13 +523,46 @@ class Test_Screen extends WP_UnitTestCase {
 	}
 
 	/**
+	 * El título que repite la pestaña activa no se pinta: lo dice la pestaña.
+	 */
+	public function test_a_title_that_repeats_the_active_tab_is_not_painted() {
+		$this->as_role( 'fmc_curator' );
+
+		$bare = Screen::document( $this->screen() );
+
+		$this->assertStringContainsString( '<div class="fmc-head is-bare">', $bare );
+		$this->assertStringContainsString( '<h1 class="visually-hidden">Diseño de acciones formativas</h1>', $bare, 'sigue siendo el encabezado del documento' );
+
+		// La línea de debajo se queda cuando dice algo que no se ve en pantalla.
+		$note = Screen::document( $this->screen( array( 'subtitle' => Lists::SUBTITLE_DESIGN_READER ) ) );
+
+		$this->assertStringContainsString( '<h1 class="visually-hidden">', $note );
+		$this->assertStringContainsString( '<p class="fmc-sub">' . Lists::SUBTITLE_DESIGN_READER . '</p>', $note );
+		$this->assertStringNotContainsString( '<div class="fmc-head is-bare">', $note );
+
+		$own = Screen::document(
+			$this->screen(
+				array(
+					'title'    => 'Robótica educativa',
+					'subtitle' => 'Ficha del diseño',
+				)
+			)
+		);
+
+		$this->assertStringContainsString( '<h1 class="fmc-h1">Robótica educativa</h1>', $own );
+		$this->assertStringContainsString( '<p class="fmc-sub">Ficha del diseño</p>', $own );
+	}
+
+	/**
 	 * Lo que añade quien despliega llega por `fmc_chrome`, que de serie no añade nada.
 	 */
 	public function test_the_deployment_chrome_is_empty_unless_filtered() {
 		$this->as_role( 'fmc_curator' );
 		$plain = Screen::document( $this->screen() );
 		$this->assertStringContainsString( '</style></head>', $plain );
-		$this->assertStringContainsString( '<div class="container">Planificador de formación</div></footer>', $plain );
+		// En el pie solo va lo que pone quien despliega: el nombre del
+		// aplicativo ya está en la cabecera.
+		$this->assertStringContainsString( '<footer class="fmc-foot"><div class="container"></div></footer>', $plain );
 
 		$chrome = static fn() => array(
 			'head'   => '<meta name="fmc-analitica" content="ejemplo">',
@@ -539,7 +573,7 @@ class Test_Screen extends WP_UnitTestCase {
 		remove_filter( 'fmc_chrome', $chrome );
 
 		$this->assertStringContainsString( '<meta name="fmc-analitica" content="ejemplo"></head>', $html );
-		$this->assertStringContainsString( 'Planificador de formación · <a href="https://example.org/aviso-legal">Aviso legal</a></div></footer>', $html );
+		$this->assertStringContainsString( '<div class="container"> · <a href="https://example.org/aviso-legal">Aviso legal</a></div></footer>', $html );
 
 		// Un filtro que devuelve solo una de las dos piezas no rompe la otra.
 		$partial = static fn() => array( 'footer' => 'Pie' );

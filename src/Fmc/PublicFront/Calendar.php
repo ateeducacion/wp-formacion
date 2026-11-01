@@ -221,7 +221,7 @@ final class Calendar {
 		return array(
 			'tab'      => 'actions',
 			'title'    => Screen::TITLES['actions'],
-			'subtitle' => Lists::SUBTITLES[ PostTypes::ACTION ],
+			'subtitle' => '',
 			'actions'  => self::views_html( $view ) . $add . ' ' . self::nav_link( $csv, 'Exportar CSV' ),
 			'body'     => Lists::filters_html( 'actions', PostTypes::ACTION ) . self::period_html( $period ) . self::legend() . $period['body'],
 		);

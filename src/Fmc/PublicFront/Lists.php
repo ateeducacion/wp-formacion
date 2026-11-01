@@ -29,16 +29,6 @@ final class Lists {
 	public const PER_PAGE = 50;
 
 	/**
-	 * What each list is for, under its title.
-	 */
-	public const SUBTITLES = array(
-		PostTypes::ACTION   => 'Cada edición de un diseño: dónde, cuándo, para cuántos y cómo fue.',
-		PostTypes::DESIGN   => 'El catálogo y la mesa de trabajo: los borradores se escriben aquí hasta que la coordinación los da por finalizados, y lo que ya no se imparte pasa a histórico.',
-		PostTypes::SPEAKER  => 'Datos personales: solo para quien gestiona acciones. Busque por lo que han impartido, con sus acciones y sus horas.',
-		PostTypes::INCIDENT => 'Cambios pedidos sobre una acción. Se abren desde la propia acción.',
-	);
-
-	/**
 	 * The designs list, for whoever only reads designs (ADR-0017).
 	 */
 	public const SUBTITLE_DESIGN_READER = 'Los diseños finalizados, con su ficha y sus documentos.';
@@ -303,6 +293,13 @@ final class Lists {
 		$set = isset( $_GET[ $key ] );
 		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- filtros de lectura.
 		$value = $set ? sanitize_text_field( wp_unslash( $_GET[ $key ] ) ) : '';
+		if ( 'fmc_year' === $key ) {
+			// El listado se abre por el curso en marcha, que es lo que se
+			// consulta a diario: pedir todos los cursos de golpe es la consulta
+			// lenta, y casi nunca se busca en los antiguos. «Todos» sigue en el
+			// desplegable, y es lo que se manda cuando se elige.
+			return $set ? $value : SchoolYear::of( gmdate( 'Y-m-d' ) );
+		}
 		if ( 'fmc_resolution' !== $key ) {
 			return $value;
 		}
@@ -831,7 +828,10 @@ final class Lists {
 		return array(
 			'tab'      => $tab,
 			'title'    => Screen::TITLES[ $tab ] ?? $object->labels->name,
-			'subtitle' => PostTypes::DESIGN === $type && ! self::writes_designs() ? self::SUBTITLE_DESIGN_READER . ( current_user_can( 'edit_fmc_actions' ) ? ' Desde la ficha se agenda una acción.' : '' ) : self::SUBTITLES[ $type ],
+			// De qué va cada listado ya lo dice su pestaña: solo lleva línea
+			// debajo la que dice algo que no se ve, como que los diseños se
+			// consultan finalizados y de solo lectura (ADR-0017).
+			'subtitle' => PostTypes::DESIGN === $type && ! self::writes_designs() ? self::SUBTITLE_DESIGN_READER . ( current_user_can( 'edit_fmc_actions' ) ? ' Desde la ficha se agenda una acción.' : '' ) : '',
 			'actions'  => $actions,
 			'body'     => $body,
 		);
@@ -890,8 +890,10 @@ final class Lists {
 		$out = array();
 		foreach ( array( 'fmc_s', 'fmc_scope', 'fmc_programme', 'fmc_topic', 'fmc_modality', 'fmc_process', 'fmc_situation', 'fmc_year', 'fmc_type', 'fmc_status', 'fmc_zone', 'fmc_available', 'fmc_resolution', 'fmc_month', 'fmc_speaker', 'fmc_from', 'fmc_to', 'fmc_catalogue', 'fmc_recommended', 'fmc_file', 'fmc_incident', 'fmc_given', 'fmc_sort', 'fmc_dir', 'fmc_view', 'fmc_adviser', 'fmc_adviser_kind' ) as $key ) {
 			// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- filtros de lectura.
-			if ( 'fmc_resolution' === $key && ! isset( $_GET[ $key ] ) ) {
-				// El «Pendiente» de serie no se arrastra a los enlaces de las demás pestañas.
+			if ( in_array( $key, array( 'fmc_resolution', 'fmc_year' ), true ) && ! isset( $_GET[ $key ] ) ) {
+				// Lo que vale de serie —el «Pendiente» de las incidencias, el
+				// curso en marcha— no se arrastra a los enlaces: lo vuelve a
+				// poner `arg()` en la pantalla que lo use.
 				continue;
 			}
 			if ( '' !== self::arg( $key ) ) {
@@ -918,11 +920,10 @@ final class Lists {
 		switch ( $type ) {
 			case PostTypes::ACTION:
 				// A la vista, lo que se usa a diario; lo demás, en «Búsqueda
-				// avanzada». El tipo de asesoría se queda fuera a petición de
-				// la reunión del 2026-10-30.
+				// avanzada», donde las etiquetas largas caben enteras.
 				$quick[]  = self::select( 'fmc_situation', 'Situación', A::SITUATIONS, 'Todas' );
 				$quick[]  = self::select( 'fmc_year', 'Curso escolar', self::school_years(), 'Todos' );
-				$quick[]  = self::select( 'fmc_adviser_kind', 'Tipo de asesoría', Advisers::KINDS, 'Todos' );
+				$fields[] = self::select( 'fmc_adviser_kind', 'Tipo de asesoría', Advisers::KINDS, 'Todos' );
 				$fields[] = self::text_field( 'fmc_file', 'Expediente empieza por', 'Prefijo' );
 				$fields[] = self::select( 'fmc_scope', 'Ámbito', self::term_choices( 'fmc_scope' ), 'Todos' );
 				$fields[] = self::select( 'fmc_programme', 'Programa', self::term_choices( 'fmc_programme' ), 'Todos' );
@@ -1016,7 +1017,10 @@ final class Lists {
 		}
 		$out .= ' <a class="btn btn-link" href="' . esc_url( Screen::url( $reset ) ) . '">Quitar filtros</a></div></div>';
 		if ( array() !== $fields ) {
-			$out .= '<div class="collapse' . ( $set ? ' show' : '' ) . '" id="fmc-advanced"><div class="row g-2 align-items-end mt-1">' . implode( '', $fields ) . '</div></div>';
+			// La misma X de siempre para cerrar el panel: el botón de «Búsqueda
+			// avanzada» también lo pliega, pero ahí arriba no se ve que es un
+			// interruptor.
+			$out .= '<div class="collapse' . ( $set ? ' show' : '' ) . '" id="fmc-advanced"><div class="position-relative"><button class="btn-close position-absolute top-0 end-0 mt-1" type="button" data-bs-toggle="collapse" data-bs-target="#fmc-advanced" aria-controls="fmc-advanced" aria-label="Cerrar la búsqueda avanzada" title="Cerrar la búsqueda avanzada"></button><div class="row g-2 align-items-end mt-1 pe-4">' . implode( '', $fields ) . '</div></div></div>';
 		}
 		return $out . '</form>';
 	}

@@ -6,7 +6,7 @@
  * Priority: 15
  *
  * @package Fmc
- * @version 0.0.10
+ * @version 0.0.11
  */
 
 // phpcs:disable
@@ -4010,16 +4010,6 @@ final class Lists {
 
 
 
-	public const SUBTITLES = array(
-		PostTypes::ACTION   => 'Cada edición de un diseño: dónde, cuándo, para cuántos y cómo fue.',
-		PostTypes::DESIGN   => 'El catálogo y la mesa de trabajo: los borradores se escriben aquí hasta que la coordinación los da por finalizados, y lo que ya no se imparte pasa a histórico.',
-		PostTypes::SPEAKER  => 'Datos personales: solo para quien gestiona acciones. Busque por lo que han impartido, con sus acciones y sus horas.',
-		PostTypes::INCIDENT => 'Cambios pedidos sobre una acción. Se abren desde la propia acción.',
-	);
-
-
-
-
 	public const SUBTITLE_DESIGN_READER = 'Los diseños finalizados, con su ficha y sus documentos.';
 
 
@@ -4282,6 +4272,13 @@ final class Lists {
 		$set = isset( $_GET[ $key ] );
 
 		$value = $set ? sanitize_text_field( wp_unslash( $_GET[ $key ] ) ) : '';
+		if ( 'fmc_year' === $key ) {
+
+
+
+
+			return $set ? $value : SchoolYear::of( gmdate( 'Y-m-d' ) );
+		}
 		if ( 'fmc_resolution' !== $key ) {
 			return $value;
 		}
@@ -4810,7 +4807,10 @@ final class Lists {
 		return array(
 			'tab'      => $tab,
 			'title'    => Screen::TITLES[ $tab ] ?? $object->labels->name,
-			'subtitle' => PostTypes::DESIGN === $type && ! self::writes_designs() ? self::SUBTITLE_DESIGN_READER . ( current_user_can( 'edit_fmc_actions' ) ? ' Desde la ficha se agenda una acción.' : '' ) : self::SUBTITLES[ $type ],
+
+
+
+			'subtitle' => PostTypes::DESIGN === $type && ! self::writes_designs() ? self::SUBTITLE_DESIGN_READER . ( current_user_can( 'edit_fmc_actions' ) ? ' Desde la ficha se agenda una acción.' : '' ) : '',
 			'actions'  => $actions,
 			'body'     => $body,
 		);
@@ -4869,7 +4869,9 @@ final class Lists {
 		$out = array();
 		foreach ( array( 'fmc_s', 'fmc_scope', 'fmc_programme', 'fmc_topic', 'fmc_modality', 'fmc_process', 'fmc_situation', 'fmc_year', 'fmc_type', 'fmc_status', 'fmc_zone', 'fmc_available', 'fmc_resolution', 'fmc_month', 'fmc_speaker', 'fmc_from', 'fmc_to', 'fmc_catalogue', 'fmc_recommended', 'fmc_file', 'fmc_incident', 'fmc_given', 'fmc_sort', 'fmc_dir', 'fmc_view', 'fmc_adviser', 'fmc_adviser_kind' ) as $key ) {
 
-			if ( 'fmc_resolution' === $key && ! isset( $_GET[ $key ] ) ) {
+			if ( in_array( $key, array( 'fmc_resolution', 'fmc_year' ), true ) && ! isset( $_GET[ $key ] ) ) {
+
+
 
 				continue;
 			}
@@ -4898,10 +4900,9 @@ final class Lists {
 			case PostTypes::ACTION:
 
 
-
 				$quick[]  = self::select( 'fmc_situation', 'Situación', A::SITUATIONS, 'Todas' );
 				$quick[]  = self::select( 'fmc_year', 'Curso escolar', self::school_years(), 'Todos' );
-				$quick[]  = self::select( 'fmc_adviser_kind', 'Tipo de asesoría', Advisers::KINDS, 'Todos' );
+				$fields[] = self::select( 'fmc_adviser_kind', 'Tipo de asesoría', Advisers::KINDS, 'Todos' );
 				$fields[] = self::text_field( 'fmc_file', 'Expediente empieza por', 'Prefijo' );
 				$fields[] = self::select( 'fmc_scope', 'Ámbito', self::term_choices( 'fmc_scope' ), 'Todos' );
 				$fields[] = self::select( 'fmc_programme', 'Programa', self::term_choices( 'fmc_programme' ), 'Todos' );
@@ -4995,7 +4996,10 @@ final class Lists {
 		}
 		$out .= ' <a class="btn btn-link" href="' . esc_url( Screen::url( $reset ) ) . '">Quitar filtros</a></div></div>';
 		if ( array() !== $fields ) {
-			$out .= '<div class="collapse' . ( $set ? ' show' : '' ) . '" id="fmc-advanced"><div class="row g-2 align-items-end mt-1">' . implode( '', $fields ) . '</div></div>';
+
+
+
+			$out .= '<div class="collapse' . ( $set ? ' show' : '' ) . '" id="fmc-advanced"><div class="position-relative"><button class="btn-close position-absolute top-0 end-0 mt-1" type="button" data-bs-toggle="collapse" data-bs-target="#fmc-advanced" aria-controls="fmc-advanced" aria-label="Cerrar la búsqueda avanzada" title="Cerrar la búsqueda avanzada"></button><div class="row g-2 align-items-end mt-1 pe-4">' . implode( '', $fields ) . '</div></div></div>';
 		}
 		return $out . '</form>';
 	}
@@ -5806,7 +5810,7 @@ final class Calendar {
 		return array(
 			'tab'      => 'actions',
 			'title'    => Screen::TITLES['actions'],
-			'subtitle' => Lists::SUBTITLES[ PostTypes::ACTION ],
+			'subtitle' => '',
 			'actions'  => self::views_html( $view ) . $add . ' ' . self::nav_link( $csv, 'Exportar CSV' ),
 			'body'     => Lists::filters_html( 'actions', PostTypes::ACTION ) . self::period_html( $period ) . self::legend() . $period['body'],
 		);
@@ -8067,15 +8071,24 @@ final class Screen {
 		$out .= '<style>' . Assets::css() . '</style>' . $bar['head'] . $chrome['head'] . '</head><body class="fmc' . ( '' !== $bar['body'] ? ' admin-bar' : '' ) . '">' . $bar['body'];
 		$out .= empty( $screen['public'] ) ? self::chrome( $screen['tab'], $chrome['brand'] ) : self::public_chrome( $chrome['brand'] );
 
-		$out .= '<div class="fmc-head"><div class="container d-flex flex-wrap align-items-start gap-3">';
-		$out .= '<div class="me-auto">' . ( $screen['back'] ?? '' ) . '<h1 class="fmc-h1">' . esc_html( $screen['title'] ) . ( $screen['badges'] ?? '' ) . '</h1>';
+
+
+
+
+		$tabs = empty( $screen['public'] ) ? self::tabs() : array();
+		$echo = (string) ( $tabs[ $screen['tab'] ]['label'] ?? '' ) === $screen['title'] && empty( $screen['back'] ) && empty( $screen['badges'] );
+		$bare = $echo && empty( $screen['subtitle'] );
+		$out .= '<div class="fmc-head' . ( $bare ? ' is-bare' : '' ) . '"><div class="container d-flex flex-wrap align-items-start gap-3">';
+		$out .= '<div class="me-auto">' . ( $screen['back'] ?? '' ) . '<h1 class="' . ( $echo ? 'visually-hidden' : 'fmc-h1' ) . '">' . esc_html( $screen['title'] ) . ( $screen['badges'] ?? '' ) . '</h1>';
 		if ( ! empty( $screen['subtitle'] ) ) {
 			$out .= '<p class="fmc-sub">' . esc_html( $screen['subtitle'] ) . '</p>';
 		}
 		$out .= '</div>' . ( $screen['actions'] ?? '' ) . '</div></div>';
 
 		$out .= '<main class="container py-4">' . self::notice() . $screen['body'] . '</main>';
-		$out .= '<footer class="fmc-foot"><div class="container">' . esc_html( self::APP_NAME ) . $chrome['footer'] . '</div></footer>';
+
+
+		$out .= '<footer class="fmc-foot"><div class="container">' . $chrome['footer'] . '</div></footer>';
 
 
 		$out .= '<script src="' . esc_url( self::BOOTSTRAP['js'] ) . '" integrity="' . esc_attr( self::BOOTSTRAP['js_sri'] ) . '" crossorigin="anonymous"></script>';
@@ -8854,6 +8867,9 @@ final class App {
 
 /* Título de la pantalla */
 .fmc-head { padding: 28px 0 4px; }
+/* Sin título a la vista —lo dice la pestaña activa— la banda solo lleva los
+   botones de la pantalla, y no necesita tanto aire. */
+.fmc-head.is-bare { padding: 14px 0 0; }
 .fmc-h1 { font-size: 27px; font-weight: 700; letter-spacing: -.02em; margin: 0 0 4px; }
 .fmc-h1 .badge { font-size: .75rem; vertical-align: middle; margin-left: .35rem; }
 .fmc-sub { margin: 0; color: var(--fmc-text-2); font-size: 14.5px; }
