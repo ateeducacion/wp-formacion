@@ -8,6 +8,12 @@ lee de la cabecera superior y la escribe en el `@version` del bundle.
 `make release` crea el tag y la release en GitHub; el despliegue de los snippets
 en el sitio de destino se hace después.
 
+## [0.0.10] — 2026-11-01
+
+### Cambiado
+
+- **El pie reparte en dos lo que pone quien despliega**: quién está detrás, a la izquierda; los enlaces legales, a la derecha, como en los aplicativos hermanos. Antes salían pegados al nombre del aplicativo, porque el grupo de enlaces no tenía ningún estilo. En pantalla estrecha los enlaces bajan a su propia línea. El contenido del pie sigue siendo configuración de cada instalación
+
 ## [0.0.9] — 2026-11-01
 
 Lo que salió de la reunión del 2026-10-30 con las asesorías TIC y el servicio

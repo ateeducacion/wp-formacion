@@ -294,7 +294,10 @@ final class Screen {
 	/**
 	 * What the deployment adds around the app: `head` (analytics, cookie
 	 * notice), `brand` (logo and organisation, before the app name) and
-	 * `footer` (legal links, the organisation's name).
+	 * `footer` (legal links, the organisation's name). El pie reparte lo que
+	 * llegue en `footer`: con la clase `fmc-foot-legal`, un grupo de enlaces se
+	 * va a la derecha; con `fmc-foot-credit`, el crédito de quien desarrolla se
+	 * pinta atenuado.
 	 *
 	 * Lo que dice de quién es el despliegue no se versiona (ADR-0002): llega por
 	 * el filtro `fmc_chrome`, vacío por defecto, desde un snippet de quien
