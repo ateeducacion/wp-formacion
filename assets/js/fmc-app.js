@@ -198,6 +198,73 @@
 		} );
 	}
 
+	// La asesoría elegida pone el ámbito de su centro de referencia: lo trae
+	// la propia opción. Después se puede cambiar a mano, que es lo que pasa
+	// cuando la acción la organiza otro ámbito.
+	function setFromOption( select ) {
+		const form = select.form;
+		const target = form && form.querySelector( '[name="' + select.dataset.fmcSets + '"]' );
+		const option = select.options[ select.selectedIndex ];
+		const value = option && option.dataset ? option.dataset.fmcValue : '';
+		if ( ! target || ! value || target.value === value ) {
+			return false;
+		}
+		if ( target.tomselect ) {
+			target.tomselect.setValue( value, true );
+		}
+		target.value = value;
+		target.dispatchEvent( new Event( 'change', { bubbles: true } ) );
+		return true;
+	}
+
+	// Qué centros se ofrecen lo decide el ámbito, y lo decide el servidor: al
+	// cambiarlo se vuelve a pedir la ficha y se cambia solo ese campo, con su
+	// línea de ayuda. Sin guion, el ámbito guardado es el que acota la lista,
+	// como siempre.
+	function refreshField( select ) {
+		const form = select.form;
+		const name = select.dataset.fmcRefreshes;
+		const target = form && form.querySelector( '[name="' + name + '"]' );
+		const column = target && target.closest( '[class*="col-"]' );
+		if ( ! column ) {
+			return null;
+		}
+		const url = withFrame( form.getAttribute( 'action' ) || window.location.href );
+		const id = ( form.querySelector( '[name="fmc_id"]' ) || {} ).value;
+		if ( parseInt( id, 10 ) > 0 ) {
+			url.searchParams.set( 'fmc_edit', id );
+		} else {
+			url.searchParams.set( 'fmc_new', ( form.querySelector( '[name="fmc_type"]' ) || {} ).value || '' );
+		}
+		url.searchParams.set( 'fmc_ambito', select.value || '0' );
+		const keep = target.value;
+		column.setAttribute( 'aria-busy', 'true' );
+		return window.fetch( url, { credentials: 'same-origin' } )
+			.then( function ( response ) {
+				return response.text();
+			} )
+			.then( function ( html ) {
+				const fresh = new window.DOMParser().parseFromString( html, 'text/html' ).querySelector( '[name="' + name + '"]' );
+				const fresher = fresh && fresh.closest( '[class*="col-"]' );
+				if ( ! fresher ) {
+					column.removeAttribute( 'aria-busy' );
+					return;
+				}
+				// Lo que ya estaba elegido se queda si el ámbito nuevo lo ofrece.
+				if ( keep && fresh.querySelector( 'option[value="' + keep + '"]' ) ) {
+					fresh.value = keep;
+				}
+				if ( target.tomselect ) {
+					target.tomselect.destroy();
+				}
+				column.replaceWith( fresher );
+				initSelects( fresher );
+			} )
+			.catch( function () {
+				column.removeAttribute( 'aria-busy' );
+			} );
+	}
+
 	function onChange( event ) {
 		const target = event.target;
 		if ( ! target || ! target.closest ) {
@@ -214,6 +281,12 @@
 		}
 		if ( target.hasAttribute && target.hasAttribute( 'data-fmc-hints' ) ) {
 			showHint( target );
+		}
+		if ( target.dataset && target.dataset.fmcSets ) {
+			setFromOption( target );
+		}
+		if ( target.dataset && target.dataset.fmcRefreshes ) {
+			refreshField( target );
 		}
 		const form = target.closest( 'form' );
 		if ( form ) {
@@ -615,6 +688,8 @@
 		onPanelSubmit: onPanelSubmit,
 		onKey: onKey,
 		onChange: onChange,
+		setFromOption: setFromOption,
+		refreshField: refreshField,
 		applyShow: applyShow,
 		initRich: initRich,
 		removeRich: removeRich,

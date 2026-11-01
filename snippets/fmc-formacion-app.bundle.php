@@ -6,7 +6,7 @@
  * Priority: 15
  *
  * @package Fmc
- * @version 0.0.11
+ * @version 0.0.12
  */
 
 // phpcs:disable
@@ -1727,6 +1727,38 @@ final class Advisers {
 
 
 
+
+
+
+
+	public static function scopes(): array {
+		$terms   = get_terms(
+			array(
+				'taxonomy'   => Taxonomies::SCOPE,
+				'hide_empty' => false,
+			)
+		);
+		$by_name = array();
+		foreach ( is_array( $terms ) ? $terms : array() as $t ) {
+			$by_name[ trim( (string) $t->name ) ] = (int) $t->term_id;
+		}
+
+		$out = array();
+		foreach ( array_keys( self::choices() ) as $id ) {
+			$centre = CentreCatalogue::find( self::centre( (int) $id ) );
+			$name   = trim( (string) ( $centre['name'] ?? '' ) );
+			if ( '' !== $name && isset( $by_name[ $name ] ) ) {
+				$out[ (int) $id ] = $by_name[ $name ];
+			}
+		}
+		return $out;
+	}
+
+
+
+
+
+
 	public static function choices(): array {
 		$out   = array();
 		$users = get_users(
@@ -3054,16 +3086,22 @@ final class Fields {
 						'w'     => 'text',
 						'help'  => 'Un añadido que sale debajo del título, por ejemplo la edición o el lugar. No sustituye al título.',
 					),
-					'tax:fmc_scope'    => array(
-						'label' => 'Ámbito que la gestiona',
-						'w'     => 'term',
-						'col'   => 6,
-						'req'   => true,
-					),
+
+
+
+
 					A::ADVISER         => array(
 						'label' => 'Asesoría responsable',
 						'w'     => 'adviser',
 						'col'   => 6,
+						'sets'  => 'tax:fmc_scope',
+					),
+					'tax:fmc_scope'    => array(
+						'label'     => 'Ámbito que la gestiona',
+						'w'         => 'term',
+						'col'       => 6,
+						'req'       => true,
+						'refreshes' => A::VENUE_CODE,
 					),
 
 					A::VENUE_CODE      => array(
@@ -6313,6 +6351,14 @@ final class Editor {
 		}
 
 
+
+
+		if ( PostTypes::ACTION === $type && '' !== Lists::arg( Screen::ARG_SCOPE ) ) {
+			$chosen                               = absint( Lists::arg( Screen::ARG_SCOPE ) );
+			$values[ 'tax:' . Taxonomies::SCOPE ] = $chosen ? array( $chosen ) : array();
+		}
+
+
 		if ( ! $post && PostTypes::DESIGN === $type ) {
 			$values += array( D::CODE => self::next_code() );
 		}
@@ -6573,8 +6619,11 @@ final class Editor {
 				$input = '<textarea class="form-control' . $invalid . '" id="' . esc_attr( $id ) . '" name="' . esc_attr( $name ) . '" rows="' . ( $rich ? 6 : 4 ) . '"' . $rich . $disabled . '>' . esc_textarea( (string) $value ) . '</textarea>';
 				break;
 			case 'checkbox':
-				$input = '<div class="form-check mt-2"><input type="hidden" name="' . esc_attr( $name ) . '" value="0"' . $disabled . '><input class="form-check-input" type="checkbox" id="' . esc_attr( $id ) . '" name="' . esc_attr( $name ) . '" value="1"' . checked( (bool) $value, true, false ) . $disabled . '><label class="form-check-label" for="' . esc_attr( $id ) . '">' . esc_html( $f['label'] ) . '</label></div>';
-				$label = '';
+				$input = '<div class="form-check fmc-check-aligned"><input type="hidden" name="' . esc_attr( $name ) . '" value="0"' . $disabled . '><input class="form-check-input" type="checkbox" id="' . esc_attr( $id ) . '" name="' . esc_attr( $name ) . '" value="1"' . checked( (bool) $value, true, false ) . $disabled . '><label class="form-check-label" for="' . esc_attr( $id ) . '">' . esc_html( $f['label'] ) . '</label></div>';
+
+
+
+				$label = '<span class="form-label d-none d-md-block" aria-hidden="true">&nbsp;</span>';
 				break;
 			case 'select':
 			case 'term':
@@ -6594,9 +6643,15 @@ final class Editor {
 				$search = count( $choices ) > 10 ? ' data-fmc-ts data-placeholder="Escriba para buscar…"' : '';
 
 				$hints = 0 === strpos( $key, 'tax:' ) ? self::term_hints( substr( $key, 4 ) ) : array();
-				$input = '<select class="form-select' . $invalid . '" id="' . esc_attr( $id ) . '" name="' . esc_attr( $name ) . '"' . $search . ( $hints ? ' data-fmc-hints' : '' ) . $disabled . '><option value="">—</option>';
+
+
+
+				$links  = ( ! empty( $f['sets'] ) ? ' data-fmc-sets="f[' . esc_attr( (string) $f['sets'] ) . ']"' : '' ) . ( ! empty( $f['refreshes'] ) ? ' data-fmc-refreshes="f[' . esc_attr( (string) $f['refreshes'] ) . ']"' : '' );
+				$scopes = 'adviser' === $f['w'] && ! empty( $f['sets'] ) ? Advisers::scopes() : array();
+				$input  = '<select class="form-select' . $invalid . '" id="' . esc_attr( $id ) . '" name="' . esc_attr( $name ) . '"' . $search . $links . ( $hints ? ' data-fmc-hints' : '' ) . $disabled . '><option value="">—</option>';
 				foreach ( $choices as $v => $text ) {
-					$input .= '<option value="' . esc_attr( (string) $v ) . '"' . selected( $current, (string) $v, false ) . ( isset( $hints[ $v ] ) ? ' data-fmc-hint="' . esc_attr( $hints[ $v ] ) . '"' : '' ) . '>' . esc_html( $text ) . '</option>';
+					$sets   = isset( $scopes[ (int) $v ] ) ? ' data-fmc-value="' . (int) $scopes[ (int) $v ] . '"' : '';
+					$input .= '<option value="' . esc_attr( (string) $v ) . '"' . selected( $current, (string) $v, false ) . $sets . ( isset( $hints[ $v ] ) ? ' data-fmc-hint="' . esc_attr( $hints[ $v ] ) . '"' : '' ) . '>' . esc_html( $text ) . '</option>';
 				}
 				$input .= '</select>';
 				if ( $hints ) {
@@ -7756,6 +7811,13 @@ final class Screen {
 
 
 	public const ARG_DESIGN = 'fmc_diseno';
+
+
+
+
+
+	public const ARG_SCOPE = 'fmc_ambito';
+
 	public const ARG_NOTICE = 'fmc_notice';
 
 
@@ -8874,6 +8936,11 @@ final class App {
 .fmc-h1 .badge { font-size: .75rem; vertical-align: middle; margin-left: .35rem; }
 .fmc-sub { margin: 0; color: var(--fmc-text-2); font-size: 14.5px; }
 
+/* La casilla que acompaña a otro campo en su fila: a la altura del campo, no
+   pegada a la etiqueta. La línea en blanco que lleva encima la baja hasta la
+   fila de los campos; esto la centra con ellos. */
+.fmc-check-aligned { padding-top: 7px; }
+
 /* Pie */
 /* El pie, como en los aplicativos hermanos: quién está detrás, a la izquierda;
    los enlaces legales, a la derecha. El contenido lo pone quien despliega con
@@ -9312,6 +9379,73 @@ body.has-panel { overflow: hidden; }
 		} );
 	}
 
+	// La asesoría elegida pone el ámbito de su centro de referencia: lo trae
+	// la propia opción. Después se puede cambiar a mano, que es lo que pasa
+	// cuando la acción la organiza otro ámbito.
+	function setFromOption( select ) {
+		const form = select.form;
+		const target = form && form.querySelector( \'[name="\' + select.dataset.fmcSets + \'"]\' );
+		const option = select.options[ select.selectedIndex ];
+		const value = option && option.dataset ? option.dataset.fmcValue : \'\';
+		if ( ! target || ! value || target.value === value ) {
+			return false;
+		}
+		if ( target.tomselect ) {
+			target.tomselect.setValue( value, true );
+		}
+		target.value = value;
+		target.dispatchEvent( new Event( \'change\', { bubbles: true } ) );
+		return true;
+	}
+
+	// Qué centros se ofrecen lo decide el ámbito, y lo decide el servidor: al
+	// cambiarlo se vuelve a pedir la ficha y se cambia solo ese campo, con su
+	// línea de ayuda. Sin guion, el ámbito guardado es el que acota la lista,
+	// como siempre.
+	function refreshField( select ) {
+		const form = select.form;
+		const name = select.dataset.fmcRefreshes;
+		const target = form && form.querySelector( \'[name="\' + name + \'"]\' );
+		const column = target && target.closest( \'[class*="col-"]\' );
+		if ( ! column ) {
+			return null;
+		}
+		const url = withFrame( form.getAttribute( \'action\' ) || window.location.href );
+		const id = ( form.querySelector( \'[name="fmc_id"]\' ) || {} ).value;
+		if ( parseInt( id, 10 ) > 0 ) {
+			url.searchParams.set( \'fmc_edit\', id );
+		} else {
+			url.searchParams.set( \'fmc_new\', ( form.querySelector( \'[name="fmc_type"]\' ) || {} ).value || \'\' );
+		}
+		url.searchParams.set( \'fmc_ambito\', select.value || \'0\' );
+		const keep = target.value;
+		column.setAttribute( \'aria-busy\', \'true\' );
+		return window.fetch( url, { credentials: \'same-origin\' } )
+			.then( function ( response ) {
+				return response.text();
+			} )
+			.then( function ( html ) {
+				const fresh = new window.DOMParser().parseFromString( html, \'text/html\' ).querySelector( \'[name="\' + name + \'"]\' );
+				const fresher = fresh && fresh.closest( \'[class*="col-"]\' );
+				if ( ! fresher ) {
+					column.removeAttribute( \'aria-busy\' );
+					return;
+				}
+				// Lo que ya estaba elegido se queda si el ámbito nuevo lo ofrece.
+				if ( keep && fresh.querySelector( \'option[value="\' + keep + \'"]\' ) ) {
+					fresh.value = keep;
+				}
+				if ( target.tomselect ) {
+					target.tomselect.destroy();
+				}
+				column.replaceWith( fresher );
+				initSelects( fresher );
+			} )
+			.catch( function () {
+				column.removeAttribute( \'aria-busy\' );
+			} );
+	}
+
 	function onChange( event ) {
 		const target = event.target;
 		if ( ! target || ! target.closest ) {
@@ -9328,6 +9462,12 @@ body.has-panel { overflow: hidden; }
 		}
 		if ( target.hasAttribute && target.hasAttribute( \'data-fmc-hints\' ) ) {
 			showHint( target );
+		}
+		if ( target.dataset && target.dataset.fmcSets ) {
+			setFromOption( target );
+		}
+		if ( target.dataset && target.dataset.fmcRefreshes ) {
+			refreshField( target );
 		}
 		const form = target.closest( \'form\' );
 		if ( form ) {
@@ -9729,6 +9869,8 @@ body.has-panel { overflow: hidden; }
 		onPanelSubmit: onPanelSubmit,
 		onKey: onKey,
 		onChange: onChange,
+		setFromOption: setFromOption,
+		refreshField: refreshField,
 		applyShow: applyShow,
 		initRich: initRich,
 		removeRich: removeRich,

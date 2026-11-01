@@ -303,16 +303,22 @@ final class Fields {
 						'w'     => 'text',
 						'help'  => 'Un añadido que sale debajo del título, por ejemplo la edición o el lugar. No sustituye al título.',
 					),
-					'tax:fmc_scope'    => array(
-						'label' => 'Ámbito que la gestiona',
-						'w'     => 'term',
-						'col'   => 6,
-						'req'   => true,
-					),
+					// La asesoría va antes que el ámbito porque lo decide: al
+					// elegirla se pone el ámbito de su centro de referencia
+					// (ADR-0022), y del ámbito salen los centros que se ofrecen.
+					// Las dos se pueden cambiar a mano después.
 					A::ADVISER         => array(
 						'label' => 'Asesoría responsable',
 						'w'     => 'adviser',
 						'col'   => 6,
+						'sets'  => 'tax:fmc_scope',
+					),
+					'tax:fmc_scope'    => array(
+						'label'     => 'Ámbito que la gestiona',
+						'w'         => 'term',
+						'col'       => 6,
+						'req'       => true,
+						'refreshes' => A::VENUE_CODE,
 					),
 					// El centro se elige del catálogo por su código; el nombre se guarda aparte, como estaba (ADR-0021).
 					A::VENUE_CODE      => array(

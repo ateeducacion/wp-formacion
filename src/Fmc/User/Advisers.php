@@ -105,6 +105,38 @@ final class Advisers {
 	}
 
 	/**
+	 * The scope term of every adviser account, in one go.
+	 *
+	 * La ficha de la acción pone el ámbito al elegir la asesoría, así que
+	 * necesita el de todas: leerlo cuenta a cuenta con `scope()` sería una
+	 * consulta de términos por asesoría.
+	 *
+	 * @return array<int, int> User ID => scope term ID, only those that have one.
+	 */
+	public static function scopes(): array {
+		$terms   = get_terms(
+			array(
+				'taxonomy'   => Taxonomies::SCOPE,
+				'hide_empty' => false,
+			)
+		);
+		$by_name = array();
+		foreach ( is_array( $terms ) ? $terms : array() as $t ) {
+			$by_name[ trim( (string) $t->name ) ] = (int) $t->term_id;
+		}
+
+		$out = array();
+		foreach ( array_keys( self::choices() ) as $id ) {
+			$centre = CentreCatalogue::find( self::centre( (int) $id ) );
+			$name   = trim( (string) ( $centre['name'] ?? '' ) );
+			if ( '' !== $name && isset( $by_name[ $name ] ) ) {
+				$out[ (int) $id ] = $by_name[ $name ];
+			}
+		}
+		return $out;
+	}
+
+	/**
 	 * The accounts that can be the adviser of an action, with their kind.
 	 *
 	 * @return array<int, string> User ID => «Nombre · TIC».

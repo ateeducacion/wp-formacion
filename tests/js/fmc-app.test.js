@@ -494,3 +494,58 @@ describe( 'los ponentes de la acción', () => {
 		expect( window.Swal.fire ).toHaveBeenCalledWith( expect.objectContaining( { title: 'Observaciones', text: 'Solo por la tarde' } ) );
 	} );
 } );
+
+describe( 'la asesoría pone el ámbito y el ámbito trae sus centros', () => {
+	const ficha = `<form class="fmc-form" method="post" action="/">
+		<input name="fmc_id" value="0"><input name="fmc_type" value="fmc_action">
+		<div class="col-12 col-md-6"><select name="f[fmc_adviser]" data-fmc-sets="f[tax:fmc_scope]">
+			<option value="">—</option>
+			<option value="7" data-fmc-value="12">Ana · TIC</option>
+		</select></div>
+		<div class="col-12 col-md-6"><select name="f[tax:fmc_scope]" data-fmc-refreshes="f[fmc_venue_code]">
+			<option value="">—</option><option value="12">C.PROFES. EL HIERRO</option>
+		</select></div>
+		<div class="col-12 col-md-8"><select name="f[fmc_venue_code]"><option value="">—</option><option value="38000001">CEIP Lejano (38000001)</option></select></div>
+	</form>`;
+
+	beforeEach( async () => {
+		document.body.innerHTML = ficha;
+		window.fetch = vi.fn().mockResolvedValue( {
+			text: () => Promise.resolve( '<div class="col-12 col-md-8"><select name="f[fmc_venue_code]"><option value="">—</option><option value="38000002">CEIP El Hierro (38000002)</option></select><div class="form-text">Solo los centros de C.PROFES. EL HIERRO</div></div>' ),
+		} );
+		await load();
+	} );
+	afterEach( () => {
+		detach();
+		vi.restoreAllMocks();
+	} );
+
+	it( 'elegir la asesoría pone su ámbito y pide los centros de ese ámbito', async () => {
+		const adviser = document.querySelector( '[name="f[fmc_adviser]"]' );
+		adviser.value = '7';
+		adviser.dispatchEvent( new Event( 'change', { bubbles: true } ) );
+
+		expect( document.querySelector( '[name="f[tax:fmc_scope]"]' ).value ).toBe( '12' );
+		const url = new URL( window.fetch.mock.calls[ 0 ][ 0 ] );
+		expect( url.searchParams.get( 'fmc_ambito' ) ).toBe( '12' );
+		expect( url.searchParams.get( 'fmc_marco' ) ).toBe( '1' );
+		expect( url.searchParams.get( 'fmc_new' ) ).toBe( 'fmc_action' );
+
+		await vi.waitFor( () => {
+			expect( document.querySelector( '[name="f[fmc_venue_code]"] option[value="38000002"]' ) ).not.toBeNull();
+		} );
+		expect( document.querySelector( '[name="f[fmc_venue_code]"] option[value="38000001"]' ) ).toBeNull();
+		expect( document.body.textContent ).toContain( 'Solo los centros de C.PROFES. EL HIERRO' );
+	} );
+
+	it( 'una ficha ya guardada se pide por su identificador', () => {
+		document.querySelector( '[name="fmc_id"]' ).value = '42';
+		const scope = document.querySelector( '[name="f[tax:fmc_scope]"]' );
+		scope.value = '12';
+		scope.dispatchEvent( new Event( 'change', { bubbles: true } ) );
+
+		const url = new URL( window.fetch.mock.calls[ 0 ][ 0 ] );
+		expect( url.searchParams.get( 'fmc_edit' ) ).toBe( '42' );
+		expect( url.searchParams.get( 'fmc_new' ) ).toBeNull();
+	} );
+} );
