@@ -38,6 +38,7 @@ anterior se conserva y sigue saliendo en el CSV de lo migrado.
 - **El listado de acciones formativas no llegaba a pintarse**: en un sitio con unos miles de acciones, cada contador de situación —«Impartiéndose», «Realizada», «Aplazada», «Cancelada»— tardaba medio minuto, así que la vista «Lista» agotaba el tiempo del servidor y el calendario parecía la única que funcionaba. Ahora la situación se consulta con subconsultas y los cinco contadores salen en milésimas
 - Filtrar el listado o el calendario por situación era igual de lento, y también se ha arreglado
 - Elegir la asesoría responsable, o filtrar por ella, hacía dos consultas por cada cuenta de asesoría del sitio; ahora se leen todas de una vez
+- **`make check` vuelve a estar en verde**: `make phpmd` llevaba en rojo desde antes de esta reunión. La comprobación de las opciones de la ficha se ha partido en tres y los avisos que quedan —cifras que pdepend no recalcula aunque el método se parta— están en la línea base, con el motivo escrito en ella
 
 ## [0.0.8] — 2026-10-28
 
