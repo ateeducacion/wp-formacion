@@ -1902,9 +1902,13 @@ final class CentreCatalogue {
 
 
 
-	public static function active_options(): array {
+
+	public static function active_options( string $island = '' ): array {
 		$active = self::all_active();
-		$out    = array();
+		if ( '' !== $island ) {
+			$active = array_filter( $active, static fn( $centre ) => isset( $centre['island'] ) && (string) $centre['island'] === $island );
+		}
+		$out = array();
 		foreach ( $active as $code => $centre ) {
 			$name = isset( $centre['name'] ) ? trim( (string) $centre['name'] ) : '';
 			if ( '' !== $name ) {
@@ -1920,6 +1924,29 @@ final class CentreCatalogue {
 		);
 
 		return $out;
+	}
+
+
+
+
+
+
+
+
+
+
+
+	public static function find_by_name( string $name ): ?array {
+		$name = trim( $name );
+		if ( '' === $name ) {
+			return null;
+		}
+		foreach ( self::all() as $centre ) {
+			if ( isset( $centre['name'] ) && trim( (string) $centre['name'] ) === $name ) {
+				return $centre;
+			}
+		}
+		return null;
 	}
 
 
@@ -4838,20 +4865,24 @@ final class Lists {
 			PostTypes::ACTION  => 'Título, subtítulo o expediente…',
 			PostTypes::SPEAKER => 'Nombre…',
 		);
-		$fields       = array( self::search_field( $placeholders[ $type ] ?? 'Título…' ) );
+		$quick        = array();
+		$fields       = array();
 		switch ( $type ) {
 			case PostTypes::ACTION:
+
+
+
+				$quick[]  = self::select( 'fmc_situation', 'Situación', A::SITUATIONS, 'Todas' );
+				$quick[]  = self::select( 'fmc_year', 'Curso escolar', self::school_years(), 'Todos' );
+				$quick[]  = self::select( 'fmc_adviser_kind', 'Tipo de asesoría', Advisers::KINDS, 'Todos' );
 				$fields[] = self::text_field( 'fmc_file', 'Expediente empieza por', 'Prefijo' );
 				$fields[] = self::select( 'fmc_scope', 'Ámbito', self::term_choices( 'fmc_scope' ), 'Todos' );
-				$fields[] = self::select( 'fmc_year', 'Curso escolar', self::school_years(), 'Todos' );
 				$fields[] = self::select( 'fmc_programme', 'Programa', self::term_choices( 'fmc_programme' ), 'Todos' );
 				$fields[] = self::select( 'fmc_modality', 'Modalidad', D::MODALITIES, 'Todas' );
 				$fields[] = self::select( 'fmc_type', 'Tipo', D::TYPES, 'Todos' );
 				$fields[] = self::select( 'fmc_status', 'Estado', A::DELIVERY, 'Todos' );
-				$fields[] = self::select( 'fmc_situation', 'Situación', A::SITUATIONS, 'Todas' );
 				$fields[] = self::select( 'fmc_speaker', 'Ponente', self::post_choices( PostTypes::SPEAKER ), 'Todos', true );
 				$fields[] = self::select( 'fmc_adviser', 'Asesoría', Advisers::choices(), 'Todas', true );
-				$fields[] = self::select( 'fmc_adviser_kind', 'Tipo de asesoría', Advisers::KINDS, 'Todos' );
 				$fields[] = self::select(
 					'fmc_incident',
 					'Incidencias',
@@ -4865,7 +4896,7 @@ final class Lists {
 				$fields[] = self::date_field( 'fmc_to', 'hasta' );
 				break;
 			case PostTypes::DESIGN:
-				$fields[] = self::select( 'fmc_type', 'Tipo', D::TYPES, 'Todos' );
+				$quick[]  = self::select( 'fmc_type', 'Tipo', D::TYPES, 'Todos' );
 				$fields[] = self::select( 'fmc_modality', 'Modalidad', D::MODALITIES, 'Todas' );
 				$fields[] = self::select( 'fmc_programme', 'Programa', self::term_choices( 'fmc_programme' ), 'Todos' );
 				$fields[] = self::select( 'fmc_topic', 'Temática', self::term_choices( 'fmc_topic' ), 'Todas' );
@@ -4875,7 +4906,7 @@ final class Lists {
 				$fields[] = self::select( 'fmc_catalogue', 'Catálogo', array( '1' => 'En el catálogo público' ), 'Todos' );
 				break;
 			case PostTypes::SPEAKER:
-				$fields[] = self::select( 'fmc_zone', 'Isla o zona', self::term_choices( Taxonomies::ZONE ), 'Todas' );
+				$quick[]  = self::select( 'fmc_zone', 'Isla o zona', self::term_choices( Taxonomies::ZONE ), 'Todas' );
 				$fields[] = self::select(
 					'fmc_available',
 					'Disponibilidad',
@@ -4904,7 +4935,7 @@ final class Lists {
 				);
 				break;
 			case PostTypes::INCIDENT:
-				$fields[] = self::select( 'fmc_resolution', 'Resolución', I::RESOLUTIONS, 'Todas' );
+				$quick[] = self::select( 'fmc_resolution', 'Resolución', I::RESOLUTIONS, 'Todas' );
 				break;
 		}
 
@@ -4917,13 +4948,29 @@ final class Lists {
 				$out .= '<input type="hidden" name="' . esc_attr( $key ) . '" value="' . esc_attr( self::arg( $key ) ) . '">';
 			}
 		}
-		$out  .= '<div class="row g-2 align-items-end">' . implode( '', $fields );
 		$reset = array(
 			Screen::ARG_TAB => $tab,
 			'fmc_view'      => self::arg( 'fmc_view' ),
 		);
-		$out  .= '<div class="col-auto"><button class="btn btn-outline-dark" type="submit">Filtrar</button> <a class="btn btn-link" href="' . esc_url( Screen::url( $reset ) ) . '">Quitar filtros</a></div>';
-		return $out . '</div></form>';
+
+
+
+		$set = 0;
+		foreach ( $fields as $field ) {
+			$set += preg_match( '/name="(fmc_[a-z_]+)"/', $field, $m ) && '' !== self::arg( $m[1] ) ? 1 : 0;
+		}
+		$out .= '<div class="row g-2 align-items-end">' . self::search_field( $placeholders[ $type ] ?? 'Título…' ) . implode( '', $quick );
+		$out .= '<div class="col-auto"><button class="btn btn-outline-dark" type="submit">Filtrar</button>';
+		if ( array() !== $fields ) {
+
+
+			$out .= ' <button class="btn btn-link" type="button" data-bs-toggle="collapse" data-bs-target="#fmc-advanced" aria-expanded="' . ( $set ? 'true' : 'false' ) . '" aria-controls="fmc-advanced">Búsqueda avanzada' . ( $set ? ' <span class="badge text-bg-secondary">' . (int) $set . '</span>' : '' ) . '</button>';
+		}
+		$out .= ' <a class="btn btn-link" href="' . esc_url( Screen::url( $reset ) ) . '">Quitar filtros</a></div></div>';
+		if ( array() !== $fields ) {
+			$out .= '<div class="collapse' . ( $set ? ' show' : '' ) . '" id="fmc-advanced"><div class="row g-2 align-items-end mt-1">' . implode( '', $fields ) . '</div></div>';
+		}
+		return $out . '</form>';
 	}
 
 
@@ -6276,9 +6323,11 @@ final class Editor {
 				$writable = $writable || $can;
 				$value    = array_key_exists( $key, $values ) ? $values[ $key ] : self::value( $post, $key );
 				$shown    = self::shown( $field, static fn( $k ) => array_key_exists( $k, $values ) ? $values[ $k ] : self::value( $post, $k ) );
+				$scope    = (array) ( array_key_exists( 'tax:' . Taxonomies::SCOPE, $values ) ? $values[ 'tax:' . Taxonomies::SCOPE ] : self::value( $post, 'tax:' . Taxonomies::SCOPE ) );
 				$field   += array(
 					'design' => (int) ( array_key_exists( A::DESIGN_ID, $values ) ? $values[ A::DESIGN_ID ] : self::value( $post, A::DESIGN_ID ) ),
 					'post'   => $id,
+					'scope'  => (int) ( false !== reset( $scope ) ? reset( $scope ) : 0 ),
 					'stored' => self::value( $post, $key ),
 				);
 				$body    .= 'docs' === $field['w'] ? self::docs( $post, $can ) : self::field( $type, $key, $field, $value, $can, isset( $errors[ $key ] ), $shown );
@@ -6473,7 +6522,7 @@ final class Editor {
 			$help .= '<div class="form-text">Aún no hay ninguna asesoría con cuenta en el aplicativo: la administración las da de alta en «Usuarios», con el rol «Asesoría de formación».</div>';
 		}
 		if ( 'centre' === $f['w'] ) {
-			$help .= self::centre_help( (int) ( $f['post'] ?? 0 ), is_string( $value ) ? $value : '', $can );
+			$help .= self::centre_help( (int) ( $f['post'] ?? 0 ), is_string( $value ) ? $value : '', $can, (int) ( $f['scope'] ?? 0 ) );
 		}
 		if ( $can && ! empty( $f['add'] ) && current_user_can( get_post_type_object( $f['add'] )->cap->create_posts ) ) {
 			$help .= '<div class="form-text"><a href="' . esc_url(
@@ -6676,7 +6725,7 @@ final class Editor {
 			return Advisers::choices();
 		}
 		if ( 'centre' === $f['w'] ) {
-			return self::centre_choices( (string) ( $f['stored'] ?? '' ), (int) ( $f['post'] ?? 0 ) );
+			return self::centre_choices( (string) ( $f['stored'] ?? '' ), (int) ( $f['post'] ?? 0 ), (int) ( $f['scope'] ?? 0 ) );
 		}
 		$type = 'speakers' === $f['w'] ? PostTypes::SPEAKER : PostTypes::DESIGN;
 
@@ -6704,13 +6753,20 @@ final class Editor {
 
 
 
-	private static function centre_choices( string $stored, int $action ): array {
+
+
+
+
+	private static function centre_choices( string $stored, int $action, int $scope = 0 ): array {
 		$out = array();
-		foreach ( CentreCatalogue::active_options() as $code => $name ) {
+		foreach ( CentreCatalogue::active_options( self::scope_island( $scope ) ) as $code => $name ) {
 			$out[ $code ] = CentreCatalogue::label( (string) $code, $name );
 		}
 		if ( '' !== $stored && ! isset( $out[ $stored ] ) ) {
-			$out[ $stored ] = CentreCatalogue::label( $stored, (string) get_post_meta( $action, A::VENUE_CENTRE, true ) ) . ' — ya no está activo';
+
+
+			$suffix         = CentreCatalogue::is_active( $stored ) ? ' — de otra isla' : ' — ya no está activo';
+			$out[ $stored ] = CentreCatalogue::label( $stored, (string) get_post_meta( $action, A::VENUE_CENTRE, true ) ) . $suffix;
 		}
 		return $out;
 	}
@@ -6726,8 +6782,36 @@ final class Editor {
 
 
 
-	private static function centre_help( int $action, string $code, bool $can ): string {
+	private static function scope_island( int $scope ): string {
+		if ( ! $scope ) {
+			return '';
+		}
+		$term = get_term( $scope, Taxonomies::SCOPE );
+		if ( ! $term instanceof \WP_Term ) {
+			return '';
+		}
+		$centre = CentreCatalogue::find_by_name( $term->name );
+		return (string) ( $centre['island'] ?? '' );
+	}
+
+
+
+
+
+
+
+
+
+
+
+
+
+	private static function centre_help( int $action, string $code, bool $can, int $scope = 0 ): string {
 		$help   = '';
+		$island = self::scope_island( $scope );
+		if ( $can && '' !== $island ) {
+			$help .= '<div class="form-text">Solo los centros de ' . esc_html( $island ) . ', que es donde está el ámbito elegido arriba. Cambie el ámbito para ver los de otra isla.</div>';
+		}
 		$legacy = '' === $code && $action ? (string) get_post_meta( $action, A::VENUE_CENTRE, true ) : '';
 		if ( '' !== $legacy ) {
 			$help .= '<div class="form-text">Escrito a mano en el sistema anterior: «' . esc_html( $legacy ) . '».' . ( $can ? ' Elija el centro de la lista para sustituirlo.' : '' ) . '</div>';
