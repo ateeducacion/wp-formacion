@@ -193,7 +193,7 @@ final class Fields {
 					'tax:fmc_programme' => array(
 						'label' => 'Programas',
 						'w'     => 'terms',
-						'help'  => sprintf( 'Los programas o proyectos que cubren este diseño. Puede ser más de uno. Mientras un programa esté activo, las acciones de este diseño que asuma «%s» se le imputan.', A::funders()[ A::PROGRAMME_FUNDER ] ),
+						'help'  => sprintf( 'Los programas o proyectos que cubren este diseño. Puede ser más de uno. Solo se ofrecen los vigentes; el que dejó de estarlo se queda en los diseños que ya lo tenían. Mientras un programa esté activo, las acciones de este diseño que asuma «%s» se le imputan.', A::funders()[ A::PROGRAMME_FUNDER ] ),
 					),
 					'tax:fmc_topic'     => array(
 						'label' => 'Temática',
@@ -347,7 +347,7 @@ final class Fields {
 						'label' => 'Con cargo al programa',
 						'w'     => 'terms',
 						'col'   => 6,
-						'help'  => sprintf( 'Con «%s», lo pone el aplicativo.', $funders[ A::PROGRAMME_FUNDER ] ),
+						'help'  => sprintf( 'Solo los programas vigentes. Con «%s», lo pone el aplicativo.', $funders[ A::PROGRAMME_FUNDER ] ),
 					),
 					A::STRATEGIC_LINE   => array(
 						'label' => 'Línea estratégica',

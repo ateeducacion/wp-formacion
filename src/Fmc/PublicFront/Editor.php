@@ -633,17 +633,7 @@ final class Editor {
 			return $f['choices'];
 		}
 		if ( 0 === strpos( $key, 'tax:' ) ) {
-			$terms = get_terms(
-				array(
-					'taxonomy'   => substr( $key, 4 ),
-					'hide_empty' => false,
-				)
-			);
-			$out   = array();
-			foreach ( is_array( $terms ) ? $terms : array() as $t ) {
-				$out[ $t->term_id ] = $t->name;
-			}
-			return $out;
+			return self::term_choices( substr( $key, 4 ), (array) ( $f['stored'] ?? array() ) );
 		}
 		if ( 'adviser' === $f['w'] ) {
 			return Advisers::choices();
@@ -664,6 +654,48 @@ final class Editor {
 		}
 		// Un diseño no se sustituye a sí mismo.
 		unset( $out[ (int) ( $f['post'] ?? 0 ) ] );
+		return $out;
+	}
+
+	/**
+	 * The terms a field offers: all of them, or only the programmes in force.
+	 *
+	 * Un programa que ya no está vigente se queda en lo guardado pero sale de
+	 * la elección: es la misma regla que el diseño histórico que una acción
+	 * antigua conserva (ADR-0016, ADR-0018). Lo que la entrada ya tenía sigue
+	 * ofreciéndose, con su nombre y el aviso de que dejó de estar vigente, para
+	 * que guardar la ficha no lo borre. Y si nadie ha marcado ningún programa
+	 * como vigente, se ofrecen todos: mejor la lista entera que una vacía.
+	 *
+	 * Las demás taxonomías no tienen vigencia y se ofrecen enteras.
+	 *
+	 * @param string            $taxonomy Taxonomy.
+	 * @param array<int, mixed> $stored   Term IDs the entry already has.
+	 * @return array<int, string>
+	 */
+	private static function term_choices( string $taxonomy, array $stored ): array {
+		$terms = get_terms(
+			array(
+				'taxonomy'   => $taxonomy,
+				'hide_empty' => false,
+			)
+		);
+		$terms = is_array( $terms ) ? $terms : array();
+
+		$active = Taxonomies::PROGRAMME === $taxonomy ? Taxonomies::active_programmes() : array();
+		$kept   = $active ? array_map( 'intval', $stored ) : array();
+
+		$out = array();
+		foreach ( $terms as $t ) {
+			$id = (int) $t->term_id;
+			if ( ! $active || in_array( $id, $active, true ) ) {
+				$out[ $id ] = $t->name;
+				continue;
+			}
+			if ( in_array( $id, $kept, true ) ) {
+				$out[ $id ] = $t->name . ' — ya no está vigente';
+			}
+		}
 		return $out;
 	}
 

@@ -2944,7 +2944,7 @@ final class Fields {
 					'tax:fmc_programme' => array(
 						'label' => 'Programas',
 						'w'     => 'terms',
-						'help'  => sprintf( 'Los programas o proyectos que cubren este diseño. Puede ser más de uno. Mientras un programa esté activo, las acciones de este diseño que asuma «%s» se le imputan.', A::funders()[ A::PROGRAMME_FUNDER ] ),
+						'help'  => sprintf( 'Los programas o proyectos que cubren este diseño. Puede ser más de uno. Solo se ofrecen los vigentes; el que dejó de estarlo se queda en los diseños que ya lo tenían. Mientras un programa esté activo, las acciones de este diseño que asuma «%s» se le imputan.', A::funders()[ A::PROGRAMME_FUNDER ] ),
 					),
 					'tax:fmc_topic'     => array(
 						'label' => 'Temática',
@@ -3098,7 +3098,7 @@ final class Fields {
 						'label' => 'Con cargo al programa',
 						'w'     => 'terms',
 						'col'   => 6,
-						'help'  => sprintf( 'Con «%s», lo pone el aplicativo.', $funders[ A::PROGRAMME_FUNDER ] ),
+						'help'  => sprintf( 'Solo los programas vigentes. Con «%s», lo pone el aplicativo.', $funders[ A::PROGRAMME_FUNDER ] ),
 					),
 					A::STRATEGIC_LINE   => array(
 						'label' => 'Línea estratégica',
@@ -6736,17 +6736,7 @@ final class Editor {
 			return $f['choices'];
 		}
 		if ( 0 === strpos( $key, 'tax:' ) ) {
-			$terms = get_terms(
-				array(
-					'taxonomy'   => substr( $key, 4 ),
-					'hide_empty' => false,
-				)
-			);
-			$out   = array();
-			foreach ( is_array( $terms ) ? $terms : array() as $t ) {
-				$out[ $t->term_id ] = $t->name;
-			}
-			return $out;
+			return self::term_choices( substr( $key, 4 ), (array) ( $f['stored'] ?? array() ) );
 		}
 		if ( 'adviser' === $f['w'] ) {
 			return Advisers::choices();
@@ -6767,6 +6757,48 @@ final class Editor {
 		}
 
 		unset( $out[ (int) ( $f['post'] ?? 0 ) ] );
+		return $out;
+	}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+	private static function term_choices( string $taxonomy, array $stored ): array {
+		$terms = get_terms(
+			array(
+				'taxonomy'   => $taxonomy,
+				'hide_empty' => false,
+			)
+		);
+		$terms = is_array( $terms ) ? $terms : array();
+
+		$active = Taxonomies::PROGRAMME === $taxonomy ? Taxonomies::active_programmes() : array();
+		$kept   = $active ? array_map( 'intval', $stored ) : array();
+
+		$out = array();
+		foreach ( $terms as $t ) {
+			$id = (int) $t->term_id;
+			if ( ! $active || in_array( $id, $active, true ) ) {
+				$out[ $id ] = $t->name;
+				continue;
+			}
+			if ( in_array( $id, $kept, true ) ) {
+				$out[ $id ] = $t->name . ' — ya no está vigente';
+			}
+		}
 		return $out;
 	}
 

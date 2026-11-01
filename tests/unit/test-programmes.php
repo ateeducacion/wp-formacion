@@ -185,6 +185,36 @@ class Test_Programmes extends WP_UnitTestCase {
 	}
 
 	/**
+	 * A programme that is no longer current leaves the choice but stays in what is saved.
+	 */
+	public function test_only_the_current_programmes_are_offered() {
+		$current = $this->programme( 'Programa vigente', true );
+		$old     = $this->programme( 'Programa antiguo', false );
+		wp_set_current_user( self::factory()->user->create( array( 'role' => 'fmc_curator' ) ) );
+
+		$screen = Editor::render( PostTypes::DESIGN, null, array(), array() )['body'];
+		$this->assertStringContainsString( 'value="' . $current . '"', $screen, 'El programa vigente se ofrece.' );
+		$this->assertStringNotContainsString( 'value="' . $old . '"', $screen, 'El que ya no lo está, no.' );
+
+		$design = self::factory()->post->create(
+			array(
+				'post_type'   => PostTypes::DESIGN,
+				'post_status' => 'publish',
+			)
+		);
+		wp_set_object_terms( $design, array( $old ), Taxonomies::PROGRAMME );
+
+		$kept = Editor::render( PostTypes::DESIGN, get_post( $design ), array(), array() )['body'];
+		$this->assertStringContainsString( 'value="' . $old . '"', $kept, 'Lo que el diseño ya tenía no se pierde.' );
+		$this->assertStringContainsString( 'Programa antiguo — ya no está vigente', $kept, 'Y se dice que dejó de estarlo.' );
+
+		delete_term_meta( $current, Taxonomies::ACTIVE );
+		$none = Editor::render( PostTypes::DESIGN, null, array(), array() )['body'];
+		$this->assertStringContainsString( 'value="' . $old . '"', $none, 'Sin ningún programa marcado como vigente se ofrecen todos...' );
+		$this->assertStringContainsString( 'value="' . $current . '"', $none, '...en vez de dejar la elección vacía.' );
+	}
+
+	/**
 	 * La casilla «Activo» del programa la guarda la administración, con su nonce.
 	 */
 	public function test_the_active_box_is_saved_by_administration_only() {
