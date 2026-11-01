@@ -217,9 +217,10 @@ final class Lists {
 	 * and `fmc_own_incidents` (opened by them, or on an action they advise).
 	 *
 	 * La incidencia se publica al abrirla, así que «publicada o mía» las
-	 * enseñaría todas: cada asesoría ve las de sus acciones y las que abrió
-	 * (ADR-0022). Es la misma condición que `PostTypes::own_incidents()`
-	 * aplica a la capacidad, aquí en SQL para no paginar lo que no se abriría.
+	 * enseñaría todas: cada asesoría ve las que abrió, las de las acciones que
+	 * lleva y las del centro del profesorado al que pertenece (ADR-0022 y su
+	 * adenda). Es la misma condición que `PostTypes::own_incidents()` aplica a
+	 * la capacidad, aquí en SQL para no paginar lo que no se abriría.
 	 *
 	 * @param \WP_Query $query Query.
 	 * @return string
@@ -228,12 +229,21 @@ final class Lists {
 		global $wpdb;
 		$me = get_current_user_id();
 		if ( $query->get( 'fmc_own_incidents' ) ) {
-			return $wpdb->prepare(
-				" AND ( $wpdb->posts.post_author = %d OR EXISTS ( SELECT 1 FROM $wpdb->postmeta fmc_a WHERE fmc_a.post_id = $wpdb->posts.post_parent AND fmc_a.meta_key = %s AND fmc_a.meta_value = %s ) )",
+			$sql   = $wpdb->prepare(
+				" AND ( $wpdb->posts.post_author = %d OR EXISTS ( SELECT 1 FROM $wpdb->postmeta fmc_a WHERE fmc_a.post_id = $wpdb->posts.post_parent AND fmc_a.meta_key = %s AND fmc_a.meta_value = %s )",
 				$me,
 				A::ADVISER,
 				(string) $me
 			);
+			$scope = Advisers::scope( $me );
+			$term  = $scope ? get_term( $scope, Taxonomies::SCOPE ) : null;
+			if ( $term instanceof \WP_Term ) {
+				$sql .= $wpdb->prepare(
+					" OR EXISTS ( SELECT 1 FROM $wpdb->term_relationships fmc_r WHERE fmc_r.object_id = $wpdb->posts.post_parent AND fmc_r.term_taxonomy_id = %d )",
+					$term->term_taxonomy_id
+				);
+			}
+			return $sql . ' )';
 		}
 		if ( ! $query->get( 'fmc_visible' ) ) {
 			return '';

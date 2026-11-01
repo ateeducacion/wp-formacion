@@ -1007,6 +1007,8 @@ final class DigComp {
 namespace Fmc\PostType;
 
 use Fmc\Meta\ActionMetaKeys;
+use Fmc\Taxonomy\Taxonomies;
+use Fmc\User\Advisers;
 
 
 
@@ -1214,8 +1216,61 @@ final class PostTypes {
 			return $caps;
 		}
 		$mine = (int) $post->post_author === (int) $user_id
-			|| ( $post->post_parent && (int) get_post_meta( (int) $post->post_parent, ActionMetaKeys::ADVISER, true ) === (int) $user_id );
+			|| ( $post->post_parent && (int) get_post_meta( (int) $post->post_parent, ActionMetaKeys::ADVISER, true ) === (int) $user_id )
+			|| self::same_scope( (int) $user_id, (int) $post->post_parent );
 		return $mine ? $caps : array( 'do_not_allow' );
+	}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+	public static function scope_actions( $caps, $cap, $user_id, $args ) {
+		if ( ! in_array( $cap, array( 'read_post', 'edit_post', 'delete_post' ), true ) || empty( $args[0] ) ) {
+			return $caps;
+		}
+		$post = get_post( $args[0] );
+		if ( ! $post instanceof \WP_Post || self::ACTION !== $post->post_type || (int) $post->post_author === (int) $user_id ) {
+			return $caps;
+		}
+		if ( ! self::same_scope( (int) $user_id, $post->ID ) ) {
+			return $caps;
+		}
+		return array_map(
+			static fn( $primitive ) => 'read_private_fmc_actions' === $primitive ? 'read' : str_replace( '_others_', '_', (string) $primitive ),
+			(array) $caps
+		);
+	}
+
+
+
+
+
+
+
+
+	public static function same_scope( int $user_id, int $action ): bool {
+		$scope = $action ? Advisers::scope( $user_id ) : 0;
+		if ( ! $scope ) {
+			return false;
+		}
+		$terms = get_the_terms( $action, Taxonomies::SCOPE );
+		return is_array( $terms ) && in_array( $scope, array_map( 'intval', wp_list_pluck( $terms, 'term_id' ) ), true );
 	}
 
 
@@ -4094,16 +4149,26 @@ final class Lists {
 
 
 
+
 	private static function visible_sql( \WP_Query $query ): string {
 		global $wpdb;
 		$me = get_current_user_id();
 		if ( $query->get( 'fmc_own_incidents' ) ) {
-			return $wpdb->prepare(
-				" AND ( $wpdb->posts.post_author = %d OR EXISTS ( SELECT 1 FROM $wpdb->postmeta fmc_a WHERE fmc_a.post_id = $wpdb->posts.post_parent AND fmc_a.meta_key = %s AND fmc_a.meta_value = %s ) )",
+			$sql   = $wpdb->prepare(
+				" AND ( $wpdb->posts.post_author = %d OR EXISTS ( SELECT 1 FROM $wpdb->postmeta fmc_a WHERE fmc_a.post_id = $wpdb->posts.post_parent AND fmc_a.meta_key = %s AND fmc_a.meta_value = %s )",
 				$me,
 				A::ADVISER,
 				(string) $me
 			);
+			$scope = Advisers::scope( $me );
+			$term  = $scope ? get_term( $scope, Taxonomies::SCOPE ) : null;
+			if ( $term instanceof \WP_Term ) {
+				$sql .= $wpdb->prepare(
+					" OR EXISTS ( SELECT 1 FROM $wpdb->term_relationships fmc_r WHERE fmc_r.object_id = $wpdb->posts.post_parent AND fmc_r.term_taxonomy_id = %d )",
+					$term->term_taxonomy_id
+				);
+			}
+			return $sql . ' )';
 		}
 		if ( ! $query->get( 'fmc_visible' ) ) {
 			return '';
@@ -7491,11 +7556,15 @@ final class Editor {
 
 
 
+
+
 	public static function can_open_incident( int $action ): bool {
 		if ( PostTypes::ACTION !== get_post_type( $action ) || ( 'publish' !== get_post_status( $action ) && ! current_user_can( 'edit_post', $action ) ) ) {
 			return false;
 		}
-		return current_user_can( 'edit_fmc_incidents' ) && ( current_user_can( 'edit_post', $action ) || get_current_user_id() === (int) get_post_field( 'post_author', $action ) );
+		$me = get_current_user_id();
+		return current_user_can( 'edit_fmc_incidents' )
+			&& ( current_user_can( 'edit_post', $action ) || (int) get_post_field( 'post_author', $action ) === $me || PostTypes::same_scope( $me, $action ) );
 	}
 }
 }
@@ -8553,6 +8622,7 @@ final class App {
 		add_filter( 'map_meta_cap', array( PostTypes::class, 'lock_archived' ), 10, 4 );
 		add_filter( 'map_meta_cap', array( PostTypes::class, 'hide_unfinished' ), 10, 4 );
 		add_filter( 'map_meta_cap', array( PostTypes::class, 'own_incidents' ), 10, 4 );
+		add_filter( 'map_meta_cap', array( PostTypes::class, 'scope_actions' ), 10, 4 );
 
 		MetaRegistration::register();
 
