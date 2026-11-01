@@ -8,6 +8,8 @@
 namespace Fmc\PostType;
 
 use Fmc\Meta\ActionMetaKeys;
+use Fmc\Taxonomy\Taxonomies;
+use Fmc\User\Advisers;
 
 /**
  * Designs, actions, speakers and incidents.
@@ -214,8 +216,61 @@ final class PostTypes {
 			return $caps;
 		}
 		$mine = (int) $post->post_author === (int) $user_id
-			|| ( $post->post_parent && (int) get_post_meta( (int) $post->post_parent, ActionMetaKeys::ADVISER, true ) === (int) $user_id );
+			|| ( $post->post_parent && (int) get_post_meta( (int) $post->post_parent, ActionMetaKeys::ADVISER, true ) === (int) $user_id )
+			|| self::same_scope( (int) $user_id, (int) $post->post_parent );
 		return $mine ? $caps : array( 'do_not_allow' );
+	}
+
+	/**
+	 * An action is the business of the whole centre that manages it.
+	 *
+	 * La formación de un centro del profesorado la llevan entre varias
+	 * asesorías: la que crea la acción se va de vacaciones, cambia de plaza o
+	 * la abre a nombre de otra, y la de al lado tiene que poder seguirla. Lo
+	 * que acota es el ámbito de la acción —el centro del profesorado que la
+	 * gestiona—, no quién tecleó la ficha (adenda de ADR-0022).
+	 *
+	 * Solo se cambian las primitivas «de otros» por las propias: lo entregado
+	 * sigue pidiendo `edit_published_fmc_actions`, que la asesoría no tiene, y
+	 * se cambia por incidencia como hasta ahora (ADR-0020).
+	 *
+	 * @param string[] $caps    Primitive caps required.
+	 * @param string   $cap     Meta cap asked for.
+	 * @param int      $user_id User.
+	 * @param mixed[]  $args    Post ID first.
+	 * @return string[]
+	 */
+	public static function scope_actions( $caps, $cap, $user_id, $args ) {
+		if ( ! in_array( $cap, array( 'read_post', 'edit_post', 'delete_post' ), true ) || empty( $args[0] ) ) {
+			return $caps;
+		}
+		$post = get_post( $args[0] );
+		if ( ! $post instanceof \WP_Post || self::ACTION !== $post->post_type || (int) $post->post_author === (int) $user_id ) {
+			return $caps;
+		}
+		if ( ! self::same_scope( (int) $user_id, $post->ID ) ) {
+			return $caps;
+		}
+		return array_map(
+			static fn( $primitive ) => 'read_private_fmc_actions' === $primitive ? 'read' : str_replace( '_others_', '_', (string) $primitive ),
+			(array) $caps
+		);
+	}
+
+	/**
+	 * Whether an action is managed by the user's own centre of reference.
+	 *
+	 * @param int $user_id User.
+	 * @param int $action  Action ID; 0 when there is none.
+	 * @return bool
+	 */
+	public static function same_scope( int $user_id, int $action ): bool {
+		$scope = $action ? Advisers::scope( $user_id ) : 0;
+		if ( ! $scope ) {
+			return false;
+		}
+		$terms = get_the_terms( $action, Taxonomies::SCOPE );
+		return is_array( $terms ) && in_array( $scope, array_map( 'intval', wp_list_pluck( $terms, 'term_id' ) ), true );
 	}
 
 	/**

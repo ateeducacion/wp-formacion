@@ -1521,8 +1521,10 @@ final class Editor {
 	/**
 	 * Whether the current user may open an incident on an action.
 	 *
-	 * Quien puede editarla, o quien la entregó: entregada ya no la edita, y es
-	 * por la incidencia por donde pide los cambios (ADR-0007, ADR-0020).
+	 * Quien puede editarla, quien la entregó o quien es del centro del
+	 * profesorado que la gestiona: entregada ya no se edita, y es por la
+	 * incidencia por donde se piden los cambios (ADR-0007, ADR-0020, y la
+	 * adenda de ADR-0022).
 	 *
 	 * @param int $action Action ID.
 	 * @return bool
@@ -1531,6 +1533,8 @@ final class Editor {
 		if ( PostTypes::ACTION !== get_post_type( $action ) || ( 'publish' !== get_post_status( $action ) && ! current_user_can( 'edit_post', $action ) ) ) {
 			return false;
 		}
-		return current_user_can( 'edit_fmc_incidents' ) && ( current_user_can( 'edit_post', $action ) || get_current_user_id() === (int) get_post_field( 'post_author', $action ) );
+		$me = get_current_user_id();
+		return current_user_can( 'edit_fmc_incidents' )
+			&& ( current_user_can( 'edit_post', $action ) || (int) get_post_field( 'post_author', $action ) === $me || PostTypes::same_scope( $me, $action ) );
 	}
 }

@@ -35,6 +35,8 @@ anterior se conserva y sigue saliendo en el CSV de lo migrado.
 
 ### Corregido
 
+- **Las incidencias y las acciones de un centro del profesorado son de todas sus asesorías**, y no solo de quien tecleó la ficha. En la reunión no se pudo abrir una incidencia sobre una acción del propio centro registrada por otra persona: ahora se puede, se leen y se editan los borradores del centro, y lo entregado sigue cambiándose por incidencia. Sin «Centro de referencia» en el perfil, todo sigue como antes (adenda de ADR-0022)
+
 - **El listado de acciones formativas no llegaba a pintarse**: en un sitio con unos miles de acciones, cada contador de situación —«Impartiéndose», «Realizada», «Aplazada», «Cancelada»— tardaba medio minuto, así que la vista «Lista» agotaba el tiempo del servidor y el calendario parecía la única que funcionaba. Ahora la situación se consulta con subconsultas y los cinco contadores salen en milésimas
 - Filtrar el listado o el calendario por situación era igual de lento, y también se ha arreglado
 - Elegir la asesoría responsable, o filtrar por ella, hacía dos consultas por cada cuenta de asesoría del sitio; ahora se leen todas de una vez

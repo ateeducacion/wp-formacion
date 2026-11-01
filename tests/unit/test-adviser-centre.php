@@ -82,19 +82,38 @@ class Test_Adviser_Centre extends WP_UnitTestCase {
 	/**
 	 * An action with its adviser.
 	 *
-	 * @param int $adviser Adviser.
+	 * @param int    $adviser Adviser.
+	 * @param int    $scope   Scope term, 0 for none.
+	 * @param string $status  Post status.
 	 * @return int
 	 */
-	private function action( int $adviser ): int {
+	private function action( int $adviser, int $scope = 0, string $status = 'publish' ): int {
 		$id = self::factory()->post->create(
 			array(
 				'post_type'   => PostTypes::ACTION,
-				'post_status' => 'publish',
+				'post_status' => $status,
 				'post_author' => $adviser,
 			)
 		);
 		update_post_meta( $id, A::ADVISER, $adviser );
+		if ( $scope ) {
+			wp_set_object_terms( $id, array( $scope ), Taxonomies::SCOPE );
+		}
 		return $id;
+	}
+
+	/**
+	 * The scope term named like the centre of reference.
+	 *
+	 * @return int Term ID.
+	 */
+	private function scope_term(): int {
+		return (int) self::factory()->term->create(
+			array(
+				'taxonomy' => Taxonomies::SCOPE,
+				'name'     => self::NAME,
+			)
+		);
 	}
 
 	/**
@@ -232,6 +251,72 @@ class Test_Adviser_Centre extends WP_UnitTestCase {
 
 		$query = new WP_Query( Lists::query_args( PostTypes::INCIDENT ) );
 		$this->assertContains( $id, wp_list_pluck( $query->posts, 'ID' ) );
+	}
+
+	/**
+	 * An incident of the centre is the business of its whole advisory team.
+	 */
+	public function test_an_adviser_reads_the_incidents_of_their_centre() {
+		$scope     = $this->scope_term();
+		$colleague = self::factory()->user->create( array( 'role' => 'fmc_adviser' ) );
+		$ours      = $this->incident( $this->action( $colleague, $scope ), $colleague );
+		$stranger  = self::factory()->user->create( array( 'role' => 'fmc_adviser' ) );
+		$theirs    = $this->incident( $this->action( $stranger ), $stranger );
+
+		$this->adviser();
+
+		$this->assertTrue( current_user_can( 'read_post', $ours ), 'La de una acción de su centro, sí.' );
+		$this->assertTrue( Editor::can_view( get_post( $ours ) ) );
+		$this->assertFalse( current_user_can( 'read_post', $theirs ), 'La de otro centro, no.' );
+	}
+
+	/**
+	 * And the list brings the same ones.
+	 */
+	public function test_the_list_brings_the_incidents_of_their_centre() {
+		$scope     = $this->scope_term();
+		$colleague = self::factory()->user->create( array( 'role' => 'fmc_adviser' ) );
+		$ours      = $this->incident( $this->action( $colleague, $scope ), $colleague );
+		$stranger  = self::factory()->user->create( array( 'role' => 'fmc_adviser' ) );
+		$theirs    = $this->incident( $this->action( $stranger ), $stranger );
+
+		$this->adviser();
+		$query = new WP_Query( Lists::query_args( PostTypes::INCIDENT ) );
+		$ids   = wp_list_pluck( $query->posts, 'ID' );
+
+		$this->assertContains( $ours, $ids );
+		$this->assertNotContains( $theirs, $ids );
+	}
+
+	/**
+	 * An action of the centre is edited by the centre, not only by who typed it.
+	 */
+	public function test_an_adviser_edits_the_draft_actions_of_their_centre() {
+		$scope     = $this->scope_term();
+		$colleague = self::factory()->user->create( array( 'role' => 'fmc_adviser' ) );
+		$ours      = $this->action( $colleague, $scope, 'draft' );
+		$stranger  = self::factory()->user->create( array( 'role' => 'fmc_adviser' ) );
+		$theirs    = $this->action( $stranger, 0, 'draft' );
+
+		$this->adviser();
+
+		$this->assertTrue( current_user_can( 'read_post', $ours ), 'El borrador de su centro se lee.' );
+		$this->assertTrue( current_user_can( 'edit_post', $ours ), 'Y se edita.' );
+		$this->assertFalse( current_user_can( 'edit_post', $theirs ), 'El de otro centro, no.' );
+	}
+
+	/**
+	 * Delivered is delivered: the centre does not reopen it either (ADR-0020).
+	 */
+	public function test_a_delivered_action_of_the_centre_is_still_changed_by_incident() {
+		$scope     = $this->scope_term();
+		$colleague = self::factory()->user->create( array( 'role' => 'fmc_adviser' ) );
+		$ours      = $this->action( $colleague, $scope );
+
+		$this->adviser();
+
+		$this->assertFalse( current_user_can( 'edit_post', $ours ), 'Entregada ya no se edita.' );
+		$this->assertTrue( Editor::can_open_incident( $ours ), 'Se cambia por incidencia.' );
 	}
 
 	/**

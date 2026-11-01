@@ -159,3 +159,53 @@ Haremos la **opción 3**, y con ella:
 - No hace falta migrar nada: el centro de referencia nace vacío y lo que
   depende de él degrada a lo de hoy.
 - La propuesta es solo al crear; una acción ya guardada no se toca.
+
+## Adenda — 2026-11-01
+
+### Lo que se vio en uso
+
+En la reunión del 2026-10-30 con las asesorías TIC y el servicio de
+perfeccionamiento se intentó abrir una incidencia sobre una acción del propio
+centro del profesorado que había registrado otra persona, y el aplicativo no
+dejó. La lectura de la sala fue «ahí hay un error»; lo que había era esta
+decisión, aplicada tal cual se escribió: **por persona**.
+
+La formación de un centro del profesorado no la lleva una persona. La asesoría
+que registra una acción se va de vacaciones, cambia de plaza, o la registra a
+nombre de otra compañera porque está de permiso. Acotar por quien tecleó la
+ficha convierte eso en una llamada de teléfono.
+
+### Qué cambia
+
+El límite pasa a ser **el ámbito de la acción** —el centro del profesorado que
+la gestiona, el término de `fmc_scope` de la ficha—, y no quién la creó:
+
+- Una **incidencia** la ve quien la abrió, la asesoría responsable de su
+  acción, **cualquier asesoría del centro que gestiona esa acción**, y quien
+  las resuelve (`PostTypes::own_incidents()`).
+- Una **acción** la lee y la edita cualquier asesoría de su mismo centro, con
+  las mismas reglas que si fuera suya: las primitivas «de otros» se cambian por
+  las propias en `map_meta_cap` (`PostTypes::scope_actions()`).
+- **Una incidencia sobre una acción del centro la abre cualquiera del centro**
+  (`Editor::can_open_incident()`), que es lo que no se pudo hacer en la
+  reunión.
+
+El centro de una cuenta sigue saliendo de «Centro de referencia» de su perfil,
+y de ahí su ámbito por el nombre del término: sin centro rellenado, todo
+degrada a lo de antes —solo lo suyo—.
+
+### Lo que no cambia
+
+- **Entregada sigue sin editarse.** El cambio solo sustituye las primitivas
+  `_others_`; editar una acción entregada pide `edit_published_fmc_actions`,
+  que la asesoría no tiene, y se sigue pidiendo por incidencia (ADR-0020).
+- Quien resuelve las incidencias —servicio de perfeccionamiento, coordinación y
+  administración— las sigue viendo todas.
+- El listado solo repite la condición en SQL para no paginar lo que después no
+  se podría abrir: lo que cierra de verdad sigue siendo la capacidad.
+
+### A cambio
+
+Una asesoría ve y edita lo de sus compañeras de centro, que antes no veía. Es
+lo que se pidió, y es el reparto que tenía el sistema anterior; el límite entre
+centros se mantiene.
