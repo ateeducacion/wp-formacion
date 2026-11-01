@@ -320,9 +320,45 @@ class Test_Adviser_Centre extends WP_UnitTestCase {
 	}
 
 	/**
-	 * The venue list only offers the centres of the scope's island.
+	 * The venue list only offers the centres of the scope's centre of teachers.
 	 */
-	public function test_the_venue_centres_are_the_ones_of_the_scope_island() {
+	public function test_the_venue_centres_are_the_ones_of_the_scope_cep() {
+		$catalogue                      = get_option( CentreCatalogue::OPTION_CATALOGUE );
+		$catalogue[ self::CODE ]['cep'] = self::CODE;
+		$catalogue['38000004']          = array(
+			'code'         => '38000004',
+			'name'         => 'CEIP del ámbito',
+			'island'       => 'Isla Norte',
+			'municipality' => 'Villa Norte',
+			'type'         => 'CEIP',
+			'cep'          => self::CODE,
+			'active'       => true,
+		);
+		$catalogue['38000005']          = array(
+			'code'         => '38000005',
+			'name'         => 'CEIP del otro ámbito',
+			'island'       => 'Isla Norte',
+			'municipality' => 'Villa Norte',
+			'type'         => 'CEIP',
+			'cep'          => '38000099',
+			'active'       => true,
+		);
+		update_option( CentreCatalogue::OPTION_CATALOGUE, $catalogue );
+		$this->scope_term();
+		$this->adviser();
+
+		$screen = Editor::render( PostTypes::ACTION, null, array(), array() );
+
+		$this->assertStringContainsString( 'value="38000004"', $screen['body'], 'Un centro del ámbito, sí.' );
+		$this->assertStringNotContainsString( 'value="38000005"', $screen['body'], 'Uno de otro ámbito de la misma isla, no.' );
+		$this->assertStringContainsString( 'value="' . self::CODE . '"', $screen['body'], 'Y el centro del profesorado mismo, también.' );
+		$this->assertStringContainsString( 'Solo los centros de ' . self::NAME, $screen['body'], 'Y se dice por qué.' );
+	}
+
+	/**
+	 * While the stored copy does not say the CEP, the island still scopes the list.
+	 */
+	public function test_the_venue_centres_fall_back_to_the_scope_island() {
 		$catalogue             = get_option( CentreCatalogue::OPTION_CATALOGUE );
 		$catalogue['38000002'] = array(
 			'code'         => '38000002',

@@ -670,11 +670,10 @@ final class Editor {
 	/**
 	 * The active centres of the catalogue, and the one an action already has.
 	 *
-	 * Se ofrecen los de la isla del ámbito que gestiona la acción: una acción
-	 * de un centro del profesorado no se imparte en la otra punta de la
-	 * comunidad. El centro guardado se conserva aunque haya dejado de estar
-	 * activo o sea de otra isla, con el nombre que tenía al elegirlo
-	 * (ADR-0021).
+	 * Se ofrecen los centros del ámbito que gestiona la acción: los que tienen
+	 * por centro del profesorado de referencia el del ámbito. El centro
+	 * guardado se conserva aunque haya dejado de estar activo o sea de otro
+	 * ámbito, con el nombre que tenía al elegirlo (ADR-0021).
 	 *
 	 * @param string $stored Code stored in the action.
 	 * @param int    $action Action ID; 0 when new.
@@ -682,40 +681,41 @@ final class Editor {
 	 * @return array<string, string> Code => «name (code)».
 	 */
 	private static function centre_choices( string $stored, int $action, int $scope = 0 ): array {
-		$out = array();
-		foreach ( CentreCatalogue::active_options( self::scope_island( $scope ) ) as $code => $name ) {
+		$centre = self::scope_centre( $scope );
+		$out    = array();
+		foreach ( CentreCatalogue::active_options( (string) ( $centre['code'] ?? '' ), (string) ( $centre['island'] ?? '' ) ) as $code => $name ) {
 			$out[ $code ] = CentreCatalogue::label( (string) $code, $name );
 		}
 		if ( '' !== $stored && ! isset( $out[ $stored ] ) ) {
 			// Lo guardado no se pierde nunca: ni un centro que se desactivó, ni
-			// uno de otra isla que se eligió antes de acotar la lista.
-			$suffix         = CentreCatalogue::is_active( $stored ) ? ' — de otra isla' : ' — ya no está activo';
+			// uno de otro ámbito que se eligió antes de acotar la lista.
+			$suffix         = CentreCatalogue::is_active( $stored ) ? ' — fuera del ámbito elegido' : ' — ya no está activo';
 			$out[ $stored ] = CentreCatalogue::label( $stored, (string) get_post_meta( $action, A::VENUE_CENTRE, true ) ) . $suffix;
 		}
 		return $out;
 	}
 
 	/**
-	 * The island of the centre that manages the action, '' when unknown.
+	 * The reference centre that manages the action, null when unknown.
 	 *
 	 * Una acción se imparte en los centros del ámbito que la gestiona, y el
-	 * ámbito se llama como su centro del profesorado en el catálogo (ADR-0022):
-	 * de ahí sale la isla con la que se acota la lista. Sin ámbito elegido, sin
-	 * término con ese nombre o sin isla en el catálogo, se ofrecen todos.
+	 * ámbito se llama como su centro de referencia en el catálogo (ADR-0022):
+	 * de su ficha salen el código con el que se acota la lista y, mientras la
+	 * copia local no diga a qué centro de referencia pertenece cada centro, su
+	 * isla. Sin ámbito elegido o sin término con ese nombre, se ofrecen todos.
 	 *
 	 * @param int $scope Scope term ID.
-	 * @return string
+	 * @return array{code:string, name:string, island:string, municipality:string, type:string, cep:string, active:bool}|null
 	 */
-	private static function scope_island( int $scope ): string {
+	private static function scope_centre( int $scope ): ?array {
 		if ( ! $scope ) {
-			return '';
+			return null;
 		}
 		$term = get_term( $scope, Taxonomies::SCOPE );
 		if ( ! $term instanceof \WP_Term ) {
-			return '';
+			return null;
 		}
-		$centre = CentreCatalogue::find_by_name( $term->name );
-		return (string) ( $centre['island'] ?? '' );
+		return CentreCatalogue::find_by_name( $term->name );
 	}
 
 	/**
@@ -732,9 +732,15 @@ final class Editor {
 	 */
 	private static function centre_help( int $action, string $code, bool $can, int $scope = 0 ): string {
 		$help   = '';
-		$island = self::scope_island( $scope );
-		if ( $can && '' !== $island ) {
-			$help .= '<div class="form-text">Solo los centros de ' . esc_html( $island ) . ', que es donde está el ámbito elegido arriba. Cambie el ámbito para ver los de otra isla.</div>';
+		$centre = self::scope_centre( $scope );
+		if ( $can && null !== $centre ) {
+			// Se dice por qué la lista está acotada con el criterio que de
+			// verdad se ha aplicado: el centro de referencia, o la isla
+			// mientras la copia local del catálogo no lo traiga.
+			$where = CentreCatalogue::knows_cep() ? (string) $centre['name'] : (string) ( $centre['island'] ?? '' );
+			if ( '' !== $where ) {
+				$help .= '<div class="form-text">Solo los centros de ' . esc_html( $where ) . ', que es el ámbito elegido arriba. Cambie el ámbito para ver los de otro.</div>';
+			}
 		}
 		$legacy = '' === $code && $action ? (string) get_post_meta( $action, A::VENUE_CENTRE, true ) : '';
 		if ( '' !== $legacy ) {

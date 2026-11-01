@@ -70,6 +70,7 @@ class Test_Centres extends WP_UnitTestCase {
 				'island'       => 'Zona Sur',
 				'municipality' => 'Municipio 2',
 				'type'         => 'IES',
+				'cep'          => '90000900',
 				'active'       => true,
 			),
 			array(
@@ -209,6 +210,11 @@ class Test_Centres extends WP_UnitTestCase {
 		$this->assertTrue( CentreCatalogue::is_active( '90000101' ) );
 		$this->assertFalse( CentreCatalogue::is_active( '90000103' ), 'un centro cerrado se guarda, pero no está activo' );
 		$this->assertSame( 'CEO Cerrado', CentreCatalogue::find( '90000103' )['name'] );
+		$this->assertSame( '90000900', CentreCatalogue::find( '90000102' )['cep'], 'el centro del profesorado del centro se guarda' );
+		$this->assertSame( '', CentreCatalogue::find( '90000101' )['cep'], 'y si el catálogo no lo trae, queda vacío' );
+		$this->assertTrue( CentreCatalogue::knows_cep() );
+		$this->assertSame( array( '90000102' => 'IES Ejemplo' ), CentreCatalogue::active_options( '90000900' ), 'la lista se acota por el centro del profesorado' );
+		$this->assertSame( array( '90000101' => 'CEIP Ejemplo' ), CentreCatalogue::active_options( '', 'Zona Norte' ), 'y por isla, cuando el catálogo no trae el centro de referencia' );
 		$this->assertSame( '2026-10-20T10:00:00Z', CentreCatalogue::status()['catalogue_updated_at'] );
 		$this->assertSame( '', CentreCatalogue::status()['last_error'] );
 		$this->assertSame( array( 'manifest.json', 'centros.min.json' ), $this->requests, 'el catálogo se busca junto al manifest' );

@@ -143,3 +143,33 @@ Lo prueba `tests/unit/test-centres.php`.
 - La issue #25 se cierra con esta ADR y con la
   [ADR-0019](ADR-0019-la-asesoria-es-una-cuenta-del-sitio-con-su-tipo.md), que
   resolvió su otra mitad.
+
+## Adenda — 2026-11-01
+
+El contrato ligero del catálogo (`centros.min.json`) publicaba código,
+denominación, isla, municipio, tipo y estado. Con eso, la lista del campo
+«Centro donde se imparte» solo se podía acotar por **isla**, y una isla puede
+tener varios ámbitos: acotar por isla ofrece entonces centros que no son del
+ámbito que gestiona la acción.
+
+El catálogo maestro sí tiene el dato —a qué **centro de referencia** pertenece
+cada centro— en su fichero completo, de 1,5 MB. Descargarlo entero para leer
+una columna es justo lo que el contrato reducido existe para evitar, así que el
+campo se pidió **en el contrato reducido**, como código y no como nombre: el
+nombre de un centro de referencia puede cambiar y el código, no.
+
+Consecuencias para este aplicativo:
+
+- `CentreCatalogueSync` guarda el campo nuevo cuando el catálogo lo trae, y la
+  cadena vacía cuando no.
+- `CentreCatalogue::active_options()` acota por centro de referencia y deja la
+  isla como respaldo: `knows_cep()` dice si la copia local trae el dato, de
+  modo que una copia anterior al cambio sigue acotando por isla en vez de
+  dejar de acotar. La ayuda debajo del campo nombra el criterio que de verdad
+  se ha aplicado.
+- El `schema_version` del manifest **no cambia**: el campo es aditivo y la
+  comprobación de versión del sincronizador sigue exigiendo la 1.
+
+Lo que no resuelve: un centro de referencia que cambie de ámbito territorial
+no se refleja hasta que la fuente lo publique, y el catálogo maestro lo avisa
+entre sus limitaciones.
