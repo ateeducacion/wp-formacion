@@ -15,6 +15,7 @@ use Fmc\PublicFront\Catalogue;
 use Fmc\PublicFront\Lists;
 use Fmc\PublicFront\Screen;
 use Fmc\Taxonomy\Taxonomies;
+use Fmc\User\AdviserImport;
 use Fmc\User\Advisers;
 
 /**
@@ -45,6 +46,7 @@ final class App {
 		// El catálogo de centros se copia de su fuente una vez al día (ADR-0021).
 		CentreCatalogueSync::register_cron();
 		CentreSettings::register();
+		AdviserImport::register();
 		add_action( 'init', array( PostTypes::class, 'register' ), 10 );
 		add_action( 'init', array( PostTypes::class, 'grant_caps_to_roles' ), 11 );
 		add_filter( 'map_meta_cap', array( PostTypes::class, 'lock_archived' ), 10, 4 );
