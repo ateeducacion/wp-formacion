@@ -71,6 +71,11 @@
 .fmc-h1 .badge { font-size: .75rem; vertical-align: middle; margin-left: .35rem; }
 .fmc-sub { margin: 0; color: var(--fmc-text-2); font-size: 14.5px; }
 
+/* La casilla que acompaña a otro campo en su fila: a la altura del campo, no
+   pegada a la etiqueta. La línea en blanco que lleva encima la baja hasta la
+   fila de los campos; esto la centra con ellos. */
+.fmc-check-aligned { padding-top: 7px; }
+
 /* Pie */
 /* El pie, como en los aplicativos hermanos: quién está detrás, a la izquierda;
    los enlaces legales, a la derecha. El contenido lo pone quien despliega con

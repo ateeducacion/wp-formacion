@@ -8,6 +8,14 @@ lee de la cabecera superior y la escribe en el `@version` del bundle.
 `make release` crea el tag y la release en GitHub; el despliegue de los snippets
 en el sitio de destino se hace después.
 
+## [0.0.12] — 2026-11-01
+
+### Cambiado
+
+- **La asesoría responsable va antes del ámbito, y lo pone**: al elegirla, el ámbito pasa a ser el de su centro de referencia, y con él se acotan los centros donde se imparte. Las dos cosas se pueden cambiar a mano después, que es lo que ocurre cuando la acción la organiza otro ámbito
+- **Los centros que se ofrecen siguen al ámbito elegido en la ficha**, sin tener que guardar: al cambiar el ámbito se vuelve a pedir ese campo, con su lista y su línea de ayuda. Antes se quedaban los del ámbito con el que se abrió la ficha —o el catálogo entero, en una acción nueva—, que es lo que hacía parecer que no filtraba
+- **La casilla «Por videoconferencia» se alinea con el campo del centro**, en vez de subirse a la altura de su etiqueta
+
 ## [0.0.11] — 2026-11-01
 
 ### Cambiado

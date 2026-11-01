@@ -10,6 +10,7 @@ use Fmc\Meta\ActionMetaKeys as A;
 use Fmc\Meta\MetaRegistration;
 use Fmc\PostType\PostTypes;
 use Fmc\PublicFront\Editor;
+use Fmc\PublicFront\Screen;
 use Fmc\PublicFront\Lists;
 use Fmc\Taxonomy\Taxonomies;
 use Fmc\User\Advisers;
@@ -353,6 +354,56 @@ class Test_Adviser_Centre extends WP_UnitTestCase {
 		$this->assertStringNotContainsString( 'value="38000005"', $screen['body'], 'Uno de otro ámbito de la misma isla, no.' );
 		$this->assertStringContainsString( 'value="' . self::CODE . '"', $screen['body'], 'Y el centro del profesorado mismo, también.' );
 		$this->assertStringContainsString( 'Solo los centros de ' . self::NAME, $screen['body'], 'Y se dice por qué.' );
+	}
+
+	/**
+	 * La asesoría trae su ámbito en la propia opción, y el ámbito que se elige
+	 * en el formulario manda sobre el guardado al volver a pedir la ficha.
+	 */
+	public function test_the_adviser_option_carries_its_scope_and_the_form_scope_rules() {
+		$catalogue                      = get_option( CentreCatalogue::OPTION_CATALOGUE );
+		$catalogue[ self::CODE ]['cep'] = self::CODE;
+		$catalogue['38000004']          = array(
+			'code'         => '38000004',
+			'name'         => 'CEIP del ámbito',
+			'island'       => 'Isla Norte',
+			'municipality' => 'Villa Norte',
+			'type'         => 'CEIP',
+			'cep'          => self::CODE,
+			'active'       => true,
+		);
+		$catalogue['38000099']          = array(
+			'code'         => '38000099',
+			'name'         => 'Centro de formación Sur',
+			'island'       => 'Isla Sur',
+			'municipality' => 'Villa Sur',
+			'type'         => 'Centro de formación',
+			'cep'          => '38000099',
+			'active'       => true,
+		);
+		update_option( CentreCatalogue::OPTION_CATALOGUE, $catalogue );
+		$scope = $this->scope_term();
+		$other = (int) self::factory()->term->create(
+			array(
+				'taxonomy' => Taxonomies::SCOPE,
+				'name'     => 'Centro de formación Sur',
+			)
+		);
+		$me    = $this->adviser();
+
+		$this->assertSame( array( $me => $scope ), Advisers::scopes() );
+
+		$body = Editor::render( PostTypes::ACTION, null, array(), array() )['body'];
+		$this->assertStringContainsString( 'data-fmc-sets="f[tax:fmc_scope]"', $body );
+		$this->assertStringContainsString( 'value="' . $me . '" selected=\'selected\' data-fmc-value="' . $scope . '"', $body );
+		$this->assertStringContainsString( 'data-fmc-refreshes="f[' . A::VENUE_CODE . ']"', $body );
+		$this->assertStringContainsString( 'value="38000004"', $body );
+
+		// El ámbito que llega por la dirección es el que acota los centros.
+		$_GET[ Screen::ARG_SCOPE ] = (string) $other;
+		$body                      = Editor::render( PostTypes::ACTION, null, array(), array() )['body'];
+		$this->assertStringNotContainsString( 'value="38000004"', $body, 'Ese centro no es del ámbito elegido.' );
+		$this->assertStringContainsString( 'value="' . $other . '" selected=\'selected\'', $body, 'Y el ámbito elegido sale puesto.' );
 	}
 
 	/**

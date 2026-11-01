@@ -31,6 +31,13 @@ final class Screen {
 	 * del tipo de contenido, y WordPress buscaría un diseño con ese nombre.
 	 */
 	public const ARG_DESIGN = 'fmc_diseno';
+
+	/**
+	 * The scope chosen in the form of an action. No es `fmc_scope`: ese es el
+	 * filtro del listado, que lleva el slug del término y no su identificador.
+	 */
+	public const ARG_SCOPE = 'fmc_ambito';
+
 	public const ARG_NOTICE = 'fmc_notice';
 
 	/**

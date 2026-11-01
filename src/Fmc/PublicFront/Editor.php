@@ -205,6 +205,14 @@ final class Editor {
 			}
 		}
 
+		// El ámbito elegido en el formulario llega por la dirección cuando el
+		// guion vuelve a pedir la ficha para poner al día los centros que se
+		// ofrecen: manda sobre lo guardado, que es lo que se está cambiando.
+		if ( PostTypes::ACTION === $type && '' !== Lists::arg( Screen::ARG_SCOPE ) ) {
+			$chosen                               = absint( Lists::arg( Screen::ARG_SCOPE ) );
+			$values[ 'tax:' . Taxonomies::SCOPE ] = $chosen ? array( $chosen ) : array();
+		}
+
 		// El código del diseño nuevo: el que le tocará al guardar.
 		if ( ! $post && PostTypes::DESIGN === $type ) {
 			$values += array( D::CODE => self::next_code() );
@@ -466,8 +474,11 @@ final class Editor {
 				$input = '<textarea class="form-control' . $invalid . '" id="' . esc_attr( $id ) . '" name="' . esc_attr( $name ) . '" rows="' . ( $rich ? 6 : 4 ) . '"' . $rich . $disabled . '>' . esc_textarea( (string) $value ) . '</textarea>';
 				break;
 			case 'checkbox':
-				$input = '<div class="form-check mt-2"><input type="hidden" name="' . esc_attr( $name ) . '" value="0"' . $disabled . '><input class="form-check-input" type="checkbox" id="' . esc_attr( $id ) . '" name="' . esc_attr( $name ) . '" value="1"' . checked( (bool) $value, true, false ) . $disabled . '><label class="form-check-label" for="' . esc_attr( $id ) . '">' . esc_html( $f['label'] ) . '</label></div>';
-				$label = '';
+				$input = '<div class="form-check fmc-check-aligned"><input type="hidden" name="' . esc_attr( $name ) . '" value="0"' . $disabled . '><input class="form-check-input" type="checkbox" id="' . esc_attr( $id ) . '" name="' . esc_attr( $name ) . '" value="1"' . checked( (bool) $value, true, false ) . $disabled . '><label class="form-check-label" for="' . esc_attr( $id ) . '">' . esc_html( $f['label'] ) . '</label></div>';
+				// La casilla se queda sin etiqueta propia —la lleva al lado—, y
+				// en su lugar va una línea en blanco: así se alinea con el campo
+				// de su fila en vez de subirse a la altura de las etiquetas.
+				$label = '<span class="form-label d-none d-md-block" aria-hidden="true">&nbsp;</span>';
 				break;
 			case 'select':
 			case 'term':
@@ -487,9 +498,15 @@ final class Editor {
 				$search = count( $choices ) > 10 ? ' data-fmc-ts data-placeholder="Escriba para buscar…"' : '';
 				// Lo que significa cada término, si lo dice: al pasar por la opción y debajo del elegido.
 				$hints = 0 === strpos( $key, 'tax:' ) ? self::term_hints( substr( $key, 4 ) ) : array();
-				$input = '<select class="form-select' . $invalid . '" id="' . esc_attr( $id ) . '" name="' . esc_attr( $name ) . '"' . $search . ( $hints ? ' data-fmc-hints' : '' ) . $disabled . '><option value="">—</option>';
+				// Un campo puede poner el valor de otro (`sets`) o hacer que se
+				// vuelva a pedir al servidor (`refreshes`): la asesoría pone el
+				// ámbito, y el ámbito decide qué centros se ofrecen.
+				$links  = ( ! empty( $f['sets'] ) ? ' data-fmc-sets="f[' . esc_attr( (string) $f['sets'] ) . ']"' : '' ) . ( ! empty( $f['refreshes'] ) ? ' data-fmc-refreshes="f[' . esc_attr( (string) $f['refreshes'] ) . ']"' : '' );
+				$scopes = 'adviser' === $f['w'] && ! empty( $f['sets'] ) ? Advisers::scopes() : array();
+				$input  = '<select class="form-select' . $invalid . '" id="' . esc_attr( $id ) . '" name="' . esc_attr( $name ) . '"' . $search . $links . ( $hints ? ' data-fmc-hints' : '' ) . $disabled . '><option value="">—</option>';
 				foreach ( $choices as $v => $text ) {
-					$input .= '<option value="' . esc_attr( (string) $v ) . '"' . selected( $current, (string) $v, false ) . ( isset( $hints[ $v ] ) ? ' data-fmc-hint="' . esc_attr( $hints[ $v ] ) . '"' : '' ) . '>' . esc_html( $text ) . '</option>';
+					$sets   = isset( $scopes[ (int) $v ] ) ? ' data-fmc-value="' . (int) $scopes[ (int) $v ] . '"' : '';
+					$input .= '<option value="' . esc_attr( (string) $v ) . '"' . selected( $current, (string) $v, false ) . $sets . ( isset( $hints[ $v ] ) ? ' data-fmc-hint="' . esc_attr( $hints[ $v ] ) . '"' : '' ) . '>' . esc_html( $text ) . '</option>';
 				}
 				$input .= '</select>';
 				if ( $hints ) {
