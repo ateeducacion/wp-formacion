@@ -407,6 +407,53 @@ class Test_Adviser_Centre extends WP_UnitTestCase {
 	}
 
 	/**
+	 * Quien dejó de ser asesoría sigue saliendo en la acción que ya la tenía,
+	 * con el aviso de que ya no lo es, para que guardar no la borre.
+	 */
+	public function test_an_adviser_who_is_no_longer_one_is_still_offered_marked() {
+		$this->scope_term();
+		$me     = $this->adviser();
+		$was    = self::factory()->user->create(
+			array(
+				'role'         => 'fmc_adviser',
+				'display_name' => 'Quien se fue',
+			)
+		);
+		$action = $this->action( $was );
+		wp_set_current_user( $me );
+
+		// Mientras es asesoría, sale como una más.
+		$body = Editor::render( PostTypes::ACTION, get_post( $action ), array(), array() )['body'];
+		$this->assertStringContainsString( '>Quien se fue</option>', $body );
+		$this->assertStringNotContainsString( 'data-fmc-gone', $body );
+
+		// Deja de serlo: se queda, marcada, y elegida.
+		get_user_by( 'id', $was )->remove_role( 'fmc_adviser' );
+		$body = Editor::render( PostTypes::ACTION, get_post( $action ), array(), array() )['body'];
+
+		$this->assertStringContainsString( 'data-fmc-gone="1"', $body );
+		$this->assertStringContainsString( '>Quien se fue — ya no es asesoría</option>', $body );
+		$this->assertMatchesRegularExpression( '/value="' . $was . '" selected=\'selected\'/', $body );
+	}
+
+	/**
+	 * La cuenta borrada tampoco se pierde: la acción dice de quién era.
+	 */
+	public function test_a_deleted_account_is_still_shown_in_the_action_that_had_it() {
+		$this->scope_term();
+		$was    = self::factory()->user->create( array( 'role' => 'fmc_adviser' ) );
+		$action = $this->action( $was );
+		$me     = $this->adviser();
+		// Al borrar la cuenta, sus entradas se le pasan a quien queda: lo que
+		// se pierde es el nombre, no la acción.
+		wp_delete_user( $was, $me );
+
+		$body = Editor::render( PostTypes::ACTION, get_post( $action ), array(), array() )['body'];
+
+		$this->assertStringContainsString( '>Cuenta ' . $was . ' — ya no es asesoría</option>', $body );
+	}
+
+	/**
 	 * While the stored copy does not say the CEP, the island still scopes the list.
 	 */
 	public function test_the_venue_centres_fall_back_to_the_scope_island() {

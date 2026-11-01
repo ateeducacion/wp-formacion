@@ -503,9 +503,14 @@ final class Editor {
 				// ámbito, y el ámbito decide qué centros se ofrecen.
 				$links  = ( ! empty( $f['sets'] ) ? ' data-fmc-sets="f[' . esc_attr( (string) $f['sets'] ) . ']"' : '' ) . ( ! empty( $f['refreshes'] ) ? ' data-fmc-refreshes="f[' . esc_attr( (string) $f['refreshes'] ) . ']"' : '' );
 				$scopes = 'adviser' === $f['w'] && ! empty( $f['sets'] ) ? Advisers::scopes() : array();
-				$input  = '<select class="form-select' . $invalid . '" id="' . esc_attr( $id ) . '" name="' . esc_attr( $name ) . '"' . $search . $links . ( $hints ? ' data-fmc-hints' : '' ) . $disabled . '><option value="">—</option>';
+				// La asesoría que ya no lo es sigue ahí porque la acción es
+				// antigua: se marca para que se lea en cursiva y se vea que no
+				// es una de las de ahora.
+				$gone  = 'adviser' === $f['w'] && '' !== $current && ! isset( Advisers::choices()[ (int) $current ] ) ? $current : '';
+				$input = '<select class="form-select' . $invalid . '" id="' . esc_attr( $id ) . '" name="' . esc_attr( $name ) . '"' . $search . $links . ( $hints ? ' data-fmc-hints' : '' ) . $disabled . '><option value="">—</option>';
 				foreach ( $choices as $v => $text ) {
 					$sets   = isset( $scopes[ (int) $v ] ) ? ' data-fmc-value="' . (int) $scopes[ (int) $v ] . '"' : '';
+					$sets  .= '' !== $gone && (string) $v === $gone ? ' data-fmc-gone="1"' : '';
 					$input .= '<option value="' . esc_attr( (string) $v ) . '"' . selected( $current, (string) $v, false ) . $sets . ( isset( $hints[ $v ] ) ? ' data-fmc-hint="' . esc_attr( $hints[ $v ] ) . '"' : '' ) . '>' . esc_html( $text ) . '</option>';
 				}
 				$input .= '</select>';
@@ -653,7 +658,7 @@ final class Editor {
 			return self::term_choices( substr( $key, 4 ), (array) ( $f['stored'] ?? array() ) );
 		}
 		if ( 'adviser' === $f['w'] ) {
-			return Advisers::choices();
+			return self::adviser_choices( absint( $f['stored'] ?? 0 ) );
 		}
 		if ( 'centre' === $f['w'] ) {
 			return self::centre_choices( (string) ( $f['stored'] ?? '' ), (int) ( $f['post'] ?? 0 ), (int) ( $f['scope'] ?? 0 ) );
@@ -672,6 +677,30 @@ final class Editor {
 		// Un diseño no se sustituye a sí mismo.
 		unset( $out[ (int) ( $f['post'] ?? 0 ) ] );
 		return $out;
+	}
+
+	/**
+	 * The adviser accounts a field offers: the current ones, and the one it has.
+	 *
+	 * Elegir solo se puede una asesoría de ahora, pero una acción antigua puede
+	 * llevar a alguien que dejó de serlo —cambió de destino, o salió del
+	 * reparto del curso (ADR-0023)—. Esa se sigue ofreciendo, con el aviso de
+	 * que ya no es asesoría, para que guardar la ficha no la borre; es la misma
+	 * regla que el programa que ya no está vigente (ADR-0018) y el centro que
+	 * se desactivó (ADR-0021).
+	 *
+	 * @param int $stored Adviser the entry already has.
+	 * @return array<int, string>
+	 */
+	private static function adviser_choices( int $stored ): array {
+		$choices = Advisers::choices();
+		if ( ! $stored || isset( $choices[ $stored ] ) ) {
+			return $choices;
+		}
+		$user               = get_user_by( 'id', $stored );
+		$choices[ $stored ] = ( $user instanceof \WP_User ? $user->display_name : 'Cuenta ' . $stored ) . ' — ya no es asesoría';
+
+		return $choices;
 	}
 
 	/**

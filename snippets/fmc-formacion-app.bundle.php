@@ -7118,9 +7118,14 @@ final class Editor {
 
 				$links  = ( ! empty( $f['sets'] ) ? ' data-fmc-sets="f[' . esc_attr( (string) $f['sets'] ) . ']"' : '' ) . ( ! empty( $f['refreshes'] ) ? ' data-fmc-refreshes="f[' . esc_attr( (string) $f['refreshes'] ) . ']"' : '' );
 				$scopes = 'adviser' === $f['w'] && ! empty( $f['sets'] ) ? Advisers::scopes() : array();
-				$input  = '<select class="form-select' . $invalid . '" id="' . esc_attr( $id ) . '" name="' . esc_attr( $name ) . '"' . $search . $links . ( $hints ? ' data-fmc-hints' : '' ) . $disabled . '><option value="">—</option>';
+
+
+
+				$gone  = 'adviser' === $f['w'] && '' !== $current && ! isset( Advisers::choices()[ (int) $current ] ) ? $current : '';
+				$input = '<select class="form-select' . $invalid . '" id="' . esc_attr( $id ) . '" name="' . esc_attr( $name ) . '"' . $search . $links . ( $hints ? ' data-fmc-hints' : '' ) . $disabled . '><option value="">—</option>';
 				foreach ( $choices as $v => $text ) {
 					$sets   = isset( $scopes[ (int) $v ] ) ? ' data-fmc-value="' . (int) $scopes[ (int) $v ] . '"' : '';
+					$sets  .= '' !== $gone && (string) $v === $gone ? ' data-fmc-gone="1"' : '';
 					$input .= '<option value="' . esc_attr( (string) $v ) . '"' . selected( $current, (string) $v, false ) . $sets . ( isset( $hints[ $v ] ) ? ' data-fmc-hint="' . esc_attr( $hints[ $v ] ) . '"' : '' ) . '>' . esc_html( $text ) . '</option>';
 				}
 				$input .= '</select>';
@@ -7268,7 +7273,7 @@ final class Editor {
 			return self::term_choices( substr( $key, 4 ), (array) ( $f['stored'] ?? array() ) );
 		}
 		if ( 'adviser' === $f['w'] ) {
-			return Advisers::choices();
+			return self::adviser_choices( absint( $f['stored'] ?? 0 ) );
 		}
 		if ( 'centre' === $f['w'] ) {
 			return self::centre_choices( (string) ( $f['stored'] ?? '' ), (int) ( $f['post'] ?? 0 ), (int) ( $f['scope'] ?? 0 ) );
@@ -7287,6 +7292,30 @@ final class Editor {
 
 		unset( $out[ (int) ( $f['post'] ?? 0 ) ] );
 		return $out;
+	}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+	private static function adviser_choices( int $stored ): array {
+		$choices = Advisers::choices();
+		if ( ! $stored || isset( $choices[ $stored ] ) ) {
+			return $choices;
+		}
+		$user               = get_user_by( 'id', $stored );
+		$choices[ $stored ] = ( $user instanceof \WP_User ? $user->display_name : 'Cuenta ' . $stored ) . ' — ya no es asesoría';
+
+		return $choices;
 	}
 
 
@@ -9413,6 +9442,10 @@ final class App {
    fila de los campos; esto la centra con ellos. */
 .fmc-check-aligned { padding-top: 7px; }
 
+/* Lo que sigue guardado pero ya no se elige: se lee, pero no parece una
+   opción de ahora. */
+.fmc-gone { font-style: italic; color: var(--fmc-text-2); }
+
 /* Pie */
 /* El pie, como en los aplicativos hermanos: quién está detrás, a la izquierda;
    los enlaces legales, a la derecha. El contenido lo pone quien despliega con
@@ -9702,11 +9735,21 @@ body.has-panel { overflow: hidden; }
 			if ( s.hasAttribute( \'data-fmc-hints\' ) ) {
 				settings.render = { option: hintHtml };
 			}
+			if ( ! settings.render && s.querySelector( \'option[data-fmc-gone]\' ) ) {
+				settings.render = { option: goneHtml, item: goneHtml };
+			}
 			// eslint-disable-next-line no-new
 			new window.TomSelect( s, settings );
 			n++;
 		} );
 		return n;
+	}
+
+	// Lo que sigue guardado pero ya no se elige —una asesoría que dejó de
+	// serlo— se lee en cursiva: está en la lista porque la ficha es antigua.
+	function goneHtml( data, escape ) {
+		const set = ( data.$option && data.$option.dataset ) || {};
+		return \'<div\' + ( set.fmcGone ? \' class="fmc-gone"\' : \'\' ) + \'>\' + escape( data.text ) + \'</div>\';
 	}
 
 	// Un ponente en la lista, en dos líneas: el nombre con sus etiquetas
@@ -10351,6 +10394,7 @@ body.has-panel { overflow: hidden; }
 		onToolClick: onToolClick,
 		onNoteClick: onNoteClick,
 		speakerHtml: speakerHtml,
+		goneHtml: goneHtml,
 		hintHtml: hintHtml,
 		speakerItem: speakerItem,
 		initTips: initTips,

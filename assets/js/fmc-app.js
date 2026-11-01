@@ -49,11 +49,21 @@
 			if ( s.hasAttribute( 'data-fmc-hints' ) ) {
 				settings.render = { option: hintHtml };
 			}
+			if ( ! settings.render && s.querySelector( 'option[data-fmc-gone]' ) ) {
+				settings.render = { option: goneHtml, item: goneHtml };
+			}
 			// eslint-disable-next-line no-new
 			new window.TomSelect( s, settings );
 			n++;
 		} );
 		return n;
+	}
+
+	// Lo que sigue guardado pero ya no se elige —una asesoría que dejó de
+	// serlo— se lee en cursiva: está en la lista porque la ficha es antigua.
+	function goneHtml( data, escape ) {
+		const set = ( data.$option && data.$option.dataset ) || {};
+		return '<div' + ( set.fmcGone ? ' class="fmc-gone"' : '' ) + '>' + escape( data.text ) + '</div>';
 	}
 
 	// Un ponente en la lista, en dos líneas: el nombre con sus etiquetas
@@ -698,6 +708,7 @@
 		onToolClick: onToolClick,
 		onNoteClick: onNoteClick,
 		speakerHtml: speakerHtml,
+		goneHtml: goneHtml,
 		hintHtml: hintHtml,
 		speakerItem: speakerItem,
 		initTips: initTips,
