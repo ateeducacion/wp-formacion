@@ -195,13 +195,22 @@ class Test_Advisers extends WP_UnitTestCase {
 		$action( 'De Luis', $luis );
 		$titles = static fn(): array => wp_list_pluck( ( new WP_Query( Lists::query_args( PostTypes::ACTION ) ) )->posts, 'post_title' );
 
+		// Estas acciones no tienen fecha, y el listado se abre por el curso en
+		// marcha: aquí se pide sin acotar por curso.
+		$_GET['fmc_year']    = 'all';
 		$_GET['fmc_adviser'] = (string) $luis;
 		$this->assertSame( array( 'De Luis' ), $titles() );
 
-		$_GET = array( 'fmc_adviser_kind' => 'ict' );
+		$_GET = array(
+			'fmc_adviser_kind' => 'ict',
+			'fmc_year'         => 'all',
+		);
 		$this->assertSame( array( 'De Ana' ), $titles() );
 
-		$_GET = array( 'fmc_adviser_kind' => 'other' );
+		$_GET = array(
+			'fmc_adviser_kind' => 'other',
+			'fmc_year'         => 'all',
+		);
 		$this->assertSame( array(), $titles(), 'un tipo sin nadie no enseña nada' );
 
 		$html = Lists::filters_html( 'actions', PostTypes::ACTION );

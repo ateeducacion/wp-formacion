@@ -6,7 +6,7 @@
  * Priority: 15
  *
  * @package Fmc
- * @version 0.0.10
+ * @version 0.0.11
  */
 
 // phpcs:disable
@@ -4282,6 +4282,13 @@ final class Lists {
 		$set = isset( $_GET[ $key ] );
 
 		$value = $set ? sanitize_text_field( wp_unslash( $_GET[ $key ] ) ) : '';
+		if ( 'fmc_year' === $key ) {
+
+
+
+
+			return $set ? $value : SchoolYear::of( gmdate( 'Y-m-d' ) );
+		}
 		if ( 'fmc_resolution' !== $key ) {
 			return $value;
 		}
@@ -4869,7 +4876,9 @@ final class Lists {
 		$out = array();
 		foreach ( array( 'fmc_s', 'fmc_scope', 'fmc_programme', 'fmc_topic', 'fmc_modality', 'fmc_process', 'fmc_situation', 'fmc_year', 'fmc_type', 'fmc_status', 'fmc_zone', 'fmc_available', 'fmc_resolution', 'fmc_month', 'fmc_speaker', 'fmc_from', 'fmc_to', 'fmc_catalogue', 'fmc_recommended', 'fmc_file', 'fmc_incident', 'fmc_given', 'fmc_sort', 'fmc_dir', 'fmc_view', 'fmc_adviser', 'fmc_adviser_kind' ) as $key ) {
 
-			if ( 'fmc_resolution' === $key && ! isset( $_GET[ $key ] ) ) {
+			if ( in_array( $key, array( 'fmc_resolution', 'fmc_year' ), true ) && ! isset( $_GET[ $key ] ) ) {
+
+
 
 				continue;
 			}
@@ -4898,10 +4907,9 @@ final class Lists {
 			case PostTypes::ACTION:
 
 
-
 				$quick[]  = self::select( 'fmc_situation', 'Situación', A::SITUATIONS, 'Todas' );
 				$quick[]  = self::select( 'fmc_year', 'Curso escolar', self::school_years(), 'Todos' );
-				$quick[]  = self::select( 'fmc_adviser_kind', 'Tipo de asesoría', Advisers::KINDS, 'Todos' );
+				$fields[] = self::select( 'fmc_adviser_kind', 'Tipo de asesoría', Advisers::KINDS, 'Todos' );
 				$fields[] = self::text_field( 'fmc_file', 'Expediente empieza por', 'Prefijo' );
 				$fields[] = self::select( 'fmc_scope', 'Ámbito', self::term_choices( 'fmc_scope' ), 'Todos' );
 				$fields[] = self::select( 'fmc_programme', 'Programa', self::term_choices( 'fmc_programme' ), 'Todos' );
@@ -4995,7 +5003,10 @@ final class Lists {
 		}
 		$out .= ' <a class="btn btn-link" href="' . esc_url( Screen::url( $reset ) ) . '">Quitar filtros</a></div></div>';
 		if ( array() !== $fields ) {
-			$out .= '<div class="collapse' . ( $set ? ' show' : '' ) . '" id="fmc-advanced"><div class="row g-2 align-items-end mt-1">' . implode( '', $fields ) . '</div></div>';
+
+
+
+			$out .= '<div class="collapse' . ( $set ? ' show' : '' ) . '" id="fmc-advanced"><div class="position-relative"><button class="btn-close position-absolute top-0 end-0 mt-1" type="button" data-bs-toggle="collapse" data-bs-target="#fmc-advanced" aria-controls="fmc-advanced" aria-label="Cerrar la búsqueda avanzada" title="Cerrar la búsqueda avanzada"></button><div class="row g-2 align-items-end mt-1 pe-4">' . implode( '', $fields ) . '</div></div></div>';
 		}
 		return $out . '</form>';
 	}

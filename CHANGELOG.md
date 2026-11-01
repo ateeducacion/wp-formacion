@@ -8,6 +8,14 @@ lee de la cabecera superior y la escribe en el `@version` del bundle.
 `make release` crea el tag y la release en GitHub; el despliegue de los snippets
 en el sitio de destino se hace después.
 
+## [0.0.11] — 2026-11-01
+
+### Cambiado
+
+- **El listado de acciones se abre por el curso en marcha**: es lo que se consulta a diario, y pedir de golpe las de todos los cursos era lo que hacía lenta la pantalla. El desplegable «Curso escolar» dice en qué curso se está mirando, y con «Todos» se busca en el histórico como antes. Los contadores de situación cuentan también ese curso
+- **«Tipo de asesoría» se va a «Búsqueda avanzada»**: a la vista se quedan «Buscar», «Situación» y «Curso escolar», que caben holgados; el tipo de asesoría, con los demás filtros, en el panel desplegable, donde la etiqueta cabe entera
+- **El panel de «Búsqueda avanzada» se cierra con una X** en su esquina, además de volviendo a pulsar el botón
+
 ## [0.0.10] — 2026-11-01
 
 ### Cambiado

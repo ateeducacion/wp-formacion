@@ -31,6 +31,10 @@ class Test_Lists extends WP_UnitTestCase {
 		fmc_register_roles();
 		PostTypes::grant_caps_to_roles();
 		MetaRegistration::register_meta();
+		// El listado se abre por el curso en marcha, y las acciones de estos
+		// tests tienen fechas fijas: salvo donde se compruebe el curso, se pide
+		// sin acotar.
+		$_GET['fmc_year'] = 'all';
 	}
 
 	/**
@@ -542,9 +546,48 @@ class Test_Lists extends WP_UnitTestCase {
 			array( array( 'fmc_year' => '2026' ), array( 'Octubre', 'Junio', 'Marzo' ) ),
 		);
 		foreach ( $cases as list( $get, $expected ) ) {
-			$_GET = $get;
+			$_GET = $get + array( 'fmc_year' => 'all' );
 			$this->assertSame( $expected, $this->rows( PostTypes::ACTION ), wp_json_encode( $get ) );
 		}
+	}
+
+	/**
+	 * El listado de acciones se abre por el curso en marcha, que es lo que se
+	 * consulta a diario; «Todos» saca los demás.
+	 */
+	public function test_the_actions_list_opens_on_the_current_school_year() {
+		$this->as_role( 'fmc_curator' );
+		// El 1 de octubre del año en que empieza el curso cae siempre dentro de él.
+		$start = (int) gmdate( 'Y' ) - ( (int) gmdate( 'n' ) >= 9 ? 0 : 1 );
+		$this->post( PostTypes::ACTION, 'De este curso', array( A::START => $start . '-10-01' ) );
+		$this->post( PostTypes::ACTION, 'De hace años', array( A::START => ( $start - 3 ) . '-10-01' ) );
+
+		unset( $_GET['fmc_year'] );
+		$this->assertSame( array( 'De este curso' ), $this->rows( PostTypes::ACTION ) );
+		$this->assertStringContainsString(
+			'<option value="' . $start . '-' . ( $start + 1 ) . '" selected=\'selected\'>',
+			Lists::filters_html( 'actions', PostTypes::ACTION ),
+			'el desplegable dice en qué curso se está mirando'
+		);
+
+		$_GET['fmc_year'] = 'all';
+		$this->assertSame( array( 'De este curso', 'De hace años' ), $this->rows( PostTypes::ACTION ) );
+	}
+
+	/**
+	 * El tipo de asesoría es un filtro avanzado, y el panel se cierra con su X.
+	 */
+	public function test_the_adviser_kind_is_an_advanced_filter_the_panel_can_close() {
+		$this->as_role( 'fmc_curator' );
+
+		list( $quick, $advanced ) = explode( 'id="fmc-advanced"', Lists::filters_html( 'actions', PostTypes::ACTION ) );
+
+		$this->assertStringNotContainsString( 'name="fmc_adviser_kind"', $quick );
+		$this->assertStringContainsString( 'name="fmc_adviser_kind"', $advanced );
+		$this->assertStringContainsString( 'class="btn-close position-absolute top-0 end-0 mt-1" type="button" data-bs-toggle="collapse" data-bs-target="#fmc-advanced"', $advanced );
+
+		$_GET['fmc_adviser_kind'] = 'ict';
+		$this->assertStringContainsString( '<div class="collapse show" id="fmc-advanced">', Lists::filters_html( 'actions', PostTypes::ACTION ), 'con un avanzado puesto, el panel se abre' );
 	}
 
 	/**
@@ -738,11 +781,13 @@ class Test_Lists extends WP_UnitTestCase {
 		$_GET = array(
 			'fmc_sort' => 'start',
 			'fmc_dir'  => 'asc',
+			'fmc_year' => 'all',
 		);
 		$this->assertSame( array( 'B', 'A', 'C sin fecha' ), $this->rows( PostTypes::ACTION ), 'sin fecha, al final también al revés' );
 		$_GET = array(
 			'fmc_sort' => 'title',
 			'fmc_dir'  => 'desc',
+			'fmc_year' => 'all',
 		);
 		$this->assertSame( array( 'C sin fecha', 'B', 'A' ), $this->rows( PostTypes::ACTION ) );
 

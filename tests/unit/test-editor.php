@@ -539,6 +539,8 @@ class Test_Editor extends WP_UnitTestCase {
 			return wp_list_pluck( get_posts( Lists::query_args( PostTypes::ACTION ) + array( 'suppress_filters' => false ) ), 'ID' );
 		};
 
+		// Sin fecha de inicio, estas acciones solo salen sin acotar por curso.
+		$_GET['fmc_year']    = 'all';
 		$_GET['fmc_speaker'] = (string) $speaker;
 		$this->assertSame( array( $with ), $ids() );
 		unset( $_GET['fmc_speaker'] );
