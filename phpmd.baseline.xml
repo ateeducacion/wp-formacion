@@ -66,4 +66,11 @@
   <violation rule="PHPMD\Rule\Design\NPathComplexity" file="src/Fmc/PublicFront/Editor.php" method="next_status"/>
   <violation rule="PHPMD\Rule\Design\ExcessiveClassComplexity" file="src/Fmc/PublicFront/Screen.php"/>
   <violation rule="PHPMD\Rule\CyclomaticComplexity" file="src/Fmc/PublicFront/Screen.php" method="route"/>
+  <!-- Del caso 2: `render()` son ocho líneas y una condición, y `run()`, un
+       bucle; analizados sueltos no dan ningún aviso. La cifra sale al recorrer
+       el repositorio entero, donde la misma clase está dos veces —en `src/` y
+       en el bundle— y pdepend suma las dos. -->
+  <violation rule="PHPMD\Rule\Design\NPathComplexity" file="src/Fmc/User/AdviserImport.php" method="run"/>
+  <violation rule="PHPMD\Rule\CyclomaticComplexity" file="src/Fmc/User/AdviserImport.php" method="render"/>
+  <violation rule="PHPMD\Rule\Design\NPathComplexity" file="src/Fmc/User/AdviserImport.php" method="render"/>
 </phpmd-baseline>

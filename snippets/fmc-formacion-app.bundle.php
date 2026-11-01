@@ -1886,6 +1886,476 @@ final class Advisers {
 
 
 
+namespace Fmc\User;
+
+use Fmc\Centre\CentreCatalogue;
+
+
+
+
+
+
+
+
+
+
+
+
+if ( ! class_exists( 'Fmc\User\AdviserRoster', false ) ) {
+final class AdviserRoster {
+
+
+
+
+	public const ROLE = 'fmc_adviser';
+
+
+
+
+
+
+	public const KEEP = array( 'fmc_curator', 'fmc_training_service', 'administrator' );
+
+
+
+
+
+
+
+
+
+
+
+
+
+	public static function parse_line( string $line ): ?array {
+		$parts = array_filter( array_map( 'trim', explode( self::separator( $line ), trim( $line ) ) ) );
+		$found = array(
+			'email'  => '',
+			'nif'    => '',
+			'centre' => '',
+		);
+		$words = array();
+		foreach ( $parts as $part ) {
+			$field = self::field_of( (string) $part, $found );
+			if ( '' === $field ) {
+				$words[] = sanitize_text_field( (string) $part );
+				continue;
+			}
+			$found[ $field ] = 'email' === $field ? sanitize_email( (string) $part ) : strtoupper( (string) $part );
+		}
+
+		return '' === $found['email'] . $found['nif'] ? null : $found + array(
+			'name'    => (string) reset( $words ),
+			'surname' => implode( ' ', array_slice( $words, 1 ) ),
+		);
+	}
+
+
+
+
+
+
+
+	private static function separator( string $line ): string {
+		foreach ( array( ';', "\t" ) as $sep ) {
+			if ( false !== strpos( $line, $sep ) ) {
+				return $sep;
+			}
+		}
+		return ',';
+	}
+
+
+
+
+
+
+
+
+	private static function field_of( string $part, array $found ): string {
+		if ( '' === $found['email'] && is_email( $part ) ) {
+			return 'email';
+		}
+		if ( '' === $found['nif'] && preg_match( '/^[0-9XYZxyz][0-9]{7}[A-Za-z]$/', $part ) ) {
+			return 'nif';
+		}
+
+
+		if ( '' === $found['centre'] && preg_match( '/^\d{8}$/', $part ) ) {
+			return 'centre';
+		}
+		return '';
+	}
+
+
+
+
+
+
+
+
+
+
+
+	private static function find( array $row ): ?\WP_User {
+		$user = '' !== $row['nif'] ? get_user_by( 'login', sanitize_user( $row['nif'], true ) ) : false;
+		if ( ! $user && '' !== $row['email'] ) {
+			$user = get_user_by( 'email', $row['email'] );
+		}
+		return $user instanceof \WP_User ? $user : null;
+	}
+
+
+
+
+
+
+
+
+
+
+
+
+
+	public static function import_row( array $row, string $kind, bool $dry = false ): array {
+		$user   = self::find( $row );
+		$others = $user ? array_intersect( (array) $user->roles, self::KEEP ) : array();
+		if ( $others ) {
+			return array( (int) $user->ID, 'ya tiene otro perfil (' . implode( ', ', $others ) . '): no se toca' );
+		}
+
+		$status = 'ya tenía cuenta';
+		if ( ! $user ) {
+			list( $id, $status ) = self::create_account( $row, $dry );
+			if ( ! $id ) {
+				return array( 0, $status );
+			}
+			$user = get_user_by( 'id', $id );
+		}
+
+		return array( (int) $user->ID, $status . self::apply_profile( $user, $kind, $row, $dry ) );
+	}
+
+
+
+
+
+
+
+
+
+
+
+
+
+	private static function create_account( array $row, bool $dry ): array {
+		if ( '' === $row['nif'] . $row['email'] || '' === $row['nif'] || '' === $row['email'] ) {
+			return array( 0, 'no tiene cuenta y la lista no trae su ' . ( '' === $row['nif'] ? 'DNI' : 'correo' ) . ': no se crea' );
+		}
+		if ( $dry ) {
+			return array( 0, 'se crearía la cuenta' );
+		}
+
+		$id = wp_insert_user(
+			array(
+				'user_login'   => sanitize_user( $row['nif'], true ),
+				'user_email'   => $row['email'],
+				'user_pass'    => wp_generate_password( 24 ),
+				'first_name'   => $row['name'],
+				'last_name'    => $row['surname'],
+				'display_name' => trim( $row['name'] . ' ' . $row['surname'] ),
+				'role'         => self::ROLE,
+			)
+		);
+
+		return is_wp_error( $id ) ? array( 0, $id->get_error_message() ) : array( (int) $id, 'cuenta creada' );
+	}
+
+
+
+
+
+
+
+
+
+
+	private static function apply_profile( \WP_User $user, string $kind, array $row, bool $dry ): string {
+		$id   = (int) $user->ID;
+		$said = self::join_site( $user, $dry );
+
+		if ( Advisers::kind( $id ) !== $kind ) {
+			$said .= ', tipo ' . ( Advisers::KINDS[ $kind ] ?? $kind );
+			if ( ! $dry ) {
+				update_user_option( $id, Advisers::KIND, $kind );
+			}
+		}
+
+
+
+		if ( '' !== $row['centre'] && null === CentreCatalogue::find( $row['centre'] ) ) {
+			return $said . ', el centro ' . $row['centre'] . ' no está en el catálogo: no se pone';
+		}
+		if ( '' !== $row['centre'] && Advisers::centre( $id ) !== $row['centre'] ) {
+			$said .= ', centro ' . CentreCatalogue::label( $row['centre'] );
+			if ( ! $dry ) {
+				update_user_option( $id, Advisers::CENTRE, $row['centre'] );
+			}
+		}
+
+		return $said;
+	}
+
+
+
+
+
+
+
+
+
+
+
+	private static function join_site( \WP_User $user, bool $dry ): string {
+		$id = (int) $user->ID;
+		if ( is_multisite() && ! is_user_member_of_blog( $id ) ) {
+			if ( ! $dry ) {
+				add_user_to_blog( get_current_blog_id(), $id, self::ROLE );
+			}
+			return ', añadida al sitio';
+		}
+		if ( in_array( self::ROLE, (array) $user->roles, true ) ) {
+			return '';
+		}
+		if ( ! $dry ) {
+			$user->add_role( self::ROLE );
+		}
+		return ', con el perfil de asesoría';
+	}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+	public static function retire_missing( array $keep, string $kind, bool $dry = false ): array {
+		$report = array();
+		foreach ( get_users( array( 'role' => self::ROLE ) ) as $user ) {
+			$id = (int) $user->ID;
+			if ( in_array( $id, $keep, true ) || Advisers::kind( $id ) !== $kind || array_intersect( (array) $user->roles, self::KEEP ) ) {
+				continue;
+			}
+			$report[] = array( $user->display_name, $dry ? 'se le quitaría la asesoría: no está en la lista' : 'ya no es asesoría: no está en la lista' );
+			if ( ! $dry ) {
+				delete_user_option( $id, Advisers::KIND );
+				$user->remove_role( self::ROLE );
+			}
+		}
+		return $report;
+	}
+}
+}
+
+
+
+
+
+
+
+
+namespace Fmc\User;
+
+
+
+
+
+
+
+if ( ! class_exists( 'Fmc\User\AdviserImport', false ) ) {
+final class AdviserImport {
+
+
+
+
+	public const PAGE = 'fmc-alta-asesorias';
+
+
+
+
+	public const ACTION = 'fmc_import_advisers';
+
+
+
+
+	public const CAP = 'fmc_manage_app';
+
+
+
+
+
+
+	public static function register(): void {
+		add_action( 'admin_menu', array( self::class, 'menu' ), 11 );
+	}
+
+
+
+
+
+
+	public static function menu(): void {
+		add_submenu_page( 'users.php', 'Alta de asesorías', 'Alta de asesorías', self::CAP, self::PAGE, array( self::class, 'render' ) );
+	}
+
+
+
+
+
+
+	private static function request(): ?array {
+
+		$nonce = isset( $_POST['_fmc_nonce'] ) ? sanitize_text_field( wp_unslash( (string) $_POST['_fmc_nonce'] ) ) : '';
+		if ( ! wp_verify_nonce( $nonce, self::ACTION ) ) {
+			return null;
+		}
+		$kind = isset( $_POST['fmc_kind'] ) ? sanitize_key( wp_unslash( (string) $_POST['fmc_kind'] ) ) : '';
+
+		return array(
+			'kind'   => isset( Advisers::KINDS[ $kind ] ) ? $kind : 'other',
+			'dry'    => isset( $_POST['fmc_dry'] ),
+			'retire' => isset( $_POST['fmc_retire'] ),
+			'list'   => isset( $_POST['fmc_list'] ) ? sanitize_textarea_field( wp_unslash( (string) $_POST['fmc_list'] ) ) : '',
+		);
+	}
+
+
+
+
+
+
+	private static function run(): array {
+		$form = self::request();
+		if ( null === $form ) {
+			return array(
+				'report' => array(),
+				'kind'   => 'ict',
+				'dry'    => true,
+			);
+		}
+
+		$report = array();
+		$keep   = array();
+		foreach ( (array) preg_split( '/\r\n|\r|\n/', $form['list'] ) as $line ) {
+			list( $id, $said ) = self::run_line( (string) $line, $form['kind'], $form['dry'] );
+			$keep              = $id ? array_merge( $keep, array( $id ) ) : $keep;
+			$report            = null === $said ? $report : array_merge( $report, array( $said ) );
+		}
+		if ( $form['retire'] ) {
+			$report = array_merge( $report, AdviserRoster::retire_missing( $keep, $form['kind'], $form['dry'] ) );
+		}
+
+		return array(
+			'report' => $report,
+			'kind'   => $form['kind'],
+			'dry'    => $form['dry'],
+		);
+	}
+
+
+
+
+
+
+
+
+
+	private static function run_line( string $line, string $kind, bool $dry ): array {
+		$row = AdviserRoster::parse_line( $line );
+		if ( null === $row ) {
+			return array( 0, '' === trim( $line ) ? null : array( $line, 'ni correo ni DNI: se omite' ) );
+		}
+		list( $id, $what ) = AdviserRoster::import_row( $row, $kind, $dry );
+
+		return array( $id, array( '' !== $row['email'] ? $row['email'] : $row['nif'], $what ) );
+	}
+
+
+
+
+
+
+	public static function render(): void {
+		if ( ! current_user_can( self::CAP ) ) {
+			wp_die( 'No tiene permiso.' );
+		}
+		$run = self::run();
+
+		echo '<div class="wrap"><h1>Alta de asesorías</h1>';
+		echo '<p>Pegue la lista del curso, una persona por línea: nombre, apellidos, correo, DNI y código de su centro de referencia. Valen el punto y coma, el tabulador y la coma, y el orden de las columnas da igual. Si la persona ya tiene cuenta se la añade a este sitio con el perfil de asesoría; si no la tiene, se le crea con el DNI de usuario y <strong>sin enviarle ningún correo</strong>. Volver a pegar la lista no duplica a nadie: completa lo que falte.</p>';
+		echo '<p><code>Ana;Pérez Gómez;ana.perez@ejemplo.org;12345678Z;38001234</code></p>';
+		self::report_html( $run['report'], $run['dry'] );
+		self::form_html( $run['kind'] );
+		echo '</div>';
+	}
+
+
+
+
+
+
+
+
+	private static function report_html( array $report, bool $dry ): void {
+		if ( ! $report ) {
+			return;
+		}
+		echo '<h2>' . ( $dry ? 'Lo que haría' : 'Lo que ha hecho' ) . '</h2>';
+		echo '<table class="widefat striped" style="max-width:52em;margin-bottom:1em;"><thead><tr><th>Persona</th><th>Resultado</th></tr></thead><tbody>';
+		foreach ( $report as $row ) {
+			printf( '<tr><td>%s</td><td>%s</td></tr>', esc_html( $row[0] ), esc_html( $row[1] ) );
+		}
+		echo '</tbody></table>';
+	}
+
+
+
+
+
+
+
+	private static function form_html( string $kind ): void {
+		echo '<form method="post">';
+		wp_nonce_field( self::ACTION, '_fmc_nonce' );
+		echo '<p><label>Tipo de asesoría para toda la lista <select name="fmc_kind">';
+		foreach ( Advisers::KINDS as $slug => $label ) {
+			printf( '<option value="%s"%s>%s</option>', esc_attr( $slug ), selected( $kind, $slug, false ), esc_html( $label ) );
+		}
+		echo '</select></label></p>';
+		echo '<textarea name="fmc_list" rows="12" style="width:100%;max-width:52em;font-family:monospace;"></textarea>';
+		echo '<p><label><input type="checkbox" name="fmc_retire" value="1"> Quitar la asesoría a quien no esté en la lista, del tipo elegido. No se borra ninguna cuenta: pierde el perfil y vuelve a tenerlo si se la pega otra vez.</label></p>';
+		echo '<p><label><input type="checkbox" name="fmc_dry" value="1" checked> Solo ver qué haría, sin tocar nada.</label></p>';
+		echo '<p><button type="submit" class="button button-primary">Dar de alta</button></p>';
+		echo '</form>';
+	}
+}
+}
+
+
+
+
+
+
+
+
 namespace Fmc\Centre;
 
 
@@ -8813,6 +9283,7 @@ use Fmc\PublicFront\Catalogue;
 use Fmc\PublicFront\Lists;
 use Fmc\PublicFront\Screen;
 use Fmc\Taxonomy\Taxonomies;
+use Fmc\User\AdviserImport;
 use Fmc\User\Advisers;
 
 
@@ -8844,6 +9315,7 @@ final class App {
 
 		CentreCatalogueSync::register_cron();
 		CentreSettings::register();
+		AdviserImport::register();
 		add_action( 'init', array( PostTypes::class, 'register' ), 10 );
 		add_action( 'init', array( PostTypes::class, 'grant_caps_to_roles' ), 11 );
 		add_filter( 'map_meta_cap', array( PostTypes::class, 'lock_archived' ), 10, 4 );

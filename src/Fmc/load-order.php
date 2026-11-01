@@ -28,6 +28,8 @@ return array(
 	'PostType/PostTypes.php',
 	'Taxonomy/Taxonomies.php',
 	'User/Advisers.php',
+	'User/AdviserRoster.php',
+	'User/AdviserImport.php',
 	'Centre/CentreCatalogue.php',
 	'Centre/CentreCatalogueSync.php',
 	'Centre/CentreSettings.php',

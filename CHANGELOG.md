@@ -10,6 +10,11 @@ en el sitio de destino se hace después.
 
 ## [0.0.12] — 2026-11-01
 
+### Añadido
+
+- **«Usuarios → Alta de asesorías»**: se pega la lista del curso —nombre, apellidos, correo, DNI y código del centro de referencia, separados por punto y coma, tabulador o coma, en el orden que sea— y a cada persona se le pone el perfil de asesoría, el tipo elegido para toda la lista y su centro. Quien ya tiene cuenta en la red se añade a este sitio; quien no la tiene la estrena con el DNI de usuario y **sin recibir ningún correo**. Volver a pegar la lista no duplica a nadie: completa lo que falte
+- La misma pantalla puede **quitar la asesoría a quien no esté en la lista**, del tipo que se esté actualizando, para poner al día el reparto a principio de curso. La cuenta no se borra: pierde el perfil y lo recupera pegándola otra vez. Y hay una casilla, marcada de serie, para **ver antes qué haría sin tocar nada**
+
 ### Cambiado
 
 - **La asesoría responsable va antes del ámbito, y lo pone**: al elegirla, el ámbito pasa a ser el de su centro de referencia, y con él se acotan los centros donde se imparte. Las dos cosas se pueden cambiar a mano después, que es lo que ocurre cuando la acción la organiza otro ámbito

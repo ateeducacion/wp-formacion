@@ -72,3 +72,4 @@ adenda del 2026-10-28).
 | [ADR-0020](ADR-0020-la-situacion-se-calcula-y-la-accion-se-entrega.md) | La situación de la acción se calcula, y la acción se entrega | Propuesta |
 | [ADR-0021](ADR-0021-el-centro-donde-se-imparte-se-elige-del-catalogo-por-su-codigo.md) | El centro donde se imparte se elige del catálogo de centros, por su código | Propuesta |
 | [ADR-0022](ADR-0022-la-asesoria-pertenece-a-un-centro-y-solo-ve-sus-incidencias.md) | La asesoría pertenece a un centro, y solo ve sus incidencias | Propuesta |
+| [ADR-0023](ADR-0023-las-asesorias-se-dan-de-alta-pegando-la-lista-del-curso.md) | Las asesorías se dan de alta pegando la lista del curso | Propuesta |
