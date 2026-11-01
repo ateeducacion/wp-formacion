@@ -1342,40 +1342,74 @@ final class Editor {
 	private static function check_choices( array $fields, array &$values, ?\WP_Post $post ): array {
 		$errors = array();
 		foreach ( $values as $key => $value ) {
-			$w = $fields[ $key ]['w'];
-			if ( 'adviser' === $w && '' !== $value && ! isset( Advisers::choices()[ absint( $value ) ] ) && absint( $value ) !== absint( self::value( $post, $key ) ) ) {
-				$errors[ $key ] = 'La asesoría elegida no es una cuenta de asesoría de este sitio.';
-				continue;
+			$w     = $fields[ $key ]['w'];
+			$error = self::check_account( $w, $value, $post, (string) $key );
+			if ( '' === $error && in_array( $w, array( 'design', 'designs', 'speakers' ), true ) ) {
+				$error = self::check_refs( $fields[ $key ], (string) $key, $values, $post );
 			}
-			if ( 'centre' === $w && '' !== $value && ! CentreCatalogue::is_active( (string) $value ) && (string) self::value( $post, $key ) !== $value ) {
-				$errors[ $key ] = 'El centro elegido no está en el catálogo de centros activos.';
-				continue;
+			if ( '' !== $error ) {
+				$errors[ $key ] = $error;
 			}
-			if ( ! in_array( $w, array( 'design', 'designs', 'speakers' ), true ) || '' === $value || array() === $value ) {
-				continue;
-			}
-			$type   = 'speakers' === $w ? PostTypes::SPEAKER : PostTypes::DESIGN;
-			$active = 'designs' !== $w || ! empty( $fields[ $key ]['active'] );
-			$stored = array_map( 'intval', (array) self::value( $post, $key ) );
-			$ok     = static function ( int $id ) use ( $type, $active, $stored ): bool {
-				$p = get_post( $id );
-				if ( in_array( $id, $stored, true ) ) {
-					return true;
-				}
-				if ( ! $p instanceof \WP_Post || $type !== $p->post_type ) {
-					return false;
-				}
-				return $active ? 'publish' === $p->post_status : 'trash' !== $p->post_status && current_user_can( 'read_post', $id );
-			};
-			if ( 'design' === $w ) {
-				if ( ! $ok( absint( $value ) ) ) {
-					$errors[ $key ] = 'El diseño elegido no está finalizado: solo se agenda una acción con un diseño finalizado.';
-				}
-				continue;
-			}
-			$values[ $key ] = array_values( array_filter( (array) $value, static fn( $v ) => $ok( absint( $v ) ) ) );
 		}
 		return $errors;
+	}
+
+	/**
+	 * The adviser or the centre chosen is one of the site's, or the stored one.
+	 *
+	 * @param string        $w     Widget of the field.
+	 * @param mixed         $value Submitted value.
+	 * @param \WP_Post|null $post  Post being saved.
+	 * @param string        $key   Field key.
+	 * @return string What is wrong with it, or '' when it is fine.
+	 */
+	private static function check_account( string $w, $value, ?\WP_Post $post, string $key ): string {
+		if ( '' === $value ) {
+			return '';
+		}
+		if ( 'adviser' === $w && ! isset( Advisers::choices()[ absint( $value ) ] ) && absint( $value ) !== absint( self::value( $post, $key ) ) ) {
+			return 'La asesoría elegida no es una cuenta de asesoría de este sitio.';
+		}
+		if ( 'centre' === $w && ! CentreCatalogue::is_active( (string) $value ) && (string) self::value( $post, $key ) !== $value ) {
+			return 'El centro elegido no está en el catálogo de centros activos.';
+		}
+		return '';
+	}
+
+	/**
+	 * The designs and speakers chosen exist and may be chosen; the ones that may
+	 * not are dropped from a list, and refused when they are the only choice.
+	 *
+	 * @param array<string, mixed> $field  Field of the type.
+	 * @param string               $key    Field key.
+	 * @param array<string, mixed> $values Submitted values; the list is filtered in place.
+	 * @param \WP_Post|null        $post   Post being saved.
+	 * @return string What is wrong with it, or '' when it is fine.
+	 */
+	private static function check_refs( array $field, string $key, array &$values, ?\WP_Post $post ): string {
+		$value = $values[ $key ];
+		if ( '' === $value || array() === $value ) {
+			return '';
+		}
+		$w      = (string) $field['w'];
+		$type   = 'speakers' === $w ? PostTypes::SPEAKER : PostTypes::DESIGN;
+		$active = 'designs' !== $w || ! empty( $field['active'] );
+		$stored = array_map( 'intval', (array) self::value( $post, $key ) );
+		$ok     = static function ( int $id ) use ( $type, $active, $stored ): bool {
+			$p = get_post( $id );
+			if ( in_array( $id, $stored, true ) ) {
+				return true;
+			}
+			if ( ! $p instanceof \WP_Post || $type !== $p->post_type ) {
+				return false;
+			}
+			return $active ? 'publish' === $p->post_status : 'trash' !== $p->post_status && current_user_can( 'read_post', $id );
+		};
+		if ( 'design' === $w ) {
+			return $ok( absint( $value ) ) ? '' : 'El diseño elegido no está finalizado: solo se agenda una acción con un diseño finalizado.';
+		}
+		$values[ $key ] = array_values( array_filter( (array) $value, static fn( $v ) => $ok( absint( $v ) ) ) );
+		return '';
 	}
 
 	/**
