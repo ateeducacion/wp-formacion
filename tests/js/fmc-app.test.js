@@ -503,7 +503,7 @@ describe( 'la asesoría pone el ámbito y el ámbito trae sus centros', () => {
 			<option value="7" data-fmc-value="12">Ana · TIC</option>
 		</select></div>
 		<div class="col-12 col-md-6"><select name="f[tax:fmc_scope]" data-fmc-refreshes="f[fmc_venue_code]">
-			<option value="">—</option><option value="12">C.PROFES. EL HIERRO</option>
+			<option value="">—</option><option value="12">Centro de formación Norte</option>
 		</select></div>
 		<div class="col-12 col-md-8"><select name="f[fmc_venue_code]"><option value="">—</option><option value="38000001">CEIP Lejano (38000001)</option></select></div>
 	</form>`;
@@ -511,7 +511,7 @@ describe( 'la asesoría pone el ámbito y el ámbito trae sus centros', () => {
 	beforeEach( async () => {
 		document.body.innerHTML = ficha;
 		window.fetch = vi.fn().mockResolvedValue( {
-			text: () => Promise.resolve( '<div class="col-12 col-md-8"><select name="f[fmc_venue_code]"><option value="">—</option><option value="38000002">CEIP El Hierro (38000002)</option></select><div class="form-text">Solo los centros de C.PROFES. EL HIERRO</div></div>' ),
+			text: () => Promise.resolve( '<div class="col-12 col-md-8"><select name="f[fmc_venue_code]"><option value="">—</option><option value="38000002">CEIP del ámbito (38000002)</option></select><div class="form-text">Solo los centros de Centro de formación Norte</div></div>' ),
 		} );
 		await load();
 	} );
@@ -535,12 +535,12 @@ describe( 'la asesoría pone el ámbito y el ámbito trae sus centros', () => {
 			expect( document.querySelector( '[name="f[fmc_venue_code]"] option[value="38000002"]' ) ).not.toBeNull();
 		} );
 		expect( document.querySelector( '[name="f[fmc_venue_code]"] option[value="38000001"]' ) ).toBeNull();
-		expect( document.body.textContent ).toContain( 'Solo los centros de C.PROFES. EL HIERRO' );
+		expect( document.body.textContent ).toContain( 'Solo los centros de Centro de formación Norte' );
 	} );
 
 	it( 'lo ya elegido se queda si el ámbito nuevo lo ofrece', async () => {
 		window.fetch.mockResolvedValue( {
-			text: () => Promise.resolve( '<div class="col-12 col-md-8"><select name="f[fmc_venue_code]"><option value="">—</option><option value="38000001">CEIP Lejano (38000001)</option><option value="38000002">CEIP El Hierro (38000002)</option></select></div>' ),
+			text: () => Promise.resolve( '<div class="col-12 col-md-8"><select name="f[fmc_venue_code]"><option value="">—</option><option value="38000001">CEIP Lejano (38000001)</option><option value="38000002">CEIP del ámbito (38000002)</option></select></div>' ),
 		} );
 		const centre = document.querySelector( '[name="f[fmc_venue_code]"]' );
 		centre.value = '38000001';
