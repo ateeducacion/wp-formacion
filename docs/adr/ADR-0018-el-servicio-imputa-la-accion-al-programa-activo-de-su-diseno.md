@@ -129,3 +129,30 @@ Lo prueba `tests/unit/test-programmes.php`.
   al arrancar el sitio.
 - Las temáticas nuevas de la misma issue son datos, no código. Las crea la
   migración con su descripción, y la ficha la enseña al elegir.
+
+## Adenda — 2026-11-01
+
+La casilla «Activo» de un programa decidía a qué programa se imputa una acción,
+pero no qué programas se ofrecen: los desplegables de la ficha enseñaban todos
+los términos. En pantalla se vio la consecuencia —una lista larga en la que hay
+que saber cuál de los parecidos es el de este curso, porque están los de los
+cursos pasados—, y la petición fue que los que ya no están vigentes «se queden
+para enlazar, pero no sean seleccionables».
+
+A partir de ahora, en la ficha del diseño y en la de la acción:
+
+- se ofrecen los programas **vigentes**;
+- el programa que la entrada **ya tenía** se sigue ofreciendo, con el aviso de
+  que dejó de estar vigente, para que guardar la ficha no lo borre. Es la misma
+  regla que el diseño histórico que una acción antigua conserva
+  ([ADR-0016](ADR-0016-lo-que-ya-no-se-imparte-es-un-estado-del-diseno.md));
+- si **nadie** ha marcado ningún programa como vigente, se ofrecen todos. La
+  casilla se pone a mano, y una instalación que no la haya usado todavía se
+  encontraría la elección vacía, que es peor que la lista entera.
+
+En los **filtros del listado** se siguen ofreciendo todos: por los programas
+antiguos es justo por donde se busca lo migrado.
+
+Lo que **no** cambia: el guardado acepta cualquier término de la taxonomía. La
+vigencia es una regla de la elección, no un permiso, y lo migrado necesita que
+siga siendo así.

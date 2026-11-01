@@ -16,6 +16,7 @@ rellena, y el listado vuelve a abrirse.
 
 ### Cambiado
 
+- **Un programa que ya no está vigente no se puede elegir**: la ficha del diseño y la de la acción ofrecen solo los vigentes. El que la entrada ya tuviera se queda, con el aviso «— ya no está vigente», para que guardar no lo borre; y si no hay ningún programa marcado como vigente, se ofrecen todos. Los filtros del listado siguen ofreciéndolos todos, que es por donde se busca lo migrado
 - **La tarjeta de filtros se abre contraída**: a la vista se quedan «Buscar», «Situación», «Curso escolar» y «Tipo de asesoría»; los demás filtros entran en **«Búsqueda avanzada»**, que se despliega al pulsarla y que se abre sola —con el número de filtros puestos al lado— cuando se llega con alguno aplicado. Ningún filtro se pierde
 - **El centro donde se imparte solo ofrece los del ámbito** que gestiona la acción, en vez del catálogo entero, y lo dice debajo del campo. Son los centros que tienen por centro de referencia el del ámbito; mientras la copia local del catálogo no traiga ese dato, los de su isla. El centro ya guardado se conserva aunque sea de otro ámbito o ya no esté activo
 
