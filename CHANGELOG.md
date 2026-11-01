@@ -17,7 +17,7 @@ rellena, y el listado vuelve a abrirse.
 ### Cambiado
 
 - **La tarjeta de filtros se abre contraída**: a la vista se quedan «Buscar», «Situación», «Curso escolar» y «Tipo de asesoría»; los demás filtros entran en **«Búsqueda avanzada»**, que se despliega al pulsarla y que se abre sola —con el número de filtros puestos al lado— cuando se llega con alguno aplicado. Ningún filtro se pierde
-- **El centro donde se imparte solo ofrece los de la isla del ámbito** que gestiona la acción, en vez del catálogo entero, y lo dice debajo del campo. El centro ya guardado se conserva aunque sea de otra isla o ya no esté activo
+- **El centro donde se imparte solo ofrece los del ámbito** que gestiona la acción, en vez del catálogo entero, y lo dice debajo del campo. Son los centros que tienen por centro de referencia el del ámbito; mientras la copia local del catálogo no traiga ese dato, los de su isla. El centro ya guardado se conserva aunque sea de otro ámbito o ya no esté activo
 
 - **El expediente es el primer campo de la ficha de la acción**: es el que más se busca y el único que rellena el servicio de perfeccionamiento, que ya no tiene que bajar hasta el final de la ficha para ponerlo
 - Una acción está **en un plan de formación, en un seminario o en ninguno**: ya no son tres casillas que se puedan marcar a la vez, sino una elección, con «No está incluida en ninguno» de serie

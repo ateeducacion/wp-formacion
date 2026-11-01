@@ -24,7 +24,7 @@ final class CentreCatalogue {
 	/**
 	 * All stored centres (both active and inactive), indexed by 8-digit code.
 	 *
-	 * @return array<string, array{code:string, name:string, island:string, municipality:string, type:string, active:bool}>
+	 * @return array<string, array{code:string, name:string, island:string, municipality:string, type:string, cep:string, active:bool}>
 	 */
 	public static function all(): array {
 		$raw = get_option( self::OPTION_CATALOGUE, array() );
@@ -34,7 +34,7 @@ final class CentreCatalogue {
 	/**
 	 * All active centres, indexed by code.
 	 *
-	 * @return array<string, array{code:string, name:string, island:string, municipality:string, type:string, active:bool}>
+	 * @return array<string, array{code:string, name:string, island:string, municipality:string, type:string, cep:string, active:bool}>
 	 */
 	public static function all_active(): array {
 		$all = self::all();
@@ -50,13 +50,21 @@ final class CentreCatalogue {
 	/**
 	 * Map of active centres [ code => name ] sorted alphabetically by name.
 	 *
-	 * @param string $island Keep only the centres of this island; '' for all.
+	 * El centro de referencia manda sobre la isla: una isla puede tener varios
+	 * ámbitos, y entonces acotar por isla ofrece centros que no son del ámbito.
+	 * La isla solo se usa mientras la copia local no diga a qué centro de
+	 * referencia pertenece cada centro (ADR-0021).
+	 *
+	 * @param string $cep    Keep only the centres whose reference centre is this code; '' for all.
+	 * @param string $island Keep only the centres of this island, when the copy has no reference centre; '' for all.
 	 * @return array<string, string>
 	 */
-	public static function active_options( string $island = '' ): array {
+	public static function active_options( string $cep = '', string $island = '' ): array {
 		$active = self::all_active();
-		if ( '' !== $island ) {
-			$active = array_filter( $active, static fn( $centre ) => isset( $centre['island'] ) && (string) $centre['island'] === $island );
+		$key    = '' !== $cep && self::knows_cep() ? 'cep' : 'island';
+		$value  = 'cep' === $key ? $cep : $island;
+		if ( '' !== $value ) {
+			$active = array_filter( $active, static fn( $centre ) => isset( $centre[ $key ] ) && (string) $centre[ $key ] === $value );
 		}
 		$out = array();
 		foreach ( $active as $code => $centre ) {
@@ -77,6 +85,24 @@ final class CentreCatalogue {
 	}
 
 	/**
+	 * Whether the stored copy says which reference centre each centre belongs to.
+	 *
+	 * El campo llegó al catálogo maestro después que el aplicativo, así que una
+	 * copia local sin sincronizar desde entonces no lo trae y hay que seguir
+	 * acotando por isla.
+	 *
+	 * @return bool
+	 */
+	public static function knows_cep(): bool {
+		foreach ( self::all() as $centre ) {
+			if ( isset( $centre['cep'] ) && '' !== trim( (string) $centre['cep'] ) ) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	/**
 	 * Find a centre by its name, as the catalogue writes it.
 	 *
 	 * El término del ámbito se llama exactamente como el centro del profesorado
@@ -84,7 +110,7 @@ final class CentreCatalogue {
 	 * con él, a su isla.
 	 *
 	 * @param string $name Name.
-	 * @return array{code:string, name:string, island:string, municipality:string, type:string, active:bool}|null
+	 * @return array{code:string, name:string, island:string, municipality:string, type:string, cep:string, active:bool}|null
 	 */
 	public static function find_by_name( string $name ): ?array {
 		$name = trim( $name );
@@ -103,7 +129,7 @@ final class CentreCatalogue {
 	 * Find a centre by code (active or inactive).
 	 *
 	 * @param string $code 8-digit official code.
-	 * @return array{code:string, name:string, island:string, municipality:string, type:string, active:bool}|null
+	 * @return array{code:string, name:string, island:string, municipality:string, type:string, cep:string, active:bool}|null
 	 */
 	public static function find( string $code ): ?array {
 		$code = trim( $code );

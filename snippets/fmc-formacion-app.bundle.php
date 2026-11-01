@@ -1903,10 +1903,18 @@ final class CentreCatalogue {
 
 
 
-	public static function active_options( string $island = '' ): array {
+
+
+
+
+
+
+	public static function active_options( string $cep = '', string $island = '' ): array {
 		$active = self::all_active();
-		if ( '' !== $island ) {
-			$active = array_filter( $active, static fn( $centre ) => isset( $centre['island'] ) && (string) $centre['island'] === $island );
+		$key    = '' !== $cep && self::knows_cep() ? 'cep' : 'island';
+		$value  = 'cep' === $key ? $cep : $island;
+		if ( '' !== $value ) {
+			$active = array_filter( $active, static fn( $centre ) => isset( $centre[ $key ] ) && (string) $centre[ $key ] === $value );
 		}
 		$out = array();
 		foreach ( $active as $code => $centre ) {
@@ -1924,6 +1932,24 @@ final class CentreCatalogue {
 		);
 
 		return $out;
+	}
+
+
+
+
+
+
+
+
+
+
+	public static function knows_cep(): bool {
+		foreach ( self::all() as $centre ) {
+			if ( isset( $centre['cep'] ) && '' !== trim( (string) $centre['cep'] ) ) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 
@@ -2466,6 +2492,7 @@ final class CentreCatalogueSync {
 			'island'       => $text( 'island' ),
 			'municipality' => $text( 'municipality' ),
 			'type'         => $text( 'type' ),
+			'cep'          => $text( 'cep' ),
 			'active'       => $item['active'],
 		);
 	}
@@ -6756,16 +6783,16 @@ final class Editor {
 
 
 
-
 	private static function centre_choices( string $stored, int $action, int $scope = 0 ): array {
-		$out = array();
-		foreach ( CentreCatalogue::active_options( self::scope_island( $scope ) ) as $code => $name ) {
+		$centre = self::scope_centre( $scope );
+		$out    = array();
+		foreach ( CentreCatalogue::active_options( (string) ( $centre['code'] ?? '' ), (string) ( $centre['island'] ?? '' ) ) as $code => $name ) {
 			$out[ $code ] = CentreCatalogue::label( (string) $code, $name );
 		}
 		if ( '' !== $stored && ! isset( $out[ $stored ] ) ) {
 
 
-			$suffix         = CentreCatalogue::is_active( $stored ) ? ' — de otra isla' : ' — ya no está activo';
+			$suffix         = CentreCatalogue::is_active( $stored ) ? ' — fuera del ámbito elegido' : ' — ya no está activo';
 			$out[ $stored ] = CentreCatalogue::label( $stored, (string) get_post_meta( $action, A::VENUE_CENTRE, true ) ) . $suffix;
 		}
 		return $out;
@@ -6782,16 +6809,16 @@ final class Editor {
 
 
 
-	private static function scope_island( int $scope ): string {
+
+	private static function scope_centre( int $scope ): ?array {
 		if ( ! $scope ) {
-			return '';
+			return null;
 		}
 		$term = get_term( $scope, Taxonomies::SCOPE );
 		if ( ! $term instanceof \WP_Term ) {
-			return '';
+			return null;
 		}
-		$centre = CentreCatalogue::find_by_name( $term->name );
-		return (string) ( $centre['island'] ?? '' );
+		return CentreCatalogue::find_by_name( $term->name );
 	}
 
 
@@ -6808,9 +6835,15 @@ final class Editor {
 
 	private static function centre_help( int $action, string $code, bool $can, int $scope = 0 ): string {
 		$help   = '';
-		$island = self::scope_island( $scope );
-		if ( $can && '' !== $island ) {
-			$help .= '<div class="form-text">Solo los centros de ' . esc_html( $island ) . ', que es donde está el ámbito elegido arriba. Cambie el ámbito para ver los de otra isla.</div>';
+		$centre = self::scope_centre( $scope );
+		if ( $can && null !== $centre ) {
+
+
+
+			$where = CentreCatalogue::knows_cep() ? (string) $centre['name'] : (string) ( $centre['island'] ?? '' );
+			if ( '' !== $where ) {
+				$help .= '<div class="form-text">Solo los centros de ' . esc_html( $where ) . ', que es el ámbito elegido arriba. Cambie el ámbito para ver los de otro.</div>';
+			}
 		}
 		$legacy = '' === $code && $action ? (string) get_post_meta( $action, A::VENUE_CENTRE, true ) : '';
 		if ( '' !== $legacy ) {
