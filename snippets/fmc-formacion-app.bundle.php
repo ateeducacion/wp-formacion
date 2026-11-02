@@ -6146,6 +6146,7 @@ final class Lists {
 
 namespace Fmc\PublicFront;
 
+use Fmc\Domain\SchoolYear;
 use Fmc\Meta\ActionMetaKeys as A;
 use Fmc\PostType\PostTypes;
 
@@ -6192,10 +6193,32 @@ final class Calendar {
 	public static function month(): string {
 		$m = Lists::arg( 'fmc_month' );
 		if ( preg_match( '/^(\d{4})-(0[1-9]|1[0-2])$/', $m ) ) {
-			return $m . '-01';
+			return self::in_year( $m . '-01' );
 		}
 
-		return substr( self::day(), 0, 8 ) . '01';
+		return self::in_year( substr( self::day(), 0, 8 ) . '01' );
+	}
+
+
+
+
+
+
+
+
+
+
+
+
+	private static function in_year( string $date ): string {
+
+
+
+		$year = isset( $_GET['fmc_year'] ) ? Lists::arg( 'fmc_year' ) : '';
+		if ( ! preg_match( '/^(\d{4})-\d{4}$/', $year, $m ) || SchoolYear::of( $date ) === $year ) {
+			return $date;
+		}
+		return $m[1] . '-09-01';
 	}
 
 
@@ -6236,11 +6259,11 @@ final class Calendar {
 	public static function day(): string {
 		$d = Lists::arg( 'fmc_day' );
 		if ( preg_match( '/^\d{4}-\d{2}-\d{2}$/', $d ) && strtotime( $d ) ) {
-			return $d;
+			return self::in_year( $d );
 		}
 
 		$m = Lists::arg( 'fmc_month' );
-		return preg_match( '/^(\d{4})-(0[1-9]|1[0-2])$/', $m ) && substr( self::today(), 0, 7 ) !== $m ? $m . '-01' : self::today();
+		return self::in_year( preg_match( '/^(\d{4})-(0[1-9]|1[0-2])$/', $m ) && substr( self::today(), 0, 7 ) !== $m ? $m . '-01' : self::today() );
 	}
 
 

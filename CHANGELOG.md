@@ -12,6 +12,7 @@ en el sitio de destino se hace después.
 
 ### Cambiado
 
+- **Elegir un curso escolar lleva el calendario a ese curso**: si el mes que se está viendo no es de él, se va a septiembre, que es por donde empieza. Antes el filtro no movía el calendario y parecía que no hacía nada, porque manda el mes que se ve. Después, las flechas siguen mandando
 - **La lista de «Asesoría responsable» dice qué es cada cuenta**: la asesoría, su tipo —«· TIC»—, y quien no lo es, su perfil —«· Coordinación»—, para que no parezca que está ahí por error. Quien despliega puede acortar ese rótulo a lo que use en casa con el filtro `fmc_role_tags`
 
 ## [0.0.12] — 2026-11-01
