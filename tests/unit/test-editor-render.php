@@ -485,7 +485,9 @@ class Test_Editor_Render extends WP_UnitTestCase {
 
 		$this->assertStringContainsString( 'Aún no hay ninguna asesoría con cuenta en el aplicativo', Editor::screen( 0, PostTypes::ACTION )['body'] );
 
-		$this->as_role( 'fmc_curator' );
+		// La coordinación ya no es asesoría (ADR-0024): el aviso sigue saliendo
+		// hasta que haya alguna cuenta de asesoría.
+		$this->as_role( 'fmc_adviser' );
 		$this->assertStringNotContainsString( 'Aún no hay ninguna asesoría', Editor::screen( 0, PostTypes::ACTION )['body'] );
 	}
 
@@ -493,8 +495,9 @@ class Test_Editor_Render extends WP_UnitTestCase {
 	 * Las asesorías salen para elegir; las listas largas llevan buscador.
 	 */
 	public function test_adviser_and_term_choices() {
-		$curator = $this->as_role( 'fmc_curator' );
+		$adviser = $this->as_role( 'fmc_adviser' );
 		$this->factory()->user->create( array( 'role' => 'fmc_training_service' ) );
+		$this->factory()->user->create( array( 'role' => 'fmc_curator' ) );
 		for ( $i = 0; $i < 11; $i++ ) {
 			self::factory()->term->create( array( 'taxonomy' => 'fmc_scope' ) );
 		}
@@ -502,8 +505,8 @@ class Test_Editor_Render extends WP_UnitTestCase {
 		$body = Editor::screen( 0, PostTypes::ACTION )['body'];
 
 		$advisers = $this->find( $body, '//select[@name="f[fmc_adviser]"]/option[@value!=""]' );
-		$this->assertSame( 1, $advisers->length, 'el servicio de perfeccionamiento no es asesoría' );
-		$this->assertSame( (string) $curator, $advisers->item( 0 )->getAttribute( 'value' ) );
+		$this->assertSame( 1, $advisers->length, 'ni el servicio de perfeccionamiento ni la coordinación son asesoría' );
+		$this->assertSame( (string) $adviser, $advisers->item( 0 )->getAttribute( 'value' ) );
 		$this->assertFalse( $this->find( $body, '//select[@name="f[fmc_adviser]"]' )->item( 0 )->hasAttribute( 'data-fmc-ts' ) );
 
 		$scopes = $this->find( $body, '//select[@name="f[tax:fmc_scope]"]' )->item( 0 );

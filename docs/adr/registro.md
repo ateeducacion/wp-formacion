@@ -73,3 +73,4 @@ adenda del 2026-10-28).
 | [ADR-0021](ADR-0021-el-centro-donde-se-imparte-se-elige-del-catalogo-por-su-codigo.md) | El centro donde se imparte se elige del catálogo de centros, por su código | Propuesta |
 | [ADR-0022](ADR-0022-la-asesoria-pertenece-a-un-centro-y-solo-ve-sus-incidencias.md) | La asesoría pertenece a un centro, y solo ve sus incidencias | Propuesta |
 | [ADR-0023](ADR-0023-las-asesorias-se-dan-de-alta-pegando-la-lista-del-curso.md) | Las asesorías se dan de alta pegando la lista del curso | Propuesta |
+| [ADR-0024](ADR-0024-quien-gestiono-la-accion-se-guarda-con-su-nombre.md) | Quién gestionó la acción se guarda con su nombre, y solo la asesoría la gestiona | Propuesta |

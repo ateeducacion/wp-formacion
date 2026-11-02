@@ -30,6 +30,12 @@ use Fmc\User\Advisers;
 final class Editor {
 
 	/**
+	 * Meta the migration left with the adviser's name, as the previous system
+	 * wrote it: ahí no había cuentas, solo texto.
+	 */
+	public const LEGACY_ADVISER = '_fmc_legacy_adviser';
+
+	/**
 	 * Option with the last design code given, so a deleted one is not given again.
 	 */
 	public const CODE_OPTION = 'fmc_design_code_last';
@@ -456,6 +462,9 @@ final class Editor {
 		if ( 'centre' === $f['w'] ) {
 			$help .= self::centre_help( (int) ( $f['post'] ?? 0 ), is_string( $value ) ? $value : '', $can, (int) ( $f['scope'] ?? 0 ) );
 		}
+		if ( 'adviser' === $f['w'] ) {
+			$help .= self::adviser_help( (int) ( $f['post'] ?? 0 ), absint( $value ) );
+		}
 		if ( $can && ! empty( $f['add'] ) && current_user_can( get_post_type_object( $f['add'] )->cap->create_posts ) ) {
 			$help .= '<div class="form-text"><a href="' . esc_url(
 				Screen::url(
@@ -658,7 +667,7 @@ final class Editor {
 			return self::term_choices( substr( $key, 4 ), (array) ( $f['stored'] ?? array() ) );
 		}
 		if ( 'adviser' === $f['w'] ) {
-			return self::adviser_choices( absint( $f['stored'] ?? 0 ) );
+			return self::adviser_choices( absint( $f['stored'] ?? 0 ), (int) ( $f['post'] ?? 0 ) );
 		}
 		if ( 'centre' === $f['w'] ) {
 			return self::centre_choices( (string) ( $f['stored'] ?? '' ), (int) ( $f['post'] ?? 0 ), (int) ( $f['scope'] ?? 0 ) );
@@ -690,15 +699,19 @@ final class Editor {
 	 * se desactivó (ADR-0021).
 	 *
 	 * @param int $stored Adviser the entry already has.
+	 * @param int $action Action ID; 0 when new.
 	 * @return array<int, string>
 	 */
-	private static function adviser_choices( int $stored ): array {
+	private static function adviser_choices( int $stored, int $action = 0 ): array {
 		$choices = Advisers::choices();
 		if ( ! $stored || isset( $choices[ $stored ] ) ) {
 			return $choices;
 		}
+		// Si la cuenta se borró, el nombre lo dice la acción, que lo guardó al
+		// elegirla (ADR-0024).
 		$user               = get_user_by( 'id', $stored );
-		$choices[ $stored ] = ( $user instanceof \WP_User ? $user->display_name : 'Cuenta ' . $stored ) . ' — ya no es asesoría';
+		$name               = $user instanceof \WP_User ? $user->display_name : (string) get_post_meta( $action, A::ADVISER_NAME, true );
+		$choices[ $stored ] = ( '' !== $name ? $name : 'Cuenta ' . $stored ) . ' — ya no es asesoría';
 
 		return $choices;
 	}
@@ -794,6 +807,31 @@ final class Editor {
 			return null;
 		}
 		return CentreCatalogue::find_by_name( $term->name );
+	}
+
+	/**
+	 * What the adviser field says below it.
+	 *
+	 * El sistema anterior guardaba la asesoría como texto, no como cuenta, y
+	 * de las 3.983 acciones migradas la mayoría llegó así. Ese nombre se
+	 * enseña mientras no se elija una cuenta, igual que el centro escrito a
+	 * mano (ADR-0021, ADR-0024): el histórico dice quién la gestionó aunque
+	 * esa persona no tenga cuenta en el aplicativo.
+	 *
+	 * @param int $action Action ID; 0 when new.
+	 * @param int $chosen Account chosen in the field.
+	 * @return string
+	 */
+	private static function adviser_help( int $action, int $chosen ): string {
+		if ( $chosen || ! $action ) {
+			return '';
+		}
+		$legacy = trim( (string) get_post_meta( $action, self::LEGACY_ADVISER, true ) );
+		if ( '' === $legacy ) {
+			$legacy = trim( (string) get_post_meta( $action, A::ADVISER_NAME, true ) );
+		}
+
+		return '' === $legacy ? '' : '<div class="form-text">Asesoría en el sistema anterior: «' . esc_html( $legacy ) . '».</div>';
 	}
 
 	/**
@@ -1314,6 +1352,9 @@ final class Editor {
 		if ( PostTypes::ACTION === $type && array_key_exists( A::VENUE_CODE, $values ) ) {
 			self::venue_name( $id, (string) $values[ A::VENUE_CODE ], $was_venue );
 		}
+		if ( PostTypes::ACTION === $type && array_key_exists( A::ADVISER, $values ) ) {
+			self::adviser_name( $id, absint( $values[ A::ADVISER ] ) );
+		}
 
 		$problems = array();
 		if ( PostTypes::DESIGN === $type && ( $files || $remove ) ) {
@@ -1351,6 +1392,29 @@ final class Editor {
 			update_post_meta( $action, A::VENUE_CENTRE, $centre['name'] );
 		} elseif ( '' === $code && '' !== $was ) {
 			delete_post_meta( $action, A::VENUE_CENTRE );
+		}
+	}
+
+	/**
+	 * Keep the name of the adviser next to their account.
+	 *
+	 * La cuenta puede borrarse —quien deja de estar se va de la red— y el
+	 * histórico tiene que seguir diciendo quién gestionó la acción. Es lo
+	 * mismo que se hace con el centro (ADR-0021): el código y el nombre
+	 * (ADR-0024).
+	 *
+	 * @param int $action  Action ID.
+	 * @param int $adviser Account saved; 0 for none.
+	 * @return void
+	 */
+	private static function adviser_name( int $action, int $adviser ): void {
+		$user = $adviser ? get_user_by( 'id', $adviser ) : false;
+		if ( $user instanceof \WP_User ) {
+			update_post_meta( $action, A::ADVISER_NAME, $user->display_name );
+			return;
+		}
+		if ( ! $adviser ) {
+			delete_post_meta( $action, A::ADVISER_NAME );
 		}
 	}
 

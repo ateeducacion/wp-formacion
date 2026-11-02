@@ -371,7 +371,7 @@ ni en este fichero:
 |---|---|
 | URL de analítica, de avisos de cookies o de servicios de una organización, y sus identificadores | Configuración: el filtro `fmc_chrome`, vacío por defecto |
 | El nombre, el escudo, el rótulo o los enlaces legales de una organización | Lo mismo |
-| Cómo llama una instalación a sus perfiles o a quién paga | Configuración: los filtros `fmc_role_labels`, `fmc_role_tags` —la etiqueta corta de cada perfil en las listas de cuentas— y `fmc_funders`, en un snippet de despliegue que no se versiona |
+| Cómo llama una instalación a sus perfiles o a quién paga | Configuración: los filtros `fmc_role_labels` y `fmc_funders`, en un snippet de despliegue que no se versiona |
 | El nombre de la red, del sitio o del subsitio de destino | El `.env`, que no se sube. `.env.dist` los trae **vacíos** |
 | Cómo era la instalación anterior por dentro: sus formularios, vistas, campos, fragmentos de código y sus números | `.local/`, que está en el `.gitignore` |
 | Cuánta gente hay, en qué áreas y con qué rol | `.local/`, o se escribe la decisión sin la cifra |

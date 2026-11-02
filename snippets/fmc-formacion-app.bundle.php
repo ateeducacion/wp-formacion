@@ -291,15 +291,21 @@ final class ActionMetaKeys {
 	public const PROCESS          = 'fmc_process';
 	public const SITUATION        = 'fmc_situation';
 	public const ADVISER          = 'fmc_adviser';
-	public const SPEAKERS         = 'fmc_speakers';
-	public const ENROLLED_MEN     = 'fmc_enrolled_men';
-	public const ENROLLED_WOMEN   = 'fmc_enrolled_women';
-	public const ATTENDED_MEN     = 'fmc_attended_men';
-	public const ATTENDED_WOMEN   = 'fmc_attended_women';
-	public const CERTIFIED_MEN    = 'fmc_certified_men';
-	public const CERTIFIED_WOMEN  = 'fmc_certified_women';
-	public const DOCS_DELIVERED   = 'fmc_docs_delivered';
-	public const COMPLETED        = 'fmc_completed';
+
+
+
+
+
+	public const ADVISER_NAME    = 'fmc_adviser_name';
+	public const SPEAKERS        = 'fmc_speakers';
+	public const ENROLLED_MEN    = 'fmc_enrolled_men';
+	public const ENROLLED_WOMEN  = 'fmc_enrolled_women';
+	public const ATTENDED_MEN    = 'fmc_attended_men';
+	public const ATTENDED_WOMEN  = 'fmc_attended_women';
+	public const CERTIFIED_MEN   = 'fmc_certified_men';
+	public const CERTIFIED_WOMEN = 'fmc_certified_women';
+	public const DOCS_DELIVERED  = 'fmc_docs_delivered';
+	public const COMPLETED       = 'fmc_completed';
 
 
 
@@ -444,6 +450,7 @@ final class ActionMetaKeys {
 			self::PROCESS          => MetaTypes::STRING,
 			self::SITUATION        => MetaTypes::STRING,
 			self::ADVISER          => MetaTypes::INT,
+			self::ADVISER_NAME     => MetaTypes::STRING,
 			self::SPEAKERS         => MetaTypes::IDS,
 			self::ENROLLED_MEN     => MetaTypes::INT,
 			self::ENROLLED_WOMEN   => MetaTypes::INT,
@@ -1662,21 +1669,13 @@ final class Advisers {
 
 
 
-	public const ROLES = array( 'fmc_adviser', 'fmc_curator' );
 
 
 
 
 
+	public const ROLES = array( 'fmc_adviser' );
 
-
-
-
-	public const ROLE_TAGS = array(
-		'fmc_curator'          => 'Coordinación',
-		'fmc_training_service' => 'Servicio',
-		'administrator'        => 'Administración',
-	);
 
 
 
@@ -1785,40 +1784,11 @@ final class Advisers {
 
 
 		cache_users( wp_list_pluck( $users, 'ID' ) );
-		$tags = (array) apply_filters( 'fmc_role_tags', self::ROLE_TAGS );
 		foreach ( $users as $u ) {
-			$tag                 = self::tag( (int) $u->ID, $tags );
-			$out[ (int) $u->ID ] = $u->display_name . ( '' !== $tag ? ' · ' . $tag : '' );
+			$kind                = self::kind( (int) $u->ID );
+			$out[ (int) $u->ID ] = $u->display_name . ( '' !== $kind ? ' · ' . self::KINDS[ $kind ] : '' );
 		}
 		return $out;
-	}
-
-
-
-
-
-
-
-
-
-
-
-
-	private static function tag( int $user_id, array $tags ): string {
-		$user = get_userdata( $user_id );
-		if ( ! $user instanceof \WP_User ) {
-			return '';
-		}
-		if ( in_array( 'fmc_adviser', (array) $user->roles, true ) ) {
-			$kind = self::kind( $user_id );
-			return '' !== $kind ? self::KINDS[ $kind ] : '';
-		}
-		foreach ( array_keys( self::ROLE_TAGS ) as $role ) {
-			if ( in_array( $role, (array) $user->roles, true ) ) {
-				return (string) ( $tags[ $role ] ?? '' );
-			}
-		}
-		return '';
 	}
 
 
@@ -6713,6 +6683,12 @@ final class Editor {
 
 
 
+
+	public const LEGACY_ADVISER = '_fmc_legacy_adviser';
+
+
+
+
 	public const CODE_OPTION = 'fmc_design_code_last';
 
 
@@ -7137,6 +7113,9 @@ final class Editor {
 		if ( 'centre' === $f['w'] ) {
 			$help .= self::centre_help( (int) ( $f['post'] ?? 0 ), is_string( $value ) ? $value : '', $can, (int) ( $f['scope'] ?? 0 ) );
 		}
+		if ( 'adviser' === $f['w'] ) {
+			$help .= self::adviser_help( (int) ( $f['post'] ?? 0 ), absint( $value ) );
+		}
 		if ( $can && ! empty( $f['add'] ) && current_user_can( get_post_type_object( $f['add'] )->cap->create_posts ) ) {
 			$help .= '<div class="form-text"><a href="' . esc_url(
 				Screen::url(
@@ -7339,7 +7318,7 @@ final class Editor {
 			return self::term_choices( substr( $key, 4 ), (array) ( $f['stored'] ?? array() ) );
 		}
 		if ( 'adviser' === $f['w'] ) {
-			return self::adviser_choices( absint( $f['stored'] ?? 0 ) );
+			return self::adviser_choices( absint( $f['stored'] ?? 0 ), (int) ( $f['post'] ?? 0 ) );
 		}
 		if ( 'centre' === $f['w'] ) {
 			return self::centre_choices( (string) ( $f['stored'] ?? '' ), (int) ( $f['post'] ?? 0 ), (int) ( $f['scope'] ?? 0 ) );
@@ -7373,13 +7352,17 @@ final class Editor {
 
 
 
-	private static function adviser_choices( int $stored ): array {
+
+	private static function adviser_choices( int $stored, int $action = 0 ): array {
 		$choices = Advisers::choices();
 		if ( ! $stored || isset( $choices[ $stored ] ) ) {
 			return $choices;
 		}
+
+
 		$user               = get_user_by( 'id', $stored );
-		$choices[ $stored ] = ( $user instanceof \WP_User ? $user->display_name : 'Cuenta ' . $stored ) . ' — ya no es asesoría';
+		$name               = $user instanceof \WP_User ? $user->display_name : (string) get_post_meta( $action, A::ADVISER_NAME, true );
+		$choices[ $stored ] = ( '' !== $name ? $name : 'Cuenta ' . $stored ) . ' — ya no es asesoría';
 
 		return $choices;
 	}
@@ -7475,6 +7458,31 @@ final class Editor {
 			return null;
 		}
 		return CentreCatalogue::find_by_name( $term->name );
+	}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+	private static function adviser_help( int $action, int $chosen ): string {
+		if ( $chosen || ! $action ) {
+			return '';
+		}
+		$legacy = trim( (string) get_post_meta( $action, self::LEGACY_ADVISER, true ) );
+		if ( '' === $legacy ) {
+			$legacy = trim( (string) get_post_meta( $action, A::ADVISER_NAME, true ) );
+		}
+
+		return '' === $legacy ? '' : '<div class="form-text">Asesoría en el sistema anterior: «' . esc_html( $legacy ) . '».</div>';
 	}
 
 
@@ -7995,6 +8003,9 @@ final class Editor {
 		if ( PostTypes::ACTION === $type && array_key_exists( A::VENUE_CODE, $values ) ) {
 			self::venue_name( $id, (string) $values[ A::VENUE_CODE ], $was_venue );
 		}
+		if ( PostTypes::ACTION === $type && array_key_exists( A::ADVISER, $values ) ) {
+			self::adviser_name( $id, absint( $values[ A::ADVISER ] ) );
+		}
 
 		$problems = array();
 		if ( PostTypes::DESIGN === $type && ( $files || $remove ) ) {
@@ -8032,6 +8043,29 @@ final class Editor {
 			update_post_meta( $action, A::VENUE_CENTRE, $centre['name'] );
 		} elseif ( '' === $code && '' !== $was ) {
 			delete_post_meta( $action, A::VENUE_CENTRE );
+		}
+	}
+
+
+
+
+
+
+
+
+
+
+
+
+
+	private static function adviser_name( int $action, int $adviser ): void {
+		$user = $adviser ? get_user_by( 'id', $adviser ) : false;
+		if ( $user instanceof \WP_User ) {
+			update_post_meta( $action, A::ADVISER_NAME, $user->display_name );
+			return;
+		}
+		if ( ! $adviser ) {
+			delete_post_meta( $action, A::ADVISER_NAME );
 		}
 	}
 

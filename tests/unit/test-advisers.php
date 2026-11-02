@@ -127,38 +127,24 @@ class Test_Advisers extends WP_UnitTestCase {
 	}
 
 	/**
-	 * Al elegir la asesoría responsable, cada cuenta dice lo que es: la
-	 * asesoría su tipo y la coordinación su perfil, para que no parezca que
-	 * está ahí por error. El servicio de perfeccionamiento no es asesoría.
+	 * Al elegir la asesoría responsable solo salen las asesorías, con su tipo:
+	 * ni la coordinación ni el servicio de perfeccionamiento gestionan
+	 * acciones (ADR-0024).
 	 */
-	public function test_the_choices_say_what_each_account_is() {
-		$ana  = $this->account( 'fmc_adviser', 'Ana', 'ict' );
-		$luis = $this->account( 'fmc_curator', 'Luis' );
-		$sin  = $this->account( 'fmc_adviser', 'Sin tipo' );
+	public function test_only_the_advisers_can_be_chosen() {
+		$ana = $this->account( 'fmc_adviser', 'Ana', 'ict' );
+		$sin = $this->account( 'fmc_adviser', 'Sin tipo' );
+		$this->account( 'fmc_curator', 'Luis' );
 		$this->account( 'fmc_training_service', 'Servicio' );
 
 		$this->assertSame(
 			array(
-				$ana  => 'Ana · TIC',
-				$luis => 'Luis · Coordinación',
-				$sin  => 'Sin tipo',
+				$ana => 'Ana · TIC',
+				$sin => 'Sin tipo',
 			),
 			Advisers::choices()
 		);
 		$this->assertSame( array( $ana ), Advisers::of_kind( 'ict' ) );
-	}
-
-	/**
-	 * Cómo llama cada instalación a sus perfiles es suyo: lo acorta por filtro.
-	 */
-	public function test_the_deployment_shortens_the_profile_tag() {
-		$luis    = $this->account( 'fmc_curator', 'Luis' );
-		$corto   = static fn() => array( 'fmc_curator' => 'ATEx' );
-		add_filter( 'fmc_role_tags', $corto );
-		$choices = Advisers::choices();
-		remove_filter( 'fmc_role_tags', $corto );
-
-		$this->assertSame( 'Luis · ATEx', $choices[ $luis ] );
 	}
 
 	/**
@@ -188,6 +174,14 @@ class Test_Advisers extends WP_UnitTestCase {
 
 		$wrong = Editor::apply( PostTypes::ACTION, 0, $fields( $service ), '', 0 );
 		$this->assertSame( 'La asesoría elegida no es una cuenta de asesoría de este sitio.', $wrong['errors'][ A::ADVISER ] );
+
+		// El nombre se guarda junto a la cuenta: la acción dice quién la
+		// gestionó aunque la cuenta se borre (ADR-0024).
+		$this->assertSame( 'Ana', get_post_meta( $saved['id'], A::ADVISER_NAME, true ) );
+
+		$sin = Editor::apply( PostTypes::ACTION, $saved['id'], array( A::ADVISER => '' ) + $fields( $ana ), '', 0 );
+		$this->assertSame( 'saved', $sin['outcome'] );
+		$this->assertSame( '', get_post_meta( $saved['id'], A::ADVISER_NAME, true ), 'Sin asesoría, tampoco su nombre.' );
 	}
 
 	/**
