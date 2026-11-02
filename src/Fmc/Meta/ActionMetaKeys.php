@@ -56,15 +56,21 @@ final class ActionMetaKeys {
 	public const PROCESS          = 'fmc_process';
 	public const SITUATION        = 'fmc_situation';
 	public const ADVISER          = 'fmc_adviser';
-	public const SPEAKERS         = 'fmc_speakers';
-	public const ENROLLED_MEN     = 'fmc_enrolled_men';
-	public const ENROLLED_WOMEN   = 'fmc_enrolled_women';
-	public const ATTENDED_MEN     = 'fmc_attended_men';
-	public const ATTENDED_WOMEN   = 'fmc_attended_women';
-	public const CERTIFIED_MEN    = 'fmc_certified_men';
-	public const CERTIFIED_WOMEN  = 'fmc_certified_women';
-	public const DOCS_DELIVERED   = 'fmc_docs_delivered';
-	public const COMPLETED        = 'fmc_completed';
+
+	/**
+	 * Name of the adviser when the action was saved, next to the account
+	 * (ADR-0024): la cuenta puede borrarse y el histórico se queda.
+	 */
+	public const ADVISER_NAME    = 'fmc_adviser_name';
+	public const SPEAKERS        = 'fmc_speakers';
+	public const ENROLLED_MEN    = 'fmc_enrolled_men';
+	public const ENROLLED_WOMEN  = 'fmc_enrolled_women';
+	public const ATTENDED_MEN    = 'fmc_attended_men';
+	public const ATTENDED_WOMEN  = 'fmc_attended_women';
+	public const CERTIFIED_MEN   = 'fmc_certified_men';
+	public const CERTIFIED_WOMEN = 'fmc_certified_women';
+	public const DOCS_DELIVERED  = 'fmc_docs_delivered';
+	public const COMPLETED       = 'fmc_completed';
 
 	/**
 	 * Where the action sits in the centres' own training plans. El itinerario
@@ -209,6 +215,7 @@ final class ActionMetaKeys {
 			self::PROCESS          => MetaTypes::STRING,
 			self::SITUATION        => MetaTypes::STRING,
 			self::ADVISER          => MetaTypes::INT,
+			self::ADVISER_NAME     => MetaTypes::STRING,
 			self::SPEAKERS         => MetaTypes::IDS,
 			self::ENROLLED_MEN     => MetaTypes::INT,
 			self::ENROLLED_WOMEN   => MetaTypes::INT,

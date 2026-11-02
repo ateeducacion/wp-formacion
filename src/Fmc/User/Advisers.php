@@ -43,22 +43,14 @@ final class Advisers {
 
 	/**
 	 * Roles whose accounts can be the adviser of an action.
-	 */
-	public const ROLES = array( 'fmc_adviser', 'fmc_curator' );
-
-	/**
-	 * Etiqueta corta de cada perfil en las listas de cuentas, para que se vea
-	 * de un vistazo quién es quién sin leer el rótulo entero del rol.
 	 *
-	 * La asesoría lleva su tipo —TIC, STEAM—; los demás, esto. Cada
-	 * instalación llama a los suyos como quiera y lo acorta con el filtro
-	 * `fmc_role_tags` desde su snippet de despliegue (ADR-0002).
+	 * Solo la asesoría: quien coordina o lleva el servicio no imparte ni
+	 * gestiona acciones, y salir en la lista hacía pensar que sí (ADR-0024).
+	 * Quien fue asesoría y ya no lo es se queda en lo que ya gestionó, con su
+	 * aviso, pero no se puede elegir de nuevo.
 	 */
-	public const ROLE_TAGS = array(
-		'fmc_curator'          => 'Coordinación',
-		'fmc_training_service' => 'Servicio',
-		'administrator'        => 'Administración',
-	);
+	public const ROLES = array( 'fmc_adviser' );
+
 
 	/**
 	 * Hook registration: the kind in the dashboard's user profile and list.
@@ -151,7 +143,7 @@ final class Advisers {
 	}
 
 	/**
-	 * The accounts that can be the adviser of an action, with what they are.
+	 * The accounts that can be the adviser of an action, with their kind.
 	 *
 	 * @return array<int, string> User ID => «Nombre · TIC».
 	 */
@@ -167,40 +159,11 @@ final class Advisers {
 		// Pedir solo dos columnas no deja nada en caché, y leer el tipo de cada
 		// cuenta sería una consulta por asesoría. Se traen todas de una vez.
 		cache_users( wp_list_pluck( $users, 'ID' ) );
-		$tags = (array) apply_filters( 'fmc_role_tags', self::ROLE_TAGS );
 		foreach ( $users as $u ) {
-			$tag                 = self::tag( (int) $u->ID, $tags );
-			$out[ (int) $u->ID ] = $u->display_name . ( '' !== $tag ? ' · ' . $tag : '' );
+			$kind                = self::kind( (int) $u->ID );
+			$out[ (int) $u->ID ] = $u->display_name . ( '' !== $kind ? ' · ' . self::KINDS[ $kind ] : '' );
 		}
 		return $out;
-	}
-
-	/**
-	 * What an account is, in a word, for a list of accounts.
-	 *
-	 * De una asesoría se dice su tipo, que es lo que la distingue de otra; de
-	 * quien no lo es, su perfil, para que no parezca que está en la lista por
-	 * error. Sin tipo puesto, una asesoría sale con el nombre solo.
-	 *
-	 * @param int                   $user_id User.
-	 * @param array<string, string> $tags    Role => short label.
-	 * @return string
-	 */
-	private static function tag( int $user_id, array $tags ): string {
-		$user = get_userdata( $user_id );
-		if ( ! $user instanceof \WP_User ) {
-			return '';
-		}
-		if ( in_array( 'fmc_adviser', (array) $user->roles, true ) ) {
-			$kind = self::kind( $user_id );
-			return '' !== $kind ? self::KINDS[ $kind ] : '';
-		}
-		foreach ( array_keys( self::ROLE_TAGS ) as $role ) {
-			if ( in_array( $role, (array) $user->roles, true ) ) {
-				return (string) ( $tags[ $role ] ?? '' );
-			}
-		}
-		return '';
 	}
 
 	/**

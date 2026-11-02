@@ -437,20 +437,47 @@ class Test_Adviser_Centre extends WP_UnitTestCase {
 	}
 
 	/**
-	 * La cuenta borrada tampoco se pierde: la acción dice de quién era.
+	 * La cuenta borrada tampoco se pierde: la acción dice de quién era, porque
+	 * guardó su nombre al elegirla (ADR-0024).
 	 */
-	public function test_a_deleted_account_is_still_shown_in_the_action_that_had_it() {
+	public function test_a_deleted_account_is_still_named_by_the_action() {
 		$this->scope_term();
-		$was    = self::factory()->user->create( array( 'role' => 'fmc_adviser' ) );
+		$was    = self::factory()->user->create(
+			array(
+				'role'         => 'fmc_adviser',
+				'display_name' => 'Quien se fue',
+			)
+		);
 		$action = $this->action( $was );
-		$me     = $this->adviser();
+		update_post_meta( $action, A::ADVISER_NAME, 'Quien se fue' );
+		$me = $this->adviser();
 		// Al borrar la cuenta, sus entradas se le pasan a quien queda: lo que
 		// se pierde es el nombre, no la acción.
 		wp_delete_user( $was, $me );
 
 		$body = Editor::render( PostTypes::ACTION, get_post( $action ), array(), array() )['body'];
 
-		$this->assertStringContainsString( '>Cuenta ' . $was . ' — ya no es asesoría</option>', $body );
+		$this->assertStringContainsString( '>Quien se fue — ya no es asesoría</option>', $body );
+	}
+
+	/**
+	 * Lo migrado no trae cuenta, solo el nombre que escribió el sistema
+	 * anterior: se enseña debajo del campo mientras no se elija una.
+	 */
+	public function test_the_adviser_of_the_previous_system_is_shown_under_the_field() {
+		$this->scope_term();
+		$me     = $this->adviser();
+		$action = $this->action( 0 );
+		delete_post_meta( $action, A::ADVISER );
+		update_post_meta( $action, Editor::LEGACY_ADVISER, 'Francisco David León Medina' );
+
+		$body = Editor::render( PostTypes::ACTION, get_post( $action ), array(), array() )['body'];
+
+		$this->assertStringContainsString( 'Asesoría en el sistema anterior: «Francisco David León Medina».', $body );
+
+		// Al elegir una cuenta, el aviso sobra.
+		update_post_meta( $action, A::ADVISER, $me );
+		$this->assertStringNotContainsString( 'Asesoría en el sistema anterior', Editor::render( PostTypes::ACTION, get_post( $action ), array(), array() )['body'] );
 	}
 
 	/**

@@ -123,3 +123,11 @@ Lo prueba `tests/unit/test-advisers.php`.
   código, no se ha contestado y queda fuera.
 - Si con el uso hace falta contar por puesto y no por persona, el directorio
   de la opción 1 es el camino, con su propia ADR.
+
+## Adenda — 2026-11-02
+
+La asesoría responsable de una acción ya no puede ser una cuenta de
+coordinación: quien coordina no imparte ni gestiona formación, y salir en la
+lista hacía pensar lo contrario. El porqué y lo que se hace con el histórico
+—el nombre se guarda junto a la cuenta— están en
+[ADR-0024](ADR-0024-quien-gestiono-la-accion-se-guarda-con-su-nombre.md).
