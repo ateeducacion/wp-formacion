@@ -179,6 +179,34 @@ class Test_Calendar extends WP_UnitTestCase {
 	}
 
 	/**
+	 * Elegir un curso lleva el calendario a ese curso: si el mes que se está
+	 * viendo no es de él, se va a septiembre, que es por donde empieza.
+	 */
+	public function test_choosing_a_school_year_moves_the_calendar_to_it() {
+		$this->as_role( 'fmc_curator' );
+
+		$_GET = array(
+			'fmc_month' => '2026-11',
+			'fmc_year'  => '2024-2025',
+		);
+		$this->assertSame( '2024-09-01', Calendar::month() );
+		$this->assertSame( '2024-09-01', Calendar::day() );
+
+		// Un mes que sí es de ese curso se respeta.
+		$_GET['fmc_month'] = '2025-03';
+		$this->assertSame( '2025-03-01', Calendar::month() );
+
+		// Y un día elegido a mano, también.
+		$_GET['fmc_day'] = '2025-03-10';
+		$this->assertSame( '2025-03-10', Calendar::day() );
+
+		// Sin curso elegido, manda el mes.
+		unset( $_GET['fmc_year'] );
+		$_GET['fmc_month'] = '2026-11';
+		$this->assertSame( '2026-11-01', Calendar::month() );
+	}
+
+	/**
 	 * Hoy lleva su marca cuando se ve el mes en curso.
 	 */
 	public function test_today_is_marked() {

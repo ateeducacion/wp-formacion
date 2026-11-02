@@ -6,7 +6,7 @@
  * Priority: 15
  *
  * @package Fmc
- * @version 0.0.12
+ * @version 0.0.13
  */
 
 // phpcs:disable
@@ -1669,6 +1669,20 @@ final class Advisers {
 
 
 
+
+
+
+	public const ROLE_TAGS = array(
+		'fmc_curator'          => 'Coordinación',
+		'fmc_training_service' => 'Servicio',
+		'administrator'        => 'Administración',
+	);
+
+
+
+
+
+
 	public static function hooks(): void {
 		add_action( 'show_user_profile', array( self::class, 'profile_field' ) );
 		add_action( 'edit_user_profile', array( self::class, 'profile_field' ) );
@@ -1771,11 +1785,40 @@ final class Advisers {
 
 
 		cache_users( wp_list_pluck( $users, 'ID' ) );
+		$tags = (array) apply_filters( 'fmc_role_tags', self::ROLE_TAGS );
 		foreach ( $users as $u ) {
-			$kind                = self::kind( (int) $u->ID );
-			$out[ (int) $u->ID ] = $u->display_name . ( '' !== $kind ? ' · ' . self::KINDS[ $kind ] : '' );
+			$tag                 = self::tag( (int) $u->ID, $tags );
+			$out[ (int) $u->ID ] = $u->display_name . ( '' !== $tag ? ' · ' . $tag : '' );
 		}
 		return $out;
+	}
+
+
+
+
+
+
+
+
+
+
+
+
+	private static function tag( int $user_id, array $tags ): string {
+		$user = get_userdata( $user_id );
+		if ( ! $user instanceof \WP_User ) {
+			return '';
+		}
+		if ( in_array( 'fmc_adviser', (array) $user->roles, true ) ) {
+			$kind = self::kind( $user_id );
+			return '' !== $kind ? self::KINDS[ $kind ] : '';
+		}
+		foreach ( array_keys( self::ROLE_TAGS ) as $role ) {
+			if ( in_array( $role, (array) $user->roles, true ) ) {
+				return (string) ( $tags[ $role ] ?? '' );
+			}
+		}
+		return '';
 	}
 
 
@@ -6103,6 +6146,7 @@ final class Lists {
 
 namespace Fmc\PublicFront;
 
+use Fmc\Domain\SchoolYear;
 use Fmc\Meta\ActionMetaKeys as A;
 use Fmc\PostType\PostTypes;
 
@@ -6149,10 +6193,32 @@ final class Calendar {
 	public static function month(): string {
 		$m = Lists::arg( 'fmc_month' );
 		if ( preg_match( '/^(\d{4})-(0[1-9]|1[0-2])$/', $m ) ) {
-			return $m . '-01';
+			return self::in_year( $m . '-01' );
 		}
 
-		return substr( self::day(), 0, 8 ) . '01';
+		return self::in_year( substr( self::day(), 0, 8 ) . '01' );
+	}
+
+
+
+
+
+
+
+
+
+
+
+
+	private static function in_year( string $date ): string {
+
+
+
+		$year = isset( $_GET['fmc_year'] ) ? Lists::arg( 'fmc_year' ) : '';
+		if ( ! preg_match( '/^(\d{4})-\d{4}$/', $year, $m ) || SchoolYear::of( $date ) === $year ) {
+			return $date;
+		}
+		return $m[1] . '-09-01';
 	}
 
 
@@ -6193,11 +6259,11 @@ final class Calendar {
 	public static function day(): string {
 		$d = Lists::arg( 'fmc_day' );
 		if ( preg_match( '/^\d{4}-\d{2}-\d{2}$/', $d ) && strtotime( $d ) ) {
-			return $d;
+			return self::in_year( $d );
 		}
 
 		$m = Lists::arg( 'fmc_month' );
-		return preg_match( '/^(\d{4})-(0[1-9]|1[0-2])$/', $m ) && substr( self::today(), 0, 7 ) !== $m ? $m . '-01' : self::today();
+		return self::in_year( preg_match( '/^(\d{4})-(0[1-9]|1[0-2])$/', $m ) && substr( self::today(), 0, 7 ) !== $m ? $m . '-01' : self::today() );
 	}
 
 

@@ -7,6 +7,7 @@
 
 namespace Fmc\PublicFront;
 
+use Fmc\Domain\SchoolYear;
 use Fmc\Meta\ActionMetaKeys as A;
 use Fmc\PostType\PostTypes;
 
@@ -52,10 +53,32 @@ final class Calendar {
 	public static function month(): string {
 		$m = Lists::arg( 'fmc_month' );
 		if ( preg_match( '/^(\d{4})-(0[1-9]|1[0-2])$/', $m ) ) {
-			return $m . '-01';
+			return self::in_year( $m . '-01' );
 		}
 		// Desde la semana o el día, el mes de ese día.
-		return substr( self::day(), 0, 8 ) . '01';
+		return self::in_year( substr( self::day(), 0, 8 ) . '01' );
+	}
+
+	/**
+	 * The day, moved into the school year chosen in the filters.
+	 *
+	 * Elegir un curso y seguir viendo el mes en curso es lo que hace pensar
+	 * que el filtro no hace nada: el calendario enseña un mes, y si el mes que
+	 * está viendo no es de ese curso, se va a septiembre, que es por donde
+	 * empieza. Después, las flechas mandan: no llevan el curso consigo.
+	 *
+	 * @param string $date Y-m-d.
+	 * @return string
+	 */
+	private static function in_year( string $date ): string {
+		// Solo manda el curso que se elige: el que vale de serie es el de hoy,
+		// y moverse al mes de hoy no es lo que ha pedido nadie.
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- filtro de lectura.
+		$year = isset( $_GET['fmc_year'] ) ? Lists::arg( 'fmc_year' ) : '';
+		if ( ! preg_match( '/^(\d{4})-\d{4}$/', $year, $m ) || SchoolYear::of( $date ) === $year ) {
+			return $date;
+		}
+		return $m[1] . '-09-01';
 	}
 
 	/**
@@ -96,11 +119,11 @@ final class Calendar {
 	public static function day(): string {
 		$d = Lists::arg( 'fmc_day' );
 		if ( preg_match( '/^\d{4}-\d{2}-\d{2}$/', $d ) && strtotime( $d ) ) {
-			return $d;
+			return self::in_year( $d );
 		}
 		// Del mes a la semana: la de hoy si es este mes; si no, la primera del mes.
 		$m = Lists::arg( 'fmc_month' );
-		return preg_match( '/^(\d{4})-(0[1-9]|1[0-2])$/', $m ) && substr( self::today(), 0, 7 ) !== $m ? $m . '-01' : self::today();
+		return self::in_year( preg_match( '/^(\d{4})-(0[1-9]|1[0-2])$/', $m ) && substr( self::today(), 0, 7 ) !== $m ? $m . '-01' : self::today() );
 	}
 
 	/**
