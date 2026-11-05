@@ -41,8 +41,17 @@ bundle: ## Empaqueta src/Fmc → snippets/fmc-formacion-app.bundle.php (Code Sni
 check-docker:
 	@docker version > /dev/null || (echo "" && echo "Error: Docker no está en marcha. Arranca Docker e inténtalo de nuevo." && echo "" && exit 1)
 
+# Internal: abre en el portátil el almacén de documentos del sitio local.
+# Al arrancar, wp-env copia el WordPress de desarrollo —subidas incluidas— al de
+# los tests, y no puede leer un documento cerrado en 0200 (ADR-0025). En local
+# ese modo no protege nada (el montaje de Docker lo ignora): se abren, y el
+# aplicativo los vuelve a cerrar en cuanto lee cada uno.
+open-local-store:
+	@DIR="$$($(WP_ENV) status 2>/dev/null | sed -n 's/.*install path: //p')/WordPress/wp-content/uploads/fmc-private"; \
+	[ ! -d "$$DIR" ] || chmod -R u+r "$$DIR"
+
 # Internal: start wp-env only if port 8858 does not answer.
-start-if-not-running: check-docker
+start-if-not-running: check-docker open-local-store
 	@if [ "$$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8858)" = "000" ]; then \
 		echo "El entorno no está en marcha. Arrancando wp-env..."; \
 		$(WP_ENV) start --update; \
@@ -101,6 +110,9 @@ provision: ## Provisiona: idioma, bundle, snippets, roles, vocabulario y datos d
 seed-demo: start-if-not-running ## Rehace los datos de demostración: usuarios, diseños y acciones
 	@$(WP_ENV) run cli wp $(WP_URL) eval-file $(FMC_DEV)/scripts/seed-demo.php
 
+protect-documents: start-if-not-running ## Mueve los documentos de los diseños al almacén privado (ADR-0025; idempotente)
+	@$(WP_ENV) run cli wp $(WP_URL) eval-file $(FMC_DEV)/scripts/protect-documents.php
+
 sync-snippets: ## Sincroniza snippets/*.php con el plugin Code Snippets
 	@echo "Sincronizando snippets..."
 	@$(WP_ENV) run cli wp $(WP_URL) eval-file $(FMC_DEV)/scripts/sync-snippets.php
@@ -156,7 +168,7 @@ test-js: ## Ejecuta los tests unitarios de los guiones de assets/js (Vitest)
 # medir la cobertura pasa por reiniciar el entorno con él y dejarlo luego como
 # estaba: con Xdebug puesto todo va más lento. En CI no se restaura, que la
 # máquina se tira al acabar. El clover sale en coverage.xml (lo sube Codecov).
-coverage: ## Mide la cobertura de src/Fmc (reinicia wp-env con Xdebug)
+coverage: open-local-store ## Mide la cobertura de src/Fmc (reinicia wp-env con Xdebug)
 	@$(WP_ENV) start --xdebug=coverage
 	@$(WP_ENV) run tests-cli --env-cwd=$(FMC_DEV) ./vendor/bin/phpunit \
 		--coverage-filter src/Fmc --coverage-text --coverage-clover coverage.xml; \

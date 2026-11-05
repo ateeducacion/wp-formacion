@@ -133,3 +133,13 @@ para la lista y `?fmc_curso=ID` para la ficha. Se ven sin entrar.
 
 - Si alguna web consume hoy el catálogo como API (REQ-0001, §8, pregunta 5),
   esta pantalla no la sustituye. Habría que decidir esa API aparte.
+
+## Adenda — 2026-11-05: la ficha técnica se publica
+
+De los documentos, uno deja de ser «de trabajo»: la **ficha técnica**, la clase
+«Diseño del curso». La ficha pública de un curso la lista y la enlaza, como
+hacía el catálogo anterior, y se descarga sin sesión mientras el curso esté
+finalizado y en el catálogo. Lo demás —escaleta, presentaciones, recursos,
+otros documentos e imagen— sigue dentro. Cómo se guarda y quién sirve cada
+fichero lo decide
+[ADR-0025](ADR-0025-los-documentos-del-diseno-se-sirven-por-el-aplicativo.md).

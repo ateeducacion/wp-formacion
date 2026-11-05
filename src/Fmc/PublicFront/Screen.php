@@ -246,6 +246,12 @@ final class Screen {
 		if ( ! is_front_page() ) {
 			return;
 		}
+		// Un documento decide él mismo quién lo descarga: la ficha técnica de un
+		// curso del catálogo, cualquiera; el resto, quien lea su diseño (ADR-0025).
+		if ( '' !== Lists::arg( Documents::ARG ) ) {
+			Documents::serve();
+			return;
+		}
 		// El catálogo es público: se ve sin sesión.
 		if ( Catalogue::asked() ) {
 			nocache_headers();

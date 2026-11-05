@@ -6,6 +6,7 @@
  */
 
 use Fmc\PostType\PostTypes;
+use Fmc\PublicFront\DocumentStore;
 use Fmc\PublicFront\Documents;
 
 /**
@@ -31,6 +32,38 @@ class Test_Documents extends WP_UnitTestCase {
 		parent::set_up();
 		fmc_register_roles();
 		PostTypes::grant_caps_to_roles();
+	}
+
+	/**
+	 * No session left behind.
+	 */
+	public function tear_down() {
+		wp_set_current_user( 0 );
+		parent::tear_down();
+	}
+
+	/**
+	 * Permission bits of a file, as `0200`.
+	 *
+	 * @param string $path Path.
+	 * @return int
+	 */
+	private function mode( string $path ): int {
+		clearstatcache( true, $path );
+		return fileperms( $path ) & 0777;
+	}
+
+	/**
+	 * One document of a kind, stored in a design by a curator.
+	 *
+	 * @param int                  $id   Design.
+	 * @param string               $kind Kind.
+	 * @param array<string, mixed> $file Upload.
+	 * @return int Attachment ID.
+	 */
+	private function stored( int $id, string $kind, array $file ): int {
+		$this->assertSame( array(), Documents::apply( $id, array( $kind => array( $file ) ), array() ) );
+		return Documents::of( $id )[ $kind ][0]->ID;
 	}
 
 	/**
@@ -172,7 +205,7 @@ class Test_Documents extends WP_UnitTestCase {
 		$second = Documents::of( $id )['image'];
 		$this->assertCount( 1, $second );
 		$this->assertNull( get_post( $first[0]->ID ) );
-		$this->assertStringStartsWith( 'dos', basename( get_attached_file( $second[0]->ID ) ) );
+		$this->assertSame( 'dos.png', Documents::name( $second[0]->ID ) );
 		$this->assertSame( $second[0]->ID, get_post_thumbnail_id( $id ) );
 
 		Documents::apply( $id, array(), array( $second[0]->ID ) );
@@ -245,7 +278,7 @@ class Test_Documents extends WP_UnitTestCase {
 		$docs = Documents::of( $id )['design'];
 		$this->assertSame( $second->ID, $docs[0]->ID );
 		$this->assertSame( 2, $docs[1]->menu_order );
-		$this->assertStringStartsWith( 'uno-v2', basename( get_attached_file( $docs[1]->ID ) ) );
+		$this->assertSame( 'uno-v2.odt', Documents::name( $docs[1]->ID ) );
 	}
 
 	/**
@@ -321,5 +354,330 @@ class Test_Documents extends WP_UnitTestCase {
 		$this->assertSame( array(), Documents::from_request( $raw ) );
 		$this->assertSame( array(), Documents::from_request( array( 'fmc_doc' => array( 'name' => 'suelto.pdf' ) ) ) );
 		$this->assertSame( array(), Documents::from_request( array() ) );
+	}
+
+	/**
+	 * El fichero va al almacén privado, con un nombre que no dice nada, cerrado
+	 * y sin copias; la dirección que reparte WordPress es la del aplicativo.
+	 */
+	public function test_a_document_is_stored_closed_under_a_random_name() {
+		$id  = $this->curator_design();
+		$doc = $this->stored( $id, 'design', $this->odt( 'Ficha técnica.odt' ) );
+		$png = $this->stored( $id, 'image', $this->png( 'portada.png' ) );
+
+		foreach ( array( $doc, $png ) as $attachment ) {
+			$path = get_attached_file( $attachment );
+			$this->assertTrue( DocumentStore::is_private( $path ), 'dentro del almacén privado' );
+			$this->assertMatchesRegularExpression( '/^[0-9a-f]{32}\.(odt|png)$/', basename( $path ) );
+			$this->assertSame( DocumentStore::MODE_CLOSED, $this->mode( $path ) );
+			$this->assertSame( Documents::url( $attachment ), wp_get_attachment_url( $attachment ) );
+		}
+		$this->assertSame( 'Ficha técnica.odt', Documents::name( $doc ) );
+		$this->assertSame( 'Ficha técnica', get_the_title( $doc ) );
+		$this->assertSame( array(), wp_get_attachment_metadata( $png )['sizes'], 'sin miniaturas legibles al lado' );
+		$this->assertFileExists( DocumentStore::root() . '/.htaccess' );
+		$this->assertFileExists( DocumentStore::root() . '/index.php' );
+	}
+
+	/**
+	 * Leer lo abre solo mientras lee: los bytes salen enteros y el fichero
+	 * vuelve a quedar cerrado.
+	 */
+	public function test_read_opens_the_file_only_while_reading() {
+		$id   = $this->curator_design();
+		$doc  = $this->stored( $id, 'support', $this->upload( 'recurso.pdf', self::PDF ) );
+		$path = get_attached_file( $doc );
+
+		$this->assertSame( self::PDF, DocumentStore::read( $doc ) );
+		$this->assertSame( self::PDF, DocumentStore::read( $doc ), 'y otra vez' );
+		$this->assertSame( DocumentStore::MODE_CLOSED, $this->mode( $path ) );
+		$this->assertNull( DocumentStore::read( 0 ) );
+	}
+
+	/**
+	 * Quién descarga qué: la ficha técnica de un curso del catálogo, cualquiera;
+	 * el resto, quien puede leer el diseño, y sin sesión se pide primero.
+	 */
+	public function test_who_may_download_a_document() {
+		$id       = $this->curator_design();
+		$sheet    = $this->stored( $id, 'design', $this->odt( 'ficha.odt' ) );
+		$sessions = $this->stored( $id, 'sessions', $this->odt( 'escaleta.odt' ) );
+		$curator  = get_current_user_id();
+		$adviser  = self::factory()->user->create( array( 'role' => 'fmc_adviser' ) );
+		$verdicts = function ( int $user ) use ( $sheet, $sessions ): array {
+			wp_set_current_user( $user );
+			return array( Documents::verdict( $sheet ), Documents::verdict( $sessions ) );
+		};
+
+		// Un borrador: solo quien lo escribe.
+		$this->assertSame( array( 'allowed', 'allowed' ), $verdicts( $curator ) );
+		$this->assertSame( array( 'denied', 'denied' ), $verdicts( $adviser ) );
+		$this->assertSame( array( 'login', 'login' ), $verdicts( 0 ) );
+
+		// Finalizado: la asesoría lo consulta, con sus documentos (ADR-0017).
+		wp_publish_post( $id );
+		$this->assertSame( array( 'allowed', 'allowed' ), $verdicts( $adviser ) );
+		$this->assertSame( array( 'login', 'login' ), $verdicts( 0 ), 'finalizado, pero fuera del catálogo' );
+
+		// En el catálogo, la ficha técnica es pública; la escaleta, no.
+		update_post_meta( $id, \Fmc\Meta\DesignMetaKeys::IN_CATALOGUE, '1' );
+		$this->assertSame( array( 'public', 'login' ), $verdicts( 0 ) );
+
+		// Al histórico: deja de ser pública y la asesoría deja de verla (ADR-0016).
+		wp_update_post(
+			array(
+				'ID'          => $id,
+				'post_status' => PostTypes::ARCHIVED,
+			)
+		);
+		$this->assertSame( array( 'login', 'login' ), $verdicts( 0 ) );
+		$this->assertSame( array( 'denied', 'denied' ), $verdicts( $adviser ) );
+		$this->assertSame( array( 'allowed', 'allowed' ), $verdicts( $curator ) );
+
+		// Lo que no es un documento de un diseño no se sirve, a nadie.
+		$loose = self::factory()->attachment->create( array( 'post_parent' => $id ) );
+		wp_set_current_user( $curator );
+		$this->assertSame( 'denied', Documents::verdict( $loose ) );
+		$this->assertSame( 'denied', Documents::verdict( 0 ) );
+		$this->assertSame( 'denied', Documents::verdict( $id ), 'un diseño no es un documento' );
+	}
+
+	/**
+	 * Siempre como descarga, con su tipo, su nombre y sin caché compartida.
+	 */
+	public function test_a_download_is_an_attachment_with_nosniff() {
+		$id      = $this->curator_design();
+		$doc     = $this->stored( $id, 'support', $this->upload( 'Guía rápida.pdf', self::PDF ) );
+		$headers = Documents::headers( $doc, 42 );
+
+		$this->assertContains( 'Content-Type: application/pdf', $headers );
+		$this->assertContains( 'Content-Disposition: attachment; filename="Guia-rapida.pdf"; filename*=UTF-8\'\'Gu%C3%ADa%20r%C3%A1pida.pdf', $headers );
+		$this->assertContains( 'Content-Length: 42', $headers );
+		$this->assertContains( 'X-Content-Type-Options: nosniff', $headers );
+		$this->assertContains( 'Cache-Control: private, no-store', $headers );
+	}
+
+	/**
+	 * Lo subido antes se mueve al almacén —el original de una imagen, sin sus
+	 * miniaturas—, y repetirlo no hace nada más.
+	 */
+	public function test_protect_moves_what_was_stored_the_old_way() {
+		$id    = $this->curator_design();
+		$tmp   = get_temp_dir() . 'antigua.png';
+		$image = imagecreatetruecolor( 400, 300 );
+		imagepng( $image, $tmp );
+		// Una imagen «grande»: WordPress deja el original, una copia reducida y miniaturas.
+		$small = static fn(): int => 320;
+		add_filter( 'big_image_size_threshold', $small );
+		$old   = self::factory()->attachment->create_upload_object( $tmp, $id );
+		remove_filter( 'big_image_size_threshold', $small );
+		update_post_meta( $old, Documents::KIND_META, 'image' );
+		$before = get_attached_file( $old );
+		$meta   = wp_get_attachment_metadata( $old );
+		$copies = array_map( static fn( array $size ): string => dirname( $before ) . '/' . $size['file'], $meta['sizes'] );
+		$this->assertNotEmpty( $copies, 'con miniaturas' );
+		$this->assertStringContainsString( '-scaled', $before, 'y con copia reducida' );
+		$this->assertFalse( DocumentStore::is_private( $before ) );
+		$bytes = DocumentStore::read( $old );
+		$this->assertNotNull( $bytes, 'lo aún no movido se lee sin más' );
+
+		$this->assertSame( '', DocumentStore::protect( $old ) );
+		$path = get_attached_file( $old );
+		$this->assertTrue( DocumentStore::is_private( $path ) );
+		$this->assertFileDoesNotExist( $before );
+		$this->assertSame( DocumentStore::MODE_CLOSED, $this->mode( $path ) );
+		$this->assertStringStartsWith( 'antigua', Documents::name( $old ) );
+		$this->assertSame( array(), wp_get_attachment_metadata( $old )['sizes'] );
+		$this->assertArrayNotHasKey( 'original_image', wp_get_attachment_metadata( $old ) );
+		foreach ( $copies as $copy ) {
+			$this->assertFileDoesNotExist( $copy, 'ninguna copia legible fuera' );
+		}
+		$this->assertSame( 'png', pathinfo( $path, PATHINFO_EXTENSION ) );
+		$this->assertSame( array( 400, 300 ), array_slice( getimagesizefromstring( (string) DocumentStore::read( $old ) ), 0, 2 ), 'se guarda el original, no la copia' );
+
+		$this->assertSame( '', DocumentStore::protect( $old ), 'idempotente' );
+		$this->assertSame( $path, get_attached_file( $old ) );
+		$this->assertNotSame( '', DocumentStore::protect( self::factory()->attachment->create( array( 'post_parent' => $id ) ) ), 'sin clase no es un documento' );
+	}
+
+	/**
+	 * Quitar un documento se lleva su fichero cerrado.
+	 */
+	public function test_removing_a_document_removes_its_file() {
+		$id   = $this->curator_design();
+		$doc  = $this->stored( $id, 'support', $this->upload( 'fuera.pdf', self::PDF ) );
+		$path = get_attached_file( $doc );
+
+		Documents::apply( $id, array(), array( $doc ) );
+
+		$this->assertNull( get_post( $doc ) );
+		$this->assertFileDoesNotExist( $path );
+	}
+
+	/**
+	 * Lo que contesta cada descarga: a entrar, el fichero, «no existe» o «inténtelo
+	 * luego»; nunca se cachea un rechazo.
+	 */
+	public function test_the_answer_to_each_download() {
+		$id      = $this->curator_design();
+		$doc     = $this->stored( $id, 'support', $this->upload( 'recurso.pdf', self::PDF ) );
+		$curator = get_current_user_id();
+
+		$answer = Documents::answer( $doc );
+		$this->assertSame( 200, $answer['status'] );
+		$this->assertSame( self::PDF, $answer['body'] );
+		$this->assertContains( 'Content-Length: ' . strlen( self::PDF ), $answer['headers'] );
+
+		wp_set_current_user( self::factory()->user->create( array( 'role' => 'fmc_adviser' ) ) );
+		$answer = Documents::answer( $doc );
+		$this->assertSame( 404, $answer['status'], 'un borrador ajeno no existe' );
+		$this->assertStringNotContainsString( 'recurso', $answer['body'] );
+		$this->assertContains( 'X-Content-Type-Options: nosniff', $answer['headers'] );
+		$this->assertNotEmpty( preg_grep( '/^Cache-Control: .*no-cache/', $answer['headers'] ) );
+		$this->assertEmpty( preg_grep( '/^Last-Modified/', $answer['headers'] ) );
+
+		wp_set_current_user( 0 );
+		$this->assertSame( array( 'redirect' => wp_login_url( Documents::url( $doc ) ) ), Documents::answer( $doc ) );
+
+		// El fichero no está: se dice que se pruebe luego, no que no existe.
+		wp_set_current_user( $curator );
+		$gone   = static fn(): string => '';
+		add_filter( 'get_attached_file', $gone );
+		$answer = Documents::answer( $doc );
+		remove_filter( 'get_attached_file', $gone );
+		$this->assertSame( 503, $answer['status'] );
+	}
+
+	/**
+	 * `serve()` manda lo que dice `answer()`: a entrar, o con su código.
+	 */
+	public function test_serve_sends_the_answer() {
+		$id   = $this->curator_design();
+		$doc  = $this->stored( $id, 'support', $this->upload( 'recurso.pdf', self::PDF ) );
+		$stop = static function ( $value ) {
+			// phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- lo lee el test, no se pinta.
+			throw new RuntimeException( (string) $value );
+		};
+		add_filter( 'wp_redirect', $stop );
+		add_filter( 'status_header', $stop );
+		$_GET = array( Documents::ARG => (string) $doc );
+		try {
+			wp_set_current_user( 0 );
+			try {
+				Documents::serve();
+				$this->fail( 'sin sesión se manda a entrar' );
+			} catch ( RuntimeException $e ) {
+				$this->assertSame( wp_login_url( Documents::url( $doc ) ), $e->getMessage() );
+			}
+			wp_set_current_user( self::factory()->user->create( array( 'role' => 'fmc_adviser' ) ) );
+			try {
+				Documents::serve();
+				$this->fail( 'sin permiso, no existe' );
+			} catch ( RuntimeException $e ) {
+				$this->assertStringContainsString( '404', $e->getMessage() );
+			}
+		} finally {
+			$_GET = array();
+			remove_filter( 'wp_redirect', $stop );
+			remove_filter( 'status_header', $stop );
+		}
+	}
+
+	/**
+	 * La dirección que reparte WordPress de un documento es la del aplicativo;
+	 * la de cualquier otro adjunto, la suya.
+	 */
+	public function test_only_documents_get_the_app_url() {
+		Documents::register();
+		$this->assertSame( 10, has_filter( 'wp_get_attachment_url', array( Documents::class, 'attachment_url' ) ) );
+		$loose = self::factory()->attachment->create( array( 'file' => 'suelto.pdf' ) );
+		$this->assertStringNotContainsString( Documents::ARG, (string) wp_get_attachment_url( $loose ) );
+	}
+
+	/**
+	 * Si WordPress no puede guardar el fichero, se dice cuál, al subir y al
+	 * cambiar; y el que había se queda.
+	 */
+	public function test_a_file_that_cannot_be_saved_is_reported() {
+		$id       = $this->curator_design();
+		$old      = $this->stored( $id, 'design', $this->odt( 'ficha.odt' ) );
+		$err      = static fn( array $file ): array => array( 'error' => 'disco lleno' ) + $file;
+		add_filter( 'wp_handle_sideload_prefilter', $err );
+		$problems = Documents::apply(
+			$id,
+			array(
+				'support' => array( $this->upload( 'nuevo.pdf', self::PDF ) ),
+				'replace' => array( $old => $this->odt( 'otra.odt' ) ),
+			),
+			array()
+		);
+		remove_filter( 'wp_handle_sideload_prefilter', $err );
+
+		$this->assertCount( 2, $problems );
+		$this->assertStringContainsString( 'disco lleno', implode( ' ', $problems ) );
+		$this->assertSame( array( $old ), wp_list_pluck( Documents::of( $id )['design'], 'ID' ) );
+		$this->assertSame( array(), Documents::of( $id )['support'] );
+	}
+
+	/**
+	 * Un documento que no se puede cerrar no se da por guardado.
+	 */
+	public function test_a_file_that_cannot_be_closed_is_not_kept() {
+		$id       = $this->curator_design();
+		$gone     = static fn(): string => '';
+		add_filter( 'get_attached_file', $gone );
+		$problems = Documents::apply( $id, array( 'support' => array( $this->upload( 'abierto.pdf', self::PDF ) ) ), array() );
+		remove_filter( 'get_attached_file', $gone );
+
+		$this->assertSame( array( '«abierto.pdf»: no se ha podido proteger el fichero.' ), $problems );
+		$this->assertSame( array(), Documents::of( $id )['support'] );
+	}
+
+	/**
+	 * Sin almacén donde guardar, no se guarda ni se mueve nada fuera de él.
+	 */
+	public function test_without_a_store_nothing_is_stored_or_moved() {
+		$id     = $this->curator_design();
+		$old    = self::factory()->attachment->create_upload_object( DIR_TESTDATA . '/images/canola.jpg', $id );
+		$before = get_attached_file( $old );
+		update_post_meta( $old, Documents::KIND_META, 'image' );
+		$nowhere = static function ( array $dirs ): array {
+			$dirs['basedir'] = '/dev/null/fmc';
+			return $dirs;
+		};
+		$same    = static fn(): string => $before;
+		add_filter( 'upload_dir', $nowhere );
+		add_filter( 'get_attached_file', $same );
+		try {
+			$this->assertFalse( DocumentStore::prepare() );
+			$problems = Documents::apply( $id, array( 'support' => array( $this->upload( 'nuevo.pdf', self::PDF ) ) ), array() );
+			$moved    = DocumentStore::protect( $old );
+		} finally {
+			remove_filter( 'upload_dir', $nowhere );
+			remove_filter( 'get_attached_file', $same );
+		}
+
+		$this->assertSame( array( '«nuevo.pdf»: no se ha podido preparar el almacén de documentos.' ), $problems );
+		$this->assertSame( 'No se ha podido mover el documento ' . $old . '.', $moved );
+		$this->assertFileExists( $before, 'el original sigue donde estaba' );
+	}
+
+	/**
+	 * Las lecturas van de una en una: si otra no suelta el cerrojo, se rinde
+	 * en vez de abrir el fichero a la vez.
+	 */
+	public function test_a_read_gives_up_when_another_holds_the_lock() {
+		$id   = $this->curator_design();
+		$doc  = $this->stored( $id, 'support', $this->upload( 'recurso.pdf', self::PDF ) );
+		$lock = fopen( DocumentStore::root() . '/.lock', 'c' ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fopen -- el cerrojo de otra lectura.
+		flock( $lock, LOCK_EX );
+		try {
+			$this->assertNull( DocumentStore::read( $doc ) );
+			$this->assertSame( DocumentStore::MODE_CLOSED, $this->mode( get_attached_file( $doc ) ), 'sin abrirlo' );
+		} finally {
+			flock( $lock, LOCK_UN );
+			fclose( $lock ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose -- el cerrojo de otra lectura.
+		}
+		$this->assertSame( self::PDF, DocumentStore::read( $doc ), 'suelto el cerrojo, se lee' );
 	}
 }

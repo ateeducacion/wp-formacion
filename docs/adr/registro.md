@@ -74,3 +74,4 @@ adenda del 2026-10-28).
 | [ADR-0022](ADR-0022-la-asesoria-pertenece-a-un-centro-y-solo-ve-sus-incidencias.md) | La asesoría pertenece a un centro, y solo ve sus incidencias | Propuesta |
 | [ADR-0023](ADR-0023-las-asesorias-se-dan-de-alta-pegando-la-lista-del-curso.md) | Las asesorías se dan de alta pegando la lista del curso | Propuesta |
 | [ADR-0024](ADR-0024-quien-gestiono-la-accion-se-guarda-con-su-nombre.md) | Quién gestionó la acción se guarda con su nombre, y solo la asesoría la gestiona | Propuesta |
+| [ADR-0025](ADR-0025-los-documentos-del-diseno-se-sirven-por-el-aplicativo.md) | Los documentos del diseño se guardan cerrados y se sirven por el aplicativo; la ficha técnica del catálogo, a cualquiera | Propuesta |

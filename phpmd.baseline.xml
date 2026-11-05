@@ -73,4 +73,6 @@
   <violation rule="PHPMD\Rule\Design\NPathComplexity" file="src/Fmc/User/AdviserImport.php" method="run"/>
   <violation rule="PHPMD\Rule\CyclomaticComplexity" file="src/Fmc/User/AdviserImport.php" method="render"/>
   <violation rule="PHPMD\Rule\Design\NPathComplexity" file="src/Fmc/User/AdviserImport.php" method="render"/>
+  <violation rule="PHPMD\Rule\Design\NPathComplexity" file="snippets/fmc-formacion-app.bundle.php" method="protect"/>
+  <violation rule="PHPMD\Rule\Design\NPathComplexity" file="src/Fmc/PublicFront/DocumentStore.php" method="protect"/>
 </phpmd-baseline>

@@ -158,7 +158,9 @@ pruebas en navegador, que vuelven aquí):
    (ADR-0010). Antes, la coordinación da la lista nueva de temáticas y decide qué
    términos de programa repetidos —y qué valores de «quién la asume»— se funden
    (ADR-0003); y, si quiere, qué diseños históricos sustituye cada uno
-   (ADR-0012).
+   (ADR-0012). Los documentos de cada diseño se traen como ficheros por
+   `Documents::apply()`, que los guarda cerrados, y al final se pasa
+   `scripts/protect-documents.php` (ADR-0025).
 2. **Listados consumidos por otras webs:** inventariar quién los llama y
    decidir, uno a uno, si se sirven igual desde el sitio nuevo o se avisa con
    fecha.

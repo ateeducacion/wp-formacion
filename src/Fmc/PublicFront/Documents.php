@@ -10,16 +10,23 @@ namespace Fmc\PublicFront;
 use Fmc\PostType\PostTypes;
 
 /**
- * Los documentos de un diseño son adjuntos de WordPress colgados de él.
+ * Los documentos de un diseño son adjuntos de WordPress colgados de él, con el
+ * fichero en un almacén privado (ADR-0025).
  *
- * Son material editorial —el diseño, el minutaje, el material de apoyo—, no
- * datos personales, así que van a la biblioteca de medios como cualquier otro
- * adjunto (a diferencia de los ficheros de una inscripción en eventos). La
- * clase de cada uno va en la meta `_fmc_kind` del adjunto; la imagen
- * representativa es la imagen destacada del diseño.
+ * Siguen siendo adjuntos para que la lista, el orden y la imagen destacada los
+ * lleve WordPress; lo que cambia es dónde está el fichero y quién lo sirve. El
+ * fichero va al almacén cerrado de {@see DocumentStore}, con nombre aleatorio,
+ * y lo sirve el aplicativo en `?fmc_documento=ID`
+ * tras preguntar si quien lo pide puede leer el diseño. Nunca el servidor web:
+ * un borrador o un histórico solo los lee quien los escribe (ADR-0016), y eso
+ * no vale nada si el fichero se descarga por su dirección física.
  *
- * Cada clase admite los formatos que admitía el formulario anterior, y ni uno
- * más: se comprueba el tipo real del fichero, no su extensión.
+ * La excepción es la ficha técnica —la clase «Diseño del curso»— de un diseño
+ * que está en el catálogo: esa es pública, como lo es la ficha del catálogo.
+ *
+ * La clase de cada adjunto va en su meta `_fmc_kind`, y el nombre con el que
+ * se subió, en `_fmc_name`. Cada clase admite sus formatos y ni uno más: se
+ * comprueba el tipo real del fichero, no su extensión.
  */
 final class Documents {
 
@@ -27,6 +34,65 @@ final class Documents {
 	 * Attachment meta holding the kind.
 	 */
 	public const KIND_META = '_fmc_kind';
+
+	/**
+	 * Attachment meta holding the name the file was uploaded with.
+	 */
+	public const NAME_META = '_fmc_name';
+
+	/**
+	 * `?fmc_documento=ID`: the download of one document.
+	 */
+	public const ARG = 'fmc_documento';
+
+	/**
+	 * Kinds that anyone may download when their design is in the catalogue.
+	 */
+	public const PUBLIC_KINDS = array( 'design' );
+
+	/**
+	 * Hook registration.
+	 *
+	 * @return void
+	 */
+	public static function register(): void {
+		add_filter( 'wp_get_attachment_url', array( self::class, 'attachment_url' ), 10, 2 );
+	}
+
+	/**
+	 * URL of a document: the application's, never the file's.
+	 *
+	 * @param int $attachment_id Attachment.
+	 * @return string
+	 */
+	public static function url( int $attachment_id ): string {
+		return add_query_arg( self::ARG, $attachment_id, home_url( '/' ) );
+	}
+
+	/**
+	 * The URL WordPress gives for a document is the application's.
+	 *
+	 * Así ninguna pantalla —la mediateca, la REST, una plantilla— reparte la
+	 * dirección física: toda descarga pasa por la comprobación.
+	 *
+	 * @param string|false $url           URL WordPress computed.
+	 * @param int          $attachment_id Attachment.
+	 * @return string|false
+	 */
+	public static function attachment_url( $url, $attachment_id ) {
+		return '' === (string) get_post_meta( (int) $attachment_id, self::KIND_META, true ) ? $url : self::url( (int) $attachment_id );
+	}
+
+	/**
+	 * Name to show for a document: the one it was uploaded with.
+	 *
+	 * @param int $attachment_id Attachment.
+	 * @return string
+	 */
+	public static function name( int $attachment_id ): string {
+		$name = (string) get_post_meta( $attachment_id, self::NAME_META, true );
+		return '' !== $name ? $name : basename( (string) get_attached_file( $attachment_id ) );
+	}
 
 	/**
 	 * The kinds of document, with what each one accepts.
@@ -245,7 +311,11 @@ final class Documents {
 	}
 
 	/**
-	 * Store one checked file as an attachment of the design.
+	 * Store one checked file as an attachment of the design, in the private store.
+	 *
+	 * El nombre físico es aleatorio y no dice nada —ni el curso ni el fichero
+	 * original, que se queda en `_fmc_name`—, y no se generan miniaturas ni
+	 * vistas previas: serían copias legibles del documento al lado del cerrado.
 	 *
 	 * @param int                  $post_id Design.
 	 * @param string               $kind    Kind.
@@ -253,18 +323,154 @@ final class Documents {
 	 * @return int|string Attachment ID, or the problem.
 	 */
 	private static function store( int $post_id, string $kind, array $file ) {
-		$overrides = array(
-			'test_form' => false,
-			'mimes'     => self::kinds()[ $kind ]['mimes'],
+		$original = sanitize_text_field( wp_basename( (string) $file['name'] ) );
+		$type     = wp_check_filetype_and_ext( (string) $file['tmp_name'], $original, self::kinds()[ $kind ]['mimes'] );
+		$hex      = bin2hex( random_bytes( 16 ) );
+		if ( ! DocumentStore::prepare() ) {
+			return '«' . $original . '»: no se ha podido preparar el almacén de documentos.';
+		}
+		$file['name'] = $hex . '.' . ( $type['ext'] ? $type['ext'] : strtolower( pathinfo( $original, PATHINFO_EXTENSION ) ) );
+
+		$dir     = static function ( array $dirs ) use ( $hex ): array {
+			$dirs['subdir'] = '/' . DocumentStore::DIR . '/' . substr( $hex, 0, 2 );
+			$dirs['path']   = $dirs['basedir'] . $dirs['subdir'];
+			$dirs['url']    = $dirs['baseurl'] . $dirs['subdir'];
+			return $dirs;
+		};
+		$none    = static fn(): array => array();
+		$filters = array(
+			'upload_dir'                        => $dir,
+			'intermediate_image_sizes_advanced' => $none,
+			'fallback_intermediate_image_sizes' => $none,
+			'big_image_size_threshold'          => '__return_false',
 		);
-		// Sideload y no upload: `from_request()` ya descartó lo que no llegó por
-		// una subida de verdad, y así el mismo camino sirve a los tests.
-		$id = media_handle_sideload( $file, $post_id, null, $overrides );
+		foreach ( $filters as $hook => $callback ) {
+			add_filter( $hook, $callback );
+		}
+		try {
+			// Sideload y no upload: `from_request()` ya descartó lo que no llegó por
+			// una subida de verdad, y así el mismo camino sirve a los tests y a la
+			// migración.
+			$id = media_handle_sideload( $file, $post_id, null, array( 'post_title' => pathinfo( $original, PATHINFO_FILENAME ) ) );
+		} finally {
+			foreach ( $filters as $hook => $callback ) {
+				remove_filter( $hook, $callback );
+			}
+		}
 		if ( is_wp_error( $id ) ) {
-			return '«' . $file['name'] . '»: ' . $id->get_error_message();
+			return '«' . $original . '»: ' . $id->get_error_message();
 		}
 		update_post_meta( (int) $id, self::KIND_META, $kind );
+		update_post_meta( (int) $id, self::NAME_META, $original );
+		if ( ! DocumentStore::close( (string) get_attached_file( (int) $id ) ) ) {
+			// Un documento que no se puede cerrar no se da por guardado.
+			wp_delete_attachment( (int) $id, true );
+			return '«' . $original . '»: no se ha podido proteger el fichero.';
+		}
 		return (int) $id;
+	}
+
+	/**
+	 * Who may have a document: everyone, someone with a session, or nobody.
+	 *
+	 * La regla es la del diseño, y no otra: quien puede leer el diseño puede
+	 * leer sus documentos (`read_post`, con lo que añade ADR-0016). La ficha
+	 * técnica de un diseño del catálogo es pública, como la ficha del catálogo.
+	 *
+	 * @param int $attachment_id Attachment.
+	 * @return string `public`, `allowed`, `login` (ask for a session first) or `denied` (also when it does not exist).
+	 */
+	public static function verdict( int $attachment_id ): string {
+		$kind   = (string) get_post_meta( $attachment_id, self::KIND_META, true );
+		$design = get_post( (int) get_post_field( 'post_parent', $attachment_id ) );
+		if ( 'attachment' !== get_post_type( $attachment_id ) || ! isset( self::kinds()[ $kind ] ) || ! $design instanceof \WP_Post || PostTypes::DESIGN !== $design->post_type ) {
+			return 'denied';
+		}
+		if ( in_array( $kind, self::PUBLIC_KINDS, true ) && Catalogue::is_listed( $design ) ) {
+			return 'public';
+		}
+		if ( ! is_user_logged_in() ) {
+			return 'login';
+		}
+		return current_user_can( 'read_post', $design->ID ) ? 'allowed' : 'denied';
+	}
+
+	/**
+	 * Response headers of a download, in order.
+	 *
+	 * Siempre como descarga: el navegador no interpreta nada de lo que se sirve
+	 * desde aquí, `nosniff` le impide adivinar el tipo y `no-store` que se
+	 * quede en una caché compartida. Aparte del manejador para poder probarlas.
+	 *
+	 * @param int $attachment_id Attachment.
+	 * @param int $length        Length of the body.
+	 * @return string[]
+	 */
+	public static function headers( int $attachment_id, int $length ): array {
+		$name  = self::name( $attachment_id );
+		$ascii = sanitize_file_name( remove_accents( $name ) );
+		return array(
+			'Content-Type: ' . sanitize_mime_type( (string) get_post_mime_type( $attachment_id ) ),
+			'Content-Disposition: attachment; filename="' . ( '' !== $ascii ? $ascii : 'documento' ) . '"; filename*=UTF-8\'\'' . rawurlencode( $name ),
+			'Content-Length: ' . $length,
+			'X-Content-Type-Options: nosniff',
+			'Cache-Control: private, no-store',
+		);
+	}
+
+	/**
+	 * What `?fmc_documento=ID` answers, without sending it.
+	 *
+	 * El identificador no autoriza nada: decide {@see self::verdict()}. Sin
+	 * sesión, lo que no es público manda al acceso y vuelve aquí; con sesión y
+	 * sin permiso, la respuesta es la misma que si no existiera. Aparte de
+	 * {@see self::serve()}, que acaba en `exit`, para poder probarla.
+	 *
+	 * @param int $attachment_id Attachment.
+	 * @return array{redirect?: string, status?: int, headers?: string[], body?: string}
+	 */
+	public static function answer( int $attachment_id ): array {
+		$verdict = self::verdict( $attachment_id );
+		if ( 'login' === $verdict ) {
+			return array( 'redirect' => wp_login_url( self::url( $attachment_id ) ) );
+		}
+		$bytes = 'denied' === $verdict ? null : DocumentStore::read( $attachment_id );
+		if ( null !== $bytes ) {
+			return array(
+				'status'  => 200,
+				'headers' => self::headers( $attachment_id, strlen( $bytes ) ),
+				'body'    => $bytes,
+			);
+		}
+		$nocache = array();
+		// Sin `Last-Modified`, que WordPress pone a `false` para que se quite.
+		foreach ( array_filter( wp_get_nocache_headers() ) as $name => $value ) {
+			$nocache[] = $name . ': ' . $value;
+		}
+		return array(
+			'status'  => 'denied' === $verdict ? 404 : 503,
+			'headers' => array_merge( $nocache, array( 'Content-Type: text/plain; charset=utf-8', 'X-Content-Type-Options: nosniff' ) ),
+			'body'    => 'denied' === $verdict ? 'Este documento no existe, o no puede verlo.' : 'No se ha podido leer el documento. Pruebe otra vez dentro de un momento.',
+		);
+	}
+
+	/**
+	 * Serve `?fmc_documento=ID` and stop.
+	 *
+	 * @return void
+	 */
+	public static function serve(): void {
+		$answer = self::answer( absint( Lists::arg( self::ARG ) ) );
+		if ( isset( $answer['redirect'] ) ) {
+			Screen::leave( $answer['redirect'] );
+			return;
+		}
+		status_header( $answer['status'] );
+		foreach ( $answer['headers'] as $line ) {
+			header( $line );
+		}
+		echo $answer['body']; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- el fichero, o un texto fijo: se sirve como descarga o como text/plain, siempre con nosniff.
+		exit;
 	}
 
 	/**

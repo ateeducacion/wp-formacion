@@ -6,7 +6,7 @@
  * Priority: 15
  *
  * @package Fmc
- * @version 0.0.13
+ * @version 0.0.14
  */
 
 // phpcs:disable
@@ -3858,7 +3858,270 @@ final class Fields {
 
 namespace Fmc\PublicFront;
 
+
+
+
+
+
+
+
+
+if ( ! class_exists( 'Fmc\PublicFront\DocumentStore', false ) ) {
+final class DocumentStore {
+
+
+
+
+	public const DIR = 'fmc-private';
+
+
+
+
+	public const MODE_CLOSED = 0200;
+
+
+
+
+	private const MODE_OPEN = 0400;
+
+
+
+
+
+
+	public static function root(): string {
+		return wp_normalize_path( (string) wp_upload_dir( null, false )['basedir'] ) . '/' . self::DIR;
+	}
+
+
+
+
+
+
+
+	public static function is_private( string $path ): bool {
+		$dir = realpath( dirname( $path ) );
+		return false !== $dir && 0 === strpos( wp_normalize_path( $dir ) . '/', self::root() . '/' );
+	}
+
+
+
+
+
+
+
+
+
+
+	public static function prepare(): bool {
+		$root = self::root();
+		if ( ! wp_mkdir_p( $root ) ) {
+			return false;
+		}
+		$guards = array(
+			'.htaccess' => "# Los documentos de los diseños los sirve el aplicativo (ADR-0025).\n<IfModule mod_authz_core.c>\n\tRequire all denied\n</IfModule>\n<IfModule !mod_authz_core.c>\n\tDeny from all\n</IfModule>\n",
+			'index.php' => "<?php\n// Silence is golden.\n",
+		);
+		foreach ( $guards as $name => $contents ) {
+			if ( ! file_exists( $root . '/' . $name ) ) {
+				file_put_contents( $root . '/' . $name, $contents ); 
+			}
+		}
+		return true;
+	}
+
+
+
+
+
+
+
+	public static function close( string $path ): bool {
+
+		$done = '' !== $path && chmod( $path, self::MODE_CLOSED );
+		clearstatcache( true, $path );
+		return $done;
+	}
+
+
+
+
+
+
+
+
+
+
+
+	public static function protect( int $attachment_id ): string {
+		$path = self::file_of( $attachment_id );
+		if ( '' === $path ) {
+			return 'El documento ' . $attachment_id . ' no tiene fichero.';
+		}
+		if ( self::is_private( $path ) ) {
+			return self::closed( $attachment_id, $path );
+		}
+		$source = self::source_of( $attachment_id, $path );
+		$target = self::move( $source );
+		if ( '' === $target ) {
+			return 'No se ha podido mover el documento ' . $attachment_id . '.';
+		}
+
+		add_post_meta( $attachment_id, Documents::NAME_META, wp_basename( $path ), true );
+		self::drop_copies( $attachment_id, $path, $source, $target );
+		return self::closed( $attachment_id, $target );
+	}
+
+
+
+
+
+
+
+
+	private static function source_of( int $attachment_id, string $path ): string {
+		$original = (string) wp_get_original_image_path( $attachment_id );
+		return is_file( $original ) ? $original : $path;
+	}
+
+
+
+
+
+
+
+	private static function file_of( int $attachment_id ): string {
+		$path = (string) get_attached_file( $attachment_id );
+		$kind = (string) get_post_meta( $attachment_id, Documents::KIND_META, true );
+		return '' !== $kind && is_file( $path ) ? $path : '';
+	}
+
+
+
+
+
+
+
+
+	private static function closed( int $attachment_id, string $path ): string {
+		return self::close( $path ) ? '' : 'No se ha podido cerrar el documento ' . $attachment_id . '.';
+	}
+
+
+
+
+
+
+
+	private static function move( string $source ): string {
+		$hex    = bin2hex( random_bytes( 16 ) );
+		$target = self::root() . '/' . substr( $hex, 0, 2 ) . '/' . $hex . '.' . strtolower( pathinfo( $source, PATHINFO_EXTENSION ) );
+
+		$moved = self::prepare() && wp_mkdir_p( dirname( $target ) ) && rename( $source, $target );
+		return $moved ? $target : '';
+	}
+
+
+
+
+
+
+
+
+
+
+
+
+	public static function read( int $attachment_id ): ?string {
+		$path = (string) get_attached_file( $attachment_id );
+		if ( '' === $path || ! file_exists( $path ) ) {
+			return null;
+		}
+		if ( ! self::is_private( $path ) ) {
+			$bytes = file_get_contents( $path ); 
+			return false === $bytes ? null : $bytes;
+		}
+
+
+		$lock = fopen( self::root() . '/.lock', 'c' ); 
+		if ( false === $lock ) {
+			return null;
+		}
+		$try = 0;
+		while ( ! flock( $lock, LOCK_EX | LOCK_NB ) ) {
+			if ( ++$try > 50 ) {
+				fclose( $lock ); 
+				return null;
+			}
+			usleep( 100000 );
+		}
+		$bytes = false;
+		try {
+
+			chmod( $path, self::MODE_OPEN );
+			clearstatcache( true, $path );
+
+			$bytes = file_get_contents( $path ); 
+		} finally {
+			if ( ! self::close( $path ) ) {
+
+				error_log( 'fmc: no se ha podido volver a cerrar el documento ' . $attachment_id );
+			}
+			flock( $lock, LOCK_UN );
+			fclose( $lock ); 
+		}
+		return false === $bytes ? null : $bytes;
+	}
+
+
+
+
+
+
+
+
+
+
+
+
+
+	private static function drop_copies( int $attachment_id, string $path, string $source, string $target ): void {
+		update_attached_file( $attachment_id, $target );
+		$meta = wp_get_attachment_metadata( $attachment_id );
+		if ( ! is_array( $meta ) ) {
+			return;
+		}
+		foreach ( (array) ( $meta['sizes'] ?? array() ) as $size ) {
+			wp_delete_file( dirname( $path ) . '/' . $size['file'] );
+		}
+		if ( $source !== $path ) {
+			wp_delete_file( $path );
+		}
+		$meta['sizes'] = array();
+		$meta['file']  = _wp_relative_upload_path( $target );
+		unset( $meta['original_image'] );
+		wp_update_attachment_metadata( $attachment_id, $meta );
+	}
+}
+}
+
+
+
+
+
+
+
+
+namespace Fmc\PublicFront;
+
 use Fmc\PostType\PostTypes;
+
+
+
+
+
+
+
 
 
 
@@ -3879,6 +4142,65 @@ final class Documents {
 
 
 	public const KIND_META = '_fmc_kind';
+
+
+
+
+	public const NAME_META = '_fmc_name';
+
+
+
+
+	public const ARG = 'fmc_documento';
+
+
+
+
+	public const PUBLIC_KINDS = array( 'design' );
+
+
+
+
+
+
+	public static function register(): void {
+		add_filter( 'wp_get_attachment_url', array( self::class, 'attachment_url' ), 10, 2 );
+	}
+
+
+
+
+
+
+
+	public static function url( int $attachment_id ): string {
+		return add_query_arg( self::ARG, $attachment_id, home_url( '/' ) );
+	}
+
+
+
+
+
+
+
+
+
+
+
+	public static function attachment_url( $url, $attachment_id ) {
+		return '' === (string) get_post_meta( (int) $attachment_id, self::KIND_META, true ) ? $url : self::url( (int) $attachment_id );
+	}
+
+
+
+
+
+
+
+	public static function name( int $attachment_id ): string {
+		$name = (string) get_post_meta( $attachment_id, self::NAME_META, true );
+		return '' !== $name ? $name : basename( (string) get_attached_file( $attachment_id ) );
+	}
 
 
 
@@ -4104,19 +4426,159 @@ final class Documents {
 
 
 
+
+
+
+
 	private static function store( int $post_id, string $kind, array $file ) {
-		$overrides = array(
-			'test_form' => false,
-			'mimes'     => self::kinds()[ $kind ]['mimes'],
+		$original = sanitize_text_field( wp_basename( (string) $file['name'] ) );
+		$type     = wp_check_filetype_and_ext( (string) $file['tmp_name'], $original, self::kinds()[ $kind ]['mimes'] );
+		$hex      = bin2hex( random_bytes( 16 ) );
+		if ( ! DocumentStore::prepare() ) {
+			return '«' . $original . '»: no se ha podido preparar el almacén de documentos.';
+		}
+		$file['name'] = $hex . '.' . ( $type['ext'] ? $type['ext'] : strtolower( pathinfo( $original, PATHINFO_EXTENSION ) ) );
+
+		$dir     = static function ( array $dirs ) use ( $hex ): array {
+			$dirs['subdir'] = '/' . DocumentStore::DIR . '/' . substr( $hex, 0, 2 );
+			$dirs['path']   = $dirs['basedir'] . $dirs['subdir'];
+			$dirs['url']    = $dirs['baseurl'] . $dirs['subdir'];
+			return $dirs;
+		};
+		$none    = static fn(): array => array();
+		$filters = array(
+			'upload_dir'                        => $dir,
+			'intermediate_image_sizes_advanced' => $none,
+			'fallback_intermediate_image_sizes' => $none,
+			'big_image_size_threshold'          => '__return_false',
 		);
+		foreach ( $filters as $hook => $callback ) {
+			add_filter( $hook, $callback );
+		}
+		try {
 
 
-		$id = media_handle_sideload( $file, $post_id, null, $overrides );
+
+			$id = media_handle_sideload( $file, $post_id, null, array( 'post_title' => pathinfo( $original, PATHINFO_FILENAME ) ) );
+		} finally {
+			foreach ( $filters as $hook => $callback ) {
+				remove_filter( $hook, $callback );
+			}
+		}
 		if ( is_wp_error( $id ) ) {
-			return '«' . $file['name'] . '»: ' . $id->get_error_message();
+			return '«' . $original . '»: ' . $id->get_error_message();
 		}
 		update_post_meta( (int) $id, self::KIND_META, $kind );
+		update_post_meta( (int) $id, self::NAME_META, $original );
+		if ( ! DocumentStore::close( (string) get_attached_file( (int) $id ) ) ) {
+
+			wp_delete_attachment( (int) $id, true );
+			return '«' . $original . '»: no se ha podido proteger el fichero.';
+		}
 		return (int) $id;
+	}
+
+
+
+
+
+
+
+
+
+
+
+	public static function verdict( int $attachment_id ): string {
+		$kind   = (string) get_post_meta( $attachment_id, self::KIND_META, true );
+		$design = get_post( (int) get_post_field( 'post_parent', $attachment_id ) );
+		if ( 'attachment' !== get_post_type( $attachment_id ) || ! isset( self::kinds()[ $kind ] ) || ! $design instanceof \WP_Post || PostTypes::DESIGN !== $design->post_type ) {
+			return 'denied';
+		}
+		if ( in_array( $kind, self::PUBLIC_KINDS, true ) && Catalogue::is_listed( $design ) ) {
+			return 'public';
+		}
+		if ( ! is_user_logged_in() ) {
+			return 'login';
+		}
+		return current_user_can( 'read_post', $design->ID ) ? 'allowed' : 'denied';
+	}
+
+
+
+
+
+
+
+
+
+
+
+
+	public static function headers( int $attachment_id, int $length ): array {
+		$name  = self::name( $attachment_id );
+		$ascii = sanitize_file_name( remove_accents( $name ) );
+		return array(
+			'Content-Type: ' . sanitize_mime_type( (string) get_post_mime_type( $attachment_id ) ),
+			'Content-Disposition: attachment; filename="' . ( '' !== $ascii ? $ascii : 'documento' ) . '"; filename*=UTF-8\'\'' . rawurlencode( $name ),
+			'Content-Length: ' . $length,
+			'X-Content-Type-Options: nosniff',
+			'Cache-Control: private, no-store',
+		);
+	}
+
+
+
+
+
+
+
+
+
+
+
+
+	public static function answer( int $attachment_id ): array {
+		$verdict = self::verdict( $attachment_id );
+		if ( 'login' === $verdict ) {
+			return array( 'redirect' => wp_login_url( self::url( $attachment_id ) ) );
+		}
+		$bytes = 'denied' === $verdict ? null : DocumentStore::read( $attachment_id );
+		if ( null !== $bytes ) {
+			return array(
+				'status'  => 200,
+				'headers' => self::headers( $attachment_id, strlen( $bytes ) ),
+				'body'    => $bytes,
+			);
+		}
+		$nocache = array();
+
+		foreach ( array_filter( wp_get_nocache_headers() ) as $name => $value ) {
+			$nocache[] = $name . ': ' . $value;
+		}
+		return array(
+			'status'  => 'denied' === $verdict ? 404 : 503,
+			'headers' => array_merge( $nocache, array( 'Content-Type: text/plain; charset=utf-8', 'X-Content-Type-Options: nosniff' ) ),
+			'body'    => 'denied' === $verdict ? 'Este documento no existe, o no puede verlo.' : 'No se ha podido leer el documento. Pruebe otra vez dentro de un momento.',
+		);
+	}
+
+
+
+
+
+
+	public static function serve(): void {
+		$answer = self::answer( absint( Lists::arg( self::ARG ) ) );
+		if ( isset( $answer['redirect'] ) ) {
+			Screen::leave( $answer['redirect'] );
+			return;
+		}
+		status_header( $answer['status'] );
+		foreach ( $answer['headers'] as $line ) {
+			header( $line );
+		}
+		echo $answer['body']; 
+		exit;
 	}
 
 
@@ -7277,7 +7739,7 @@ final class Editor {
 			foreach ( $current[ $kind ] as $doc ) {
 				$file = get_attached_file( $doc->ID );
 				$size = $file && file_exists( $file ) ? size_format( (int) filesize( $file ) ) : '';
-				$out .= '<li class="list-group-item d-flex align-items-center gap-2 flex-wrap"><a class="me-auto text-break" href="' . esc_url( (string) wp_get_attachment_url( $doc->ID ) ) . '" target="_blank" rel="noopener">' . esc_html( basename( (string) $file ) ) . '</a><span class="text-secondary small">' . esc_html( $size ) . '</span>';
+				$out .= '<li class="list-group-item d-flex align-items-center gap-2 flex-wrap"><a class="me-auto text-break" href="' . esc_url( Documents::url( $doc->ID ) ) . '" target="_blank" rel="noopener">' . esc_html( Documents::name( $doc->ID ) ) . '</a><span class="text-secondary small">' . esc_html( $size ) . '</span>';
 				if ( $can ) {
 					$rid  = 'fmc-replace-' . $doc->ID;
 					$out .= '<label class="btn btn-sm btn-outline-primary mb-0" for="' . esc_attr( $rid ) . '">Cambiar</label><input class="visually-hidden fmc-file" type="file" id="' . esc_attr( $rid ) . '" name="fmc_replace[' . esc_attr( (string) $doc->ID ) . ']" accept="' . esc_attr( $accept ) . '">';
@@ -8626,6 +9088,12 @@ final class Screen {
 			return;
 		}
 
+
+		if ( '' !== Lists::arg( Documents::ARG ) ) {
+			Documents::serve();
+			return;
+		}
+
 		if ( Catalogue::asked() ) {
 			nocache_headers();
 
@@ -9348,6 +9816,32 @@ final class Catalogue {
 
 
 
+
+
+
+
+	private static function sheets( int $design ): string {
+		$docs = Documents::of( $design );
+		$out  = '';
+		foreach ( Documents::PUBLIC_KINDS as $kind ) {
+			if ( ! $docs[ $kind ] ) {
+				continue;
+			}
+			$out .= '<section class="card fmc-section mb-3"><div class="card-body"><h2 class="h5">' . esc_html( Documents::kinds()[ $kind ]['label'] ) . '</h2><ul class="list-unstyled mb-0">';
+			foreach ( $docs[ $kind ] as $doc ) {
+				$out .= '<li><a href="' . esc_url( Documents::url( $doc->ID ) ) . '">' . esc_html( Documents::name( $doc->ID ) ) . '</a></li>';
+			}
+			$out .= '</ul></div></section>';
+		}
+		return $out;
+	}
+
+
+
+
+
+
+
 	private static function sheet( int $id ): array {
 		$back = '<a class="small" href="' . esc_url( self::url() ) . '">← Catálogo de formación</a>';
 		$post = get_post( $id );
@@ -9385,6 +9879,8 @@ final class Catalogue {
 			$body .= '<section class="card fmc-section mb-3"><div class="card-body"><h2 class="h5">Competencia digital</h2>' . Editor::digcomp( $url ) . '</div></section>';
 		}
 
+		$body .= self::sheets( $post->ID );
+
 		return array(
 			'back'     => $back,
 			'title'    => get_the_title( $post ),
@@ -9409,6 +9905,7 @@ use Fmc\Centre\CentreSettings;
 use Fmc\Meta\MetaRegistration;
 use Fmc\PostType\PostTypes;
 use Fmc\PublicFront\Catalogue;
+use Fmc\PublicFront\Documents;
 use Fmc\PublicFront\Lists;
 use Fmc\PublicFront\Screen;
 use Fmc\Taxonomy\Taxonomies;
@@ -9458,6 +9955,8 @@ final class App {
 		Lists::register();
 		Screen::register();
 		Catalogue::register();
+
+		Documents::register();
 	}
 }
 }

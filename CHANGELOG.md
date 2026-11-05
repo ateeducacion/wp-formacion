@@ -8,6 +8,18 @@ lee de la cabecera superior y la escribe en el `@version` del bundle.
 `make release` crea el tag y la release en GitHub; el despliegue de los snippets
 en el sitio de destino se hace después.
 
+## [0.0.14] — 2026-11-05
+
+### Seguridad
+
+- **Los documentos de un diseño ya no se descargan por su dirección**: estaban en la carpeta pública de subidas con su nombre de siempre, así que la escaleta o las presentaciones de un borrador o de un histórico se abrían sin sesión con solo saber la dirección. Ahora el fichero se guarda cerrado, con un nombre que no dice nada, y lo sirve el aplicativo a quien puede leer el diseño. Sin sesión, el enlace lleva al acceso y vuelve al documento
+- `make protect-documents` mueve al almacén cerrado lo que ya estaba subido; se puede repetir sin miedo
+- `make up` y `make coverage` abren antes el almacén del sitio local: al arrancar, wp-env copia las subidas al sitio de los tests y no podía leer un documento cerrado. En local ese cierre no protege nada, y el aplicativo vuelve a cerrar cada documento al leerlo
+
+### Añadido
+
+- **La ficha técnica se descarga desde el catálogo público**: la ficha de un curso del catálogo lista sus documentos de «Diseño del curso», que se descargan sin sesión, como en el catálogo anterior. El resto de los documentos sigue siendo de trabajo
+
 ## [0.0.13] — 2026-11-02
 
 ### Añadido
