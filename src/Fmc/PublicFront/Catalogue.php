@@ -17,8 +17,8 @@ use Fmc\PostType\PostTypes;
  * Sin sesión y en la portada, como el resto del aplicativo: `?fmc_catalogo=1`
  * es la lista y `?fmc_curso=ID`, la ficha de un curso. Solo salen los diseños
  * finalizados que la coordinación ha puesto en el catálogo, y de cada uno solo lo
- * que se publica; lo de trabajo —metodología, observaciones, autoría,
- * documentos— se queda dentro.
+ * que se publica; lo de trabajo —metodología, observaciones, autoría y los
+ * documentos que no son la ficha técnica— se queda dentro (ADR-0025).
  */
 final class Catalogue {
 
@@ -251,6 +251,32 @@ final class Catalogue {
 	}
 
 	/**
+	 * The documents of a course that are public: its technical sheet.
+	 *
+	 * Como en el catálogo anterior, la ficha técnica se descarga desde la ficha
+	 * del curso, sin sesión. El enlace es el del aplicativo, que vuelve a
+	 * comprobar que el curso sigue en el catálogo (ADR-0025).
+	 *
+	 * @param int $design Design ID.
+	 * @return string
+	 */
+	private static function sheets( int $design ): string {
+		$docs = Documents::of( $design );
+		$out  = '';
+		foreach ( Documents::PUBLIC_KINDS as $kind ) {
+			if ( ! $docs[ $kind ] ) {
+				continue;
+			}
+			$out .= '<section class="card fmc-section mb-3"><div class="card-body"><h2 class="h5">' . esc_html( Documents::kinds()[ $kind ]['label'] ) . '</h2><ul class="list-unstyled mb-0">';
+			foreach ( $docs[ $kind ] as $doc ) {
+				$out .= '<li><a href="' . esc_url( Documents::url( $doc->ID ) ) . '">' . esc_html( Documents::name( $doc->ID ) ) . '</a></li>';
+			}
+			$out .= '</ul></div></section>';
+		}
+		return $out;
+	}
+
+	/**
 	 * The sheet of one course, or a not-found page.
 	 *
 	 * @param int $id Design ID.
@@ -292,6 +318,8 @@ final class Catalogue {
 		if ( '' !== $url && array() !== DigComp::summary( $url ) ) {
 			$body .= '<section class="card fmc-section mb-3"><div class="card-body"><h2 class="h5">Competencia digital</h2>' . Editor::digcomp( $url ) . '</div></section>';
 		}
+
+		$body .= self::sheets( $post->ID );
 
 		return array(
 			'back'     => $back,

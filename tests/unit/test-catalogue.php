@@ -8,6 +8,7 @@
 use Fmc\Meta\DesignMetaKeys as D;
 use Fmc\PostType\PostTypes;
 use Fmc\PublicFront\Catalogue;
+use Fmc\PublicFront\Documents;
 
 /**
  * El catálogo público enseña solo lo que está en él, y de cada curso solo lo
@@ -126,6 +127,30 @@ class Test_Catalogue extends WP_UnitTestCase {
 		foreach ( array( 'Por proyectos', 'Nota interna', 'Persona autora' ) as $internal ) {
 			$this->assertStringNotContainsString( $internal, $screen['body'] );
 		}
+	}
+
+	/**
+	 * La ficha técnica se descarga desde la ficha del curso, por el aplicativo;
+	 * el resto de los documentos se queda dentro (ADR-0025).
+	 */
+	public function test_a_sheet_links_its_technical_sheet_and_nothing_else() {
+		$id = $this->design( 'Impresión 3D', array( D::IN_CATALOGUE => '1' ) );
+		foreach ( array(
+			'design'   => 'Ficha técnica.odt',
+			'sessions' => 'Escaleta.odt',
+		) as $kind => $name ) {
+			$doc = self::factory()->attachment->create( array( 'post_parent' => $id ) );
+			update_post_meta( $doc, Documents::KIND_META, $kind );
+			update_post_meta( $doc, Documents::NAME_META, $name );
+			$docs[ $kind ] = $doc;
+		}
+		$_GET[ Catalogue::ARG_SHEET ] = (string) $id;
+
+		$body = Catalogue::screen()['body'];
+		$this->assertStringContainsString( '>Diseño del curso</h2>', $body );
+		$this->assertStringContainsString( '<a href="' . esc_url( Documents::url( $docs['design'] ) ) . '">Ficha técnica.odt</a>', $body );
+		$this->assertStringNotContainsString( 'Escaleta', $body );
+		$this->assertStringNotContainsString( 'fmc_documento=' . $docs['sessions'], $body );
 	}
 
 	/**

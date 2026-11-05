@@ -35,6 +35,7 @@ return array(
 	'Centre/CentreSettings.php',
 	'PublicFront/Assets.php',
 	'PublicFront/Fields.php',
+	'PublicFront/DocumentStore.php',
 	'PublicFront/Documents.php',
 	'PublicFront/Speakers.php',
 	'PublicFront/Lists.php',

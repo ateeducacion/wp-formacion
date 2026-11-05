@@ -60,6 +60,7 @@ sus números de formulario, de campo y de vista— está en `.local/`.
 | Campos que solo rellena el servicio de perfeccionamiento, escondidos a los demás por la vista | Permiso por campo en el servidor: `auth_callback` de la meta (ADR-0006) |
 | Una incidencia que recibe el identificador de la acción por la URL | `fmc_incident` cuelga de su acción por `post_parent`, y lo fija el aplicativo (ADR-0007) |
 | Los ponentes, con NIF y teléfono, en un formulario que alimenta listados | CPT `fmc_speaker`, no público y fuera de REST |
+| Los documentos del curso, en una carpeta pública y con su nombre | Adjuntos del diseño con el fichero cerrado y nombre aleatorio; los sirve el aplicativo a quien lea el diseño, y la ficha técnica de un curso del catálogo, a cualquiera (ADR-0025) |
 | El curso escolar, un shortcode que se evalúa al guardar | Se deduce de la fecha de inicio: `Domain/SchoolYear` |
 | El centro donde se imparte, de una lista de centros copiada a mano o escrito a mano | El código del catálogo de centros, que se pone al día solo (ADR-0021) |
 
@@ -123,7 +124,8 @@ src/Fmc/
     ├── Calendar.php              Las acciones por mes, semana o día, con colores por situación y financiación; su vista «Lista» es Lists
     ├── Fields.php                Las fichas de edición escritas como datos: secciones y campos
     ├── Editor.php                Ficha de edición y guardado campo a campo (`apply()`), con las reglas de Fields::rules()
-    ├── Documents.php             Documentos del diseño: adjuntos colgados de él, por clase y formato
+    ├── DocumentStore.php         El almacén cerrado de esos documentos: `uploads/fmc-private/`, en `0200`, y se abren solo mientras se leen (ADR-0025)
+    ├── Documents.php             Documentos del diseño: adjuntos colgados de él, por clase y formato, quién los descarga y la descarga, `?fmc_documento=ID` (ADR-0025)
     ├── Speakers.php              Lo que ha impartido cada ponente y la cadena de diseños que se sustituyen
     ├── Catalogue.php             El catálogo público, sin sesión: lista y ficha de los cursos (ADR-0013)
     └── Assets.php                El CSS de assets/, inlineado en el bundle
@@ -131,7 +133,8 @@ src/Fmc/
 
 **La portada del sitio es el aplicativo**: sin sesión manda al acceso, salvo
 el catálogo público (`?fmc_catalogo=1`, `?fmc_curso=ID`, ADR-0013), que es la
-única pantalla que se ve sin entrar y solo enseña lo que está en él; con
+única pantalla que se ve sin entrar y solo enseña lo que está en él, y la
+ficha técnica de sus cursos (`?fmc_documento=ID`, ADR-0025); con
 sesión pinta su propio documento (Bootstrap 5, Tom Select y SweetAlert2 desde
 jsDelivr con SRI), no el del tema, con la piel de los aplicativos hermanos. La
 barra de WordPress sale solo para la administración y para quien la
@@ -165,6 +168,7 @@ Ni una capa más. Si crees que hace falta otra, escribe la ADR primero.
 | Antes de commit/PR | `make check` |
 | Comprobar el código como lo revisaría WordPress.org | `make check-plugin` (errores **y avisos**) |
 | Publicar una versión | `make release` (tras cerrar el bloque del CHANGELOG) |
+| Mover al almacén privado los documentos subidos antes de ADR-0025 | `make protect-documents` (idempotente) |
 | Llevar un snippet al sitio de destino | `npm run snippets -- push <id> --file snippets/… --dry-run` (sin `--yes` no escribe) |
 
 Sitio local: <http://localhost:8858> (`admin` / `password`). Tests en el 8859.

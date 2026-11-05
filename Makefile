@@ -101,6 +101,9 @@ provision: ## Provisiona: idioma, bundle, snippets, roles, vocabulario y datos d
 seed-demo: start-if-not-running ## Rehace los datos de demostración: usuarios, diseños y acciones
 	@$(WP_ENV) run cli wp $(WP_URL) eval-file $(FMC_DEV)/scripts/seed-demo.php
 
+protect-documents: start-if-not-running ## Mueve los documentos de los diseños al almacén privado (ADR-0025; idempotente)
+	@$(WP_ENV) run cli wp $(WP_URL) eval-file $(FMC_DEV)/scripts/protect-documents.php
+
 sync-snippets: ## Sincroniza snippets/*.php con el plugin Code Snippets
 	@echo "Sincronizando snippets..."
 	@$(WP_ENV) run cli wp $(WP_URL) eval-file $(FMC_DEV)/scripts/sync-snippets.php

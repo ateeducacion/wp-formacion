@@ -12,6 +12,7 @@ use Fmc\Centre\CentreSettings;
 use Fmc\Meta\MetaRegistration;
 use Fmc\PostType\PostTypes;
 use Fmc\PublicFront\Catalogue;
+use Fmc\PublicFront\Documents;
 use Fmc\PublicFront\Lists;
 use Fmc\PublicFront\Screen;
 use Fmc\Taxonomy\Taxonomies;
@@ -60,5 +61,7 @@ final class App {
 		Lists::register();
 		Screen::register();
 		Catalogue::register();
+		// Los documentos se descargan por el aplicativo, no por su dirección (ADR-0025).
+		Documents::register();
 	}
 }

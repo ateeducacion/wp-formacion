@@ -626,7 +626,7 @@ final class Editor {
 			foreach ( $current[ $kind ] as $doc ) {
 				$file = get_attached_file( $doc->ID );
 				$size = $file && file_exists( $file ) ? size_format( (int) filesize( $file ) ) : '';
-				$out .= '<li class="list-group-item d-flex align-items-center gap-2 flex-wrap"><a class="me-auto text-break" href="' . esc_url( (string) wp_get_attachment_url( $doc->ID ) ) . '" target="_blank" rel="noopener">' . esc_html( basename( (string) $file ) ) . '</a><span class="text-secondary small">' . esc_html( $size ) . '</span>';
+				$out .= '<li class="list-group-item d-flex align-items-center gap-2 flex-wrap"><a class="me-auto text-break" href="' . esc_url( Documents::url( $doc->ID ) ) . '" target="_blank" rel="noopener">' . esc_html( Documents::name( $doc->ID ) ) . '</a><span class="text-secondary small">' . esc_html( $size ) . '</span>';
 				if ( $can ) {
 					$rid  = 'fmc-replace-' . $doc->ID;
 					$out .= '<label class="btn btn-sm btn-outline-primary mb-0" for="' . esc_attr( $rid ) . '">Cambiar</label><input class="visually-hidden fmc-file" type="file" id="' . esc_attr( $rid ) . '" name="fmc_replace[' . esc_attr( (string) $doc->ID ) . ']" accept="' . esc_attr( $accept ) . '">';
