@@ -14,6 +14,7 @@ en el sitio de destino se hace después.
 
 - **Los documentos de un diseño ya no se descargan por su dirección**: estaban en la carpeta pública de subidas con su nombre de siempre, así que la escaleta o las presentaciones de un borrador o de un histórico se abrían sin sesión con solo saber la dirección. Ahora el fichero se guarda cerrado, con un nombre que no dice nada, y lo sirve el aplicativo a quien puede leer el diseño. Sin sesión, el enlace lleva al acceso y vuelve al documento
 - `make protect-documents` mueve al almacén cerrado lo que ya estaba subido; se puede repetir sin miedo
+- `make up` y `make coverage` abren antes el almacén del sitio local: al arrancar, wp-env copia las subidas al sitio de los tests y no podía leer un documento cerrado. En local ese cierre no protege nada, y el aplicativo vuelve a cerrar cada documento al leerlo
 
 ### Añadido
 

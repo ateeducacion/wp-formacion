@@ -4535,26 +4535,49 @@ final class Documents {
 
 
 
-	public static function serve(): void {
-		$id      = absint( Lists::arg( self::ARG ) );
-		$verdict = self::verdict( $id );
+
+
+	public static function answer( int $attachment_id ): array {
+		$verdict = self::verdict( $attachment_id );
 		if ( 'login' === $verdict ) {
-			Screen::leave( wp_login_url( self::url( $id ) ) );
+			return array( 'redirect' => wp_login_url( self::url( $attachment_id ) ) );
+		}
+		$bytes = 'denied' === $verdict ? null : DocumentStore::read( $attachment_id );
+		if ( null !== $bytes ) {
+			return array(
+				'status'  => 200,
+				'headers' => self::headers( $attachment_id, strlen( $bytes ) ),
+				'body'    => $bytes,
+			);
+		}
+		$nocache = array();
+
+		foreach ( array_filter( wp_get_nocache_headers() ) as $name => $value ) {
+			$nocache[] = $name . ': ' . $value;
+		}
+		return array(
+			'status'  => 'denied' === $verdict ? 404 : 503,
+			'headers' => array_merge( $nocache, array( 'Content-Type: text/plain; charset=utf-8', 'X-Content-Type-Options: nosniff' ) ),
+			'body'    => 'denied' === $verdict ? 'Este documento no existe, o no puede verlo.' : 'No se ha podido leer el documento. Pruebe otra vez dentro de un momento.',
+		);
+	}
+
+
+
+
+
+
+	public static function serve(): void {
+		$answer = self::answer( absint( Lists::arg( self::ARG ) ) );
+		if ( isset( $answer['redirect'] ) ) {
+			Screen::leave( $answer['redirect'] );
 			return;
 		}
-		$bytes = 'denied' === $verdict ? null : DocumentStore::read( $id );
-		if ( null === $bytes ) {
-			status_header( 'denied' === $verdict ? 404 : 503 );
-			nocache_headers();
-			header( 'Content-Type: text/plain; charset=utf-8' );
-			header( 'X-Content-Type-Options: nosniff' );
-			echo esc_html( 'denied' === $verdict ? 'Este documento no existe, o no puede verlo.' : 'No se ha podido leer el documento. Pruebe otra vez dentro de un momento.' );
-			exit;
-		}
-		foreach ( self::headers( $id, strlen( $bytes ) ) as $line ) {
+		status_header( $answer['status'] );
+		foreach ( $answer['headers'] as $line ) {
 			header( $line );
 		}
-		echo $bytes; 
+		echo $answer['body']; 
 		exit;
 	}
 

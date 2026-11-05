@@ -9,6 +9,7 @@ use Fmc\Meta\SpeakerMetaKeys;
 use Fmc\PostType\PostTypes;
 use Fmc\PublicFront\Assets;
 use Fmc\PublicFront\Catalogue;
+use Fmc\PublicFront\Documents;
 use Fmc\PublicFront\Editor;
 use Fmc\PublicFront\Lists;
 use Fmc\PublicFront\Screen;
@@ -204,6 +205,27 @@ class Test_Screen extends WP_UnitTestCase {
 
 		$this->as_role( 'fmc_adviser' );
 		$this->assertStringContainsString( '>Ir al aplicativo</a>', Screen::document( Catalogue::screen() ) );
+	}
+
+	/**
+	 * Un documento lo atiende él mismo, antes que el catálogo y que el acceso:
+	 * sin sesión, el de un borrador manda a entrar y vuelve a él (ADR-0025).
+	 */
+	public function test_a_document_is_answered_before_anything_else() {
+		$id  = self::factory()->post->create(
+			array(
+				'post_type'   => PostTypes::DESIGN,
+				'post_status' => 'draft',
+			)
+		);
+		$doc = self::factory()->attachment->create( array( 'post_parent' => $id ) );
+		update_post_meta( $doc, Documents::KIND_META, 'sessions' );
+
+		$this->visit( array( Documents::ARG => $doc ) );
+		$stop = $this->route();
+
+		$this->assertStringStartsWith( 'redirect:' . wp_login_url(), $stop );
+		$this->assertStringContainsString( rawurlencode( Documents::url( $doc ) ), $stop );
 	}
 
 	/**

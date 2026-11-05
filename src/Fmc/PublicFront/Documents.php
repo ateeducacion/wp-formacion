@@ -419,34 +419,57 @@ final class Documents {
 	}
 
 	/**
-	 * Serve `?fmc_documento=ID` and stop.
+	 * What `?fmc_documento=ID` answers, without sending it.
 	 *
 	 * El identificador no autoriza nada: decide {@see self::verdict()}. Sin
 	 * sesión, lo que no es público manda al acceso y vuelve aquí; con sesión y
-	 * sin permiso, la respuesta es la misma que si no existiera.
+	 * sin permiso, la respuesta es la misma que si no existiera. Aparte de
+	 * {@see self::serve()}, que acaba en `exit`, para poder probarla.
+	 *
+	 * @param int $attachment_id Attachment.
+	 * @return array{redirect?: string, status?: int, headers?: string[], body?: string}
+	 */
+	public static function answer( int $attachment_id ): array {
+		$verdict = self::verdict( $attachment_id );
+		if ( 'login' === $verdict ) {
+			return array( 'redirect' => wp_login_url( self::url( $attachment_id ) ) );
+		}
+		$bytes = 'denied' === $verdict ? null : DocumentStore::read( $attachment_id );
+		if ( null !== $bytes ) {
+			return array(
+				'status'  => 200,
+				'headers' => self::headers( $attachment_id, strlen( $bytes ) ),
+				'body'    => $bytes,
+			);
+		}
+		$nocache = array();
+		// Sin `Last-Modified`, que WordPress pone a `false` para que se quite.
+		foreach ( array_filter( wp_get_nocache_headers() ) as $name => $value ) {
+			$nocache[] = $name . ': ' . $value;
+		}
+		return array(
+			'status'  => 'denied' === $verdict ? 404 : 503,
+			'headers' => array_merge( $nocache, array( 'Content-Type: text/plain; charset=utf-8', 'X-Content-Type-Options: nosniff' ) ),
+			'body'    => 'denied' === $verdict ? 'Este documento no existe, o no puede verlo.' : 'No se ha podido leer el documento. Pruebe otra vez dentro de un momento.',
+		);
+	}
+
+	/**
+	 * Serve `?fmc_documento=ID` and stop.
 	 *
 	 * @return void
 	 */
 	public static function serve(): void {
-		$id      = absint( Lists::arg( self::ARG ) );
-		$verdict = self::verdict( $id );
-		if ( 'login' === $verdict ) {
-			Screen::leave( wp_login_url( self::url( $id ) ) );
+		$answer = self::answer( absint( Lists::arg( self::ARG ) ) );
+		if ( isset( $answer['redirect'] ) ) {
+			Screen::leave( $answer['redirect'] );
 			return;
 		}
-		$bytes = 'denied' === $verdict ? null : DocumentStore::read( $id );
-		if ( null === $bytes ) {
-			status_header( 'denied' === $verdict ? 404 : 503 );
-			nocache_headers();
-			header( 'Content-Type: text/plain; charset=utf-8' );
-			header( 'X-Content-Type-Options: nosniff' );
-			echo esc_html( 'denied' === $verdict ? 'Este documento no existe, o no puede verlo.' : 'No se ha podido leer el documento. Pruebe otra vez dentro de un momento.' );
-			exit;
-		}
-		foreach ( self::headers( $id, strlen( $bytes ) ) as $line ) {
+		status_header( $answer['status'] );
+		foreach ( $answer['headers'] as $line ) {
 			header( $line );
 		}
-		echo $bytes; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- es el fichero, no HTML: se sirve como descarga y con nosniff.
+		echo $answer['body']; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- el fichero, o un texto fijo: se sirve como descarga o como text/plain, siempre con nosniff.
 		exit;
 	}
 
