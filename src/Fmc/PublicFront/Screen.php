@@ -291,6 +291,8 @@ final class Screen {
 		}
 		if ( $edit || '' !== $new ) {
 			$screen = Editor::screen( $edit, $new );
+		} elseif ( Help::asked() && Help::available() ) {
+			$screen = Help::screen();
 		} else {
 			if ( ! isset( $tabs[ $tab ] ) ) {
 				$tab = (string) array_key_first( $tabs );
@@ -480,6 +482,7 @@ final class Screen {
 			$active = $key === $current;
 			$out   .= '<li class="nav-item"><a class="nav-link' . ( $active ? ' active' : '' ) . '"' . ( $active ? ' aria-current="page"' : '' ) . ' href="' . esc_url( self::url( array( self::ARG_TAB => $key ) ) ) . '">' . esc_html( $tab['label'] ) . '</a></li>';
 		}
+		$out .= Help::tab( Help::TAB === $current );
 		$out .= '</ul></div></nav>';
 		return $out;
 	}

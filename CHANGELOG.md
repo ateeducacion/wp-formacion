@@ -8,7 +8,7 @@ lee de la cabecera superior y la escribe en el `@version` del bundle.
 `make release` crea el tag y la release en GitHub; el despliegue de los snippets
 en el sitio de destino se hace después.
 
-## [0.0.14] — 2026-11-05
+## [0.1.0] — 2026-11-17
 
 ### Seguridad
 
@@ -18,7 +18,14 @@ en el sitio de destino se hace después.
 
 ### Añadido
 
+- **Pestaña «Ayuda» con guías paso a paso y capturas**: qué es un diseño y qué es una acción, quién hace qué, cómo se escribe un diseño, cómo se agenda una acción, cómo se pide un cambio con una incidencia y cómo la resuelve el servicio, y preguntas frecuentes. Llega en su propio snippet, «FMC — Ayuda», que hay que desplegar junto al aplicativo; sin él, la pestaña no sale (ADR-0026)
+- `make capturas` rehace todas las capturas de la ayuda desde Playground con los datos de demostración, que ahora traen ponentes, acciones en el mes en curso y una incidencia pendiente, todo inventado
 - **La ficha técnica se descarga desde el catálogo público**: la ficha de un curso del catálogo lista sus documentos de «Diseño del curso», que se descargan sin sesión, como en el catálogo anterior. El resto de los documentos sigue siendo de trabajo
+
+### Pendiente antes de desplegar
+
+- Crear en el sitio de destino el snippet nuevo **«FMC — Ayuda»** (`snippets/fmc-help.bundle.php`), activo y con ámbito global, además de actualizar el del aplicativo
+- Pasar `make protect-documents` en el destino, o su equivalente, para cerrar los documentos de diseño que ya estaban subidos
 
 ## [0.0.13] — 2026-11-02
 

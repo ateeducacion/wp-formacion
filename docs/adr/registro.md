@@ -75,3 +75,4 @@ adenda del 2026-10-28).
 | [ADR-0023](ADR-0023-las-asesorias-se-dan-de-alta-pegando-la-lista-del-curso.md) | Las asesorías se dan de alta pegando la lista del curso | Propuesta |
 | [ADR-0024](ADR-0024-quien-gestiono-la-accion-se-guarda-con-su-nombre.md) | Quién gestionó la acción se guarda con su nombre, y solo la asesoría la gestiona | Propuesta |
 | [ADR-0025](ADR-0025-los-documentos-del-diseno-se-sirven-por-el-aplicativo.md) | Los documentos del diseño se guardan cerrados y se sirven por el aplicativo; la ficha técnica del catálogo, a cualquiera | Propuesta |
+| [ADR-0026](ADR-0026-la-ayuda-es-una-pestana-con-capturas-en-su-propio-snippet.md) | La ayuda es una pestaña con guías y capturas, en su propio snippet, y las capturas las saca un guion | Propuesta |

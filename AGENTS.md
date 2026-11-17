@@ -35,7 +35,9 @@ y cómo se llega hasta el sitio nuevo, en
   Snippets ([ADR-0001](docs/adr/ADR-0001-el-repositorio-es-un-entorno-de-desarrollo-no-un-plugin.md)).
 - Fuente de verdad:
   - `src/Fmc/` → código del aplicativo (**editar aquí**);
-  - `make bundle` → genera `snippets/fmc-formacion-app.bundle.php`;
+  - `make bundle` → genera `snippets/fmc-formacion-app.bundle.php` y, desde
+    `assets/help/`, `snippets/fmc-help.bundle.php`, la ayuda con sus capturas
+    ([ADR-0026](docs/adr/ADR-0026-la-ayuda-es-una-pestana-con-capturas-en-su-propio-snippet.md));
   - `snippets/*.php` → `make sync-snippets` los lleva al entorno local;
     `npm run snippets` (el cliente `@erseco/code-snippets-client`) los lleva al
     sitio de destino, con las credenciales del `.env`.
@@ -79,6 +81,8 @@ horas de sus sesiones.
 | `src/Fmc/load-order.php` | Orden de carga: lista única, la usan bootstrap y el bundler |
 | `src/Fmc/bootstrap.php` | Define `FMC_SRC_DIR`, recorre la lista y llama `App::boot()` |
 | `build/pack-snippet.php` | Empaquetador `src/Fmc/` → bundle |
+| `build/pack-help.php` | Empaquetador `assets/help/` → snippet «FMC — Ayuda», con las capturas dentro |
+| `assets/help/` | Texto de la ayuda (`ayuda.html`) y sus capturas (`img/`), que rehace `make capturas` |
 | `snippets/` | Snippets sueltos + bundle generado; sync a Code Snippets |
 | `scripts/` | Aprovisionamiento (`wp eval-file` / Playground) |
 | `scripts/lib/snippet-sync.php` | Librería de sincronización con Code Snippets |
@@ -128,6 +132,7 @@ src/Fmc/
     ├── Documents.php             Documentos del diseño: adjuntos colgados de él, por clase y formato, quién los descarga y la descarga, `?fmc_documento=ID` (ADR-0025)
     ├── Speakers.php              Lo que ha impartido cada ponente y la cadena de diseños que se sustituyen
     ├── Catalogue.php             El catálogo público, sin sesión: lista y ficha de los cursos (ADR-0013)
+    ├── Help.php                  La pestaña «Ayuda» (`?fmc_ayuda=1`): sale si está desplegado el snippet «FMC — Ayuda» (ADR-0026)
     └── Assets.php                El CSS de assets/, inlineado en el bundle
 ```
 
@@ -160,6 +165,7 @@ Ni una capa más. Si crees que hace falta otra, escribe la ADR primero.
 | Cambio en un snippet suelto | `make sync-snippets` |
 | Tras `make bundle`, con wp-env arrancado | `make snippet-check` (los snippets sobreviven al guardado de Code Snippets) |
 | Un test concreto | `make test FILE=tests/unit/test-post-types.php` o `make test FILTER=nombre_del_metodo` |
+| Cambio en `assets/help/` o en una pantalla que sale en la ayuda | `make capturas` (Playground con los datos de demostración; rehace las capturas y el snippet de la ayuda) |
 | Cambio en un guion de `assets/js/` | `make test-js` (Vitest y jsdom; la cobertura queda en `artifacts/coverage-js/`) |
 | Ver la cobertura | `make coverage` (reinicia wp-env con Xdebug) |
 | Entorno raro | `make clean` |

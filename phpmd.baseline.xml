@@ -75,4 +75,16 @@
   <violation rule="PHPMD\Rule\Design\NPathComplexity" file="src/Fmc/User/AdviserImport.php" method="render"/>
   <violation rule="PHPMD\Rule\Design\NPathComplexity" file="snippets/fmc-formacion-app.bundle.php" method="protect"/>
   <violation rule="PHPMD\Rule\Design\NPathComplexity" file="src/Fmc/PublicFront/DocumentStore.php" method="protect"/>
+  <!-- Del caso 2: `sync()` analizado suelto no da ningún aviso; sale al
+       añadir una clase al bundle, con la misma suma doble de pdepend. -->
+  <violation rule="PHPMD\Rule\CyclomaticComplexity" file="src/Fmc/Centre/CentreCatalogueSync.php" method="sync"/>
+  <violation rule="PHPMD\Rule\Design\NPathComplexity" file="src/Fmc/Centre/CentreCatalogueSync.php" method="sync"/>
+  <violation rule="PHPMD\Rule\Design\ExcessiveMethodLength" file="src/Fmc/Centre/CentreCatalogueSync.php" method="sync"/>
+  <violation rule="PHPMD\Rule\CyclomaticComplexity" file="snippets/fmc-formacion-app.bundle.php" method="sync"/>
+  <violation rule="PHPMD\Rule\Design\NPathComplexity" file="snippets/fmc-formacion-app.bundle.php" method="sync"/>
+  <violation rule="PHPMD\Rule\Design\ExcessiveMethodLength" file="snippets/fmc-formacion-app.bundle.php" method="sync"/>
+  <!-- `fmc_help_html()` es una sola cadena: el texto de la ayuda con sus
+       capturas, generado por build/pack-help.php (ADR-0026). Sus «líneas» son
+       párrafos, no código. -->
+  <violation rule="PHPMD\Rule\Design\ExcessiveMethodLength" file="snippets/fmc-help.bundle.php"/>
 </phpmd-baseline>

@@ -1,0 +1,240 @@
+<!--
+	La ayuda del aplicativo. Se edita aquí y `make bundle` la convierte en el
+	snippet «FMC — Ayuda», con las capturas dentro. Las capturas no se hacen a
+	mano: `make capturas` las rehace todas desde los datos de demostración.
+	Sin llaves en el texto: Code Snippets no dejaría guardar el snippet.
+-->
+<nav class="fmc-help-toc card" aria-label="Contenido de la ayuda">
+	<div class="card-body">
+		<p class="fmc-help-toc-title">En esta página</p>
+		<ol>
+			<li><a href="#ayuda-empezar">Para empezar: diseños y acciones</a></li>
+			<li><a href="#ayuda-perfiles">Quién hace qué</a></li>
+			<li><a href="#ayuda-calendario">Consultar la planificación</a></li>
+			<li><a href="#ayuda-disenos">Consultar los diseños</a></li>
+			<li><a href="#ayuda-diseno-nuevo">Escribir un diseño</a></li>
+			<li><a href="#ayuda-agendar">Agendar una acción formativa</a></li>
+			<li><a href="#ayuda-ponentes">Ponentes</a></li>
+			<li><a href="#ayuda-incidencia">Pedir un cambio: las incidencias</a></li>
+			<li><a href="#ayuda-servicio">Servicio de perfeccionamiento: expediente e incidencias</a></li>
+			<li><a href="#ayuda-catalogo">El catálogo público</a></li>
+			<li><a href="#ayuda-preguntas">Preguntas frecuentes</a></li>
+		</ol>
+	</div>
+</nav>
+
+<section id="ayuda-empezar" class="fmc-help-section">
+	<h2>Para empezar: diseños y acciones</h2>
+	<p>El planificador separa dos cosas que antes iban juntas:</p>
+	<ul>
+		<li><strong>El diseño</strong> es el curso tal y como se ha pensado: título, tipo, modalidad, horas, objetivos, contenidos y documentos. Se escribe una vez y forma el catálogo.</li>
+		<li><strong>La acción formativa</strong> es una vez que ese diseño se imparte: en qué fechas, en qué ámbito y centro, con qué ponentes y quién la paga. Un mismo diseño puede tener muchas acciones.</li>
+	</ul>
+	<p>Arriba están siempre tu nombre y tu perfil, y debajo las pestañas. Cada uno ve solo las pestañas de lo que puede hacer. La campana, cuando sale, cuenta las incidencias que están esperando una respuesta.</p>
+	<figure>
+		<img src="img/cabecera.webp" alt="Cabecera del planificador con el nombre y el perfil, la campana de incidencias y las pestañas Planificación, Diseño, Ponentes, Incidencias y Ayuda." width="1280" height="330">
+		<figcaption>La cabecera y las pestañas, con el perfil de coordinación.</figcaption>
+	</figure>
+	<p>Las fichas se abren en un <strong>panel a la derecha</strong>, sin perder de vista la lista. Con «Abrir en la página entera» se ve en grande, y con la <strong>×</strong> o la tecla Esc se cierra.</p>
+</section>
+
+<section id="ayuda-perfiles" class="fmc-help-section">
+	<h2>Quién hace qué</h2>
+	<div class="table-responsive">
+		<table class="table table-sm align-middle">
+			<thead>
+				<tr><th scope="col">Perfil</th><th scope="col">Qué hace</th></tr>
+			</thead>
+			<tbody>
+				<tr><th scope="row">Coordinación de formación</th><td>Escribe los diseños, los da por finalizados y los pasa a histórico. Ve y corrige todo.</td></tr>
+				<tr><th scope="row">Asesoría</th><td>Consulta los diseños finalizados, agenda acciones, mantiene el directorio de ponentes y abre incidencias sobre sus acciones.</td></tr>
+				<tr><th scope="row">Servicio de perfeccionamiento</th><td>Consulta las acciones, pone el número de expediente y resuelve las incidencias.</td></tr>
+			</tbody>
+		</table>
+	</div>
+	<p>Los nombres de los perfiles pueden ser otros en tu instalación; lo que hace cada uno, no.</p>
+</section>
+
+<section id="ayuda-calendario" class="fmc-help-section">
+	<h2>Consultar la planificación</h2>
+	<p>La pestaña <strong>Planificación de acciones formativas</strong> se abre en el calendario del mes.</p>
+	<ol>
+		<li>Cambia de vista con <strong>Mes</strong>, <strong>Semana</strong>, <strong>Día</strong> o <strong>Lista</strong>. Con las flechas pasas de mes y con <strong>Hoy</strong> vuelves al actual.</li>
+		<li>El color del borde dice cómo va la acción: impartiéndose, realizada, aplazada o cancelada. El punto de color dice quién la paga. La leyenda está encima del calendario.</li>
+		<li>Para buscar, escribe en <strong>Buscar</strong> el título, el subtítulo o el expediente, elige la situación o el curso escolar y pulsa <strong>Filtrar</strong>. Con <strong>Búsqueda avanzada</strong> salen más filtros, y <strong>Quitar filtros</strong> lo deja como al entrar.</li>
+		<li>Pulsa una acción para abrir su ficha.</li>
+	</ol>
+	<figure>
+		<img src="img/calendario.webp" alt="Calendario del mes con los botones de vista, los filtros, la leyenda de colores y una acción formativa en su día." width="1280" height="800">
+		<figcaption>El calendario del mes, con su leyenda.</figcaption>
+	</figure>
+	<p>La vista <strong>Lista</strong> es la misma información en una tabla: con los contadores de arriba ves cuántas hay en cada situación, y con <strong>Exportar CSV</strong> te llevas a una hoja de cálculo lo que estás viendo, con sus filtros.</p>
+	<figure>
+		<img src="img/acciones-lista.webp" alt="Vista de lista de las acciones con contadores por situación, filtros y una tabla con título, ámbito, ponentes, horas, fechas y estado." width="1280" height="700">
+		<figcaption>La vista de lista. Una acción con una incidencia sin resolver lo dice debajo del título.</figcaption>
+	</figure>
+</section>
+
+<section id="ayuda-disenos" class="fmc-help-section">
+	<h2>Consultar los diseños</h2>
+	<p>La pestaña <strong>Diseño de acciones formativas</strong> es el catálogo de trabajo. La asesoría ve aquí los diseños <strong>finalizados</strong>; la coordinación ve también los borradores, los que están en revisión y el histórico, con un contador para cada estado.</p>
+	<ol>
+		<li>Busca por el título o elige el tipo y pulsa <strong>Filtrar</strong>.</li>
+		<li>Pulsa el título, o el ojo de la derecha, para ver la ficha completa con sus documentos.</li>
+	</ol>
+	<figure>
+		<img src="img/disenos-asesoria.webp" alt="Listado de diseños finalizados con código, tipo, horas, temática y programas." width="1280" height="520">
+		<figcaption>Los diseños, vistos por una asesoría: solo los finalizados.</figcaption>
+	</figure>
+	<figure>
+		<img src="img/disenos.webp" alt="Listado de diseños visto por la coordinación, con contadores de vigentes, borrador, en revisión, finalizado e histórico." width="1280" height="580">
+		<figcaption>Los mismos diseños, vistos por la coordinación: con todos sus estados.</figcaption>
+	</figure>
+</section>
+
+<section id="ayuda-diseno-nuevo" class="fmc-help-section">
+	<h2>Escribir un diseño <span class="badge text-bg-light fmc-help-who">Coordinación</span></h2>
+	<ol>
+		<li>En <strong>Diseño de acciones formativas</strong>, pulsa <strong>+ Añadir diseño</strong>.</li>
+		<li>Rellena el <strong>título</strong>, el <strong>tipo de formación</strong> y la <strong>modalidad</strong>. Las horas que se piden dependen de la modalidad. El código lo pone el aplicativo al guardar por primera vez.</li>
+		<li>En <strong>Clasificación</strong>, elige los programas que lo cubren y su temática. Solo se ofrecen los programas vigentes.</li>
+		<li>En <strong>Contenido del diseño</strong>, escribe la descripción, los destinatarios, los objetivos y los contenidos: esos cuatro salen en el catálogo público.</li>
+		<li>En <strong>Documentos</strong>, sube el diseño, la escaleta y las presentaciones en editable, y los recursos en PDF.</li>
+		<li>Abajo eliges qué hacer con él:
+			<ul>
+				<li><strong>Guardar borrador</strong>: lo sigues otro día; la asesoría todavía no lo ve.</li>
+				<li><strong>Mandar a revisión</strong>: queda pendiente de que la coordinación lo dé por bueno.</li>
+				<li><strong>Dar por finalizado</strong>: ya se puede agendar, y si marcaste «Sale en el catálogo público», se publica.</li>
+			</ul>
+		</li>
+	</ol>
+	<figure>
+		<img src="img/diseno-nuevo.webp" alt="Panel lateral Nuevo diseño de acción formativa con los campos de identidad y los botones Guardar borrador, Mandar a revisión y Dar por finalizado." width="1280" height="800">
+		<figcaption>Un diseño nuevo se escribe en el panel lateral; los botones están siempre abajo.</figcaption>
+	</figure>
+	<p>Un diseño que <strong>ya no se imparte no se borra</strong>: se pasa a histórico. Así se conservan sus acciones pasadas, pero ya no se puede elegir para una nueva. Si un diseño nuevo sustituye a otro, indícalo en «Sustituye a»: al finalizarlo, el antiguo pasa solo a histórico.</p>
+</section>
+
+<section id="ayuda-agendar" class="fmc-help-section">
+	<h2>Agendar una acción formativa <span class="badge text-bg-light fmc-help-who">Asesoría</span></h2>
+	<p>Hay dos caminos: desde la ficha del diseño, con <strong>Agendar una acción con este diseño</strong>, que ya trae el diseño elegido; o desde la planificación, con <strong>+ Agendar acción formativa</strong>.</p>
+	<figure>
+		<img src="img/diseno-ficha.webp" alt="Ficha de un diseño finalizado, de solo lectura, con el botón Agendar una acción con este diseño." width="1280" height="800">
+		<figcaption>Desde la ficha de un diseño finalizado se agenda directamente.</figcaption>
+	</figure>
+	<ol>
+		<li>Elige el <strong>diseño</strong>. Solo salen los finalizados. El título, la modalidad y las horas son los del diseño; si quieres distinguir esta edición, usa el <strong>subtítulo</strong> («Segunda edición», «Edición de tarde»…).</li>
+		<li>Indica la <strong>asesoría responsable</strong>, el <strong>ámbito</strong> que la gestiona y el <strong>centro donde se imparte</strong>, o marca «Por videoconferencia».</li>
+		<li>Añade los <strong>ponentes</strong>: escribe parte del nombre y elígelo. Al lado de cada nombre ves su isla o zona y lo que ya ha impartido; la ★ marca a quien se recomienda para ese diseño.</li>
+		<li>En <strong>Financiación</strong>, elige quién la asume. Si la asume el servicio de perfeccionamiento, el programa lo pone el aplicativo.</li>
+		<li>Pon la <strong>fecha de inicio</strong> y, si la sabes, la de fin, y en <strong>Días y horas</strong> el calendario de las sesiones.</li>
+		<li>Pulsa <strong>Guardar borrador</strong> si te falta algo, o <strong>Entregar</strong> cuando esté completa.</li>
+	</ol>
+	<figure>
+		<img src="img/accion-nueva.webp" alt="Panel lateral Nueva acción formativa con el diseño, el subtítulo, la asesoría, el ámbito, el centro y los botones Guardar borrador y Entregar." width="1280" height="800">
+		<figcaption>La ficha de una acción nueva. El expediente lo rellena el servicio de perfeccionamiento.</figcaption>
+	</figure>
+	<div class="alert alert-warning">Una acción <strong>entregada ya no la cambia quien la entregó</strong>. Si algo cambia después —las fechas, un ponente, las plazas—, se pide con una incidencia. Mientras está en borrador, puedes cambiarla cuantas veces quieras.</div>
+</section>
+
+<section id="ayuda-ponentes" class="fmc-help-section">
+	<h2>Ponentes</h2>
+	<p>Los ponentes son un <strong>directorio compartido</strong>: cualquier asesoría puede dar de alta a alguien y poner al día cualquier ficha.</p>
+	<ol>
+		<li>En <strong>Ponentes</strong>, busca por el nombre o filtra por isla o zona antes de dar de alta a nadie: puede que ya esté.</li>
+		<li>Si no está, pulsa <strong>+ Añadir ponente</strong>, rellena su ficha y guarda. Ya se puede elegir al agendar.</li>
+		<li>En «Ha impartido» ves cuántas acciones y horas lleva; en «Recomendado para», los diseños para los que se le propone.</li>
+		<li>Si alguien no puede dar formación por un tiempo, marca «No disponible» en su ficha: sigue en el directorio, pero sale en gris al elegir.</li>
+	</ol>
+	<figure>
+		<img src="img/ponentes.webp" alt="Directorio de ponentes con su contacto, isla o zona, lo que han impartido y para qué diseños se les recomienda." width="1280" height="560">
+		<figcaption>El directorio de ponentes. El bocadillo junto a un nombre indica que tiene observaciones.</figcaption>
+	</figure>
+	<p>Los datos de los ponentes son datos personales: no se exportan y solo los ve quien trabaja con ellos.</p>
+</section>
+
+<section id="ayuda-incidencia" class="fmc-help-section">
+	<h2>Pedir un cambio: las incidencias <span class="badge text-bg-light fmc-help-who">Asesoría</span></h2>
+	<ol>
+		<li>Busca la acción en la vista <strong>Lista</strong> y pulsa el triángulo <strong>⚠</strong> de su fila. También puedes abrir la ficha de la acción y pulsar <strong>Abrir una incidencia</strong>.</li>
+		<li>Elige <strong>qué se pide</strong>: un cambio en la acción, aplazarla o cancelarla. Si es aplazarla, indica las nuevas fechas si ya las sabes.</li>
+		<li>Escribe los <strong>motivos</strong> y los <strong>cambios que se proponen</strong>, y marca si el cambio conlleva coste.</li>
+		<li>Pulsa <strong>Enviar la incidencia</strong>.</li>
+	</ol>
+	<figure>
+		<img src="img/incidencia-nueva.webp" alt="Panel lateral Nueva incidencia sobre una acción, con qué se pide, los motivos y los cambios que se proponen." width="1280" height="800">
+		<figcaption>Una incidencia nueva, abierta desde la fila de su acción.</figcaption>
+	</figure>
+	<p>Una incidencia enviada <strong>no se puede cambiar</strong>: si hay que corregirla, se abre otra. Si pide aplazar o cancelar, la acción queda aplazada o cancelada en cuanto se envía. En la pestaña <strong>Incidencias</strong> ves las incidencias y en qué han quedado.</p>
+</section>
+
+<section id="ayuda-servicio" class="fmc-help-section">
+	<h2>Servicio de perfeccionamiento: expediente e incidencias <span class="badge text-bg-light fmc-help-who">Servicio</span></h2>
+	<p><strong>El expediente.</strong> Cuando hayas creado la acción en el sistema de gestión del servicio, abre su ficha en el planificador, escribe el número en <strong>Expediente</strong> y guarda. El expediente solo lo escribe el servicio, y es por lo que se busca después la acción.</p>
+	<p><strong>Las incidencias.</strong> La campana de arriba cuenta las que están pendientes; al pulsarla se abre la lista ya filtrada.</p>
+	<figure>
+		<img src="img/incidencias-servicio.webp" alt="Pestaña Incidencias vista por el servicio, con la campana, los contadores por resolución y una incidencia pendiente con su expediente y sus motivos." width="1280" height="560">
+		<figcaption>Las incidencias pendientes, con el expediente de su acción y sus motivos.</figcaption>
+	</figure>
+	<ol>
+		<li>Pulsa la incidencia para abrirla y lee qué se pide y por qué.</li>
+		<li>En <strong>Resolución</strong>, marca <strong>Aprobada</strong> o <strong>Denegada</strong> y pulsa <strong>Guardar</strong>.</li>
+	</ol>
+	<figure>
+		<img src="img/incidencia-resolver.webp" alt="Ficha de una incidencia con los motivos, los cambios propuestos y la sección Resolución con Pendiente, Aprobada y Denegada." width="1280" height="800">
+		<figcaption>La resolución está al final de la incidencia.</figcaption>
+	</figure>
+</section>
+
+<section id="ayuda-catalogo" class="fmc-help-section">
+	<h2>El catálogo público</h2>
+	<p>Los diseños finalizados que tienen marcado «Sale en el catálogo público» se ven <strong>sin entrar</strong>, en el catálogo: se puede compartir su enlace con el profesorado. Se llega desde <strong>Ver el catálogo público</strong>, en la pestaña de diseños.</p>
+	<figure>
+		<img src="img/catalogo.webp" alt="Catálogo público de formación con buscador, filtros por tipo, modalidad y temática, y la tarjeta de un curso." width="1280" height="640">
+		<figcaption>El catálogo, tal y como lo ve cualquiera.</figcaption>
+	</figure>
+</section>
+
+<section id="ayuda-preguntas" class="fmc-help-section">
+	<h2>Preguntas frecuentes</h2>
+	<details>
+		<summary>¿Dónde pongo los plazos de matrícula, el enlace de inscripción o las listas de admitidos?</summary>
+		<p>En ningún sitio de aquí. La matrícula la lleva el sistema de gestión del servicio de perfeccionamiento, con sus plazos, su enlace y sus listas. En el planificador se registra la acción: sus fechas y sus sesiones.</p>
+	</details>
+	<details>
+		<summary>Entregué una acción y ahora tengo que cambiarla. ¿Cómo lo hago?</summary>
+		<p>Con una incidencia sobre esa acción: <a href="#ayuda-incidencia">pedir un cambio</a>. Una acción entregada ya no la edita quien la entregó, para que el servicio sepa siempre qué ha cambiado y por qué.</p>
+	</details>
+	<details>
+		<summary>Al agendar no encuentro el diseño que busco.</summary>
+		<p>Solo se pueden agendar los diseños <strong>finalizados</strong>. Si está en borrador, en revisión o en el histórico, no sale. Pregunta a la coordinación de formación en qué estado está.</p>
+	</details>
+	<details>
+		<summary>¿Por qué no puedo cambiar el título de la acción?</summary>
+		<p>Porque es el del diseño, y así todas las ediciones de un curso se llaman igual. Para distinguir una edición, usa el <strong>subtítulo</strong>.</p>
+	</details>
+	<details>
+		<summary>Un programa ya no sale en la lista.</summary>
+		<p>Solo se ofrecen los programas vigentes. El que dejó de estarlo se queda en los diseños y acciones que ya lo tenían, pero no se puede elegir para uno nuevo.</p>
+	</details>
+	<details>
+		<summary>El centro donde se imparte no aparece.</summary>
+		<p>La lista sale del catálogo de centros, que se pone al día solo. Busca por el código o por parte del nombre. Si sigue sin salir, avisa a la administración del planificador.</p>
+	</details>
+	<details>
+		<summary>Un ponente no está en la lista al agendar.</summary>
+		<p>Dalo de alta en la pestaña <a href="#ayuda-ponentes">Ponentes</a> y vuelve a abrir la ficha de la acción: ya saldrá. Antes, búscalo por el apellido por si ya existe con otro orden en el nombre.</p>
+	</details>
+	<details>
+		<summary>¿De qué curso escolar es una acción?</summary>
+		<p>Lo deduce el aplicativo de la fecha de inicio. No hay que indicarlo.</p>
+	</details>
+	<details>
+		<summary>¿Qué significa la marca «!» de una acción en el calendario?</summary>
+		<p>Que a la acción le falta el diseño, las plazas o la modalidad. Ábrela y complétala.</p>
+	</details>
+	<details>
+		<summary>Algo no funciona o no sé cómo hacerlo.</summary>
+		<p>Escribe a la coordinación de formación contando qué intentabas hacer y en qué pantalla estabas; si puedes, con una captura. Las dudas que se repitan acabarán en esta página.</p>
+	</details>
+</section>
