@@ -7933,6 +7933,21 @@ final class Editor {
 
 
 
+				$urls = array();
+				if ( 'design' === $f['w'] ) {
+					$hints = self::design_hints( array_keys( $choices ) );
+					foreach ( array_keys( $hints ) as $design ) {
+						$urls[ $design ] = Screen::url(
+							array(
+								Screen::ARG_EDIT  => $design,
+								Screen::ARG_FRAME => '',
+							)
+						);
+					}
+				}
+
+
+
 				$links  = ( ! empty( $f['sets'] ) ? ' data-fmc-sets="f[' . esc_attr( (string) $f['sets'] ) . ']"' : '' ) . ( ! empty( $f['refreshes'] ) ? ' data-fmc-refreshes="f[' . esc_attr( (string) $f['refreshes'] ) . ']"' : '' );
 				$scopes = 'adviser' === $f['w'] && ! empty( $f['sets'] ) ? Advisers::scopes() : array();
 
@@ -7943,11 +7958,11 @@ final class Editor {
 				foreach ( $choices as $v => $text ) {
 					$sets   = isset( $scopes[ (int) $v ] ) ? ' data-fmc-value="' . (int) $scopes[ (int) $v ] . '"' : '';
 					$sets  .= '' !== $gone && (string) $v === $gone ? ' data-fmc-gone="1"' : '';
-					$input .= '<option value="' . esc_attr( (string) $v ) . '"' . selected( $current, (string) $v, false ) . $sets . ( isset( $hints[ $v ] ) ? ' data-fmc-hint="' . esc_attr( $hints[ $v ] ) . '"' : '' ) . '>' . esc_html( $text ) . '</option>';
+					$input .= '<option value="' . esc_attr( (string) $v ) . '"' . selected( $current, (string) $v, false ) . $sets . ( isset( $hints[ $v ] ) ? ' data-fmc-hint="' . esc_attr( $hints[ $v ] ) . '"' : '' ) . ( isset( $urls[ $v ] ) ? ' data-fmc-hint-url="' . esc_url( $urls[ $v ] ) . '"' : '' ) . '>' . esc_html( $text ) . '</option>';
 				}
 				$input .= '</select>';
 				if ( $hints ) {
-					$input .= '<div class="form-text fmc-hint" data-fmc-hint-for="' . esc_attr( $id ) . '">' . esc_html( $hints[ (int) $current ] ?? '' ) . '</div>';
+					$input .= '<div class="form-text fmc-hint" data-fmc-hint-for="' . esc_attr( $id ) . '">' . self::hint_html( $hints[ (int) $current ] ?? '', $urls[ (int) $current ] ?? '' ) . '</div>';
 				}
 				break;
 			case 'speakers':
@@ -8996,6 +9011,59 @@ final class Editor {
 			}
 		}
 		return array_values( array_filter( $out, static fn( $r ) => '' !== implode( '', $r ) ) );
+	}
+
+
+
+
+
+
+
+
+
+
+
+	private static function hint_html( string $text, string $url ): string {
+		$out = esc_html( $text );
+		if ( '' !== $text && '' !== $url ) {
+			$out .= ' <a href="' . esc_url( $url ) . '" target="_blank" rel="noopener">Ver la ficha del diseño</a>';
+		}
+		return $out;
+	}
+
+
+
+
+
+
+
+
+
+
+	public static function design_hints( array $ids ): array {
+		$out = array();
+		foreach ( $ids as $id ) {
+			$id     = (int) $id;
+			$onsite = (float) get_post_meta( $id, D::HOURS_ONSITE, true );
+			$online = (float) get_post_meta( $id, D::HOURS_ONLINE, true );
+			$hours  = '';
+			if ( $onsite > 0 && $online > 0 ) {
+				$hours = ( $onsite + $online ) . ' h (' . ( $onsite + 0 ) . ' presenciales + ' . ( $online + 0 ) . ' en línea)';
+			} elseif ( $onsite + $online > 0 ) {
+				$hours = ( $onsite + $online ) . ' h';
+			}
+			$parts = array_filter(
+				array(
+					D::TYPES[ (string) get_post_meta( $id, D::TYPE, true ) ] ?? '',
+					D::MODALITIES[ (string) get_post_meta( $id, D::MODALITY, true ) ] ?? '',
+					$hours,
+				)
+			);
+			if ( $parts ) {
+				$out[ $id ] = implode( ' · ', $parts );
+			}
+		}
+		return $out;
 	}
 
 
@@ -10918,7 +10986,19 @@ body.has-panel { overflow: hidden; }
 			return;
 		}
 		const option = select.options[ select.selectedIndex ];
-		box.textContent = ( option && option.dataset.fmcHint ) || \'\';
+		const hint = ( option && option.dataset.fmcHint ) || \'\';
+		box.textContent = hint;
+		// El diseño de una acción enlaza además a su ficha, en otra pestaña para
+		// no perder la que se está rellenando (#57). Igual que Editor::hint_html().
+		const url = ( option && option.dataset.fmcHintUrl ) || \'\';
+		if ( hint && url ) {
+			const link = document.createElement( \'a\' );
+			link.href = url;
+			link.target = \'_blank\';
+			link.rel = \'noopener\';
+			link.textContent = \'Ver la ficha del diseño\';
+			box.append( \' \', link );
+		}
 	}
 
 	// La estrella del recomendado sigue al diseño elegido, sin recargar, y los

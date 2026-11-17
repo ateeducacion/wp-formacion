@@ -109,7 +109,19 @@
 			return;
 		}
 		const option = select.options[ select.selectedIndex ];
-		box.textContent = ( option && option.dataset.fmcHint ) || '';
+		const hint = ( option && option.dataset.fmcHint ) || '';
+		box.textContent = hint;
+		// El diseño de una acción enlaza además a su ficha, en otra pestaña para
+		// no perder la que se está rellenando (#57). Igual que Editor::hint_html().
+		const url = ( option && option.dataset.fmcHintUrl ) || '';
+		if ( hint && url ) {
+			const link = document.createElement( 'a' );
+			link.href = url;
+			link.target = '_blank';
+			link.rel = 'noopener';
+			link.textContent = 'Ver la ficha del diseño';
+			box.append( ' ', link );
+		}
 	}
 
 	// La estrella del recomendado sigue al diseño elegido, sin recargar, y los

@@ -18,6 +18,7 @@ en el sitio de destino se hace después.
 
 ### Añadido
 
+- **Al elegir el diseño de una acción se ve qué trae**: su tipo, su modalidad y sus horas, debajo del desplegable y antes de guardar, con un enlace a su ficha. Ayuda a no confundir dos diseños de título parecido o un curso mixto
 - **Pestaña «Ayuda» con guías paso a paso y capturas**: qué es un diseño y qué es una acción, quién hace qué, cómo se escribe un diseño, cómo se agenda una acción, cómo se pide un cambio con una incidencia y cómo la resuelve el servicio, y preguntas frecuentes. Llega en su propio snippet, «FMC — Ayuda», que hay que desplegar junto al aplicativo; sin él, la pestaña no sale (ADR-0026)
 - `make capturas` rehace todas las capturas de la ayuda desde Playground con los datos de demostración, que ahora traen ponentes, acciones en el mes en curso y una incidencia pendiente, todo inventado
 - **La ficha técnica se descarga desde el catálogo público**: la ficha de un curso del catálogo lista sus documentos de «Diseño del curso», que se descargan sin sesión, como en el catálogo anterior. El resto de los documentos sigue siendo de trabajo

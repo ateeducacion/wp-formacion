@@ -463,6 +463,42 @@ class Test_Editor_Render extends WP_UnitTestCase {
 	}
 
 	/**
+	 * Al elegir el diseño de una acción se ve su tipo, su modalidad y sus
+	 * horas, y un enlace a su ficha que no se queda en el panel (#57).
+	 */
+	public function test_the_design_of_an_action_shows_what_it_brings() {
+		$this->as_role( 'fmc_adviser' );
+		$blended = $this->post( PostTypes::DESIGN, 1 );
+		update_post_meta( $blended, D::TYPE, 'course' );
+		update_post_meta( $blended, D::MODALITY, 'blended' );
+		update_post_meta( $blended, D::HOURS_ONSITE, 8 );
+		update_post_meta( $blended, D::HOURS_ONLINE, 12 );
+		$onsite = $this->post( PostTypes::DESIGN, 1 );
+		update_post_meta( $onsite, D::TYPE, 'one_off' );
+		update_post_meta( $onsite, D::MODALITY, 'onsite' );
+		update_post_meta( $onsite, D::HOURS_ONSITE, 3 );
+		$_GET[ Screen::ARG_DESIGN ] = (string) $blended;
+
+		$body   = Editor::screen( 0, PostTypes::ACTION )['body'];
+		$option = function ( int $id ) use ( $body ) {
+			return $this->find( $body, '//select[@name="f[fmc_design_id]"]/option[@value="' . $id . '"]' )->item( 0 );
+		};
+
+		$this->assertSame( 'Curso · Mixta · 20 h (8 presenciales + 12 en línea)', $option( $blended )->getAttribute( 'data-fmc-hint' ) );
+		$this->assertSame( 'Acción puntual · Presencial · 3 h', $option( $onsite )->getAttribute( 'data-fmc-hint' ) );
+		$url = $option( $blended )->getAttribute( 'data-fmc-hint-url' );
+		$this->assertStringContainsString( Screen::ARG_EDIT . '=' . $blended, $url );
+		$this->assertStringNotContainsString( Screen::ARG_FRAME, $url, 'la ficha del diseño se abre aparte, no en el panel' );
+
+		// El elegido ya lo dice al abrir la ficha, sin esperar al guion.
+		$box = $this->find( $body, '//div[contains(@class,"fmc-hint")]' )->item( 0 );
+		$this->assertStringStartsWith( 'Curso · Mixta · 20 h', trim( $box->textContent ) ); // phpcs:ignore WordPress.NamingConventions.ValidVariableName.UsedPropertyNotSnakeCase -- DOM.
+		$link = $this->find( $body, '//div[contains(@class,"fmc-hint")]/a' )->item( 0 );
+		$this->assertSame( '_blank', $link->getAttribute( 'target' ) );
+		$this->assertSame( 'Ver la ficha del diseño', $link->textContent ); // phpcs:ignore WordPress.NamingConventions.ValidVariableName.UsedPropertyNotSnakeCase -- DOM.
+	}
+
+	/**
 	 * El diseño de una acción se elige entre los finalizados, con código y tipo:
 	 * un borrador aún no se imparte y un histórico ya no (ADR-0016). La acción
 	 * antigua conserva el suyo.

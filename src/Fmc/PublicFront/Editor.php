@@ -521,6 +521,21 @@ final class Editor {
 				$search = count( $choices ) > 10 ? ' data-fmc-ts data-placeholder="Escriba para buscar…"' : '';
 				// Lo que significa cada término, si lo dice: al pasar por la opción y debajo del elegido.
 				$hints = 0 === strpos( $key, 'tax:' ) ? self::term_hints( substr( $key, 4 ) ) : array();
+				// El diseño de una acción dice, al elegirlo, su tipo, su modalidad y
+				// sus horas, y enlaza a su ficha: hay títulos casi iguales y cursos
+				// mixtos que solo se distinguen así (#57).
+				$urls = array();
+				if ( 'design' === $f['w'] ) {
+					$hints = self::design_hints( array_keys( $choices ) );
+					foreach ( array_keys( $hints ) as $design ) {
+						$urls[ $design ] = Screen::url(
+							array(
+								Screen::ARG_EDIT  => $design,
+								Screen::ARG_FRAME => '',
+							)
+						);
+					}
+				}
 				// Un campo puede poner el valor de otro (`sets`) o hacer que se
 				// vuelva a pedir al servidor (`refreshes`): la asesoría pone el
 				// ámbito, y el ámbito decide qué centros se ofrecen.
@@ -534,11 +549,11 @@ final class Editor {
 				foreach ( $choices as $v => $text ) {
 					$sets   = isset( $scopes[ (int) $v ] ) ? ' data-fmc-value="' . (int) $scopes[ (int) $v ] . '"' : '';
 					$sets  .= '' !== $gone && (string) $v === $gone ? ' data-fmc-gone="1"' : '';
-					$input .= '<option value="' . esc_attr( (string) $v ) . '"' . selected( $current, (string) $v, false ) . $sets . ( isset( $hints[ $v ] ) ? ' data-fmc-hint="' . esc_attr( $hints[ $v ] ) . '"' : '' ) . '>' . esc_html( $text ) . '</option>';
+					$input .= '<option value="' . esc_attr( (string) $v ) . '"' . selected( $current, (string) $v, false ) . $sets . ( isset( $hints[ $v ] ) ? ' data-fmc-hint="' . esc_attr( $hints[ $v ] ) . '"' : '' ) . ( isset( $urls[ $v ] ) ? ' data-fmc-hint-url="' . esc_url( $urls[ $v ] ) . '"' : '' ) . '>' . esc_html( $text ) . '</option>';
 				}
 				$input .= '</select>';
 				if ( $hints ) {
-					$input .= '<div class="form-text fmc-hint" data-fmc-hint-for="' . esc_attr( $id ) . '">' . esc_html( $hints[ (int) $current ] ?? '' ) . '</div>';
+					$input .= '<div class="form-text fmc-hint" data-fmc-hint-for="' . esc_attr( $id ) . '">' . self::hint_html( $hints[ (int) $current ] ?? '', $urls[ (int) $current ] ?? '' ) . '</div>';
 				}
 				break;
 			case 'speakers':
@@ -1587,6 +1602,59 @@ final class Editor {
 			}
 		}
 		return array_values( array_filter( $out, static fn( $r ) => '' !== implode( '', $r ) ) );
+	}
+
+	/**
+	 * The hint under a select: what the chosen option is, and a link to it.
+	 *
+	 * Lo mismo que pinta `showHint()` en `assets/js/fmc-app.js` al elegir otra
+	 * opción. El enlace abre otra pestaña: la ficha a medias no se pierde.
+	 *
+	 * @param string $text Hint text.
+	 * @param string $url  URL of the chosen item, or ''.
+	 * @return string
+	 */
+	private static function hint_html( string $text, string $url ): string {
+		$out = esc_html( $text );
+		if ( '' !== $text && '' !== $url ) {
+			$out .= ' <a href="' . esc_url( $url ) . '" target="_blank" rel="noopener">Ver la ficha del diseño</a>';
+		}
+		return $out;
+	}
+
+	/**
+	 * What each design brings to an action: type, modality and hours.
+	 *
+	 * «Curso · Mixta · 20 h (8 presenciales + 12 en línea)»: lo que la acción
+	 * va a copiar del diseño al guardarse (#50), visto antes de guardar.
+	 *
+	 * @param array<int|string> $ids Design IDs.
+	 * @return array<int, string> Design ID => hint.
+	 */
+	public static function design_hints( array $ids ): array {
+		$out = array();
+		foreach ( $ids as $id ) {
+			$id     = (int) $id;
+			$onsite = (float) get_post_meta( $id, D::HOURS_ONSITE, true );
+			$online = (float) get_post_meta( $id, D::HOURS_ONLINE, true );
+			$hours  = '';
+			if ( $onsite > 0 && $online > 0 ) {
+				$hours = ( $onsite + $online ) . ' h (' . ( $onsite + 0 ) . ' presenciales + ' . ( $online + 0 ) . ' en línea)';
+			} elseif ( $onsite + $online > 0 ) {
+				$hours = ( $onsite + $online ) . ' h';
+			}
+			$parts = array_filter(
+				array(
+					D::TYPES[ (string) get_post_meta( $id, D::TYPE, true ) ] ?? '',
+					D::MODALITIES[ (string) get_post_meta( $id, D::MODALITY, true ) ] ?? '',
+					$hours,
+				)
+			);
+			if ( $parts ) {
+				$out[ $id ] = implode( ' · ', $parts );
+			}
+		}
+		return $out;
 	}
 
 	/**
