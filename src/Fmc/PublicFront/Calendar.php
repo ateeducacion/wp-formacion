@@ -8,6 +8,7 @@
 namespace Fmc\PublicFront;
 
 use Fmc\Domain\SchoolYear;
+use Fmc\Domain\Sessions;
 use Fmc\Meta\ActionMetaKeys as A;
 use Fmc\PostType\PostTypes;
 
@@ -127,7 +128,7 @@ final class Calendar {
 	}
 
 	/**
-	 * Actions of the month, by start day.
+	 * Actions of the month, by the day they show on.
 	 *
 	 * @param string $first Y-m-01.
 	 * @return array<string, \WP_Post[]> Y-m-d => posts.
@@ -162,7 +163,11 @@ final class Calendar {
 	}
 
 	/**
-	 * Actions starting between two days, by start day.
+	 * Actions between two days, by the day they show on.
+	 *
+	 * Una acción con sesiones sale el día de cada sesión que cae en el
+	 * periodo, aunque empezara antes; una sin sesiones —lo migrado, lo que se
+	 * escribió a mano—, el día que empieza, como siempre (ADR-0027).
 	 *
 	 * @param string $from Y-m-d.
 	 * @param string $to   Y-m-d.
@@ -172,15 +177,63 @@ final class Calendar {
 		$out = array();
 		foreach ( self::actions(
 			array(
-				'key'     => A::START,
-				'value'   => array( $from, $to ),
-				'compare' => 'BETWEEN',
+				'relation' => 'AND',
+				array(
+					'key'     => A::START,
+					'value'   => $to,
+					'compare' => '<=',
+				),
+				array(
+					'relation' => 'OR',
+					array(
+						'key'     => A::START,
+						'value'   => $from,
+						'compare' => '>=',
+					),
+					array(
+						'key'     => A::END,
+						'value'   => $from,
+						'compare' => '>=',
+					),
+					array(
+						'key'     => A::SESSIONS,
+						'compare' => 'EXISTS',
+					),
+				),
 			)
 		) as $post ) {
-			$out[ (string) get_post_meta( $post->ID, A::START, true ) ][] = $post;
+			$sessions = Sessions::clean( get_post_meta( $post->ID, A::SESSIONS, true ) );
+			if ( $sessions ) {
+				foreach ( array_keys( Sessions::by_day( $sessions ) ) as $day ) {
+					if ( $day >= $from && $day <= $to ) {
+						$out[ $day ][] = $post;
+					}
+				}
+				continue;
+			}
+			$start = (string) get_post_meta( $post->ID, A::START, true );
+			if ( $start >= $from && $start <= $to ) {
+				$out[ $start ][] = $post;
+			}
 		}
 		ksort( $out );
 		return $out;
+	}
+
+	/**
+	 * How many different actions a period shows: one with three sessions is one.
+	 *
+	 * @param array<string, \WP_Post[]> $by Actions by day.
+	 * @return int
+	 */
+	private static function distinct( array $by ): int {
+		$ids = array();
+		foreach ( $by as $posts ) {
+			foreach ( $posts as $post ) {
+				$ids[ $post->ID ] = true;
+			}
+		}
+		return count( $ids );
 	}
 
 	/**
@@ -310,7 +363,7 @@ final class Calendar {
 		$by_day = self::by_day( $first );
 		return array(
 			'title' => ucfirst( self::MONTHS[ (int) gmdate( 'n', $ts ) ] ) . ' de ' . gmdate( 'Y', $ts ),
-			'count' => sprintf( '%d acción(es) empiezan este mes.', array_sum( array_map( 'count', $by_day ) ) ),
+			'count' => sprintf( '%d acción(es) este mes.', self::distinct( $by_day ) ),
 			'prev'  => array( 'fmc_month' => gmdate( 'Y-m', (int) strtotime( '-1 month', $ts ) ) ),
 			'next'  => array( 'fmc_month' => gmdate( 'Y-m', (int) strtotime( '+1 month', $ts ) ) ),
 			'today' => array( 'fmc_month' => substr( self::today(), 0, 7 ) ),
@@ -345,7 +398,7 @@ final class Calendar {
 				if ( '' !== $day ) {
 					$body .= '<div class="fmc-cal-num">' . esc_html( (string) (int) substr( $day, 8 ) ) . '</div>';
 					foreach ( $by_day[ $day ] ?? array() as $post ) {
-						$body .= self::card( $post );
+						$body .= self::card( $post, $day );
 					}
 				}
 				$body .= '</div>';
@@ -356,7 +409,7 @@ final class Calendar {
 	}
 
 	/**
-	 * One day of the week or day view, with the actions that start on it.
+	 * One day of the week or day view, with the actions that show on it.
 	 *
 	 * @param string     $day     Y-m-d.
 	 * @param \WP_Post[] $actions Actions starting that day.
@@ -374,9 +427,9 @@ final class Calendar {
 			'fmc-days-a'
 		) . '</h2>';
 		foreach ( $actions as $post ) {
-			$out .= self::card( $post );
+			$out .= self::card( $post, $day );
 		}
-		return $out . ( $actions ? '' : '<p class="small text-secondary mb-0">Ninguna empieza.</p>' ) . '</section>';
+		return $out . ( $actions ? '' : '<p class="small text-secondary mb-0">Ninguna.</p>' ) . '</section>';
 	}
 
 	/**
@@ -431,14 +484,21 @@ final class Calendar {
 		foreach ( $days as $d ) {
 			$body .= self::day_html( $d, $by[ $d ] ?? array(), $d === $today );
 		}
-		$body   .= '</div>';
-		$running = self::ongoing( $from );
+		$body .= '</div>';
+		// Lo que ya sale en un día de la vista, por una sesión, no se repite abajo.
+		$shown = array();
+		foreach ( $by as $posts ) {
+			foreach ( $posts as $post ) {
+				$shown[ $post->ID ] = true;
+			}
+		}
+		$running = array_values( array_filter( self::ongoing( $from ), static fn( $p ) => ! isset( $shown[ $p->ID ] ) ) );
 		$body   .= self::running_html( $running );
 
 		$label = (int) substr( $from, 8 ) . ' de ' . self::MONTHS[ (int) gmdate( 'n', (int) strtotime( $from ) ) ] . ' de ' . gmdate( 'Y', (int) strtotime( $from ) );
 		return array(
 			'title' => 'week' === $view ? 'Semana del ' . $label : self::WEEKDAYS[ (int) gmdate( 'N', $ts ) - 1 ] . ' ' . $label,
-			'count' => sprintf( '%1$d acción(es) empiezan; %2$d siguen en curso.', array_sum( array_map( 'count', $by ) ), count( $running ) ),
+			'count' => sprintf( '%1$d acción(es) %2$s; %3$d siguen en curso.', self::distinct( $by ), 'week' === $view ? 'esta semana' : 'este día', count( $running ) ),
 			'prev'  => array(
 				'fmc_view' => $view,
 				'fmc_day'  => gmdate( 'Y-m-d', (int) strtotime( '-' . $step, $ts ) ),
@@ -496,9 +556,10 @@ final class Calendar {
 	 * One action in its day.
 	 *
 	 * @param \WP_Post $post Action.
+	 * @param string   $day  Y-m-d it shows on: its sessions that day say their hours.
 	 * @return string
 	 */
-	public static function card( \WP_Post $post ): string {
+	public static function card( \WP_Post $post, string $day = '' ): string {
 		$m          = static fn( string $key ): string => (string) get_post_meta( $post->ID, $key, true );
 		$situation  = A::situation( $post->ID );
 		$funded     = $m( A::FUNDED_BY );
@@ -513,7 +574,11 @@ final class Calendar {
 		if ( $incomplete ) {
 			$out .= '<span class="fmc-ribbon is-warn" title="Datos incompletos">!</span>';
 		}
-		$out .= '<span class="fmc-ev-title">' . esc_html( get_the_title( $post ) ) . '</span>';
+		$out  .= '<span class="fmc-ev-title">' . esc_html( get_the_title( $post ) ) . '</span>';
+		$today = '' !== $day ? Sessions::by_day( Sessions::clean( get_post_meta( $post->ID, A::SESSIONS, true ) ) )[ $day ] ?? array() : array();
+		if ( $today ) {
+			$out .= '<span class="fmc-ev-meta fmc-ev-time">' . esc_html( implode( ' · ', array_map( static fn( $s ) => $s['from'] . '–' . $s['to'], $today ) ) ) . '</span>';
+		}
 		// Un borrador solo lo ve quien lo escribe y quien gestiona: que se note que no está entregado.
 		if ( 'draft' === $post->post_status ) {
 			$out .= '<span class="fmc-ev-meta">Borrador, sin entregar</span>';

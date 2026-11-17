@@ -13,6 +13,8 @@ function detach() {
 		document.removeEventListener( 'click', window.fmcApp.onToolClick );
 		document.removeEventListener( 'click', window.fmcApp.onNoteClick );
 		document.removeEventListener( 'keydown', window.fmcApp.onKey );
+		document.removeEventListener( 'click', window.fmcApp.onSessionClick );
+		document.removeEventListener( 'input', window.fmcApp.onSessionInput );
 		document.removeEventListener( 'change', window.fmcApp.onChange );
 	}
 }
@@ -167,6 +169,38 @@ describe( 'Tom Select', () => {
 		delete window.TomSelect;
 		await load();
 		expect( window.fmcApp.initSelects() ).toBe( 0 );
+		detach();
+	} );
+} );
+
+describe( 'las sesiones de una acción', () => {
+	const row = ( i, day, from, to ) => '<tr data-fmc-session><td><input type="date" name="f[s][' + i + '][day]" value="' + day + '"></td><td><input type="time" name="f[s][' + i + '][from]" value="' + from + '"></td><td><input type="time" name="f[s][' + i + '][to]" value="' + to + '"></td><td><button type="button" data-fmc-session-remove>×</button></td></tr>';
+
+	it( 'añade filas con un índice nuevo, las quita y suma las horas', async () => {
+		document.body.innerHTML = '<form><div data-fmc-sessions data-fmc-next="2"><table><tbody>' + row( 0, '2027-03-20', '16:00', '20:00' ) + row( 1, '', '', '' ) + '</tbody></table><template data-fmc-session-template>' + row( '__i__', '', '', '' ) + '</template><button type="button" data-fmc-session-add>+</button> <strong data-fmc-sessions-total>4 h</strong></div></form>';
+		await load();
+		const box = document.querySelector( '[data-fmc-sessions]' );
+		const total = () => box.querySelector( '[data-fmc-sessions-total]' ).textContent;
+
+		box.querySelector( '[data-fmc-session-add]' ).click();
+		const rows = box.querySelectorAll( 'tbody tr' );
+		expect( rows ).toHaveLength( 3 );
+		expect( rows[ 2 ].querySelector( 'input' ).name ).toBe( 'f[s][2][day]' );
+		expect( box.dataset.fmcNext ).toBe( '3' );
+
+		rows[ 2 ].querySelector( 'input[name$="[from]"]' ).value = '09:30';
+		rows[ 2 ].querySelector( 'input[name$="[to]"]' ).value = '13:00';
+		rows[ 2 ].querySelector( 'input[name$="[to]"]' ).dispatchEvent( new Event( 'input', { bubbles: true } ) );
+		expect( total() ).toBe( '7.5 h' );
+
+		rows[ 0 ].querySelector( '[data-fmc-session-remove]' ).click();
+		expect( box.querySelectorAll( 'tbody tr' ) ).toHaveLength( 2 );
+		expect( total() ).toBe( '3.5 h' );
+
+		// Una que acaba antes de empezar no resta.
+		rows[ 2 ].querySelector( 'input[name$="[to]"]' ).value = '08:00';
+		rows[ 2 ].querySelector( 'input[name$="[to]"]' ).dispatchEvent( new Event( 'input', { bubbles: true } ) );
+		expect( total() ).toBe( '0 h' );
 		detach();
 	} );
 } );

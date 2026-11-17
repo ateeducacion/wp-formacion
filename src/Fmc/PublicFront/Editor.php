@@ -9,6 +9,7 @@ namespace Fmc\PublicFront;
 
 use Fmc\Centre\CentreCatalogue;
 use Fmc\Meta\ActionMetaKeys as A;
+use Fmc\Domain\Sessions;
 use Fmc\Meta\DesignMetaKeys as D;
 use Fmc\Domain\DigComp;
 use Fmc\Meta\IncidentMetaKeys as I;
@@ -477,6 +478,19 @@ final class Editor {
 		}
 
 		switch ( $f['w'] ) {
+			case 'sessions':
+				$input = self::sessions_field( $id, $name, $value, $can, $error );
+				$label = '<span class="form-label fw-semibold d-block" id="' . esc_attr( $id ) . '-label">' . esc_html( $f['label'] ) . '</span>';
+				break;
+			case 'legacy':
+				// Lo escrito a mano antes de que existiera el campo nuevo: se
+				// enseña si lo hay y no se puede cambiar (ADR-0027).
+				if ( '' === trim( is_string( $value ) ? $value : '' ) ) {
+					return '';
+				}
+				$label = '<span class="form-label fw-semibold d-block">' . esc_html( $f['label'] ) . '</span>';
+				$input = '<div class="fmc-legacy">' . nl2br( esc_html( (string) $value ) ) . '</div>';
+				break;
 			case 'textarea':
 			case 'rich':
 				$rich  = 'rich' === $f['w'] ? ' data-fmc-rich' : '';
@@ -581,6 +595,52 @@ final class Editor {
 			$show = ' data-fmc-show="' . esc_attr( 'f[' . $other . ']' ) . '" data-fmc-show-values="' . esc_attr( implode( ',', $wanted ) ) . '"';
 		}
 		return '<div class="col-12 col-md-' . (int) ( $f['col'] ?? 12 ) . ( $shown ? '' : ' d-none' ) . '"' . $show . '>' . $label . $input . $help . '</div>';
+	}
+
+	/**
+	 * The sessions of an action: one row per session, with its day and hours.
+	 *
+	 * Una fila vacía al final para añadir sin JavaScript; con él, «+ Añadir
+	 * sesión» saca otra de la plantilla y la suma de horas se pone al día
+	 * (`assets/js/fmc-app.js`). Quien no puede escribir solo las ve.
+	 *
+	 * @param string $id    Field id.
+	 * @param string $name  Field name.
+	 * @param mixed  $value Sessions, or the rows submitted.
+	 * @param bool   $can   Whether it can be written.
+	 * @param bool   $error Whether it failed validation.
+	 * @return string
+	 */
+	private static function sessions_field( string $id, string $name, $value, bool $can, bool $error ): string {
+		$rows = array_values( array_filter( is_array( $value ) ? $value : array(), 'is_array' ) );
+		if ( $can ) {
+			$rows[] = array();
+		}
+		$disabled = $can ? '' : ' disabled';
+		$row      = static function ( string $index, array $s ) use ( $name, $disabled, $can ): string {
+			$cell = static function ( string $part, string $type, string $label ) use ( $name, $index, $s, $disabled ): string {
+				return '<td><input class="form-control form-control-sm" type="' . $type . '" name="' . esc_attr( $name . '[' . $index . '][' . $part . ']' ) . '" value="' . esc_attr( (string) ( $s[ $part ] ?? '' ) ) . '" aria-label="' . esc_attr( $label ) . '"' . $disabled . '></td>';
+			};
+			$out  = '<tr data-fmc-session>' . $cell( 'day', 'date', 'Día' ) . $cell( 'from', 'time', 'Desde' ) . $cell( 'to', 'time', 'Hasta' );
+			$out .= '<td class="text-end">' . ( $can ? '<button type="button" class="btn btn-sm btn-outline-secondary" data-fmc-session-remove aria-label="Quitar esta sesión" title="Quitar esta sesión">×</button>' : '' ) . '</td></tr>';
+			return $out;
+		};
+		$out      = '<div class="fmc-sessions' . ( $error ? ' is-invalid' : '' ) . '" id="' . esc_attr( $id ) . '" role="group" aria-labelledby="' . esc_attr( $id ) . '-label" data-fmc-sessions data-fmc-next="' . count( $rows ) . '">';
+		if ( ! $rows ) {
+			return $out . '<p class="small text-secondary mb-0">Sin sesiones.</p></div>';
+		}
+		$out .= '<table class="table table-sm align-middle mb-2"><thead><tr><th scope="col">Día</th><th scope="col">Desde</th><th scope="col">Hasta</th><th scope="col"><span class="visually-hidden">Quitar</span></th></tr></thead><tbody>';
+		foreach ( $rows as $i => $s ) {
+			$out .= $row( (string) $i, $s );
+		}
+		$out .= '</tbody></table>';
+		if ( $can ) {
+			$out .= '<template data-fmc-session-template>' . $row( '__i__', array() ) . '</template>';
+			$out .= '<button type="button" class="btn btn-sm btn-outline-primary" data-fmc-session-add>+ Añadir sesión</button> ';
+		}
+		$hours = Sessions::hours( Sessions::clean( $value ) );
+		$out  .= '<span class="small text-secondary ms-2">Total: <strong data-fmc-sessions-total>' . esc_html( ( $hours + 0 ) . ' h' ) . '</strong></span>';
+		return $out . '</div>';
 	}
 
 	/**
@@ -1197,12 +1257,25 @@ final class Editor {
 		$was_venue     = $post ? (string) get_post_meta( $post->ID, A::VENUE_CODE, true ) : '';
 		// Lo que pasa a histórico no se completa: ni obligatorios ni título único.
 		$archiving = PostTypes::DESIGN === $type && PostTypes::ARCHIVED === self::next_status( $type, $post, $status );
+		$sessions  = array();
 		foreach ( $fields as $key => $f ) {
-			if ( 'docs' === $f['w'] || ! self::can_write( $type, $key, $id ) ) {
+			if ( in_array( $f['w'], array( 'docs', 'legacy' ), true ) || ! self::can_write( $type, $key, $id ) ) {
 				continue;
 			}
 			$writable[ $key ] = true;
-			$value            = $raw[ $key ] ?? ( in_array( $f['w'], array( 'checkbox' ), true ) ? '0' : '' );
+			// Las sesiones son filas de tres valores: tienen su propia lectura,
+			// que dice qué fila está mal; las demás listas son de valores sueltos.
+			if ( 'sessions' === $f['w'] ) {
+				$parsed = Sessions::read( $raw[ $key ] ?? array() );
+				if ( '' !== $parsed['error'] ) {
+					$sessions[ $key ] = $parsed['error'];
+					$values[ $key ]   = self::rows( $raw[ $key ] ?? array() );
+				} else {
+					$values[ $key ] = $parsed['sessions'];
+				}
+				continue;
+			}
+			$value = $raw[ $key ] ?? ( in_array( $f['w'], array( 'checkbox' ), true ) ? '0' : '' );
 			if ( is_array( $value ) ) {
 				$value = array_values( array_filter( array_map( 'sanitize_text_field', $value ), 'strlen' ) );
 			} else {
@@ -1211,7 +1284,7 @@ final class Editor {
 			$values[ $key ] = $value;
 		}
 
-		$errors = self::check_choices( $fields, $values, $post );
+		$errors = self::check_choices( $fields, $values, $post ) + $sessions;
 
 		if ( PostTypes::ACTION === $type && ! isset( $errors[ A::DESIGN_ID ] ) ) {
 			$errors += self::impute_programme( $values, $post );
@@ -1246,6 +1319,15 @@ final class Editor {
 			$others = PostTypes::DESIGN === $type ? array_map( 'intval', (array) $read( D::REPLACES ) ) : array();
 			if ( ! $empty && ! empty( $f['unique'] ) && ! $archiving && self::taken( $type, $key, (string) $value, $id, $others ) ) {
 				$errors[ $key ] = 'Ya hay otro con ese valor en «' . $f['label'] . '».';
+			}
+		}
+
+		// Cada sesión, dentro de las fechas de la acción: de ellas salen el
+		// curso escolar y el sitio en el listado (ADR-0027).
+		if ( PostTypes::ACTION === $type && ! empty( $values[ A::SESSIONS ] ) && ! isset( $errors[ A::SESSIONS ] ) ) {
+			$outside = Sessions::outside( $values[ A::SESSIONS ], (string) $read( A::START ), (string) $read( A::END ) );
+			if ( '' !== $outside ) {
+				$errors[ A::SESSIONS ] = $outside;
 			}
 		}
 
@@ -1485,6 +1567,26 @@ final class Editor {
 		}
 		$values[ 'tax:' . Taxonomies::PROGRAMME ] = array_map( 'strval', $covered );
 		return array();
+	}
+
+	/**
+	 * Submitted session rows, as text, to show them again when they are wrong.
+	 *
+	 * @param mixed $raw Rows.
+	 * @return list<array{day:string, from:string, to:string}>
+	 */
+	private static function rows( $raw ): array {
+		$out = array();
+		foreach ( is_array( $raw ) ? $raw : array() as $row ) {
+			if ( is_array( $row ) ) {
+				$out[] = array(
+					'day'  => sanitize_text_field( (string) ( $row['day'] ?? '' ) ),
+					'from' => sanitize_text_field( (string) ( $row['from'] ?? '' ) ),
+					'to'   => sanitize_text_field( (string) ( $row['to'] ?? '' ) ),
+				);
+			}
+		}
+		return array_values( array_filter( $out, static fn( $r ) => '' !== implode( '', $r ) ) );
 	}
 
 	/**

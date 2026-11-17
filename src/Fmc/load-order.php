@@ -24,6 +24,7 @@ return array(
 	'Meta/MetaRegistration.php',
 	'Domain/SchoolYear.php',
 	'Domain/Situation.php',
+	'Domain/Sessions.php',
 	'Domain/DigComp.php',
 	'PostType/PostTypes.php',
 	'Taxonomy/Taxonomies.php',

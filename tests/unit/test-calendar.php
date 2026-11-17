@@ -128,12 +128,88 @@ class Test_Calendar extends WP_UnitTestCase {
 		$this->assertMatchesRegularExpression( '/fmc_tab=actions[^"]*fmc_csv=1[^"]*fmc_from=2026-03-01[^"]*fmc_to=2026-03-31">Exportar CSV</', $screen['actions'], 'el CSV, de lo que empieza ese mes' );
 		$this->assertSame( 'Planificación de acciones formativas', $screen['title'] );
 		$this->assertStringContainsString( '<h2 class="fmc-period-title">Marzo de 2026</h2>', $screen['body'] );
-		$this->assertStringContainsString( '3 acción(es) empiezan este mes.', $this->period( $screen ) );
+		$this->assertStringContainsString( '3 acción(es) este mes.', $this->period( $screen ) );
 		$this->assertSame( array( 'Ajedrez', 'Robótica' ), $this->cards_on( $screen['body'], 10 ) );
 		$this->assertSame( array( 'Teatro' ), $this->cards_on( $screen['body'], 31 ) );
 		$this->assertStringNotContainsString( 'De febrero', $screen['body'] );
 		$this->assertStringNotContainsString( 'De abril', $screen['body'] );
 		$this->assertSame( array( '2026-03-10', '2026-03-31' ), array_keys( Calendar::by_day( '2026-03-01' ) ) );
+	}
+
+	/**
+	 * Una acción con sesiones sale el día de cada sesión, con su horario,
+	 * aunque empezara el mes anterior; cuenta una vez (ADR-0027).
+	 */
+	public function test_an_action_with_sessions_shows_on_each_session_day() {
+		$this->as_role( 'fmc_curator' );
+		$this->action(
+			'Con sesiones',
+			'2026-02-24',
+			array(
+				A::END      => '2026-03-17',
+				A::SESSIONS => array(
+					array(
+						'day'  => '2026-02-24',
+						'from' => '16:00',
+						'to'   => '20:00',
+					),
+					array(
+						'day'  => '2026-03-03',
+						'from' => '16:00',
+						'to'   => '20:00',
+					),
+					array(
+						'day'  => '2026-03-17',
+						'from' => '09:30',
+						'to'   => '13:30',
+					),
+				),
+			)
+		);
+		$this->action( 'Sin sesiones', '2026-03-03' );
+		$_GET['fmc_month'] = '2026-03';
+
+		$screen = Calendar::screen();
+
+		$this->assertSame( array( 'Con sesiones', 'Sin sesiones' ), $this->cards_on( $screen['body'], 3 ) );
+		$this->assertSame( array( 'Con sesiones' ), $this->cards_on( $screen['body'], 17 ) );
+		$this->assertSame( array(), $this->cards_on( $screen['body'], 24 ), 'el día de inicio no es una sesión de marzo' );
+		$this->assertStringContainsString( '<span class="fmc-ev-meta fmc-ev-time">09:30–13:30</span>', $screen['body'] );
+		$this->assertStringContainsString( '2 acción(es) este mes.', $this->period( $screen ), 'tres sesiones son una acción' );
+
+		// En febrero, la sesión de su día de inicio.
+		$this->assertSame( array( '2026-02-24' ), array_keys( Calendar::by_day( '2026-02-01' ) ) );
+	}
+
+	/**
+	 * En la semana, una acción con sesión ese día sale en el día y no se
+	 * repite entre las que siguen en curso.
+	 */
+	public function test_the_week_does_not_repeat_an_action_with_a_session_in_it() {
+		$this->as_role( 'fmc_curator' );
+		$this->action(
+			'Con sesión el jueves',
+			'2026-10-05',
+			array(
+				A::END      => '2026-11-30',
+				A::SESSIONS => array(
+					array(
+						'day'  => '2026-10-22',
+						'from' => '17:00',
+						'to'   => '19:00',
+					),
+				),
+			)
+		);
+		$this->action( 'Sigue en curso', '2026-10-05', array( A::END => '2026-11-30' ) );
+
+		$_GET['fmc_view'] = 'week';
+		$_GET['fmc_day']  = '2026-10-21';
+		$screen           = Calendar::screen();
+
+		$this->assertStringContainsString( '1 acción(es) esta semana; 1 siguen en curso.', $this->period( $screen ) );
+		$this->assertSame( 1, substr_count( $screen['body'], 'Con sesión el jueves</span>' ) );
+		$this->assertStringContainsString( '17:00–19:00', $screen['body'] );
 	}
 
 	/**
@@ -398,7 +474,7 @@ class Test_Calendar extends WP_UnitTestCase {
 		$screen           = Calendar::screen();
 
 		$this->assertStringContainsString( '>Semana del 19 de octubre de 2026</h2>', $screen['body'] );
-		$this->assertStringContainsString( '1 acción(es) empiezan; 1 siguen en curso.', $this->period( $screen ) );
+		$this->assertStringContainsString( '1 acción(es) esta semana; 1 siguen en curso.', $this->period( $screen ) );
 		$this->assertSame( 7, substr_count( $screen['body'], '<section class="fmc-days-col' ) );
 		$this->assertStringContainsString( 'Empieza el martes', $screen['body'] );
 		$this->assertStringContainsString( 'Empezó antes', $screen['body'] );

@@ -61,6 +61,11 @@ final class MetaTypes {
 
 
 
+	public const SESSIONS = 'sessions';
+
+
+
+
 
 
 
@@ -74,6 +79,7 @@ final class MetaTypes {
 				return 'boolean';
 			case self::IDS:
 			case self::LIST:
+			case self::SESSIONS:
 				return 'array';
 			default:
 				return 'string';
@@ -112,6 +118,8 @@ final class MetaTypes {
 				return array_values( array_unique( array_filter( array_map( 'absint', (array) $value ) ) ) );
 			case self::LIST:
 				return array_values( array_unique( array_filter( array_map( 'sanitize_key', (array) $value ) ) ) );
+			case self::SESSIONS:
+				return \Fmc\Domain\Sessions::clean( $value );
 			default:
 				return sanitize_text_field( (string) $value );
 		}
@@ -285,6 +293,12 @@ final class ActionMetaKeys {
 	public const START            = 'fmc_start';
 	public const END              = 'fmc_end';
 	public const SCHEDULE         = 'fmc_schedule';
+
+
+
+
+
+	public const SESSIONS         = 'fmc_sessions';
 	public const CERTIFICATION    = 'fmc_certification';
 	public const COURSE_SPACE_URL = 'fmc_course_space_url';
 	public const NOTES            = 'fmc_notes';
@@ -444,6 +458,7 @@ final class ActionMetaKeys {
 			self::START            => MetaTypes::DATE,
 			self::END              => MetaTypes::DATE,
 			self::SCHEDULE         => MetaTypes::TEXT,
+			self::SESSIONS         => MetaTypes::SESSIONS,
 			self::CERTIFICATION    => MetaTypes::HTML,
 			self::COURSE_SPACE_URL => MetaTypes::URL,
 			self::NOTES            => MetaTypes::HTML,
@@ -907,6 +922,209 @@ final class Situation {
 
 	private static function is_date( string $value ): bool {
 		return 1 === preg_match( '/^\d{4}-\d{2}-\d{2}$/', $value );
+	}
+}
+}
+
+
+
+
+
+
+
+
+namespace Fmc\Domain;
+
+
+
+
+
+
+
+
+
+
+if ( ! class_exists( 'Fmc\Domain\Sessions', false ) ) {
+final class Sessions {
+
+
+
+
+	public const MAX = 100;
+
+
+
+
+
+
+
+
+
+
+
+	public static function read( $raw ): array {
+		$out   = array();
+		$error = '';
+		foreach ( is_array( $raw ) ? $raw : array() as $row ) {
+			if ( ! is_array( $row ) ) {
+				continue;
+			}
+			$day  = self::day( (string) ( $row['day'] ?? '' ) );
+			$from = self::clock( (string) ( $row['from'] ?? '' ) );
+			$to   = self::clock( (string) ( $row['to'] ?? '' ) );
+			$any  = '' !== trim( (string) ( $row['day'] ?? '' ) . (string) ( $row['from'] ?? '' ) . (string) ( $row['to'] ?? '' ) );
+			if ( ! $any ) {
+				continue;
+			}
+			if ( '' === $day || '' === $from || '' === $to ) {
+				$error = $error ? $error : 'Cada sesión necesita el día y las horas de inicio y de fin.';
+				continue;
+			}
+			if ( $to <= $from ) {
+				$error = $error ? $error : 'La sesión del ' . self::date_label( $day ) . ' acaba antes de empezar.';
+				continue;
+			}
+			$out[ $day . ' ' . $from . ' ' . $to ] = array(
+				'day'  => $day,
+				'from' => $from,
+				'to'   => $to,
+			);
+		}
+		ksort( $out );
+		if ( count( $out ) > self::MAX ) {
+			$error = $error ? $error : 'Son más de ' . self::MAX . ' sesiones: revise la lista.';
+		}
+		return array(
+			'sessions' => array_slice( array_values( $out ), 0, self::MAX ),
+			'error'    => $error,
+		);
+	}
+
+
+
+
+
+
+
+	public static function clean( $raw ): array {
+		return self::read( $raw )['sessions'];
+	}
+
+
+
+
+
+
+
+
+
+
+
+
+
+	public static function outside( array $sessions, string $start, string $end ): string {
+		foreach ( $sessions as $s ) {
+			if ( ( '' !== $start && $s['day'] < $start ) || ( '' !== $end && $s['day'] > $end ) ) {
+				return 'La sesión del ' . self::date_label( $s['day'] ) . ' está fuera de las fechas de inicio y de fin de la acción.';
+			}
+		}
+		return '';
+	}
+
+
+
+
+
+
+
+	public static function hours( array $sessions ): float {
+		$minutes = 0;
+		foreach ( $sessions as $s ) {
+			$minutes += self::minutes( $s['to'] ) - self::minutes( $s['from'] );
+		}
+		return round( $minutes / 60, 2 );
+	}
+
+
+
+
+
+
+
+	public static function label( array $s ): string {
+		return self::date_label( $s['day'] ) . ', de ' . $s['from'] . ' a ' . $s['to'];
+	}
+
+
+
+
+
+
+
+	public static function summary( array $sessions ): string {
+		$n = count( $sessions );
+		if ( 0 === $n ) {
+			return '';
+		}
+		return $n . ( 1 === $n ? ' sesión' : ' sesiones' ) . ' · ' . ( self::hours( $sessions ) + 0 ) . ' h';
+	}
+
+
+
+
+
+
+
+	public static function by_day( array $sessions ): array {
+		$out = array();
+		foreach ( $sessions as $s ) {
+			$out[ $s['day'] ][] = $s;
+		}
+		return $out;
+	}
+
+
+
+
+
+
+
+	private static function day( string $value ): string {
+		$value = trim( $value );
+		return preg_match( '/^(\d{4})-(\d{2})-(\d{2})$/', $value, $m ) && checkdate( (int) $m[2], (int) $m[3], (int) $m[1] ) ? $value : '';
+	}
+
+
+
+
+
+
+
+	private static function clock( string $value ): string {
+		if ( ! preg_match( '/^([01]?\d|2[0-3]):([0-5]\d)$/', trim( $value ), $m ) ) {
+			return '';
+		}
+		return sprintf( '%02d:%s', (int) $m[1], $m[2] );
+	}
+
+
+
+
+
+
+
+	private static function minutes( string $time ): int {
+		return (int) substr( $time, 0, 2 ) * 60 + (int) substr( $time, 3, 2 );
+	}
+
+
+
+
+
+
+
+	private static function date_label( string $day ): string {
+		return substr( $day, 8, 2 ) . '/' . substr( $day, 5, 2 ) . '/' . substr( $day, 0, 4 );
 	}
 }
 }
@@ -3648,7 +3866,7 @@ final class Fields {
 
 			array(
 				'title'  => 'Fechas y horas',
-				'help'   => 'De la fecha de inicio sale el curso escolar y el sitio en el calendario. Los plazos de matrícula, el enlace y las listas se llevan en el sistema de gestión del servicio de perfeccionamiento.',
+				'help'   => 'De la fecha de inicio sale el curso escolar. Los plazos de matrícula, el enlace y las listas se llevan en el sistema de gestión del servicio de perfeccionamiento.',
 
 
 				'fields' => array(
@@ -3663,10 +3881,18 @@ final class Fields {
 						'w'     => 'date',
 						'col'   => 6,
 					),
+
+
+
+					A::SESSIONS => array(
+						'label' => 'Sesiones',
+						'w'     => 'sessions',
+						'help'  => 'El día y el horario de cada sesión, dentro de las fechas de inicio y de fin. El calendario pinta cada una en su día.',
+					),
 					A::SCHEDULE => array(
-						'label' => 'Días y horas',
-						'w'     => 'textarea',
-						'help'  => 'Si tiene más de una sesión, los días y el horario de cada una. Por ejemplo: 20 y 27 de marzo y 3 y 24 de abril, de 16:00 a 20:00.',
+						'label' => 'Días y horas (escrito antes de las sesiones)',
+						'w'     => 'legacy',
+						'help'  => 'Lo que se escribió a mano antes de que hubiera sesiones. Se conserva tal cual; no se puede cambiar.',
 					),
 				),
 			),
@@ -4970,6 +5196,7 @@ namespace Fmc\PublicFront;
 
 use Fmc\Centre\CentreCatalogue;
 use Fmc\Domain\SchoolYear;
+use Fmc\Domain\Sessions;
 use Fmc\Domain\Situation;
 use Fmc\Meta\ActionMetaKeys as A;
 use Fmc\Meta\DesignMetaKeys as D;
@@ -6284,7 +6511,11 @@ final class Lists {
 					'Ámbito y centro' => static fn( $p ) => self::terms( $p->ID, 'fmc_scope' ) . "\n" . $m( $p, A::VENUE_CENTRE ),
 					'Ponentes'        => static fn( $p ) => implode( "\n", array_map( 'get_the_title', array_filter( array_map( 'intval', (array) get_post_meta( $p->ID, A::SPEAKERS, true ) ) ) ) ),
 					'Tipo y horas'    => static fn( $p ) => ( D::TYPES[ (string) get_post_meta( (int) $m( $p, A::DESIGN_ID ), D::TYPE, true ) ] ?? '' ) . "\n" . trim( ( D::MODALITIES[ $m( $p, A::MODALITY ) ] ?? '' ) . ' · ' . self::hours( $m( $p, A::HOURS_ONSITE ), $m( $p, A::HOURS_ONLINE ) ), ' ·' ),
-					'Fechas'          => static fn( $p ) => self::dates( $m( $p, A::START ), $m( $p, A::END ) ) . "\n" . wp_trim_words( $m( $p, A::SCHEDULE ), 12 ),
+
+					'Fechas'          => static function ( $p ) use ( $m ) {
+						$sessions = Sessions::summary( Sessions::clean( get_post_meta( $p->ID, A::SESSIONS, true ) ) );
+						return self::dates( $m( $p, A::START ), $m( $p, A::END ) ) . "\n" . ( '' !== $sessions ? $sessions : wp_trim_words( $m( $p, A::SCHEDULE ), 12 ) );
+					},
 					'Estado'          => static fn( $p ) => ( A::DELIVERY[ $p->post_status ] ?? '' ) . "\n" . SchoolYear::of( $m( $p, A::START ) ),
 				);
 			case PostTypes::DESIGN:
@@ -6579,6 +6810,7 @@ final class Lists {
 namespace Fmc\PublicFront;
 
 use Fmc\Domain\SchoolYear;
+use Fmc\Domain\Sessions;
 use Fmc\Meta\ActionMetaKeys as A;
 use Fmc\PostType\PostTypes;
 
@@ -6740,19 +6972,71 @@ final class Calendar {
 
 
 
+
+
+
+
 	public static function by_range( string $from, string $to ): array {
 		$out = array();
 		foreach ( self::actions(
 			array(
-				'key'     => A::START,
-				'value'   => array( $from, $to ),
-				'compare' => 'BETWEEN',
+				'relation' => 'AND',
+				array(
+					'key'     => A::START,
+					'value'   => $to,
+					'compare' => '<=',
+				),
+				array(
+					'relation' => 'OR',
+					array(
+						'key'     => A::START,
+						'value'   => $from,
+						'compare' => '>=',
+					),
+					array(
+						'key'     => A::END,
+						'value'   => $from,
+						'compare' => '>=',
+					),
+					array(
+						'key'     => A::SESSIONS,
+						'compare' => 'EXISTS',
+					),
+				),
 			)
 		) as $post ) {
-			$out[ (string) get_post_meta( $post->ID, A::START, true ) ][] = $post;
+			$sessions = Sessions::clean( get_post_meta( $post->ID, A::SESSIONS, true ) );
+			if ( $sessions ) {
+				foreach ( array_keys( Sessions::by_day( $sessions ) ) as $day ) {
+					if ( $day >= $from && $day <= $to ) {
+						$out[ $day ][] = $post;
+					}
+				}
+				continue;
+			}
+			$start = (string) get_post_meta( $post->ID, A::START, true );
+			if ( $start >= $from && $start <= $to ) {
+				$out[ $start ][] = $post;
+			}
 		}
 		ksort( $out );
 		return $out;
+	}
+
+
+
+
+
+
+
+	private static function distinct( array $by ): int {
+		$ids = array();
+		foreach ( $by as $posts ) {
+			foreach ( $posts as $post ) {
+				$ids[ $post->ID ] = true;
+			}
+		}
+		return count( $ids );
 	}
 
 
@@ -6882,7 +7166,7 @@ final class Calendar {
 		$by_day = self::by_day( $first );
 		return array(
 			'title' => ucfirst( self::MONTHS[ (int) gmdate( 'n', $ts ) ] ) . ' de ' . gmdate( 'Y', $ts ),
-			'count' => sprintf( '%d acción(es) empiezan este mes.', array_sum( array_map( 'count', $by_day ) ) ),
+			'count' => sprintf( '%d acción(es) este mes.', self::distinct( $by_day ) ),
 			'prev'  => array( 'fmc_month' => gmdate( 'Y-m', (int) strtotime( '-1 month', $ts ) ) ),
 			'next'  => array( 'fmc_month' => gmdate( 'Y-m', (int) strtotime( '+1 month', $ts ) ) ),
 			'today' => array( 'fmc_month' => substr( self::today(), 0, 7 ) ),
@@ -6917,7 +7201,7 @@ final class Calendar {
 				if ( '' !== $day ) {
 					$body .= '<div class="fmc-cal-num">' . esc_html( (string) (int) substr( $day, 8 ) ) . '</div>';
 					foreach ( $by_day[ $day ] ?? array() as $post ) {
-						$body .= self::card( $post );
+						$body .= self::card( $post, $day );
 					}
 				}
 				$body .= '</div>';
@@ -6946,9 +7230,9 @@ final class Calendar {
 			'fmc-days-a'
 		) . '</h2>';
 		foreach ( $actions as $post ) {
-			$out .= self::card( $post );
+			$out .= self::card( $post, $day );
 		}
-		return $out . ( $actions ? '' : '<p class="small text-secondary mb-0">Ninguna empieza.</p>' ) . '</section>';
+		return $out . ( $actions ? '' : '<p class="small text-secondary mb-0">Ninguna.</p>' ) . '</section>';
 	}
 
 
@@ -7003,14 +7287,21 @@ final class Calendar {
 		foreach ( $days as $d ) {
 			$body .= self::day_html( $d, $by[ $d ] ?? array(), $d === $today );
 		}
-		$body   .= '</div>';
-		$running = self::ongoing( $from );
+		$body .= '</div>';
+
+		$shown = array();
+		foreach ( $by as $posts ) {
+			foreach ( $posts as $post ) {
+				$shown[ $post->ID ] = true;
+			}
+		}
+		$running = array_values( array_filter( self::ongoing( $from ), static fn( $p ) => ! isset( $shown[ $p->ID ] ) ) );
 		$body   .= self::running_html( $running );
 
 		$label = (int) substr( $from, 8 ) . ' de ' . self::MONTHS[ (int) gmdate( 'n', (int) strtotime( $from ) ) ] . ' de ' . gmdate( 'Y', (int) strtotime( $from ) );
 		return array(
 			'title' => 'week' === $view ? 'Semana del ' . $label : self::WEEKDAYS[ (int) gmdate( 'N', $ts ) - 1 ] . ' ' . $label,
-			'count' => sprintf( '%1$d acción(es) empiezan; %2$d siguen en curso.', array_sum( array_map( 'count', $by ) ), count( $running ) ),
+			'count' => sprintf( '%1$d acción(es) %2$s; %3$d siguen en curso.', self::distinct( $by ), 'week' === $view ? 'esta semana' : 'este día', count( $running ) ),
 			'prev'  => array(
 				'fmc_view' => $view,
 				'fmc_day'  => gmdate( 'Y-m-d', (int) strtotime( '-' . $step, $ts ) ),
@@ -7070,7 +7361,8 @@ final class Calendar {
 
 
 
-	public static function card( \WP_Post $post ): string {
+
+	public static function card( \WP_Post $post, string $day = '' ): string {
 		$m          = static fn( string $key ): string => (string) get_post_meta( $post->ID, $key, true );
 		$situation  = A::situation( $post->ID );
 		$funded     = $m( A::FUNDED_BY );
@@ -7085,7 +7377,11 @@ final class Calendar {
 		if ( $incomplete ) {
 			$out .= '<span class="fmc-ribbon is-warn" title="Datos incompletos">!</span>';
 		}
-		$out .= '<span class="fmc-ev-title">' . esc_html( get_the_title( $post ) ) . '</span>';
+		$out  .= '<span class="fmc-ev-title">' . esc_html( get_the_title( $post ) ) . '</span>';
+		$today = '' !== $day ? Sessions::by_day( Sessions::clean( get_post_meta( $post->ID, A::SESSIONS, true ) ) )[ $day ] ?? array() : array();
+		if ( $today ) {
+			$out .= '<span class="fmc-ev-meta fmc-ev-time">' . esc_html( implode( ' · ', array_map( static fn( $s ) => $s['from'] . '–' . $s['to'], $today ) ) ) . '</span>';
+		}
 
 		if ( 'draft' === $post->post_status ) {
 			$out .= '<span class="fmc-ev-meta">Borrador, sin entregar</span>';
@@ -7121,6 +7417,7 @@ namespace Fmc\PublicFront;
 
 use Fmc\Centre\CentreCatalogue;
 use Fmc\Meta\ActionMetaKeys as A;
+use Fmc\Domain\Sessions;
 use Fmc\Meta\DesignMetaKeys as D;
 use Fmc\Domain\DigComp;
 use Fmc\Meta\IncidentMetaKeys as I;
@@ -7590,6 +7887,19 @@ final class Editor {
 		}
 
 		switch ( $f['w'] ) {
+			case 'sessions':
+				$input = self::sessions_field( $id, $name, $value, $can, $error );
+				$label = '<span class="form-label fw-semibold d-block" id="' . esc_attr( $id ) . '-label">' . esc_html( $f['label'] ) . '</span>';
+				break;
+			case 'legacy':
+
+
+				if ( '' === trim( is_string( $value ) ? $value : '' ) ) {
+					return '';
+				}
+				$label = '<span class="form-label fw-semibold d-block">' . esc_html( $f['label'] ) . '</span>';
+				$input = '<div class="fmc-legacy">' . nl2br( esc_html( (string) $value ) ) . '</div>';
+				break;
 			case 'textarea':
 			case 'rich':
 				$rich  = 'rich' === $f['w'] ? ' data-fmc-rich' : '';
@@ -7694,6 +8004,52 @@ final class Editor {
 			$show = ' data-fmc-show="' . esc_attr( 'f[' . $other . ']' ) . '" data-fmc-show-values="' . esc_attr( implode( ',', $wanted ) ) . '"';
 		}
 		return '<div class="col-12 col-md-' . (int) ( $f['col'] ?? 12 ) . ( $shown ? '' : ' d-none' ) . '"' . $show . '>' . $label . $input . $help . '</div>';
+	}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+	private static function sessions_field( string $id, string $name, $value, bool $can, bool $error ): string {
+		$rows = array_values( array_filter( is_array( $value ) ? $value : array(), 'is_array' ) );
+		if ( $can ) {
+			$rows[] = array();
+		}
+		$disabled = $can ? '' : ' disabled';
+		$row      = static function ( string $index, array $s ) use ( $name, $disabled, $can ): string {
+			$cell = static function ( string $part, string $type, string $label ) use ( $name, $index, $s, $disabled ): string {
+				return '<td><input class="form-control form-control-sm" type="' . $type . '" name="' . esc_attr( $name . '[' . $index . '][' . $part . ']' ) . '" value="' . esc_attr( (string) ( $s[ $part ] ?? '' ) ) . '" aria-label="' . esc_attr( $label ) . '"' . $disabled . '></td>';
+			};
+			$out  = '<tr data-fmc-session>' . $cell( 'day', 'date', 'Día' ) . $cell( 'from', 'time', 'Desde' ) . $cell( 'to', 'time', 'Hasta' );
+			$out .= '<td class="text-end">' . ( $can ? '<button type="button" class="btn btn-sm btn-outline-secondary" data-fmc-session-remove aria-label="Quitar esta sesión" title="Quitar esta sesión">×</button>' : '' ) . '</td></tr>';
+			return $out;
+		};
+		$out      = '<div class="fmc-sessions' . ( $error ? ' is-invalid' : '' ) . '" id="' . esc_attr( $id ) . '" role="group" aria-labelledby="' . esc_attr( $id ) . '-label" data-fmc-sessions data-fmc-next="' . count( $rows ) . '">';
+		if ( ! $rows ) {
+			return $out . '<p class="small text-secondary mb-0">Sin sesiones.</p></div>';
+		}
+		$out .= '<table class="table table-sm align-middle mb-2"><thead><tr><th scope="col">Día</th><th scope="col">Desde</th><th scope="col">Hasta</th><th scope="col"><span class="visually-hidden">Quitar</span></th></tr></thead><tbody>';
+		foreach ( $rows as $i => $s ) {
+			$out .= $row( (string) $i, $s );
+		}
+		$out .= '</tbody></table>';
+		if ( $can ) {
+			$out .= '<template data-fmc-session-template>' . $row( '__i__', array() ) . '</template>';
+			$out .= '<button type="button" class="btn btn-sm btn-outline-primary" data-fmc-session-add>+ Añadir sesión</button> ';
+		}
+		$hours = Sessions::hours( Sessions::clean( $value ) );
+		$out  .= '<span class="small text-secondary ms-2">Total: <strong data-fmc-sessions-total>' . esc_html( ( $hours + 0 ) . ' h' ) . '</strong></span>';
+		return $out . '</div>';
 	}
 
 
@@ -8310,12 +8666,25 @@ final class Editor {
 		$was_venue     = $post ? (string) get_post_meta( $post->ID, A::VENUE_CODE, true ) : '';
 
 		$archiving = PostTypes::DESIGN === $type && PostTypes::ARCHIVED === self::next_status( $type, $post, $status );
+		$sessions  = array();
 		foreach ( $fields as $key => $f ) {
-			if ( 'docs' === $f['w'] || ! self::can_write( $type, $key, $id ) ) {
+			if ( in_array( $f['w'], array( 'docs', 'legacy' ), true ) || ! self::can_write( $type, $key, $id ) ) {
 				continue;
 			}
 			$writable[ $key ] = true;
-			$value            = $raw[ $key ] ?? ( in_array( $f['w'], array( 'checkbox' ), true ) ? '0' : '' );
+
+
+			if ( 'sessions' === $f['w'] ) {
+				$parsed = Sessions::read( $raw[ $key ] ?? array() );
+				if ( '' !== $parsed['error'] ) {
+					$sessions[ $key ] = $parsed['error'];
+					$values[ $key ]   = self::rows( $raw[ $key ] ?? array() );
+				} else {
+					$values[ $key ] = $parsed['sessions'];
+				}
+				continue;
+			}
+			$value = $raw[ $key ] ?? ( in_array( $f['w'], array( 'checkbox' ), true ) ? '0' : '' );
 			if ( is_array( $value ) ) {
 				$value = array_values( array_filter( array_map( 'sanitize_text_field', $value ), 'strlen' ) );
 			} else {
@@ -8324,7 +8693,7 @@ final class Editor {
 			$values[ $key ] = $value;
 		}
 
-		$errors = self::check_choices( $fields, $values, $post );
+		$errors = self::check_choices( $fields, $values, $post ) + $sessions;
 
 		if ( PostTypes::ACTION === $type && ! isset( $errors[ A::DESIGN_ID ] ) ) {
 			$errors += self::impute_programme( $values, $post );
@@ -8359,6 +8728,15 @@ final class Editor {
 			$others = PostTypes::DESIGN === $type ? array_map( 'intval', (array) $read( D::REPLACES ) ) : array();
 			if ( ! $empty && ! empty( $f['unique'] ) && ! $archiving && self::taken( $type, $key, (string) $value, $id, $others ) ) {
 				$errors[ $key ] = 'Ya hay otro con ese valor en «' . $f['label'] . '».';
+			}
+		}
+
+
+
+		if ( PostTypes::ACTION === $type && ! empty( $values[ A::SESSIONS ] ) && ! isset( $errors[ A::SESSIONS ] ) ) {
+			$outside = Sessions::outside( $values[ A::SESSIONS ], (string) $read( A::START ), (string) $read( A::END ) );
+			if ( '' !== $outside ) {
+				$errors[ A::SESSIONS ] = $outside;
 			}
 		}
 
@@ -8598,6 +8976,26 @@ final class Editor {
 		}
 		$values[ 'tax:' . Taxonomies::PROGRAMME ] = array_map( 'strval', $covered );
 		return array();
+	}
+
+
+
+
+
+
+
+	private static function rows( $raw ): array {
+		$out = array();
+		foreach ( is_array( $raw ) ? $raw : array() as $row ) {
+			if ( is_array( $row ) ) {
+				$out[] = array(
+					'day'  => sanitize_text_field( (string) ( $row['day'] ?? '' ) ),
+					'from' => sanitize_text_field( (string) ( $row['from'] ?? '' ) ),
+					'to'   => sanitize_text_field( (string) ( $row['to'] ?? '' ) ),
+				);
+			}
+		}
+		return array_values( array_filter( $out, static fn( $r ) => '' !== implode( '', $r ) ) );
 	}
 
 
@@ -10399,6 +10797,15 @@ body.has-panel { overflow: hidden; }
 .fmc-help details { border: 1px solid var(--fmc-line); border-radius: 10px; background: #fff; padding: .75rem 1rem; margin-bottom: .5rem; }
 .fmc-help details summary { font-weight: 600; cursor: pointer; }
 .fmc-help details p { margin: .6rem 0 0; }
+
+/* Sesiones de una acción: una fila por sesión, estrecha, y el total al lado
+   del botón de añadir (ADR-0027). */
+.fmc-sessions table { max-width: 520px; }
+.fmc-sessions th { font-size: 13px; font-weight: 600; color: var(--fmc-text-2); }
+.fmc-sessions td { padding-left: 0; }
+.fmc-sessions.is-invalid table { outline: 1px solid var(--fmc-bad); outline-offset: 4px; border-radius: 4px; }
+.fmc-legacy { white-space: normal; background: var(--fmc-sup-2); border: 1px dashed var(--fmc-line); border-radius: 8px; padding: .5rem .75rem; color: var(--fmc-text-2); }
+.fmc-ev-time { font-weight: 600; color: var(--fmc-text); }
 ',
   'js/fmc-app.js' => '/**
  * Formación: los dos comportamientos del lado del navegador.
@@ -11066,6 +11473,67 @@ body.has-panel { overflow: hidden; }
 		}
 	}
 
+	// Las sesiones de una acción (ADR-0027): «+ Añadir sesión» saca una fila
+	// de la plantilla con un índice nuevo, «×» quita la suya, y el total de
+	// horas se pone al día con cada cambio. El servidor pinta lo mismo.
+	function sessionHours( box ) {
+		let minutes = 0;
+		box.querySelectorAll( \'tbody tr[data-fmc-session]\' ).forEach( function ( row ) {
+			const from = row.querySelector( \'input[name$="[from]"]\' );
+			const to = row.querySelector( \'input[name$="[to]"]\' );
+			const a = /^(\\d{1,2}):(\\d{2})$/.exec( from ? from.value : \'\' );
+			const b = /^(\\d{1,2}):(\\d{2})$/.exec( to ? to.value : \'\' );
+			if ( a && b ) {
+				const span = ( +b[ 1 ] * 60 + +b[ 2 ] ) - ( +a[ 1 ] * 60 + +a[ 2 ] );
+				minutes += span > 0 ? span : 0;
+			}
+		} );
+		return Math.round( minutes / 60 * 100 ) / 100;
+	}
+
+	function updateSessions( box ) {
+		const total = box.querySelector( \'[data-fmc-sessions-total]\' );
+		if ( total ) {
+			total.textContent = sessionHours( box ) + \' h\';
+		}
+	}
+
+	function onSessionClick( event ) {
+		if ( ! event.target.closest ) {
+			return;
+		}
+		const add = event.target.closest( \'button[data-fmc-session-add]\' );
+		const remove = event.target.closest( \'button[data-fmc-session-remove]\' );
+		const box = ( add || remove ) ? ( add || remove ).closest( \'[data-fmc-sessions]\' ) : null;
+		if ( ! box ) {
+			return;
+		}
+		event.preventDefault();
+		if ( add ) {
+			const template = box.querySelector( \'template[data-fmc-session-template]\' );
+			const next = parseInt( box.dataset.fmcNext || \'0\', 10 ) || 0;
+			box.dataset.fmcNext = String( next + 1 );
+			const holder = document.createElement( \'tbody\' );
+			holder.innerHTML = template.innerHTML.replace( /__i__/g, String( next ) );
+			const row = holder.firstElementChild;
+			box.querySelector( \'tbody\' ).append( row );
+			const first = row.querySelector( \'input\' );
+			if ( first && first.focus ) {
+				first.focus();
+			}
+		} else {
+			remove.closest( \'tr\' ).remove();
+		}
+		updateSessions( box );
+	}
+
+	function onSessionInput( event ) {
+		const box = event.target.closest ? event.target.closest( \'[data-fmc-sessions]\' ) : null;
+		if ( box ) {
+			updateSessions( box );
+		}
+	}
+
 	function onKey( event ) {
 		if ( \'Escape\' === event.key ) {
 			closePanel();
@@ -11079,6 +11547,8 @@ body.has-panel { overflow: hidden; }
 	document.addEventListener( \'click\', onNoteClick );
 	document.addEventListener( \'keydown\', onKey );
 	document.addEventListener( \'change\', onChange );
+	document.addEventListener( \'click\', onSessionClick );
+	document.addEventListener( \'input\', onSessionInput );
 	if ( \'loading\' === document.readyState ) {
 		document.addEventListener( \'DOMContentLoaded\', function () {
 			initSelects();
@@ -11117,6 +11587,9 @@ body.has-panel { overflow: hidden; }
 		hideTips: hideTips,
 		closePanel: closePanel,
 		reload: reload,
+		onSessionClick: onSessionClick,
+		onSessionInput: onSessionInput,
+		sessionHours: sessionHours,
 	};
 } )();
 ',

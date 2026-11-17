@@ -50,6 +50,12 @@ final class ActionMetaKeys {
 	public const START            = 'fmc_start';
 	public const END              = 'fmc_end';
 	public const SCHEDULE         = 'fmc_schedule';
+
+	/**
+	 * The sessions, one by one: day, start and end (ADR-0027). «Días y horas»
+	 * (`SCHEDULE`) queda para lo que llegó escrito a mano.
+	 */
+	public const SESSIONS         = 'fmc_sessions';
 	public const CERTIFICATION    = 'fmc_certification';
 	public const COURSE_SPACE_URL = 'fmc_course_space_url';
 	public const NOTES            = 'fmc_notes';
@@ -209,6 +215,7 @@ final class ActionMetaKeys {
 			self::START            => MetaTypes::DATE,
 			self::END              => MetaTypes::DATE,
 			self::SCHEDULE         => MetaTypes::TEXT,
+			self::SESSIONS         => MetaTypes::SESSIONS,
 			self::CERTIFICATION    => MetaTypes::HTML,
 			self::COURSE_SPACE_URL => MetaTypes::URL,
 			self::NOTES            => MetaTypes::HTML,

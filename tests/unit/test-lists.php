@@ -487,6 +487,39 @@ class Test_Lists extends WP_UnitTestCase {
 	}
 
 	/**
+	 * Con sesiones, debajo de las fechas van cuántas y sus horas, y no el texto de antes (ADR-0027).
+	 */
+	public function test_the_dates_column_summarises_the_sessions() {
+		$this->as_role( 'fmc_curator' );
+		$this->post(
+			PostTypes::ACTION,
+			'Con sesiones',
+			array(
+				A::START    => '2026-03-10',
+				A::END      => '2026-03-17',
+				A::SCHEDULE => 'Texto de antes',
+				A::SESSIONS => array(
+					array(
+						'day'  => '2026-03-10',
+						'from' => '16:00',
+						'to'   => '20:00',
+					),
+					array(
+						'day'  => '2026-03-17',
+						'from' => '16:00',
+						'to'   => '18:30',
+					),
+				),
+			)
+		);
+
+		$body = Lists::screen( 'actions', PostTypes::ACTION )['body'];
+
+		$this->assertStringContainsString( '<td>10/03/2026 – 17/03/2026<div class="small text-secondary">2 sesiones · 6.5 h</div></td>', $body );
+		$this->assertStringNotContainsString( 'Texto de antes', $body );
+	}
+
+	/**
 	 * Las acciones más recientes arriba y las que no tienen fecha, al final.
 	 */
 	public function test_actions_are_ordered_by_start_newest_first_and_undated_last() {
