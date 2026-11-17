@@ -6,7 +6,7 @@
  * Priority: 15
  *
  * @package Fmc
- * @version 0.0.14
+ * @version 0.1.0
  */
 
 // phpcs:disable
@@ -9132,6 +9132,8 @@ final class Screen {
 		}
 		if ( $edit || '' !== $new ) {
 			$screen = Editor::screen( $edit, $new );
+		} elseif ( Help::asked() && Help::available() ) {
+			$screen = Help::screen();
 		} else {
 			if ( ! isset( $tabs[ $tab ] ) ) {
 				$tab = (string) array_key_first( $tabs );
@@ -9321,6 +9323,7 @@ final class Screen {
 			$active = $key === $current;
 			$out   .= '<li class="nav-item"><a class="nav-link' . ( $active ? ' active' : '' ) . '"' . ( $active ? ' aria-current="page"' : '' ) . ' href="' . esc_url( self::url( array( self::ARG_TAB => $key ) ) ) . '">' . esc_html( $tab['label'] ) . '</a></li>';
 		}
+		$out .= Help::tab( Help::TAB === $current );
 		$out .= '</ul></div></nav>';
 		return $out;
 	}
@@ -9898,6 +9901,98 @@ final class Catalogue {
 
 
 
+namespace Fmc\PublicFront;
+
+
+
+
+
+
+
+
+
+
+if ( ! class_exists( 'Fmc\PublicFront\Help', false ) ) {
+final class Help {
+
+
+
+
+	public const ARG = 'fmc_ayuda';
+
+
+
+
+	public const TAB = 'help';
+
+
+
+
+	public const TITLE = 'Ayuda';
+
+
+
+
+
+
+	public static function available(): bool {
+		return function_exists( 'fmc_help_html' );
+	}
+
+
+
+
+
+
+	public static function asked(): bool {
+		return '' !== Lists::arg( self::ARG );
+	}
+
+
+
+
+
+
+	public static function url(): string {
+		return Screen::url( array( self::ARG => '1' ) );
+	}
+
+
+
+
+
+
+	public static function screen(): array {
+		return array(
+			'tab'      => self::TAB,
+			'title'    => self::TITLE,
+			'subtitle' => 'Cómo se usa el planificador, paso a paso.',
+			'body'     => self::available() ? '<div class="fmc-help">' . (string) \fmc_help_html() . '</div>' : '',
+		);
+	}
+
+
+
+
+
+
+
+	public static function tab( bool $active ): string {
+		if ( ! self::available() ) {
+			return '';
+		}
+		return '<li class="nav-item ms-auto"><a class="nav-link' . ( $active ? ' active' : '' ) . '"' . ( $active ? ' aria-current="page"' : '' ) . ' href="' . esc_url( self::url() ) . '"><i class="bi bi-question-circle me-1" aria-hidden="true"></i>' . esc_html( self::TITLE ) . '</a></li>';
+	}
+}
+}
+
+
+
+
+
+
+
+
 namespace Fmc;
 
 use Fmc\Centre\CentreCatalogueSync;
@@ -10282,6 +10377,28 @@ body.has-panel { overflow: hidden; }
 
 /* Lo que significa un término, debajo del elegido: cada parte en su línea. */
 .fmc .fmc-hint { white-space: pre-line; }
+
+/* Ayuda: una columna de lectura, con el índice a la izquierda en pantallas anchas
+   y las capturas enmarcadas como una ventana. */
+.fmc-help { display: grid; gap: 2rem; max-width: 1100px; }
+@media (min-width: 992px) {
+	.fmc-help { grid-template-columns: 240px minmax(0, 1fr); align-items: start; }
+	.fmc-help-toc { position: sticky; top: 1rem; grid-row: 1 / span 20; }
+}
+.fmc-help-toc { border-radius: var(--fmc-r); border-color: var(--fmc-line); box-shadow: var(--fmc-e1); font-size: 14px; }
+.fmc-help-toc-title { font-weight: 700; margin-bottom: .5rem; }
+.fmc-help-toc ol { margin: 0; padding-left: 1.2rem; }
+.fmc-help-toc li { margin: .25rem 0; }
+.fmc-help-section { max-width: 820px; scroll-margin-top: 1rem; }
+.fmc-help-section h2 { font-size: 1.35rem; font-weight: 700; margin-bottom: .75rem; display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; }
+.fmc-help-who { font-size: .72rem; font-weight: 600; border: 1px solid var(--fmc-line); }
+.fmc-help-section li { margin-bottom: .35rem; }
+.fmc-help figure { margin: 1.25rem 0 1.5rem; }
+.fmc-help figure img { display: block; width: 100%; height: auto; border: 1px solid var(--fmc-line); border-radius: 10px; box-shadow: var(--fmc-e2); background: #fff; }
+.fmc-help figcaption { margin-top: .5rem; color: var(--fmc-text-2); font-size: 14px; }
+.fmc-help details { border: 1px solid var(--fmc-line); border-radius: 10px; background: #fff; padding: .75rem 1rem; margin-bottom: .5rem; }
+.fmc-help details summary { font-weight: 600; cursor: pointer; }
+.fmc-help details p { margin: .6rem 0 0; }
 ',
   'js/fmc-app.js' => '/**
  * Formación: los dos comportamientos del lado del navegador.

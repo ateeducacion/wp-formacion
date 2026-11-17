@@ -34,8 +34,9 @@ install: ## Instala las dependencias de Composer y npm en el host
 	composer install
 	npm install
 
-bundle: ## Empaqueta src/Fmc → snippets/fmc-formacion-app.bundle.php (Code Snippets)
+bundle: ## Empaqueta src/Fmc y assets/help → snippets/*.bundle.php (Code Snippets)
 	php build/pack-snippet.php
+	php build/pack-help.php
 
 # Internal: fail early if Docker is not running.
 check-docker:
@@ -287,6 +288,20 @@ check-skills: ## Comprueba que las dos copias de las skills son iguales
 	echo "Skills: las dos copias coinciden."
 
 # ─── WordPress Playground (local, sin Docker) ─────────────────────────────────
+
+# Las capturas de la ayuda salen de Playground con los datos de demostración,
+# nunca de un sitio con datos reales: se versionan en un repositorio público.
+CAPTURAS_PORT ?= 9410
+capturas: ## Rehace las capturas de la ayuda (assets/help/img) y regenera su snippet
+	@$(MAKE) --no-print-directory bundle
+	@npx @wp-playground/cli@latest server --blueprint=blueprint-local.json \
+		--mount=.:/wordpress/wp-content/fmc-dev \
+		--mount=./scripts/mu-plugins:/wordpress/wp-content/mu-plugins \
+		--port=$(CAPTURAS_PORT) > /dev/null 2>&1 & PG=$$!; \
+	trap "kill $$PG 2>/dev/null" EXIT; \
+	until curl -s -o /dev/null http://127.0.0.1:$(CAPTURAS_PORT)/wp-login.php; do sleep 2; done; \
+	node scripts/help-screenshots.mjs http://127.0.0.1:$(CAPTURAS_PORT)
+	@$(MAKE) --no-print-directory bundle
 
 playground: ## Arranca WordPress Playground local (sin Docker) con el repo montado
 	npx @wp-playground/cli@latest server \

@@ -10,6 +10,8 @@
 
 use Fmc\Meta\ActionMetaKeys;
 use Fmc\Meta\DesignMetaKeys;
+use Fmc\Meta\IncidentMetaKeys;
+use Fmc\Meta\SpeakerMetaKeys;
 use Fmc\PostType\PostTypes;
 use Fmc\Taxonomy\Taxonomies;
 
@@ -156,4 +158,162 @@ fmc_seed_post(
 		ActionMetaKeys::FUNDED_BY    => 'centre',
 	),
 	array( Taxonomies::SCOPE => 'ambito-1' )
+);
+
+/**
+ * A weekday, counted from today: the calendar only shows Monday to Friday.
+ *
+ * @param int $days Days from today; negative goes back.
+ * @return string Y-m-d.
+ */
+function fmc_seed_weekday( int $days ): string {
+	$time = strtotime( $days . ' days', strtotime( gmdate( 'Y-m-d' ) ) );
+	while ( (int) gmdate( 'N', $time ) > 5 ) {
+		$time = strtotime( ( $days < 0 ? '-1' : '+1' ) . ' day', $time );
+	}
+	return gmdate( 'Y-m-d', $time );
+}
+
+// Ponentes, acciones e incidencia para enseñar el aplicativo con algo dentro:
+// las capturas de la ayuda salen de aquí (`make capturas`). Todo inventado.
+$fmc_speaker_a = fmc_seed_post(
+	array(
+		'post_type'   => PostTypes::SPEAKER,
+		'post_name'   => 'demo-ponente-ana',
+		'post_title'  => 'Pérez Ejemplo, Ana',
+		'post_status' => 'publish',
+		'post_author' => $fmc_adviser,
+	),
+	array(
+		SpeakerMetaKeys::FIRST_NAME  => 'Ana',
+		SpeakerMetaKeys::LAST_NAME   => 'Pérez Ejemplo',
+		SpeakerMetaKeys::PROFESSION  => 'secondary_teacher',
+		SpeakerMetaKeys::EMAIL       => 'ana@example.org',
+		SpeakerMetaKeys::RECOMMENDED => array( $fmc_design ),
+	),
+	array( Taxonomies::ZONE => 'zona-1' )
+);
+
+fmc_seed_post(
+	array(
+		'post_type'   => PostTypes::SPEAKER,
+		'post_name'   => 'demo-ponente-luis',
+		'post_title'  => 'Martín Ejemplo, Luis',
+		'post_status' => 'publish',
+		'post_author' => $fmc_adviser,
+	),
+	array(
+		SpeakerMetaKeys::FIRST_NAME => 'Luis',
+		SpeakerMetaKeys::LAST_NAME  => 'Martín Ejemplo',
+		SpeakerMetaKeys::PROFESSION => 'external',
+		SpeakerMetaKeys::EMAIL      => 'luis@example.org',
+		SpeakerMetaKeys::NOTES      => 'Prefiere sesiones de tarde.',
+	),
+	array( Taxonomies::ZONE => 'zona-2' )
+);
+
+fmc_seed_post(
+	array(
+		'post_type'   => PostTypes::SPEAKER,
+		'post_name'   => 'demo-ponente-marta',
+		'post_title'  => 'Ruiz Ejemplo, Marta',
+		'post_status' => 'publish',
+		'post_author' => $fmc_curator,
+	),
+	array(
+		SpeakerMetaKeys::FIRST_NAME  => 'Marta',
+		SpeakerMetaKeys::LAST_NAME   => 'Ruiz Ejemplo',
+		SpeakerMetaKeys::PROFESSION  => 'primary_teacher',
+		SpeakerMetaKeys::UNAVAILABLE => true,
+	),
+	array( Taxonomies::ZONE => 'zona-1' )
+);
+
+$fmc_delivered = fmc_seed_post(
+	array(
+		'post_type'   => PostTypes::ACTION,
+		'post_name'   => 'demo-accion-ia-ambito-2',
+		'post_title'  => 'La inteligencia artificial en el aula',
+		'post_status' => 'publish',
+		'post_author' => $fmc_adviser,
+	),
+	array(
+		ActionMetaKeys::DESIGN_ID    => $fmc_design,
+		ActionMetaKeys::SUBTITLE     => 'Segunda edición',
+		ActionMetaKeys::FILE_NUMBER  => 'EXP-0001/2026',
+		ActionMetaKeys::MODALITY     => 'blended',
+		ActionMetaKeys::HOURS_ONSITE => 8,
+		ActionMetaKeys::HOURS_ONLINE => 12,
+		ActionMetaKeys::START        => fmc_seed_weekday( 2 ),
+		ActionMetaKeys::END          => fmc_seed_weekday( 23 ),
+		ActionMetaKeys::SCHEDULE     => 'Martes y jueves, de 16:00 a 19:00.',
+		ActionMetaKeys::ADVISER      => $fmc_adviser,
+		ActionMetaKeys::SPEAKERS     => array( $fmc_speaker_a ),
+		ActionMetaKeys::FUNDED_BY    => 'service',
+	),
+	array(
+		Taxonomies::SCOPE     => 'ambito-2',
+		Taxonomies::PROGRAMME => 'programa-a',
+	)
+);
+
+fmc_seed_post(
+	array(
+		'post_type'   => PostTypes::ACTION,
+		'post_name'   => 'demo-accion-ia-realizada',
+		'post_title'  => 'La inteligencia artificial en el aula',
+		'post_status' => 'publish',
+		'post_author' => $fmc_adviser,
+	),
+	array(
+		ActionMetaKeys::DESIGN_ID    => $fmc_design,
+		ActionMetaKeys::SUBTITLE     => 'Primera edición',
+		ActionMetaKeys::MODALITY     => 'blended',
+		ActionMetaKeys::HOURS_ONSITE => 8,
+		ActionMetaKeys::HOURS_ONLINE => 12,
+		ActionMetaKeys::START        => fmc_seed_weekday( -9 ),
+		ActionMetaKeys::END          => fmc_seed_weekday( -1 ),
+		ActionMetaKeys::ADVISER      => $fmc_adviser,
+		ActionMetaKeys::FUNDED_BY    => 'area',
+	),
+	array( Taxonomies::SCOPE => 'ambito-1' )
+);
+
+fmc_seed_post(
+	array(
+		'post_type'   => PostTypes::ACTION,
+		'post_name'   => 'demo-accion-borrador',
+		'post_title'  => 'La inteligencia artificial en el aula',
+		'post_status' => 'draft',
+		'post_author' => $fmc_adviser,
+	),
+	array(
+		ActionMetaKeys::DESIGN_ID    => $fmc_design,
+		ActionMetaKeys::SUBTITLE     => 'Edición de tarde',
+		ActionMetaKeys::MODALITY     => 'blended',
+		ActionMetaKeys::HOURS_ONSITE => 8,
+		ActionMetaKeys::HOURS_ONLINE => 12,
+		ActionMetaKeys::START        => fmc_seed_weekday( 8 ),
+		ActionMetaKeys::ADVISER      => $fmc_adviser,
+		ActionMetaKeys::FUNDED_BY    => 'centre',
+	),
+	array( Taxonomies::SCOPE => 'ambito-1' )
+);
+
+// Una incidencia sin resolver: la campana del servicio tiene algo que contar.
+fmc_seed_post(
+	array(
+		'post_type'   => PostTypes::INCIDENT,
+		'post_name'   => 'demo-incidencia-aplazar',
+		'post_title'  => 'La inteligencia artificial en el aula',
+		'post_status' => 'publish',
+		'post_author' => $fmc_adviser,
+		'post_parent' => $fmc_delivered,
+	),
+	array(
+		IncidentMetaKeys::REQUEST    => 'postpone',
+		IncidentMetaKeys::REASON     => 'La ponente no puede en las fechas previstas.',
+		IncidentMetaKeys::PROPOSAL   => 'Retrasar la acción dos semanas.',
+		IncidentMetaKeys::RESOLUTION => 'pending',
+	)
 );
