@@ -293,13 +293,15 @@ check-skills: ## Comprueba que las dos copias de las skills son iguales
 # nunca de un sitio con datos reales: se versionan en un repositorio público.
 CAPTURAS_PORT ?= 9410
 capturas: ## Rehace las capturas de la ayuda (assets/help/img) y regenera su snippet
-	@$(MAKE) --no-print-directory bundle
+	@# Solo el aplicativo: la ayuda se empaqueta al final, cuando ya están todas
+	@# sus capturas (una nueva aún no existe aquí).
+	php build/pack-snippet.php
 	@npx @wp-playground/cli@latest server --blueprint=blueprint-local.json \
 		--mount=.:/wordpress/wp-content/fmc-dev \
 		--mount=./scripts/mu-plugins:/wordpress/wp-content/mu-plugins \
 		--port=$(CAPTURAS_PORT) > /dev/null 2>&1 & PG=$$!; \
 	trap "kill $$PG 2>/dev/null" EXIT; \
-	until curl -s -o /dev/null http://127.0.0.1:$(CAPTURAS_PORT)/wp-login.php; do sleep 2; done; \
+	until curl -s -L -b '' 'http://127.0.0.1:$(CAPTURAS_PORT)/?fmc_catalogo=1' | grep -q 'Catálogo de formación'; do sleep 3; done; \
 	node scripts/help-screenshots.mjs http://127.0.0.1:$(CAPTURAS_PORT)
 	@$(MAKE) --no-print-directory bundle
 

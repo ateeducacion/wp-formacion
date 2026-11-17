@@ -30,6 +30,11 @@ final class MetaTypes {
 	public const LIST   = 'list';
 
 	/**
+	 * The sessions of an action: a list of day, start and end (ADR-0027).
+	 */
+	public const SESSIONS = 'sessions';
+
+	/**
 	 * The `register_post_meta()` type of a value type.
 	 *
 	 * @param string $type One of the constants.
@@ -45,6 +50,7 @@ final class MetaTypes {
 				return 'boolean';
 			case self::IDS:
 			case self::LIST:
+			case self::SESSIONS:
 				return 'array';
 			default:
 				return 'string';
@@ -83,6 +89,8 @@ final class MetaTypes {
 				return array_values( array_unique( array_filter( array_map( 'absint', (array) $value ) ) ) );
 			case self::LIST:
 				return array_values( array_unique( array_filter( array_map( 'sanitize_key', (array) $value ) ) ) );
+			case self::SESSIONS:
+				return \Fmc\Domain\Sessions::clean( $value );
 			default:
 				return sanitize_text_field( (string) $value );
 		}

@@ -246,7 +246,14 @@ $fmc_delivered = fmc_seed_post(
 		ActionMetaKeys::HOURS_ONLINE => 12,
 		ActionMetaKeys::START        => fmc_seed_weekday( 2 ),
 		ActionMetaKeys::END          => fmc_seed_weekday( 23 ),
-		ActionMetaKeys::SCHEDULE     => 'Martes y jueves, de 16:00 a 19:00.',
+		ActionMetaKeys::SESSIONS     => array_map(
+			static fn( $d ) => array(
+				'day'  => fmc_seed_weekday( $d ),
+				'from' => '16:00',
+				'to'   => '19:00',
+			),
+			array( 2, 9, 16, 23 )
+		),
 		ActionMetaKeys::ADVISER      => $fmc_adviser,
 		ActionMetaKeys::SPEAKERS     => array( $fmc_speaker_a ),
 		ActionMetaKeys::FUNDED_BY    => 'service',
@@ -268,6 +275,8 @@ fmc_seed_post(
 	array(
 		ActionMetaKeys::DESIGN_ID    => $fmc_design,
 		ActionMetaKeys::SUBTITLE     => 'Primera edición',
+		// Como llega lo migrado: «Días y horas» escrito a mano, sin sesiones.
+		ActionMetaKeys::SCHEDULE     => 'Lunes y miércoles, de 17:00 a 20:00.',
 		ActionMetaKeys::MODALITY     => 'blended',
 		ActionMetaKeys::HOURS_ONSITE => 8,
 		ActionMetaKeys::HOURS_ONLINE => 12,

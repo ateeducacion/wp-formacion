@@ -109,7 +109,19 @@
 			return;
 		}
 		const option = select.options[ select.selectedIndex ];
-		box.textContent = ( option && option.dataset.fmcHint ) || '';
+		const hint = ( option && option.dataset.fmcHint ) || '';
+		box.textContent = hint;
+		// El diseño de una acción enlaza además a su ficha, en otra pestaña para
+		// no perder la que se está rellenando (#57). Igual que Editor::hint_html().
+		const url = ( option && option.dataset.fmcHintUrl ) || '';
+		if ( hint && url ) {
+			const link = document.createElement( 'a' );
+			link.href = url;
+			link.target = '_blank';
+			link.rel = 'noopener';
+			link.textContent = 'Ver la ficha del diseño';
+			box.append( ' ', link );
+		}
 	}
 
 	// La estrella del recomendado sigue al diseño elegido, sin recargar, y los
@@ -664,6 +676,67 @@
 		}
 	}
 
+	// Las sesiones de una acción (ADR-0027): «+ Añadir sesión» saca una fila
+	// de la plantilla con un índice nuevo, «×» quita la suya, y el total de
+	// horas se pone al día con cada cambio. El servidor pinta lo mismo.
+	function sessionHours( box ) {
+		let minutes = 0;
+		box.querySelectorAll( 'tbody tr[data-fmc-session]' ).forEach( function ( row ) {
+			const from = row.querySelector( 'input[name$="[from]"]' );
+			const to = row.querySelector( 'input[name$="[to]"]' );
+			const a = /^(\d{1,2}):(\d{2})$/.exec( from ? from.value : '' );
+			const b = /^(\d{1,2}):(\d{2})$/.exec( to ? to.value : '' );
+			if ( a && b ) {
+				const span = ( +b[ 1 ] * 60 + +b[ 2 ] ) - ( +a[ 1 ] * 60 + +a[ 2 ] );
+				minutes += span > 0 ? span : 0;
+			}
+		} );
+		return Math.round( minutes / 60 * 100 ) / 100;
+	}
+
+	function updateSessions( box ) {
+		const total = box.querySelector( '[data-fmc-sessions-total]' );
+		if ( total ) {
+			total.textContent = sessionHours( box ) + ' h';
+		}
+	}
+
+	function onSessionClick( event ) {
+		if ( ! event.target.closest ) {
+			return;
+		}
+		const add = event.target.closest( 'button[data-fmc-session-add]' );
+		const remove = event.target.closest( 'button[data-fmc-session-remove]' );
+		const box = ( add || remove ) ? ( add || remove ).closest( '[data-fmc-sessions]' ) : null;
+		if ( ! box ) {
+			return;
+		}
+		event.preventDefault();
+		if ( add ) {
+			const template = box.querySelector( 'template[data-fmc-session-template]' );
+			const next = parseInt( box.dataset.fmcNext || '0', 10 ) || 0;
+			box.dataset.fmcNext = String( next + 1 );
+			const holder = document.createElement( 'tbody' );
+			holder.innerHTML = template.innerHTML.replace( /__i__/g, String( next ) );
+			const row = holder.firstElementChild;
+			box.querySelector( 'tbody' ).append( row );
+			const first = row.querySelector( 'input' );
+			if ( first && first.focus ) {
+				first.focus();
+			}
+		} else {
+			remove.closest( 'tr' ).remove();
+		}
+		updateSessions( box );
+	}
+
+	function onSessionInput( event ) {
+		const box = event.target.closest ? event.target.closest( '[data-fmc-sessions]' ) : null;
+		if ( box ) {
+			updateSessions( box );
+		}
+	}
+
 	function onKey( event ) {
 		if ( 'Escape' === event.key ) {
 			closePanel();
@@ -677,6 +750,8 @@
 	document.addEventListener( 'click', onNoteClick );
 	document.addEventListener( 'keydown', onKey );
 	document.addEventListener( 'change', onChange );
+	document.addEventListener( 'click', onSessionClick );
+	document.addEventListener( 'input', onSessionInput );
 	if ( 'loading' === document.readyState ) {
 		document.addEventListener( 'DOMContentLoaded', function () {
 			initSelects();
@@ -715,5 +790,8 @@
 		hideTips: hideTips,
 		closePanel: closePanel,
 		reload: reload,
+		onSessionClick: onSessionClick,
+		onSessionInput: onSessionInput,
+		sessionHours: sessionHours,
 	};
 } )();

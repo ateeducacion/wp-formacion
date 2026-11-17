@@ -315,7 +315,8 @@ class Test_Editor_Render extends WP_UnitTestCase {
 		$body = $this->screen_of( $action )['body'];
 		$this->assertFalse( $this->disabled( $body, A::FILE_NUMBER ) );
 		$this->assertTrue( $this->disabled( $body, A::SUBTITLE ) );
-		$this->assertTrue( $this->disabled( $body, A::SCHEDULE ) );
+		$this->assertStringContainsString( 'Sin sesiones.', $body, 'las sesiones, de solo lectura' );
+		$this->assertStringNotContainsString( 'data-fmc-session-add', $body );
 		$this->assertStringNotContainsString( 'Lo rellena el servicio de perfeccionamiento.', $body );
 		$this->assertStringNotContainsString( '¿No está en la lista?', $body );
 		$this->assertSame( array( 'Guardar' => '' ), $this->buttons( $body ), 'tiene algo que guardar' );
@@ -420,6 +421,81 @@ class Test_Editor_Render extends WP_UnitTestCase {
 			),
 			$this->buttons( $body )
 		);
+	}
+
+	/**
+	 * Las sesiones: una fila por sesión, una vacía para añadir, su plantilla y
+	 * el total; lo escrito antes a mano, debajo y de solo lectura (ADR-0027).
+	 */
+	public function test_an_action_lists_its_sessions_and_keeps_the_old_text() {
+		$adviser = $this->as_role( 'fmc_adviser' );
+		$action  = $this->post( PostTypes::ACTION, $adviser, 'draft' );
+		update_post_meta(
+			$action,
+			A::SESSIONS,
+			array(
+				array(
+					'day'  => '2027-03-20',
+					'from' => '16:00',
+					'to'   => '20:00',
+				),
+				array(
+					'day'  => '2027-03-27',
+					'from' => '16:00',
+					'to'   => '18:30',
+				),
+			)
+		);
+
+		$body = $this->screen_of( $action )['body'];
+
+		$this->assertSame( 3, $this->find( $body, '//div[@data-fmc-sessions]/table/tbody/tr[@data-fmc-session]' )->length, 'dos sesiones y una fila vacía' );
+		$this->assertSame( '2027-03-27', $this->find( $body, '//input[@name="f[' . A::SESSIONS . '][1][day]"]' )->item( 0 )->getAttribute( 'value' ) );
+		$this->assertSame( 'time', $this->find( $body, '//input[@name="f[' . A::SESSIONS . '][1][from]"]' )->item( 0 )->getAttribute( 'type' ) );
+		$this->assertSame( 1, $this->find( $body, '//template[@data-fmc-session-template]' )->length );
+		$this->assertStringContainsString( '<strong data-fmc-sessions-total>6.5 h</strong>', $body );
+		$this->assertStringNotContainsString( 'escrito antes de las sesiones', $body, 'sin texto antiguo no sale' );
+
+		update_post_meta( $action, A::SCHEDULE, "Martes y jueves\npor la tarde & noche" );
+		$body = $this->screen_of( $action )['body'];
+		$this->assertStringContainsString( '<div class="fmc-legacy">Martes y jueves<br />' . "\n" . 'por la tarde &amp; noche</div>', $body );
+		$this->assertSame( 0, $this->find( $body, '//*[@name="f[' . A::SCHEDULE . ']"]' )->length, 'no se puede cambiar' );
+	}
+
+	/**
+	 * Al elegir el diseño de una acción se ve su tipo, su modalidad y sus
+	 * horas, y un enlace a su ficha que no se queda en el panel (#57).
+	 */
+	public function test_the_design_of_an_action_shows_what_it_brings() {
+		$this->as_role( 'fmc_adviser' );
+		$blended = $this->post( PostTypes::DESIGN, 1 );
+		update_post_meta( $blended, D::TYPE, 'course' );
+		update_post_meta( $blended, D::MODALITY, 'blended' );
+		update_post_meta( $blended, D::HOURS_ONSITE, 8 );
+		update_post_meta( $blended, D::HOURS_ONLINE, 12 );
+		$onsite = $this->post( PostTypes::DESIGN, 1 );
+		update_post_meta( $onsite, D::TYPE, 'one_off' );
+		update_post_meta( $onsite, D::MODALITY, 'onsite' );
+		update_post_meta( $onsite, D::HOURS_ONSITE, 3 );
+		$_GET[ Screen::ARG_DESIGN ] = (string) $blended;
+
+		$body   = Editor::screen( 0, PostTypes::ACTION )['body'];
+		$option = function ( int $id ) use ( $body ) {
+			return $this->find( $body, '//select[@name="f[fmc_design_id]"]/option[@value="' . $id . '"]' )->item( 0 );
+		};
+
+		$this->assertSame( 'Curso · Mixta · 20 h (8 presenciales + 12 en línea)', $option( $blended )->getAttribute( 'data-fmc-hint' ) );
+		$this->assertSame( 'Acción puntual · Presencial · 3 h', $option( $onsite )->getAttribute( 'data-fmc-hint' ) );
+		$url = $option( $blended )->getAttribute( 'data-fmc-hint-url' );
+		$this->assertStringContainsString( Screen::ARG_EDIT . '=' . $blended, $url );
+		$this->assertStringNotContainsString( Screen::ARG_FRAME, $url, 'la ficha del diseño se abre aparte, no en el panel' );
+
+		// El elegido ya lo dice al abrir la ficha, sin esperar al guion.
+		$box = $this->find( $body, '//div[contains(@class,"fmc-hint")]' )->item( 0 );
+		$this->assertStringStartsWith( 'Curso · Mixta · 20 h', trim( $box->textContent ) ); // phpcs:ignore WordPress.NamingConventions.ValidVariableName.UsedPropertyNotSnakeCase -- DOM.
+		$link = $this->find( $body, '//div[contains(@class,"fmc-hint")]/a' )->item( 0 );
+		$this->assertSame( '_blank', $link->getAttribute( 'target' ) );
+		$this->assertSame( 'Ver la ficha del diseño', $link->textContent ); // phpcs:ignore WordPress.NamingConventions.ValidVariableName.UsedPropertyNotSnakeCase -- DOM.
 	}
 
 	/**

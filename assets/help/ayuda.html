@@ -65,7 +65,7 @@
 		<li>Pulsa una acción para abrir su ficha.</li>
 	</ol>
 	<figure>
-		<img src="img/calendario.webp" alt="Calendario del mes con los botones de vista, los filtros, la leyenda de colores y una acción formativa en su día." width="1280" height="800">
+		<img src="img/calendario.webp" alt="Calendario del mes con los botones de vista, los filtros, la leyenda de colores y las acciones en sus días, cada sesión con su horario." width="1280" height="1180">
 		<figcaption>El calendario del mes, con su leyenda.</figcaption>
 	</figure>
 	<p>La vista <strong>Lista</strong> es la misma información en una tabla: con los contadores de arriba ves cuántas hay en cada situación, y con <strong>Exportar CSV</strong> te llevas a una hoja de cálculo lo que estás viendo, con sus filtros.</p>
@@ -123,16 +123,20 @@
 		<figcaption>Desde la ficha de un diseño finalizado se agenda directamente.</figcaption>
 	</figure>
 	<ol>
-		<li>Elige el <strong>diseño</strong>. Solo salen los finalizados. El título, la modalidad y las horas son los del diseño; si quieres distinguir esta edición, usa el <strong>subtítulo</strong> («Segunda edición», «Edición de tarde»…).</li>
+		<li>Elige el <strong>diseño</strong>. Solo salen los finalizados, y debajo ves el tipo, la modalidad y las horas del elegido, con un enlace a su ficha: así se distinguen dos diseños de título parecido. El título, la modalidad y las horas son los del diseño; si quieres distinguir esta edición, usa el <strong>subtítulo</strong> («Segunda edición», «Edición de tarde»…).</li>
 		<li>Indica la <strong>asesoría responsable</strong>, el <strong>ámbito</strong> que la gestiona y el <strong>centro donde se imparte</strong>, o marca «Por videoconferencia».</li>
 		<li>Añade los <strong>ponentes</strong>: escribe parte del nombre y elígelo. Al lado de cada nombre ves su isla o zona y lo que ya ha impartido; la ★ marca a quien se recomienda para ese diseño.</li>
 		<li>En <strong>Financiación</strong>, elige quién la asume. Si la asume el servicio de perfeccionamiento, el programa lo pone el aplicativo.</li>
-		<li>Pon la <strong>fecha de inicio</strong> y, si la sabes, la de fin, y en <strong>Días y horas</strong> el calendario de las sesiones.</li>
+		<li>Pon la <strong>fecha de inicio</strong> y, si la sabes, la de fin. En <strong>Sesiones</strong>, una fila por sesión con su día y su horario; con <strong>+ Añadir sesión</strong> sale otra, y la <strong>×</strong> la quita. Debajo ves el total de horas, y el calendario pinta cada sesión en su día.</li>
 		<li>Pulsa <strong>Guardar borrador</strong> si te falta algo, o <strong>Entregar</strong> cuando esté completa.</li>
 	</ol>
 	<figure>
 		<img src="img/accion-nueva.webp" alt="Panel lateral Nueva acción formativa con el diseño, el subtítulo, la asesoría, el ámbito, el centro y los botones Guardar borrador y Entregar." width="1280" height="800">
 		<figcaption>La ficha de una acción nueva. El expediente lo rellena el servicio de perfeccionamiento.</figcaption>
+	</figure>
+	<figure>
+		<img src="img/accion-sesiones.webp" alt="Sección Fechas y horas de una acción, con la lista de sesiones: día, hora de inicio y de fin de cada una, el botón Añadir sesión y el total de horas." width="1280" height="800">
+		<figcaption>Las sesiones: una fila por sesión, y el total de horas debajo.</figcaption>
 	</figure>
 	<div class="alert alert-warning">Una acción <strong>entregada ya no la cambia quien la entregó</strong>. Si algo cambia después —las fechas, un ponente, las plazas—, se pide con una incidencia. Mientras está en borrador, puedes cambiarla cuantas veces quieras.</div>
 </section>
@@ -224,6 +228,10 @@
 	<details>
 		<summary>Un ponente no está en la lista al agendar.</summary>
 		<p>Dalo de alta en la pestaña <a href="#ayuda-ponentes">Ponentes</a> y vuelve a abrir la ficha de la acción: ya saldrá. Antes, búscalo por el apellido por si ya existe con otro orden en el nombre.</p>
+	</details>
+	<details>
+		<summary>Mi acción tiene «Días y horas» escrito a mano y no lo puedo cambiar.</summary>
+		<p>Es lo que se escribió antes de que hubiera sesiones, y se conserva tal cual para no perderlo. Si la acción sigue viva, añade sus sesiones en la lista de arriba: desde entonces, el calendario la pinta en cada día.</p>
 	</details>
 	<details>
 		<summary>¿De qué curso escolar es una acción?</summary>
