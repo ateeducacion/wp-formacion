@@ -24,13 +24,14 @@ const viewport = { width: 1280, height: 800 };
 // Cada captura: con qué cuenta de demostración, qué pantalla, qué se abre y qué se recorta.
 const shots = [
 	{ name: 'cabecera', user: 'coordinacion', path: '/', clip: { x: 0, y: 0, width: 1280, height: 330 } },
-	{ name: 'calendario', user: 'coordinacion', path: '/' },
+	{ name: 'calendario', user: 'coordinacion', path: '/', clip: { x: 0, y: 0, width: 1280, height: 1180 } },
 	{ name: 'disenos', user: 'coordinacion', path: '/?fmc_tab=designs', clip: { x: 0, y: 0, width: 1280, height: 580 } },
 	{ name: 'diseno-nuevo', user: 'coordinacion', path: '/?fmc_tab=designs', open: 'a.fmc-abre-panel' },
 	{ name: 'disenos-asesoria', user: 'asesoria', path: '/?fmc_tab=designs', clip: { x: 0, y: 0, width: 1280, height: 520 } },
 	{ name: 'diseno-ficha', user: 'asesoria', path: '/?fmc_tab=designs', open: 'tbody a.fmc-abre-panel' },
 	{ name: 'accion-nueva', user: 'asesoria', path: '/', open: 'a.fmc-abre-panel' },
 	{ name: 'acciones-lista', user: 'asesoria', path: '/?fmc_view=list', clip: { x: 0, y: 0, width: 1280, height: 700 } },
+	{ name: 'accion-sesiones', user: 'coordinacion', path: '/?fmc_view=list', row: 'EXP-0001/2026', open: 'a.fmc-abre-panel', scroll: '.fmc-panel [data-fmc-sessions]' },
 	{ name: 'incidencia-nueva', user: 'asesoria', path: '/?fmc_view=list', open: 'a[href*="fmc_new=fmc_incident"]' },
 	{ name: 'ponentes', user: 'asesoria', path: '/?fmc_tab=speakers', clip: { x: 0, y: 0, width: 1280, height: 560 } },
 	{ name: 'incidencias-servicio', user: 'servicio', path: '/?fmc_tab=incidents', clip: { x: 0, y: 0, width: 1280, height: 560 } },
@@ -55,7 +56,8 @@ async function login( browser, user ) {
 	return context;
 }
 
-const browser = await chromium.launch();
+// En castellano también los campos de fecha y hora: los pinta el navegador con su idioma.
+const browser = await chromium.launch( { args: [ '--lang=es-ES' ], env: { ...process.env, LANG: 'es_ES.UTF-8' } } );
 mkdirSync( out, { recursive: true } );
 const contexts = {};
 try {
@@ -66,14 +68,24 @@ try {
 		await page.waitForLoadState( 'networkidle' );
 		if ( shot.open ) {
 			// El clic por guion, como el de una persona: el panel lo abre fmc-app.js.
-			await page.evaluate( ( selector ) => document.querySelector( selector ).click(), shot.open );
+			// Con `row`, el enlace de la fila de la tabla que contiene ese texto.
+			await page.evaluate( ( [ selector, text ] ) => {
+				const scope = text ? Array.from( document.querySelectorAll( 'tbody tr' ) ).find( ( tr ) => tr.textContent.includes( text ) ) : document;
+				scope.querySelector( selector ).click();
+			}, [ shot.open, shot.row || '' ] );
 			await page.waitForSelector( '.fmc-panel .fmc-fragment', { timeout: 30000 } );
 			await page.waitForTimeout( 600 );
 			// El foco del primer campo no pinta nada que explicar.
 			await page.evaluate( () => document.activeElement && document.activeElement.blur() );
+			if ( shot.scroll ) {
+				await page.evaluate( ( selector ) => document.querySelector( selector ).scrollIntoView( { block: 'center' } ), shot.scroll );
+				await page.waitForTimeout( 300 );
+			}
 		}
 		const file = join( out, shot.name + '.webp' );
-		await page.screenshot( { path: file, type: 'webp', quality: 80, clip: shot.clip } );
+		// Un recorte más alto que la ventana sale de la página entera.
+		const tall = shot.clip && shot.clip.y + shot.clip.height > viewport.height;
+		await page.screenshot( { path: file, type: 'webp', quality: 80, clip: shot.clip, fullPage: tall } );
 		console.log( 'Captura ' + shot.name );
 		await page.close();
 	}

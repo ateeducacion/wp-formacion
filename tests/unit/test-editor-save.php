@@ -914,4 +914,88 @@ class Test_Editor_Save extends WP_UnitTestCase {
 		$this->as_role( 'fmc_curator' );
 		$this->assertSame( 'draft', Editor::next_status( PostTypes::DESIGN, $old, 'draft' ) );
 	}
+
+	/**
+	 * Las sesiones se guardan ordenadas; una fila a medias o fuera de las
+	 * fechas no deja guardar y vuelve a la ficha tal cual se escribió (ADR-0027).
+	 */
+	public function test_an_action_saves_its_sessions() {
+		$this->as_role( 'fmc_adviser' );
+		$rows = array(
+			array(
+				'day'  => '2026-10-15',
+				'from' => '16:00',
+				'to'   => '20:00',
+			),
+			array(
+				'day'  => '2026-10-08',
+				'from' => '16:00',
+				'to'   => '19:30',
+			),
+			array(
+				'day'  => '',
+				'from' => '',
+				'to'   => '',
+			),
+		);
+
+		$ok = Editor::apply( PostTypes::ACTION, 0, $this->action_fields( array( A::SESSIONS => $rows ) ), 'draft', 0 );
+
+		$this->assertSame( 'created', $ok['outcome'], implode( ' ', $ok['errors'] ) );
+		$this->assertSame( array( '2026-10-08', '2026-10-15' ), array_column( get_post_meta( $ok['id'], A::SESSIONS, true ), 'day' ) );
+
+		$half = Editor::apply(
+			PostTypes::ACTION,
+			0,
+			$this->action_fields(
+				array(
+					A::SESSIONS => array(
+						array(
+							'day'  => '2026-10-08',
+							'from' => '16:00',
+							'to'   => '',
+						),
+					),
+				)
+			),
+			'draft',
+			0
+		);
+		$this->assertSame( 'invalid', $half['outcome'] );
+		$this->assertSame( 'Cada sesión necesita el día y las horas de inicio y de fin.', $half['errors'][ A::SESSIONS ] );
+		$this->assertSame( '16:00', $half['values'][ A::SESSIONS ][0]['from'], 'lo escrito vuelve a la ficha' );
+
+		$early = Editor::apply(
+			PostTypes::ACTION,
+			0,
+			$this->action_fields(
+				array(
+					A::SESSIONS => array(
+						array(
+							'day'  => '2026-09-30',
+							'from' => '16:00',
+							'to'   => '20:00',
+						),
+					),
+				)
+			),
+			'draft',
+			0
+		);
+		$this->assertSame( 'La sesión del 30/09/2026 está fuera de las fechas de inicio y de fin de la acción.', $early['errors'][ A::SESSIONS ] );
+	}
+
+	/**
+	 * «Días y horas» escrito a mano antes de las sesiones no se toca al guardar.
+	 */
+	public function test_the_old_schedule_text_is_kept() {
+		$adviser = $this->as_role( 'fmc_adviser' );
+		$action  = $this->post( PostTypes::ACTION, $adviser, 'draft' );
+		update_post_meta( $action, A::SCHEDULE, 'Martes y jueves por la tarde' );
+
+		$result = Editor::apply( PostTypes::ACTION, $action, $this->action_fields( array( A::SCHEDULE => 'Otra cosa' ) ), 'draft', 0 );
+
+		$this->assertSame( 'saved', $result['outcome'], implode( ' ', $result['errors'] ) );
+		$this->assertSame( 'Martes y jueves por la tarde', get_post_meta( $action, A::SCHEDULE, true ) );
+	}
 }

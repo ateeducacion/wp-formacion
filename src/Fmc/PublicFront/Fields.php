@@ -382,7 +382,7 @@ final class Fields {
 			// modalidad y las horas son del diseño, que las copia al guardar.
 			array(
 				'title'  => 'Fechas y horas',
-				'help'   => 'De la fecha de inicio sale el curso escolar y el sitio en el calendario. Los plazos de matrícula, el enlace y las listas se llevan en el sistema de gestión del servicio de perfeccionamiento.',
+				'help'   => 'De la fecha de inicio sale el curso escolar. Los plazos de matrícula, el enlace y las listas se llevan en el sistema de gestión del servicio de perfeccionamiento.',
 				// Los plazos de matrícula y las listas no se piden aquí: los lleva el sistema
 				// del servicio. Sus claves siguen registradas para lo migrado (issue #35, adenda de la ADR-0005).
 				'fields' => array(
@@ -397,10 +397,18 @@ final class Fields {
 						'w'     => 'date',
 						'col'   => 6,
 					),
+					// Una sesión por fila, con su día y sus horas: el calendario las
+					// pinta una a una (ADR-0027). Lo que llegó escrito a mano se
+					// enseña debajo, de solo lectura, y no se convierte.
+					A::SESSIONS => array(
+						'label' => 'Sesiones',
+						'w'     => 'sessions',
+						'help'  => 'El día y el horario de cada sesión, dentro de las fechas de inicio y de fin. El calendario pinta cada una en su día.',
+					),
 					A::SCHEDULE => array(
-						'label' => 'Días y horas',
-						'w'     => 'textarea',
-						'help'  => 'Si tiene más de una sesión, los días y el horario de cada una. Por ejemplo: 20 y 27 de marzo y 3 y 24 de abril, de 16:00 a 20:00.',
+						'label' => 'Días y horas (escrito antes de las sesiones)',
+						'w'     => 'legacy',
+						'help'  => 'Lo que se escribió a mano antes de que hubiera sesiones. Se conserva tal cual; no se puede cambiar.',
 					),
 				),
 			),

@@ -339,3 +339,12 @@ body.has-panel { overflow: hidden; }
 .fmc-help details { border: 1px solid var(--fmc-line); border-radius: 10px; background: #fff; padding: .75rem 1rem; margin-bottom: .5rem; }
 .fmc-help details summary { font-weight: 600; cursor: pointer; }
 .fmc-help details p { margin: .6rem 0 0; }
+
+/* Sesiones de una acción: una fila por sesión, estrecha, y el total al lado
+   del botón de añadir (ADR-0027). */
+.fmc-sessions table { max-width: 520px; }
+.fmc-sessions th { font-size: 13px; font-weight: 600; color: var(--fmc-text-2); }
+.fmc-sessions td { padding-left: 0; }
+.fmc-sessions.is-invalid table { outline: 1px solid var(--fmc-bad); outline-offset: 4px; border-radius: 4px; }
+.fmc-legacy { white-space: normal; background: var(--fmc-sup-2); border: 1px dashed var(--fmc-line); border-radius: 8px; padding: .5rem .75rem; color: var(--fmc-text-2); }
+.fmc-ev-time { font-weight: 600; color: var(--fmc-text); }
