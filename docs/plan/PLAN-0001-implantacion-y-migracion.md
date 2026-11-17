@@ -146,9 +146,13 @@ pruebas en navegador, que vuelven aquí):
 - Los ficheros maestros del diseño, guardados en el aplicativo y no en un
   almacenamiento en la nube externo; con su cálculo del espacio de subida que
   necesita el sitio. **Hecho:** el maestro es el documento «Diseño del curso»,
-  que ya se guarda cerrado en el aplicativo (ADR-0025); el histórico de
-  versiones sigue en la nube, y el sitio necesita de 500 MB a 1 GB de subida
-  (REQ-0001, §8, pregunta 10).
+  uno por diseño y guardado en el aplicativo (ADR-0025, con su adenda); el
+  histórico de versiones sigue en la nube (REQ-0001, §8, pregunta 10).
+  **Queda medir el espacio** antes de la migración de la fase 5: la
+  coordinación estima de 500 MB a 1 GB, pero no está medido, y con los topes
+  de `Documents::kinds()` un solo diseño con un fichero al tope en cada clase
+  ocupa unos 190 MB. La medida sale de la exportación de `.local/`, sumando
+  lo que se va a migrar.
 
 ## Fase 5 — Migración y corte (ADR-0008)
 

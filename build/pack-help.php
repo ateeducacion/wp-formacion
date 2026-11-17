@@ -14,7 +14,9 @@ $root = dirname( __DIR__ );
 $dir  = $root . '/assets/help';
 $out  = $root . '/snippets/fmc-help.bundle.php';
 
-// Misma versión que el aplicativo: las dos cosas se publican juntas.
+// Misma versión que el aplicativo: las dos cosas se publican juntas. El ámbito
+// es `front-end`: la ayuda solo se pinta en la portada, y así el escritorio y
+// admin-ajax ni siquiera la leen de la base de datos (ADR-0026, adenda).
 $changelog = (string) file_get_contents( $root . '/CHANGELOG.md' );
 if ( ! preg_match( '/^## \[(\d+\.\d+\.\d+)\]/m', $changelog, $fmc_version ) ) {
 	fwrite( STDERR, "No version heading (## [X.Y.Z]) found in CHANGELOG.md\n" );
@@ -74,7 +76,7 @@ $header = <<<'HDR'
 /**
  * Snippet Name: FMC — Ayuda
  * Description: La pestaña «Ayuda» del aplicativo de formación: guías paso a paso con capturas. Código generado desde assets/help — no editar a mano; ejecutar make bundle.
- * Scope: global
+ * Scope: front-end
  * Priority: 10
  *
  * @package Fmc

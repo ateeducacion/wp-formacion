@@ -230,3 +230,23 @@ original.
 - No se decide cifrado en reposo. Si alguna vez hiciera falta, entra en
   `Documents::store()` y `DocumentStore::read()`, que son las dos funciones
   que tocan el contenido.
+
+## Adenda — 2026-11-17: la ficha técnica es el fichero maestro, y es una
+
+La issue #26 se cerró con que el fichero maestro del diseño es el documento
+«Diseño del curso», que ya se guardaba aquí; el histórico de versiones sigue
+en la nube. Eso toca a esta ADR en dos cosas:
+
+- **Es un solo documento.** La clase `design` deja de admitir varios
+  (`multiple => false` en `Documents::kinds()`): subir otro, también con
+  «Añadir», quita el anterior, como la imagen. Antes la ayuda decía «al
+  cambiarla se quita la anterior» y con «Añadir» quedaban las dos, y las dos
+  se descargaban sin sesión desde el catálogo.
+- **Sigue siendo pública**, como decide el punto 6: es la ficha técnica que
+  el catálogo anterior ya publicaba. Se valoró cerrarla al saber que es el
+  editable maestro, y se descartó: dejaría el catálogo sin ficha técnica, y
+  la coordinación la identificó con ese documento sabiendo que se publica. Lo
+  que cambia es que la ficha lo dice al subirlo: «Sale en el catálogo». Si un
+  día hace falta separar el maestro de lo que se publica, es una clase nueva
+  fuera de `Documents::PUBLIC_KINDS`, no un cambio de esta.
+

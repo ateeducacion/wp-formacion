@@ -8,6 +8,27 @@ lee de la cabecera superior y la escribe en el `@version` del bundle.
 `make release` crea el tag y la release en GitHub; el despliegue de los snippets
 en el sitio de destino se hace después.
 
+## [0.1.1] — 2026-11-17
+
+### Corregido
+
+- **«Diseño del curso» es un solo documento**: subir otro, también con «+ Añadir», quita el anterior. Antes quedaban los dos, y los dos se descargaban desde el catálogo. La ficha dice al subirlo que sale en el catálogo, y quien solo consulta ya no lee las instrucciones de subida
+- El aviso de un formato no admitido dice qué formatos valen («Se admite DOC, DOCX u ODT»), y no la ayuda entera de la clase
+- **El CSV de acciones escribe las sesiones** con su día y su horario, y no «Array»
+- **El calendario no pierde acciones**: la que empieza en la semana o el día sin tener sesión en ellos sale en «Siguen en curso». La consulta solo trae lo que se cruza con el periodo, así que el tope de 500 ya no se llena con cursos de otros años
+- **«Exportar CSV» desde el calendario exporta lo que se ve en él**: las acciones con sesión en el periodo, y no las que empiezan en él
+- Al elegir el diseño de una acción antigua cuyo diseño es histórico, no sale el enlace a una ficha que no se puede abrir
+- La ayuda ya no deja un hueco en blanco debajo de las preguntas frecuentes en pantallas anchas
+- `make capturas` se para con un aviso si el puerto está ocupado o si Playground no arranca, en vez de esperar sin fin
+
+### Cambiado
+
+- El snippet «FMC — Ayuda» pasa a ámbito `front-end`: el escritorio deja de cargar sus 730 KB en cada petición (ADR-0026, adenda)
+
+### Pendiente antes de desplegar
+
+- En el sitio de destino, cambiar el ámbito del snippet «FMC — Ayuda» a «solo en el sitio» (`front-end`) al actualizarlo
+
 ## [0.1.0] — 2026-11-17
 
 ### Seguridad

@@ -220,9 +220,11 @@ en parte, lo dicen.
 10. ¿Los ficheros maestros del diseño se guardan en el aplicativo, en vez de en
     un almacenamiento en la nube externo? *Contestada el 2026-11-06 (issue
     #26):* el fichero maestro es el documento «Diseño del curso», que ya se
-    guarda en el aplicativo, cerrado (ADR-0025); el histórico de versiones
-    sigue en la nube. El espacio de subida que se pide para el sitio es de
-    500 MB a 1 GB, y lo dimensiona quien lo administra.
+    guarda en el aplicativo (ADR-0025, con su adenda): uno por diseño, la
+    versión vigente, y público si el curso está en el catálogo, porque es su
+    ficha técnica; el histórico de versiones sigue en la nube. Para el espacio
+    de subida, la coordinación propone de 500 MB a 1 GB; es una estimación,
+    no una medida, y lo dimensiona quien administra el sitio.
 11. ¿Cuál es la lista nueva de temáticas, y qué términos de programa repetidos
     se funden en uno?
 
@@ -315,9 +317,9 @@ referencia aquí.
   empresas proveedoras rellenen el diseño. Lo segundo no tiene acuerdo: hay
   quien prefiere seguir recibiendo un borrador y mejorarlo. Va con el RF-21 y la
   fase 4 del plan (§8, pregunta 9).
-- **Ficheros maestros en el aplicativo**, no en un almacenamiento en la nube
-  externo cuyos enlaces han cambiado varias veces. Pide dimensionar el espacio
-  de subida del sitio (§8, pregunta 10).
+- ~~**Ficheros maestros en el aplicativo**, no en un almacenamiento en la nube
+  externo cuyos enlaces han cambiado varias veces.~~ Ya está: es el documento
+  «Diseño del curso» (§8, pregunta 10).
 - **Siguiente sesión**, con el servicio de perfeccionamiento y una o dos asesorías.
 
 ## 10. Segunda revisión con la coordinación (2026-10-27)

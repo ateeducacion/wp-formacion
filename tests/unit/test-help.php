@@ -13,8 +13,8 @@ use Fmc\PublicFront\Help;
  * la pestaña si ese snippet está desplegado.
  *
  * `tests/bootstrap.php` se salta los `*.bundle.php`, así que el snippet de la
- * ayuda no está cargado al empezar: el primer test lo comprueba sin él y los
- * demás lo cargan.
+ * ayuda no está cargado al empezar: el test que lo comprueba sin él corre en
+ * su propio proceso, y los demás lo cargan.
  */
 class Test_Help extends WP_UnitTestCase {
 
@@ -40,11 +40,15 @@ class Test_Help extends WP_UnitTestCase {
 
 	/**
 	 * Sin el snippet de la ayuda no hay pestaña, y nada se rompe.
+	 *
+	 * En su propio proceso: una función definida no se puede quitar, así que
+	 * en el mismo proceso dependería de qué test corrió antes.
+	 *
+	 * @runInSeparateProcess
+	 * @preserveGlobalState disabled
 	 */
 	public function test_without_the_help_snippet_there_is_no_tab() {
-		if ( function_exists( 'fmc_help_html' ) ) {
-			$this->markTestSkipped( 'Otro test ya cargó el snippet de la ayuda.' );
-		}
+		$this->assertFalse( function_exists( 'fmc_help_html' ), 'tests/bootstrap.php no carga los *.bundle.php' );
 		$this->assertFalse( Help::available() );
 		$this->assertSame( '', Help::tab( false ) );
 		$this->assertSame( '', Help::screen()['body'] );
@@ -58,7 +62,7 @@ class Test_Help extends WP_UnitTestCase {
 		$code = (string) file_get_contents( $this->snippet_path() );
 		$head = substr( $code, 0, 800 );
 		$this->assertStringContainsString( 'Snippet Name: FMC — Ayuda', $head );
-		$this->assertStringContainsString( 'Scope: global', $head );
+		$this->assertStringContainsString( 'Scope: front-end', $head, 'solo se pinta en la portada' );
 
 		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- fichero del repositorio.
 		preg_match( '/^## \[(\d+\.\d+\.\d+)\]/m', (string) file_get_contents( dirname( __DIR__, 2 ) . '/CHANGELOG.md' ), $version );

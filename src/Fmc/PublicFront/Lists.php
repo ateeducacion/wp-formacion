@@ -1227,7 +1227,18 @@ final class Lists {
 		$args                   = self::query_args( $type );
 		$args['posts_per_page'] = 5000; // phpcs:ignore WordPress.WP.PostsPerPage.posts_per_page_posts_per_page -- una exportación entera.
 		$args['no_found_rows']  = true;
-		$fields                 = array_filter( Fields::all( $type ), static fn( $f ) => 'docs' !== $f['w'] );
+		// Desde el calendario, lo que se ve en él: las acciones con sesión en el
+		// periodo, no las que empiezan en él (ADR-0027). Las fechas ya las mira
+		// el calendario, con los demás filtros.
+		$view = self::arg( 'fmc_cal' );
+		$from = self::arg( 'fmc_from' );
+		$to   = self::arg( 'fmc_to' );
+		if ( PostTypes::ACTION === $type && in_array( $view, array( 'month', 'week', 'day' ), true ) && preg_match( '/^\d{4}-\d{2}-\d{2}\|\d{4}-\d{2}-\d{2}$/', $from . '|' . $to ) ) {
+			$ids                = Calendar::ids( $view, $from, $to );
+			$args['post__in']   = $ids ? $ids : array( 0 );
+			$args['meta_query'] = array_values( array_filter( $args['meta_query'], static fn( $c ) => ( $c['key'] ?? '' ) !== A::START ) ); // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_query -- sin las fechas, que ya ha mirado el calendario.
+		}
+		$fields = array_filter( Fields::all( $type ), static fn( $f ) => 'docs' !== $f['w'] );
 
 		// La acción no tiene el título en la ficha —es el del diseño—, pero la hoja sí lo lleva.
 		$titled = ! isset( $fields['post_title'] );
@@ -1297,6 +1308,8 @@ final class Lists {
 				return $value ? (string) get_the_author_meta( 'display_name', (int) $value ) : '';
 			case 'centre':
 				return CentreCatalogue::label( (string) $value, (string) get_post_meta( $post->ID, A::VENUE_CENTRE, true ) );
+			case 'sessions':
+				return implode( '; ', array_map( array( Sessions::class, 'label' ), Sessions::clean( $value ) ) );
 			case 'rich':
 			case 'textarea':
 				return trim( wp_strip_all_tags( (string) $value ) );
