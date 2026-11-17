@@ -125,9 +125,11 @@ final class Documents {
 				'multiple' => false,
 				'max_mb'   => 3,
 			),
+			// Es el fichero maestro del diseño: aquí va la versión vigente, y
+			// las anteriores siguen donde se guardaban (issue #26).
 			'design'   => array(
 				'label'    => 'Diseño del curso',
-				'help'     => 'El editable: DOC, DOCX u ODT.',
+				'help'     => 'El editable: DOC, DOCX u ODT. Es el fichero maestro del diseño: aquí va la versión vigente, y al cambiarla se quita la anterior.',
 				'mimes'    => $texts,
 				'multiple' => true,
 				'max_mb'   => 20,

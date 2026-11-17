@@ -145,7 +145,10 @@ pruebas en navegador, que vuelven aquí):
   rellenen el diseño. En la primera sesión no hubo acuerdo.
 - Los ficheros maestros del diseño, guardados en el aplicativo y no en un
   almacenamiento en la nube externo; con su cálculo del espacio de subida que
-  necesita el sitio.
+  necesita el sitio. **Hecho:** el maestro es el documento «Diseño del curso»,
+  que ya se guarda cerrado en el aplicativo (ADR-0025); el histórico de
+  versiones sigue en la nube, y el sitio necesita de 500 MB a 1 GB de subida
+  (REQ-0001, §8, pregunta 10).
 
 ## Fase 5 — Migración y corte (ADR-0008)
 
