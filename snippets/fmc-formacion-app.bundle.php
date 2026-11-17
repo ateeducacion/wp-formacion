@@ -6,7 +6,7 @@
  * Priority: 15
  *
  * @package Fmc
- * @version 0.1.1
+ * @version 0.1.2
  */
 
 // phpcs:disable
@@ -6294,12 +6294,16 @@ final class Lists {
 
 	public static function post_choices( string $type ): array {
 		$args = array(
-			'post_type'      => $type,
-			'post_status'    => 'publish',
-			'posts_per_page' => -1,
-			'orderby'        => 'title',
-			'order'          => 'ASC',
-			'no_found_rows'  => true,
+			'post_type'              => $type,
+			'post_status'            => 'publish',
+			'posts_per_page'         => -1,
+			'orderby'                => 'title',
+			'order'                  => 'ASC',
+			'no_found_rows'          => true,
+
+
+			'update_post_meta_cache' => PostTypes::DESIGN === $type,
+			'update_post_term_cache' => false,
 		);
 
 
@@ -6826,8 +6830,10 @@ final class Lists {
 
 
 	public static function terms( int $post_id, string $taxonomy ): string {
-		$names = wp_get_post_terms( $post_id, $taxonomy, array( 'fields' => 'names' ) );
-		return is_array( $names ) ? implode( ', ', $names ) : '';
+
+
+		$terms = get_the_terms( $post_id, $taxonomy );
+		return is_array( $terms ) ? implode( ', ', wp_list_pluck( $terms, 'name' ) ) : '';
 	}
 }
 }
@@ -6978,23 +6984,75 @@ final class Calendar {
 
 
 
-	private static function actions( array $clause ): array {
+
+
+
+	private static function actions( array $ids ): array {
+		if ( ! $ids ) {
+			return array();
+		}
 		$args                   = Lists::query_args( PostTypes::ACTION );
-		$args['posts_per_page'] = 500; 
+		$args['posts_per_page'] = -1; 
+		$args['post__in']       = $ids;
+		$args['no_found_rows']  = true;
 		$args['orderby']        = 'title';
 		$args['order']          = 'ASC';
 		unset( $args['fmc_order_meta'] );
 
-		$args['meta_query']   = array_values(
+		$args['meta_query'] = array_values(
 			array_filter(
 				$args['meta_query'],
 				static fn( $c ) => ( $c['key'] ?? '' ) !== A::START
 			)
 		);
-		$args['meta_query'][] = $clause;
 
 
 		return get_posts( $args + array( 'suppress_filters' => false ) );
+	}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+	private static function in_period( string $from, string $to ): array {
+		global $wpdb;
+
+		$ids = $wpdb->get_col(
+			$wpdb->prepare(
+				"SELECT s.post_id FROM $wpdb->postmeta s
+				WHERE s.meta_key = %s AND s.meta_value BETWEEN %s AND %s
+				UNION SELECT e.post_id FROM $wpdb->postmeta e
+				INNER JOIN $wpdb->postmeta s ON s.post_id = e.post_id AND s.meta_key = %s AND s.meta_value <= %s
+				WHERE e.meta_key = %s AND e.meta_value >= %s
+				UNION SELECT x.post_id FROM $wpdb->postmeta x
+				INNER JOIN $wpdb->postmeta s ON s.post_id = x.post_id AND s.meta_key = %s AND s.meta_value <= %s
+				LEFT JOIN $wpdb->postmeta e ON e.post_id = x.post_id AND e.meta_key = %s
+				WHERE x.meta_key = %s AND ( e.post_id IS NULL OR e.meta_value = '' )",
+				A::START,
+				$from,
+				$to,
+				A::START,
+				$to,
+				A::END,
+				$from,
+				A::START,
+				$to,
+				A::END,
+				A::SESSIONS
+			)
+		);
+		return array_map( 'intval', $ids );
 	}
 
 
@@ -7021,47 +7079,10 @@ final class Calendar {
 
 
 
-
-
-
-
 	private static function period( string $from, string $to ): array {
 		$by      = array();
 		$running = array();
-		foreach ( self::actions(
-			array(
-				'relation' => 'AND',
-				array(
-					'key'     => A::START,
-					'value'   => $to,
-					'compare' => '<=',
-				),
-				array(
-					'relation' => 'OR',
-					array(
-						'key'     => A::START,
-						'value'   => $from,
-						'compare' => '>=',
-					),
-					array(
-						'key'     => A::END,
-						'value'   => $from,
-						'compare' => '>=',
-					),
-					array(
-						'relation' => 'AND',
-						array(
-							'key'     => A::SESSIONS,
-							'compare' => 'EXISTS',
-						),
-						array(
-							'key'     => A::END,
-							'compare' => 'NOT EXISTS',
-						),
-					),
-				),
-			)
-		) as $post ) {
+		foreach ( self::actions( self::in_period( $from, $to ) ) as $post ) {
 			$start    = (string) get_post_meta( $post->ID, A::START, true );
 			$end      = (string) get_post_meta( $post->ID, A::END, true );
 			$sessions = Sessions::clean( get_post_meta( $post->ID, A::SESSIONS, true ) );

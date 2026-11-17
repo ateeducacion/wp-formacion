@@ -138,28 +138,80 @@ final class Calendar {
 	}
 
 	/**
-	 * Actions with the filters of the request, the dates replaced by a clause.
+	 * Actions with the filters of the request, among some IDs.
 	 *
-	 * @param array<string, mixed> $clause Meta clause on the dates.
+	 * Las fechas ya las ha mirado `in_period()`: aquí se quitan las del
+	 * listado y se aplican los demás filtros, con el permiso de cada uno.
+	 *
+	 * @param int[] $ids Candidate IDs.
 	 * @return \WP_Post[]
 	 */
-	private static function actions( array $clause ): array {
+	private static function actions( array $ids ): array {
+		if ( ! $ids ) {
+			return array();
+		}
 		$args                   = Lists::query_args( PostTypes::ACTION );
-		$args['posts_per_page'] = 500; // phpcs:ignore WordPress.WP.PostsPerPage.posts_per_page_posts_per_page -- un mes entero de acciones.
+		$args['posts_per_page'] = -1; // phpcs:ignore WordPress.WP.PostsPerPage.posts_per_page_posts_per_page -- ya acotadas al periodo.
+		$args['post__in']       = $ids;
+		$args['no_found_rows']  = true;
 		$args['orderby']        = 'title';
 		$args['order']          = 'ASC';
 		unset( $args['fmc_order_meta'] );
-		// phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_query -- las fechas del calendario.
-		$args['meta_query']   = array_values(
+		// phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_query -- los demás filtros del listado.
+		$args['meta_query'] = array_values(
 			array_filter(
 				$args['meta_query'],
 				static fn( $c ) => ( $c['key'] ?? '' ) !== A::START
 			)
 		);
-		$args['meta_query'][] = $clause;
 		// Sin `suppress_filters`, get_posts() se salta `fmc_visible` y la asesoría
 		// vería en el calendario los borradores ajenos que el listado le esconde.
 		return get_posts( $args + array( 'suppress_filters' => false ) );
+	}
+
+	/**
+	 * IDs of the actions whose dates cross a period.
+	 *
+	 * Lo que empieza en él, lo que acaba después de su primer día y, sin fecha
+	 * de fin, lo que tiene sesiones, que luego se miran una a una. Es una
+	 * consulta escrita a mano porque la de `meta_query`, con un `OR` entre
+	 * claves, une la tabla de metadatos consigo misma sin filtrar por clave, y
+	 * con unos miles de acciones tardaba un segundo. Va en tres partes unidas
+	 * para que cada una use el índice de `meta_key`; el tipo de contenido lo
+	 * vuelve a mirar `actions()`.
+	 *
+	 * @param string $from Y-m-d.
+	 * @param string $to   Y-m-d.
+	 * @return int[]
+	 */
+	private static function in_period( string $from, string $to ): array {
+		global $wpdb;
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- una consulta por pantalla, con los datos al día.
+		$ids = $wpdb->get_col(
+			$wpdb->prepare(
+				"SELECT s.post_id FROM $wpdb->postmeta s
+				WHERE s.meta_key = %s AND s.meta_value BETWEEN %s AND %s
+				UNION SELECT e.post_id FROM $wpdb->postmeta e
+				INNER JOIN $wpdb->postmeta s ON s.post_id = e.post_id AND s.meta_key = %s AND s.meta_value <= %s
+				WHERE e.meta_key = %s AND e.meta_value >= %s
+				UNION SELECT x.post_id FROM $wpdb->postmeta x
+				INNER JOIN $wpdb->postmeta s ON s.post_id = x.post_id AND s.meta_key = %s AND s.meta_value <= %s
+				LEFT JOIN $wpdb->postmeta e ON e.post_id = x.post_id AND e.meta_key = %s
+				WHERE x.meta_key = %s AND ( e.post_id IS NULL OR e.meta_value = '' )",
+				A::START,
+				$from,
+				$to,
+				A::START,
+				$to,
+				A::END,
+				$from,
+				A::START,
+				$to,
+				A::END,
+				A::SESSIONS
+			)
+		);
+		return array_map( 'intval', $ids );
 	}
 
 	/**
@@ -182,10 +234,6 @@ final class Calendar {
 	 * sale ningún día del periodo sigue en curso: la semana o el día la
 	 * enseñan aparte, para que no desaparezca.
 	 *
-	 * La consulta trae solo lo que se cruza con el periodo: lo que empieza en
-	 * él, lo que acaba después de su primer día y, sin fecha de fin, lo que
-	 * tiene sesiones, que se miran una a una.
-	 *
 	 * @param string $from Y-m-d.
 	 * @param string $to   Y-m-d.
 	 * @return array{by: array<string, \WP_Post[]>, running: \WP_Post[]}
@@ -193,40 +241,7 @@ final class Calendar {
 	private static function period( string $from, string $to ): array {
 		$by      = array();
 		$running = array();
-		foreach ( self::actions(
-			array(
-				'relation' => 'AND',
-				array(
-					'key'     => A::START,
-					'value'   => $to,
-					'compare' => '<=',
-				),
-				array(
-					'relation' => 'OR',
-					array(
-						'key'     => A::START,
-						'value'   => $from,
-						'compare' => '>=',
-					),
-					array(
-						'key'     => A::END,
-						'value'   => $from,
-						'compare' => '>=',
-					),
-					array(
-						'relation' => 'AND',
-						array(
-							'key'     => A::SESSIONS,
-							'compare' => 'EXISTS',
-						),
-						array(
-							'key'     => A::END,
-							'compare' => 'NOT EXISTS',
-						),
-					),
-				),
-			)
-		) as $post ) {
+		foreach ( self::actions( self::in_period( $from, $to ) ) as $post ) {
 			$start    = (string) get_post_meta( $post->ID, A::START, true );
 			$end      = (string) get_post_meta( $post->ID, A::END, true );
 			$sessions = Sessions::clean( get_post_meta( $post->ID, A::SESSIONS, true ) );
