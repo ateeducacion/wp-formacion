@@ -1087,12 +1087,16 @@ final class Lists {
 	 */
 	public static function post_choices( string $type ): array {
 		$args = array(
-			'post_type'      => $type,
-			'post_status'    => 'publish',
-			'posts_per_page' => -1,
-			'orderby'        => 'title',
-			'order'          => 'ASC',
-			'no_found_rows'  => true,
+			'post_type'              => $type,
+			'post_status'            => 'publish',
+			'posts_per_page'         => -1,
+			'orderby'                => 'title',
+			'order'                  => 'ASC',
+			'no_found_rows'          => true,
+			// Para un desplegable basta el título; del diseño, además, su código.
+			// Sin esto se cargaban los metadatos y términos de cada ponente.
+			'update_post_meta_cache' => PostTypes::DESIGN === $type,
+			'update_post_term_cache' => false,
 		);
 		// De los diseños, solo los finalizados, que son los que se imparten: ni
 		// los borradores ni los históricos, que alargaban la lista (ADR-0016).
@@ -1619,7 +1623,9 @@ final class Lists {
 	 * @return string
 	 */
 	public static function terms( int $post_id, string $taxonomy ): string {
-		$names = wp_get_post_terms( $post_id, $taxonomy, array( 'fields' => 'names' ) );
-		return is_array( $names ) ? implode( ', ', $names ) : '';
+		// get_the_terms() y no wp_get_post_terms(): lee la caché que get_posts()
+		// ya ha llenado para toda la página, en vez de una consulta por fila.
+		$terms = get_the_terms( $post_id, $taxonomy );
+		return is_array( $terms ) ? implode( ', ', wp_list_pluck( $terms, 'name' ) ) : '';
 	}
 }

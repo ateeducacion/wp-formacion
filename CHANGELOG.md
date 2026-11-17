@@ -8,6 +8,12 @@ lee de la cabecera superior y la escribe en el `@version` del bundle.
 `make release` crea el tag y la release en GitHub; el despliegue de los snippets
 en el sitio de destino se hace después.
 
+## [0.1.2] — 2026-11-17
+
+### Cambiado
+
+- **El calendario de acciones abre unas diez veces más rápido**: medido en local con unas 4000 acciones, la página pasa de 1,1–1,4 s a unos 0,1 s. La consulta de las fechas unía la tabla de metadatos consigo misma sin filtrar por clave y tardaba un segundo; ahora es una consulta escrita a mano que usa sus índices (unos 7 ms). Las tarjetas leen sus términos de la caché en vez de una consulta cada una (de 373 consultas a 17), y los desplegables de los filtros ya no cargan los metadatos de cada ponente
+
 ## [0.1.1] — 2026-11-17
 
 ### Corregido
