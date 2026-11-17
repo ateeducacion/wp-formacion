@@ -125,13 +125,14 @@ final class Documents {
 				'multiple' => false,
 				'max_mb'   => 3,
 			),
-			// Es el fichero maestro del diseño: aquí va la versión vigente, y
-			// las anteriores siguen donde se guardaban (issue #26).
+			// Es la ficha técnica y el fichero maestro del diseño: uno solo, la
+			// versión vigente; las anteriores siguen donde se guardaban (issue
+			// #26). De un curso del catálogo la descarga cualquiera (ADR-0025).
 			'design'   => array(
 				'label'    => 'Diseño del curso',
-				'help'     => 'El editable: DOC, DOCX u ODT. Es el fichero maestro del diseño: aquí va la versión vigente, y al cambiarla se quita la anterior.',
+				'help'     => 'El editable: DOC, DOCX u ODT. Es el fichero maestro: uno solo, la versión vigente. Sale en el catálogo.',
 				'mimes'    => $texts,
-				'multiple' => true,
+				'multiple' => false,
 				'max_mb'   => 20,
 			),
 			'sessions' => array(
@@ -222,9 +223,25 @@ final class Documents {
 		}
 		$type = wp_check_filetype_and_ext( (string) $file['tmp_name'], (string) $file['name'], $def['mimes'] );
 		if ( empty( $type['type'] ) || ! in_array( $type['type'], $def['mimes'], true ) ) {
-			return '«' . $file['name'] . '» no es de un formato admitido aquí: ' . $def['help'];
+			return '«' . $file['name'] . '» no es de un formato admitido aquí. Se admite ' . self::formats( $def['mimes'] ) . '.';
 		}
 		return '';
+	}
+
+	/**
+	 * «DOC, DOCX u ODT»: the extensions a kind accepts, to say so in a message.
+	 *
+	 * @param array<string, string> $mimes Extension pattern => MIME type.
+	 * @return string
+	 */
+	public static function formats( array $mimes ): string {
+		$ext  = array_map( 'strtoupper', explode( '|', implode( '|', array_keys( $mimes ) ) ) );
+		$last = (string) array_pop( $ext );
+		if ( ! $ext ) {
+			return $last;
+		}
+		// «u» delante de una «o»: «DOCX u ODT».
+		return implode( ', ', $ext ) . ( 0 === strpos( $last, 'O' ) ? ' u ' : ' o ' ) . $last;
 	}
 
 	/**

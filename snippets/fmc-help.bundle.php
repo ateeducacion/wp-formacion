@@ -2,11 +2,11 @@
 /**
  * Snippet Name: FMC — Ayuda
  * Description: La pestaña «Ayuda» del aplicativo de formación: guías paso a paso con capturas. Código generado desde assets/help — no editar a mano; ejecutar make bundle.
- * Scope: global
+ * Scope: front-end
  * Priority: 10
  *
  * @package Fmc
- * @version 0.1.0
+ * @version 0.1.1
  */
 
 // phpcs:disable
@@ -39,6 +39,8 @@ if ( ! function_exists( 'fmc_help_html' ) ) {
 		</ol>
 	</div>
 </nav>
+
+<div class="fmc-help-body">
 
 <section id="ayuda-empezar" class="fmc-help-section">
 	<h2>Para empezar: diseños y acciones</h2>
@@ -116,7 +118,7 @@ if ( ! function_exists( 'fmc_help_html' ) ) {
 		<li>Rellena el <strong>título</strong>, el <strong>tipo de formación</strong> y la <strong>modalidad</strong>. Las horas que se piden dependen de la modalidad. El código lo pone el aplicativo al guardar por primera vez.</li>
 		<li>En <strong>Clasificación</strong>, elige los programas que lo cubren y su temática. Solo se ofrecen los programas vigentes.</li>
 		<li>En <strong>Contenido del diseño</strong>, escribe la descripción, los destinatarios, los objetivos y los contenidos: esos cuatro salen en el catálogo público.</li>
-		<li>En <strong>Documentos</strong>, sube el diseño, la escaleta y las presentaciones en editable, y los recursos en PDF. El de <strong>Diseño del curso</strong> es el fichero maestro: aquí va siempre la versión vigente.</li>
+		<li>En <strong>Documentos</strong>, sube el diseño, la escaleta y las presentaciones en editable, y los recursos en PDF. El de <strong>Diseño del curso</strong> es el fichero maestro: uno solo, siempre la versión vigente, y es la ficha técnica que se descarga desde el catálogo público.</li>
 		<li>Abajo eliges qué hacer con él:
 			<ul>
 				<li><strong>Guardar borrador</strong>: lo sigues otro día; la asesoría todavía no lo ve.</li>
@@ -262,7 +264,9 @@ if ( ! function_exists( 'fmc_help_html' ) ) {
 		<summary>Algo no funciona o no sé cómo hacerlo.</summary>
 		<p>Escribe a la coordinación de formación contando qué intentabas hacer y en qué pantalla estabas; si puedes, con una captura. Las dudas que se repitan acabarán en esta página.</p>
 	</details>
-</section>';
+</section>
+
+</div>';
 	}
 }
 

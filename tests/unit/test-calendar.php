@@ -444,6 +444,83 @@ class Test_Calendar extends WP_UnitTestCase {
 	}
 
 	/**
+	 * Una acción con sesiones que empieza en la semana, pero sin sesión en
+	 * ella, sigue en curso: no desaparece de la vista.
+	 */
+	public function test_an_action_without_a_session_in_the_week_is_still_running() {
+		$this->as_role( 'fmc_curator' );
+		$session = static fn( string $day ): array => array(
+			'day'  => $day,
+			'from' => '17:00',
+			'to'   => '19:00',
+		);
+		$this->action(
+			'Empieza sin sesión',
+			'2026-03-02',
+			array(
+				A::END      => '2026-04-30',
+				A::SESSIONS => array( $session( '2026-03-12' ), $session( '2026-03-19' ) ),
+			)
+		);
+		// Sin fecha de fin y con su última sesión antes de la semana: acabó.
+		$this->action( 'Acabó sin fecha de fin', '2026-02-02', array( A::SESSIONS => array( $session( '2026-02-10' ) ) ) );
+		// Sin fecha de fin y con una sesión después: sigue.
+		$this->action( 'Sigue sin fecha de fin', '2026-02-02', array( A::SESSIONS => array( $session( '2026-02-10' ), $session( '2026-03-26' ) ) ) );
+
+		$_GET['fmc_view'] = 'week';
+		$_GET['fmc_day']  = '2026-03-04';
+		$screen           = Calendar::screen();
+
+		$this->assertStringContainsString( '0 acción(es) esta semana; 2 siguen en curso.', $this->period( $screen ) );
+		$this->assertStringContainsString( 'Empieza sin sesión', $screen['body'] );
+		$this->assertStringContainsString( 'Sigue sin fecha de fin', $screen['body'] );
+		$this->assertStringNotContainsString( 'Acabó sin fecha de fin', $screen['body'] );
+	}
+
+	/**
+	 * El CSV del calendario lleva lo que se ve en él: la acción que empezó
+	 * antes y tiene sesión en el mes, sí; la que empieza en el mes y no tiene
+	 * ninguna en él, no.
+	 */
+	public function test_the_calendar_csv_exports_what_the_calendar_shows() {
+		$this->as_role( 'fmc_curator' );
+		$session = static fn( string $day ): array => array(
+			'day'  => $day,
+			'from' => '17:00',
+			'to'   => '19:00',
+		);
+		$before  = $this->action( 'Empezó en febrero', '2026-02-24', array( A::SESSIONS => array( $session( '2026-03-03' ) ) ) );
+		$later   = $this->action( 'Sesiones en abril', '2026-03-30', array( A::SESSIONS => array( $session( '2026-04-07' ) ) ) );
+		$plain   = $this->action( 'Sin sesiones', '2026-03-10' );
+
+		$_GET   = array( 'fmc_month' => '2026-03' );
+		$screen = Calendar::screen();
+		preg_match( '/href="([^"]*fmc_csv=1[^"]*)">Exportar CSV</', $screen['actions'], $m );
+		$this->assertNotEmpty( $m );
+		wp_parse_str( (string) wp_parse_url( html_entity_decode( $m[1] ), PHP_URL_QUERY ), $query );
+		$_GET = $query;
+
+		$previous = set_error_handler( // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_set_error_handler -- las cabeceras de la descarga, ya con salida.
+			static function ( $errno, $errstr, ...$rest ) use ( &$previous ) {
+				return false !== strpos( $errstr, 'Cannot modify header information' ) ? true : ( $previous ? $previous( $errno, $errstr, ...$rest ) : false );
+			}
+		);
+		ob_start();
+		try {
+			Lists::csv( PostTypes::ACTION );
+		} finally {
+			$raw = (string) ob_get_clean();
+			restore_error_handler();
+		}
+		preg_match_all( '/^(\d+);/m', $raw, $ids );
+		$ids = array_map( 'intval', $ids[1] );
+		sort( $ids );
+
+		$this->assertSame( array( $before, $plain ), $ids );
+		$this->assertNotContains( $later, $ids );
+	}
+
+	/**
 	 * Un título hostil sale escapado en la tarjeta.
 	 */
 	public function test_a_hostile_title_is_escaped_on_the_card() {

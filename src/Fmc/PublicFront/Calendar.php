@@ -17,9 +17,9 @@ use Fmc\PostType\PostTypes;
  *
  * Es lo primero que se ve de las acciones formativas: por mes, semana o día,
  * como el registro de visitas; su vista «Lista» es el listado de siempre
- * (`Lists`), con sus contadores y su paginación. Cada acción cae en su fecha
- * de inicio; en la semana y el día se ven aparte las que
- * empezaron antes y siguen en curso. De un vistazo: el color es la
+ * (`Lists`), con sus contadores y su paginación. Cada acción cae en el día
+ * de cada sesión, o en su fecha de inicio si no tiene; en la semana y el día
+ * se ven aparte las que siguen en curso sin salir en ningún día. De un vistazo: el color es la
  * situación, el borde de puntos dice quién la paga y las cintas marcan el
  * desdoble y los datos incompletos. Menos texto que el calendario anterior,
  * que es lo que se pidió.
@@ -165,16 +165,34 @@ final class Calendar {
 	/**
 	 * Actions between two days, by the day they show on.
 	 *
-	 * Una acción con sesiones sale el día de cada sesión que cae en el
-	 * periodo, aunque empezara antes; una sin sesiones —lo migrado, lo que se
-	 * escribió a mano—, el día que empieza, como siempre (ADR-0027).
-	 *
 	 * @param string $from Y-m-d.
 	 * @param string $to   Y-m-d.
 	 * @return array<string, \WP_Post[]> Y-m-d => posts.
 	 */
 	public static function by_range( string $from, string $to ): array {
-		$out = array();
+		return self::period( $from, $to )['by'];
+	}
+
+	/**
+	 * What a period shows: the actions of each day, and those running without one.
+	 *
+	 * Una acción con sesiones sale el día de cada sesión que cae en el
+	 * periodo; una sin sesiones —lo migrado, lo que se escribió a mano—, el día
+	 * que empieza, como siempre (ADR-0027). La que está entre sus fechas y no
+	 * sale ningún día del periodo sigue en curso: la semana o el día la
+	 * enseñan aparte, para que no desaparezca.
+	 *
+	 * La consulta trae solo lo que se cruza con el periodo: lo que empieza en
+	 * él, lo que acaba después de su primer día y, sin fecha de fin, lo que
+	 * tiene sesiones, que se miran una a una.
+	 *
+	 * @param string $from Y-m-d.
+	 * @param string $to   Y-m-d.
+	 * @return array{by: array<string, \WP_Post[]>, running: \WP_Post[]}
+	 */
+	private static function period( string $from, string $to ): array {
+		$by      = array();
+		$running = array();
 		foreach ( self::actions(
 			array(
 				'relation' => 'AND',
@@ -196,28 +214,57 @@ final class Calendar {
 						'compare' => '>=',
 					),
 					array(
-						'key'     => A::SESSIONS,
-						'compare' => 'EXISTS',
+						'relation' => 'AND',
+						array(
+							'key'     => A::SESSIONS,
+							'compare' => 'EXISTS',
+						),
+						array(
+							'key'     => A::END,
+							'compare' => 'NOT EXISTS',
+						),
 					),
 				),
 			)
 		) as $post ) {
+			$start    = (string) get_post_meta( $post->ID, A::START, true );
+			$end      = (string) get_post_meta( $post->ID, A::END, true );
 			$sessions = Sessions::clean( get_post_meta( $post->ID, A::SESSIONS, true ) );
-			if ( $sessions ) {
-				foreach ( array_keys( Sessions::by_day( $sessions ) ) as $day ) {
-					if ( $day >= $from && $day <= $to ) {
-						$out[ $day ][] = $post;
-					}
+			$days     = $sessions ? array_keys( Sessions::by_day( $sessions ) ) : array( $start );
+			$placed   = false;
+			foreach ( $days as $day ) {
+				if ( $day >= $from && $day <= $to ) {
+					$by[ $day ][] = $post;
+					$placed       = true;
 				}
-				continue;
 			}
-			$start = (string) get_post_meta( $post->ID, A::START, true );
-			if ( $start >= $from && $start <= $to ) {
-				$out[ $start ][] = $post;
+			// Sin fecha de fin, una acción con sesiones acaba en la última.
+			$last = '' !== $end ? $end : ( $sessions ? (string) end( $days ) : '' );
+			if ( ! $placed && $last >= $from ) {
+				$running[] = $post;
 			}
 		}
-		ksort( $out );
-		return $out;
+		ksort( $by );
+		return array(
+			'by'      => $by,
+			'running' => $running,
+		);
+	}
+
+	/**
+	 * IDs of the actions a view shows in a period, for its CSV.
+	 *
+	 * El mes enseña los días; la semana y el día, además, lo que sigue en curso.
+	 *
+	 * @param string $view `month`, `week` or `day`.
+	 * @param string $from Y-m-d.
+	 * @param string $to   Y-m-d.
+	 * @return int[]
+	 */
+	public static function ids( string $view, string $from, string $to ): array {
+		$period = self::period( $from, $to );
+		$posts  = array_merge( array_merge( array(), ...array_values( $period['by'] ) ), 'month' === $view ? array() : $period['running'] );
+		return array_values( array_unique( wp_list_pluck( $posts, 'ID' ) ) );
 	}
 
 	/**
@@ -234,30 +281,6 @@ final class Calendar {
 			}
 		}
 		return count( $ids );
-	}
-
-	/**
-	 * Actions that started before a day and are still running on it.
-	 *
-	 * @param string $day Y-m-d.
-	 * @return \WP_Post[]
-	 */
-	public static function ongoing( string $day ): array {
-		return self::actions(
-			array(
-				'relation' => 'AND',
-				array(
-					'key'     => A::START,
-					'value'   => $day,
-					'compare' => '<',
-				),
-				array(
-					'key'     => A::END,
-					'value'   => $day,
-					'compare' => '>=',
-				),
-			)
-		);
 	}
 
 	/**
@@ -286,9 +309,11 @@ final class Calendar {
 		$period = 'week' === $view || 'day' === $view ? self::days_screen( $view ) : self::month_screen();
 		$object = get_post_type_object( PostTypes::ACTION );
 		$add    = current_user_can( $object->cap->create_posts ) ? ' <a class="btn btn-primary fmc-abre-panel" href="' . esc_url( Screen::url( array( Screen::ARG_NEW => PostTypes::ACTION ) ) ) . '">+ ' . esc_html( Lists::ADD_LABELS[ PostTypes::ACTION ] ) . '</a>' : '';
-		// El CSV, de lo que empieza en el periodo que se ve, con los filtros.
+		// El CSV, de lo que se ve en el periodo, con los filtros: `fmc_cal`
+		// dice de qué vista, y `Lists::csv()` le pide aquí las acciones.
 		$csv = array(
 			'fmc_csv'  => '1',
+			'fmc_cal'  => $view,
 			'fmc_from' => $period['from'],
 			'fmc_to'   => $period['to'],
 		);
@@ -433,7 +458,7 @@ final class Calendar {
 	}
 
 	/**
-	 * The actions that started before and are still running.
+	 * The actions that are running in the period without showing on any of its days.
 	 *
 	 * @param \WP_Post[] $running Actions.
 	 * @return string
@@ -442,7 +467,7 @@ final class Calendar {
 		if ( ! $running ) {
 			return '';
 		}
-		$out = '<h2 class="h6 mt-4">Empezaron antes y siguen en curso</h2><div class="fmc-running">';
+		$out = '<h2 class="h6 mt-4">Siguen en curso</h2><div class="fmc-running">';
 		foreach ( $running as $post ) {
 			$out .= self::card( $post );
 		}
@@ -477,22 +502,16 @@ final class Calendar {
 		$from  = $days[0];
 		$to    = (string) end( $days );
 		$step  = 'week' === $view ? '7 days' : '1 day';
-		$by    = self::by_range( $from, $to );
+		$shown = self::period( $from, $to );
+		$by    = $shown['by'];
 		$today = self::today();
 
 		$body = '<div class="fmc-days card' . ( 'day' === $view ? ' is-one' : '' ) . '">';
 		foreach ( $days as $d ) {
 			$body .= self::day_html( $d, $by[ $d ] ?? array(), $d === $today );
 		}
-		$body .= '</div>';
-		// Lo que ya sale en un día de la vista, por una sesión, no se repite abajo.
-		$shown = array();
-		foreach ( $by as $posts ) {
-			foreach ( $posts as $post ) {
-				$shown[ $post->ID ] = true;
-			}
-		}
-		$running = array_values( array_filter( self::ongoing( $from ), static fn( $p ) => ! isset( $shown[ $p->ID ] ) ) );
+		$body   .= '</div>';
+		$running = $shown['running'];
 		$body   .= self::running_html( $running );
 
 		$label = (int) substr( $from, 8 ) . ' de ' . self::MONTHS[ (int) gmdate( 'n', (int) strtotime( $from ) ) ] . ' de ' . gmdate( 'Y', (int) strtotime( $from ) );

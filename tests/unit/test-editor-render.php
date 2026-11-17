@@ -536,6 +536,12 @@ class Test_Editor_Render extends WP_UnitTestCase {
 			$options( $this->screen_of( $action )['body'] ),
 			'la acción antigua no pierde su diseño'
 		);
+
+		// Del histórico que no puede abrir, ni pista ni enlace a su ficha.
+		update_post_meta( $old, D::TYPE, 'course' );
+		$kept = $this->find( $this->screen_of( $action )['body'], '//select[@name="f[fmc_design_id]"]/option[@value="' . $old . '"]' )->item( 0 );
+		$this->assertSame( Editor::can_view( get_post( $old ) ), $kept->hasAttribute( 'data-fmc-hint-url' ) );
+		$this->assertFalse( Editor::can_view( get_post( $old ) ) && ! $kept->hasAttribute( 'data-fmc-hint' ), 'si puede abrirlo, la pista sale' );
 	}
 
 	/**
@@ -684,11 +690,15 @@ class Test_Editor_Render extends WP_UnitTestCase {
 		$this->assertStringContainsString( '>diseno.pdf</a>', $body );
 		$this->assertSame( 1, $this->find( $body, '//input[@type="file"][@name="fmc_replace[' . $doc . ']"]' )->length );
 		$this->assertSame( 1, $this->find( $body, '//input[@name="fmc_remove[]"][@value="' . $doc . '"]' )->length );
-		$this->assertStringContainsString( 'Cambiar la imagen', $body );
+		// Imagen y diseño son de un documento: el que hay se cambia con su
+		// «Cambiar», y «Añadir» no sale hasta que se quite.
+		$this->assertSame( 0, $this->find( $body, '//input[@name="fmc_doc[image][]"]' )->length );
+		$this->assertSame( 0, $this->find( $body, '//input[@name="fmc_doc[design][]"]' )->length );
+		$this->assertStringContainsString( 'uno solo, la versión vigente', $body );
 		$this->assertStringContainsString( 'Sistema anterior', $body );
 		$this->assertStringContainsString( '>apoyo curso.zip</a>', $body );
 		$this->assertSame( 3, substr_count( $body, 'Ninguno.' ), 'escaleta, presentaciones y otros, vacíos' );
-		$this->assertSame( '.doc,.docx,.odt', $this->find( $body, '//input[@name="fmc_doc[design][]"]' )->item( 0 )->getAttribute( 'accept' ) );
+		$this->assertSame( '.doc,.docx,.odt', $this->find( $body, '//input[@name="fmc_doc[sessions][]"]' )->item( 0 )->getAttribute( 'accept' ) );
 		$this->assertSame( '.ppt,.pptx,.odp', $this->find( $body, '//input[@name="fmc_doc[slides][]"]' )->item( 0 )->getAttribute( 'accept' ) );
 		$this->assertSame( '.pdf', $this->find( $body, '//input[@name="fmc_doc[support][]"]' )->item( 0 )->getAttribute( 'accept' ) );
 
@@ -699,6 +709,7 @@ class Test_Editor_Render extends WP_UnitTestCase {
 		$this->assertStringContainsString( '>diseno.pdf</a>', $body );
 		$this->assertSame( 0, $this->find( $body, '//input[@type="file"]' )->length );
 		$this->assertSame( 0, $this->find( $body, '//input[@name="fmc_remove[]"]' )->length );
+		$this->assertStringNotContainsString( 'uno solo, la versión vigente', $body, 'lo que se hace al subir no lo lee quien no sube' );
 	}
 
 	/**

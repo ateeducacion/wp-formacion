@@ -296,12 +296,23 @@ capturas: ## Rehace las capturas de la ayuda (assets/help/img) y regenera su sni
 	@# Solo el aplicativo: la ayuda se empaqueta al final, cuando ya están todas
 	@# sus capturas (una nueva aún no existe aquí).
 	php build/pack-snippet.php
-	@npx @wp-playground/cli@latest server --blueprint=blueprint-local.json \
+	@# Con el puerto ocupado se capturaría otro sitio, quizá uno viejo: se para.
+	@if curl -s -o /dev/null 'http://127.0.0.1:$(CAPTURAS_PORT)/'; then \
+		echo "El puerto $(CAPTURAS_PORT) ya está ocupado: pare lo que lo usa o pruebe con CAPTURAS_PORT=otro."; exit 1; \
+	fi
+	@mkdir -p artifacts; \
+	npx @wp-playground/cli@latest server --blueprint=blueprint-local.json \
 		--mount=.:/wordpress/wp-content/fmc-dev \
 		--mount=./scripts/mu-plugins:/wordpress/wp-content/mu-plugins \
-		--port=$(CAPTURAS_PORT) > /dev/null 2>&1 & PG=$$!; \
+		--port=$(CAPTURAS_PORT) > artifacts/capturas-playground.log 2>&1 & PG=$$!; \
 	trap "kill $$PG 2>/dev/null" EXIT; \
-	until curl -s -L -b '' 'http://127.0.0.1:$(CAPTURAS_PORT)/?fmc_catalogo=1' | grep -q 'Catálogo de formación'; do sleep 3; done; \
+	n=0; until curl -s -L -b '' 'http://127.0.0.1:$(CAPTURAS_PORT)/?fmc_catalogo=1' | grep -q 'Catálogo de formación'; do \
+		n=$$((n + 1)); \
+		if [ $$n -ge 100 ] || ! kill -0 $$PG 2>/dev/null; then \
+			echo "Playground no ha arrancado; lo que dijo está en artifacts/capturas-playground.log:"; tail -20 artifacts/capturas-playground.log; exit 1; \
+		fi; \
+		sleep 3; \
+	done; \
 	node scripts/help-screenshots.mjs http://127.0.0.1:$(CAPTURAS_PORT)
 	@$(MAKE) --no-print-directory bundle
 

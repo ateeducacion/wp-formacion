@@ -527,6 +527,11 @@ final class Editor {
 				$urls = array();
 				if ( 'design' === $f['w'] ) {
 					$hints = self::design_hints( array_keys( $choices ) );
+					// El conservado que ya no se ofrece, solo si se puede abrir: si
+					// no, el enlace llevaría a «No existe o no tiene permiso».
+					if ( $kept && isset( $hints[ $kept ] ) && ! self::can_view( get_post( $kept ) ) ) {
+						unset( $hints[ $kept ] );
+					}
 					foreach ( array_keys( $hints ) as $design ) {
 						$urls[ $design ] = Screen::url(
 							array(
@@ -697,7 +702,7 @@ final class Editor {
 		$out     = '<div class="col-12 fmc-docs">';
 		foreach ( Documents::kinds() as $kind => $def ) {
 			$accept = implode( ',', array_map( static fn( $ext ) => '.' . str_replace( '|', ',.', $ext ), array_keys( $def['mimes'] ) ) );
-			$out   .= '<div class="fmc-doc-kind"><div class="d-flex align-items-baseline gap-2 mb-1"><span class="fw-semibold">' . esc_html( $def['label'] ) . '</span><span class="form-text m-0">' . esc_html( $def['help'] ) . '</span></div><ul class="list-group mb-2">';
+			$out   .= '<div class="fmc-doc-kind"><div class="d-flex flex-wrap align-items-baseline column-gap-2 mb-1"><span class="fw-semibold">' . esc_html( $def['label'] ) . '</span>' . ( $can ? '<span class="form-text m-0">' . esc_html( $def['help'] ) . '</span>' : '' ) . '</div><ul class="list-group mb-2">';
 			foreach ( $current[ $kind ] as $doc ) {
 				$file = get_attached_file( $doc->ID );
 				$size = $file && file_exists( $file ) ? size_format( (int) filesize( $file ) ) : '';
@@ -718,9 +723,11 @@ final class Editor {
 				$out .= '<li class="list-group-item small text-secondary">Ninguno.</li>';
 			}
 			$out .= '</ul>';
-			if ( $can ) {
+			// De una clase de un solo documento, el que hay se cambia con su
+			// «Cambiar»; «Añadir» sale cuando no hay ninguno.
+			if ( $can && ( $def['multiple'] || ! $current[ $kind ] ) ) {
 				$aid  = 'fmc-add-' . $kind;
-				$out .= '<div class="mb-3"><label class="btn btn-sm btn-outline-secondary mb-0" for="' . esc_attr( $aid ) . '">' . esc_html( $def['multiple'] ? '+ Añadir' : ( $current[ $kind ] ? 'Cambiar la imagen' : '+ Añadir' ) ) . '</label><input class="visually-hidden fmc-file" type="file" id="' . esc_attr( $aid ) . '" name="fmc_doc[' . esc_attr( $kind ) . '][]" accept="' . esc_attr( $accept ) . '"' . ( $def['multiple'] ? ' multiple' : '' ) . '> <span class="fmc-file-name small text-primary" data-for="' . esc_attr( $aid ) . '"></span></div>';
+				$out .= '<div class="mb-3"><label class="btn btn-sm btn-outline-secondary mb-0" for="' . esc_attr( $aid ) . '">+ Añadir</label><input class="visually-hidden fmc-file" type="file" id="' . esc_attr( $aid ) . '" name="fmc_doc[' . esc_attr( $kind ) . '][]" accept="' . esc_attr( $accept ) . '"' . ( $def['multiple'] ? ' multiple' : '' ) . '> <span class="fmc-file-name small text-primary" data-for="' . esc_attr( $aid ) . '"></span></div>';
 			}
 			$out .= '</div>';
 		}

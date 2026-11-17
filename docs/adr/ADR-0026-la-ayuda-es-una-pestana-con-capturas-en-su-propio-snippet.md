@@ -125,3 +125,22 @@ captura tiene texto alternativo.
 
 - Issue #75: la discusión y lo decidido.
 - [`build/pack-help.php`](../../build/pack-help.php), [`tests/unit/test-help.php`](../../tests/unit/test-help.php).
+
+## Adenda — 2026-11-17: el ámbito es `front-end`, y lo que pesa ahora
+
+- **Lo que pesa.** Con las catorce capturas de la v0.1.0, el snippet ocupa
+  unos 730 KB, no los 640 KB que se estimaron con once. Code Snippets lee de
+  la base de datos el código de cada snippet activo de los ámbitos que tocan
+  en la petición y lo evalúa entero
+  (`Evaluate_Functions::evaluate_db_snippets()`, que pide
+  `global`, `single-use` y `admin` o `front-end` según `is_admin()`).
+- **Por eso el ámbito pasa de `global` a `front-end`.** La ayuda solo se pinta
+  en la portada, que es el aplicativo; con `front-end`, el escritorio y
+  admin-ajax no la cargan. Las peticiones de la portada, la REST y el cron sí
+  la siguen cargando: para quitarla de ahí, el HTML tendría que vivir fuera
+  del código del snippet, por ejemplo en una opción sin autoload que el
+  snippet escribiera al cambiar de versión. No se hace hoy: es más mecanismo
+  que mantener para un coste que no está medido como problema.
+- En el sitio de destino, el snippet ya creado se cambia de ámbito al
+  desplegar la versión siguiente.
+

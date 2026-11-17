@@ -147,9 +147,8 @@ class Test_Documents extends WP_UnitTestCase {
 		$this->assertSame( array( 'image', 'design', 'sessions', 'slides', 'support', 'extra' ), array_keys( $kinds ) );
 		$this->assertFalse( $kinds['image']['multiple'] );
 		$this->assertSame( 3, $kinds['image']['max_mb'] );
-		$this->assertTrue( $kinds['design']['multiple'] );
-		// El fichero maestro del diseño es este, y la ficha lo dice (#26).
-		$this->assertStringContainsString( 'fichero maestro', $kinds['design']['help'] );
+		// El diseño del curso es el fichero maestro: uno, el vigente (#26).
+		$this->assertFalse( $kinds['design']['multiple'] );
 		foreach ( array( 'design', 'sessions' ) as $editable ) {
 			$this->assertContains( 'application/vnd.oasis.opendocument.text', $kinds[ $editable ]['mimes'], $editable );
 			$this->assertNotContains( 'application/pdf', $kinds[ $editable ]['mimes'], $editable );
@@ -169,8 +168,9 @@ class Test_Documents extends WP_UnitTestCase {
 
 		$this->assertSame( '', Documents::check( 'design', $odt ) );
 		$this->assertSame( '', Documents::check( 'support', $pdf ) );
-		$this->assertStringContainsString( '«diseno.pdf» no es de un formato admitido aquí: El editable', Documents::check( 'design', $pdf ), 'del diseño, el editable' );
-		$this->assertStringContainsString( 'no es de un formato admitido aquí: En PDF', Documents::check( 'support', $odt ), 'los recursos, en PDF' );
+		$this->assertSame( '«diseno.pdf» no es de un formato admitido aquí. Se admite DOC, DOCX u ODT.', Documents::check( 'design', $pdf ), 'del diseño, el editable' );
+		$this->assertSame( '«diseno.odt» no es de un formato admitido aquí. Se admite PDF.', Documents::check( 'support', $odt ), 'los recursos, en PDF' );
+		$this->assertSame( 'JPG, JPEG, PNG o GIF', Documents::formats( Documents::kinds()['image']['mimes'] ) );
 		$this->assertSame( 'Clase de documento desconocida.', Documents::check( 'poster', $odt ) );
 		$this->assertSame( 'No se pudo subir «diseno.odt».', Documents::check( 'design', array( 'error' => UPLOAD_ERR_PARTIAL ) + $odt ) );
 
@@ -216,6 +216,23 @@ class Test_Documents extends WP_UnitTestCase {
 	}
 
 	/**
+	 * El diseño del curso es el fichero maestro: subir otro, también con
+	 * «Añadir», deja solo el nuevo, y el anterior deja de descargarse (#26).
+	 */
+	public function test_a_new_design_file_replaces_the_previous_one() {
+		$id = $this->curator_design();
+		Documents::apply( $id, array( 'design' => array( $this->odt( 'v1.odt' ) ) ), array() );
+		$old = Documents::of( $id )['design'][0]->ID;
+
+		$this->assertSame( array(), Documents::apply( $id, array( 'design' => array( $this->odt( 'v2.odt' ) ) ), array() ) );
+
+		$docs = Documents::of( $id )['design'];
+		$this->assertCount( 1, $docs );
+		$this->assertSame( 'v2.odt', Documents::name( $docs[0]->ID ) );
+		$this->assertNull( get_post( $old ) );
+	}
+
+	/**
 	 * Varias de una clase a la vez, cada una con su clase; lo que no vale se cuenta y no entra.
 	 */
 	public function test_many_documents_at_once_and_one_problem_per_bad_file() {
@@ -233,7 +250,8 @@ class Test_Documents extends WP_UnitTestCase {
 
 		$this->assertCount( 2, $problems );
 		$docs = Documents::of( $id );
-		$this->assertCount( 2, $docs['design'] );
+		$this->assertCount( 1, $docs['design'], 'el diseño es uno: cuenta el primero' );
+		$this->assertSame( 'a.odt', Documents::name( $docs['design'][0]->ID ) );
 		$this->assertCount( 1, $docs['sessions'] );
 		$this->assertCount( 0, $docs['support'] );
 		$this->assertSame( 0, get_post_thumbnail_id( $id ), 'sin imagen no hay destacada' );
@@ -259,8 +277,8 @@ class Test_Documents extends WP_UnitTestCase {
 	 */
 	public function test_a_replacement_keeps_its_place_in_the_list() {
 		$id = $this->curator_design();
-		Documents::apply( $id, array( 'design' => array( $this->odt( 'uno.odt' ), $this->odt( 'dos.odt' ) ) ), array() );
-		list( $first, $second ) = Documents::of( $id )['design'];
+		Documents::apply( $id, array( 'sessions' => array( $this->odt( 'uno.odt' ), $this->odt( 'dos.odt' ) ) ), array() );
+		list( $first, $second ) = Documents::of( $id )['sessions'];
 		wp_update_post(
 			array(
 				'ID'         => $first->ID,
@@ -273,11 +291,11 @@ class Test_Documents extends WP_UnitTestCase {
 				'menu_order' => 1,
 			)
 		);
-		$this->assertSame( array( $second->ID, $first->ID ), wp_list_pluck( Documents::of( $id )['design'], 'ID' ) );
+		$this->assertSame( array( $second->ID, $first->ID ), wp_list_pluck( Documents::of( $id )['sessions'], 'ID' ) );
 
 		Documents::apply( $id, array( 'replace' => array( $first->ID => $this->odt( 'uno-v2.odt' ) ) ), array() );
 
-		$docs = Documents::of( $id )['design'];
+		$docs = Documents::of( $id )['sessions'];
 		$this->assertSame( $second->ID, $docs[0]->ID );
 		$this->assertSame( 2, $docs[1]->menu_order );
 		$this->assertSame( 'uno-v2.odt', Documents::name( $docs[1]->ID ) );

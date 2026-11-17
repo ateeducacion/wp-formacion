@@ -6,7 +6,7 @@
  * Priority: 15
  *
  * @package Fmc
- * @version 0.1.0
+ * @version 0.1.1
  */
 
 // phpcs:disable
@@ -4461,11 +4461,12 @@ final class Documents {
 			),
 
 
+
 			'design'   => array(
 				'label'    => 'Diseño del curso',
-				'help'     => 'El editable: DOC, DOCX u ODT. Es el fichero maestro del diseño: aquí va la versión vigente, y al cambiarla se quita la anterior.',
+				'help'     => 'El editable: DOC, DOCX u ODT. Es el fichero maestro: uno solo, la versión vigente. Sale en el catálogo.',
 				'mimes'    => $texts,
-				'multiple' => true,
+				'multiple' => false,
 				'max_mb'   => 20,
 			),
 			'sessions' => array(
@@ -4556,9 +4557,25 @@ final class Documents {
 		}
 		$type = wp_check_filetype_and_ext( (string) $file['tmp_name'], (string) $file['name'], $def['mimes'] );
 		if ( empty( $type['type'] ) || ! in_array( $type['type'], $def['mimes'], true ) ) {
-			return '«' . $file['name'] . '» no es de un formato admitido aquí: ' . $def['help'];
+			return '«' . $file['name'] . '» no es de un formato admitido aquí. Se admite ' . self::formats( $def['mimes'] ) . '.';
 		}
 		return '';
+	}
+
+
+
+
+
+
+
+	public static function formats( array $mimes ): string {
+		$ext  = array_map( 'strtoupper', explode( '|', implode( '|', array_keys( $mimes ) ) ) );
+		$last = (string) array_pop( $ext );
+		if ( ! $ext ) {
+			return $last;
+		}
+
+		return implode( ', ', $ext ) . ( 0 === strpos( $last, 'O' ) ? ' u ' : ' o ' ) . $last;
 	}
 
 
@@ -6417,7 +6434,18 @@ final class Lists {
 		$args                   = self::query_args( $type );
 		$args['posts_per_page'] = 5000; 
 		$args['no_found_rows']  = true;
-		$fields                 = array_filter( Fields::all( $type ), static fn( $f ) => 'docs' !== $f['w'] );
+
+
+
+		$view = self::arg( 'fmc_cal' );
+		$from = self::arg( 'fmc_from' );
+		$to   = self::arg( 'fmc_to' );
+		if ( PostTypes::ACTION === $type && in_array( $view, array( 'month', 'week', 'day' ), true ) && preg_match( '/^\d{4}-\d{2}-\d{2}\|\d{4}-\d{2}-\d{2}$/', $from . '|' . $to ) ) {
+			$ids                = Calendar::ids( $view, $from, $to );
+			$args['post__in']   = $ids ? $ids : array( 0 );
+			$args['meta_query'] = array_values( array_filter( $args['meta_query'], static fn( $c ) => ( $c['key'] ?? '' ) !== A::START ) ); 
+		}
+		$fields = array_filter( Fields::all( $type ), static fn( $f ) => 'docs' !== $f['w'] );
 
 
 		$titled = ! isset( $fields['post_title'] );
@@ -6487,6 +6515,8 @@ final class Lists {
 				return $value ? (string) get_the_author_meta( 'display_name', (int) $value ) : '';
 			case 'centre':
 				return CentreCatalogue::label( (string) $value, (string) get_post_meta( $post->ID, A::VENUE_CENTRE, true ) );
+			case 'sessions':
+				return implode( '; ', array_map( array( Sessions::class, 'label' ), Sessions::clean( $value ) ) );
 			case 'rich':
 			case 'textarea':
 				return trim( wp_strip_all_tags( (string) $value ) );
@@ -6974,12 +7004,30 @@ final class Calendar {
 
 
 
-
-
-
-
 	public static function by_range( string $from, string $to ): array {
-		$out = array();
+		return self::period( $from, $to )['by'];
+	}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+	private static function period( string $from, string $to ): array {
+		$by      = array();
+		$running = array();
 		foreach ( self::actions(
 			array(
 				'relation' => 'AND',
@@ -7001,28 +7049,57 @@ final class Calendar {
 						'compare' => '>=',
 					),
 					array(
-						'key'     => A::SESSIONS,
-						'compare' => 'EXISTS',
+						'relation' => 'AND',
+						array(
+							'key'     => A::SESSIONS,
+							'compare' => 'EXISTS',
+						),
+						array(
+							'key'     => A::END,
+							'compare' => 'NOT EXISTS',
+						),
 					),
 				),
 			)
 		) as $post ) {
+			$start    = (string) get_post_meta( $post->ID, A::START, true );
+			$end      = (string) get_post_meta( $post->ID, A::END, true );
 			$sessions = Sessions::clean( get_post_meta( $post->ID, A::SESSIONS, true ) );
-			if ( $sessions ) {
-				foreach ( array_keys( Sessions::by_day( $sessions ) ) as $day ) {
-					if ( $day >= $from && $day <= $to ) {
-						$out[ $day ][] = $post;
-					}
+			$days     = $sessions ? array_keys( Sessions::by_day( $sessions ) ) : array( $start );
+			$placed   = false;
+			foreach ( $days as $day ) {
+				if ( $day >= $from && $day <= $to ) {
+					$by[ $day ][] = $post;
+					$placed       = true;
 				}
-				continue;
 			}
-			$start = (string) get_post_meta( $post->ID, A::START, true );
-			if ( $start >= $from && $start <= $to ) {
-				$out[ $start ][] = $post;
+
+			$last = '' !== $end ? $end : ( $sessions ? (string) end( $days ) : '' );
+			if ( ! $placed && $last >= $from ) {
+				$running[] = $post;
 			}
 		}
-		ksort( $out );
-		return $out;
+		ksort( $by );
+		return array(
+			'by'      => $by,
+			'running' => $running,
+		);
+	}
+
+
+
+
+
+
+
+
+
+
+
+	public static function ids( string $view, string $from, string $to ): array {
+		$period = self::period( $from, $to );
+		$posts  = array_merge( array_merge( array(), ...array_values( $period['by'] ) ), 'month' === $view ? array() : $period['running'] );
+		return array_values( array_unique( wp_list_pluck( $posts, 'ID' ) ) );
 	}
 
 
@@ -7039,30 +7116,6 @@ final class Calendar {
 			}
 		}
 		return count( $ids );
-	}
-
-
-
-
-
-
-
-	public static function ongoing( string $day ): array {
-		return self::actions(
-			array(
-				'relation' => 'AND',
-				array(
-					'key'     => A::START,
-					'value'   => $day,
-					'compare' => '<',
-				),
-				array(
-					'key'     => A::END,
-					'value'   => $day,
-					'compare' => '>=',
-				),
-			)
-		);
 	}
 
 
@@ -7092,8 +7145,10 @@ final class Calendar {
 		$object = get_post_type_object( PostTypes::ACTION );
 		$add    = current_user_can( $object->cap->create_posts ) ? ' <a class="btn btn-primary fmc-abre-panel" href="' . esc_url( Screen::url( array( Screen::ARG_NEW => PostTypes::ACTION ) ) ) . '">+ ' . esc_html( Lists::ADD_LABELS[ PostTypes::ACTION ] ) . '</a>' : '';
 
+
 		$csv = array(
 			'fmc_csv'  => '1',
+			'fmc_cal'  => $view,
 			'fmc_from' => $period['from'],
 			'fmc_to'   => $period['to'],
 		);
@@ -7247,7 +7302,7 @@ final class Calendar {
 		if ( ! $running ) {
 			return '';
 		}
-		$out = '<h2 class="h6 mt-4">Empezaron antes y siguen en curso</h2><div class="fmc-running">';
+		$out = '<h2 class="h6 mt-4">Siguen en curso</h2><div class="fmc-running">';
 		foreach ( $running as $post ) {
 			$out .= self::card( $post );
 		}
@@ -7282,22 +7337,16 @@ final class Calendar {
 		$from  = $days[0];
 		$to    = (string) end( $days );
 		$step  = 'week' === $view ? '7 days' : '1 day';
-		$by    = self::by_range( $from, $to );
+		$shown = self::period( $from, $to );
+		$by    = $shown['by'];
 		$today = self::today();
 
 		$body = '<div class="fmc-days card' . ( 'day' === $view ? ' is-one' : '' ) . '">';
 		foreach ( $days as $d ) {
 			$body .= self::day_html( $d, $by[ $d ] ?? array(), $d === $today );
 		}
-		$body .= '</div>';
-
-		$shown = array();
-		foreach ( $by as $posts ) {
-			foreach ( $posts as $post ) {
-				$shown[ $post->ID ] = true;
-			}
-		}
-		$running = array_values( array_filter( self::ongoing( $from ), static fn( $p ) => ! isset( $shown[ $p->ID ] ) ) );
+		$body   .= '</div>';
+		$running = $shown['running'];
 		$body   .= self::running_html( $running );
 
 		$label = (int) substr( $from, 8 ) . ' de ' . self::MONTHS[ (int) gmdate( 'n', (int) strtotime( $from ) ) ] . ' de ' . gmdate( 'Y', (int) strtotime( $from ) );
@@ -7938,6 +7987,11 @@ final class Editor {
 				$urls = array();
 				if ( 'design' === $f['w'] ) {
 					$hints = self::design_hints( array_keys( $choices ) );
+
+
+					if ( $kept && isset( $hints[ $kept ] ) && ! self::can_view( get_post( $kept ) ) ) {
+						unset( $hints[ $kept ] );
+					}
 					foreach ( array_keys( $hints ) as $design ) {
 						$urls[ $design ] = Screen::url(
 							array(
@@ -8108,7 +8162,7 @@ final class Editor {
 		$out     = '<div class="col-12 fmc-docs">';
 		foreach ( Documents::kinds() as $kind => $def ) {
 			$accept = implode( ',', array_map( static fn( $ext ) => '.' . str_replace( '|', ',.', $ext ), array_keys( $def['mimes'] ) ) );
-			$out   .= '<div class="fmc-doc-kind"><div class="d-flex align-items-baseline gap-2 mb-1"><span class="fw-semibold">' . esc_html( $def['label'] ) . '</span><span class="form-text m-0">' . esc_html( $def['help'] ) . '</span></div><ul class="list-group mb-2">';
+			$out   .= '<div class="fmc-doc-kind"><div class="d-flex flex-wrap align-items-baseline column-gap-2 mb-1"><span class="fw-semibold">' . esc_html( $def['label'] ) . '</span>' . ( $can ? '<span class="form-text m-0">' . esc_html( $def['help'] ) . '</span>' : '' ) . '</div><ul class="list-group mb-2">';
 			foreach ( $current[ $kind ] as $doc ) {
 				$file = get_attached_file( $doc->ID );
 				$size = $file && file_exists( $file ) ? size_format( (int) filesize( $file ) ) : '';
@@ -8129,9 +8183,11 @@ final class Editor {
 				$out .= '<li class="list-group-item small text-secondary">Ninguno.</li>';
 			}
 			$out .= '</ul>';
-			if ( $can ) {
+
+
+			if ( $can && ( $def['multiple'] || ! $current[ $kind ] ) ) {
 				$aid  = 'fmc-add-' . $kind;
-				$out .= '<div class="mb-3"><label class="btn btn-sm btn-outline-secondary mb-0" for="' . esc_attr( $aid ) . '">' . esc_html( $def['multiple'] ? '+ Añadir' : ( $current[ $kind ] ? 'Cambiar la imagen' : '+ Añadir' ) ) . '</label><input class="visually-hidden fmc-file" type="file" id="' . esc_attr( $aid ) . '" name="fmc_doc[' . esc_attr( $kind ) . '][]" accept="' . esc_attr( $accept ) . '"' . ( $def['multiple'] ? ' multiple' : '' ) . '> <span class="fmc-file-name small text-primary" data-for="' . esc_attr( $aid ) . '"></span></div>';
+				$out .= '<div class="mb-3"><label class="btn btn-sm btn-outline-secondary mb-0" for="' . esc_attr( $aid ) . '">+ Añadir</label><input class="visually-hidden fmc-file" type="file" id="' . esc_attr( $aid ) . '" name="fmc_doc[' . esc_attr( $kind ) . '][]" accept="' . esc_attr( $accept ) . '"' . ( $def['multiple'] ? ' multiple' : '' ) . '> <span class="fmc-file-name small text-primary" data-for="' . esc_attr( $aid ) . '"></span></div>';
 			}
 			$out .= '</div>';
 		}
@@ -10851,13 +10907,15 @@ body.has-panel { overflow: hidden; }
 .fmc-help { display: grid; gap: 2rem; max-width: 1100px; }
 @media (min-width: 992px) {
 	.fmc-help { grid-template-columns: 240px minmax(0, 1fr); align-items: start; }
-	.fmc-help-toc { position: sticky; top: 1rem; grid-row: 1 / span 20; }
+	.fmc-help-toc { position: sticky; top: 1rem; }
 }
 .fmc-help-toc { border-radius: var(--fmc-r); border-color: var(--fmc-line); box-shadow: var(--fmc-e1); font-size: 14px; }
 .fmc-help-toc-title { font-weight: 700; margin-bottom: .5rem; }
 .fmc-help-toc ol { margin: 0; padding-left: 1.2rem; }
 .fmc-help-toc li { margin: .25rem 0; }
+.fmc-help-body { min-width: 0; }
 .fmc-help-section { max-width: 820px; scroll-margin-top: 1rem; }
+.fmc-help-section + .fmc-help-section { margin-top: 2rem; }
 .fmc-help-section h2 { font-size: 1.35rem; font-weight: 700; margin-bottom: .75rem; display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; }
 .fmc-help-who { font-size: .72rem; font-weight: 600; border: 1px solid var(--fmc-line); }
 .fmc-help-section li { margin-bottom: .35rem; }

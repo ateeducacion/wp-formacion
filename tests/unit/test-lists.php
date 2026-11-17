@@ -1011,6 +1011,25 @@ class Test_Lists extends WP_UnitTestCase {
 
 		delete_post_meta( $action, A::ADVISER );
 		$this->assertSame( '', $plain( A::ADVISER ) );
+
+		// Las sesiones, una por una con su día y su horario, no «Array».
+		update_post_meta(
+			$action,
+			A::SESSIONS,
+			array(
+				array(
+					'day'  => '2027-03-20',
+					'from' => '16:00',
+					'to'   => '20:00',
+				),
+				array(
+					'day'  => '2027-03-27',
+					'from' => '09:30',
+					'to'   => '13:30',
+				),
+			)
+		);
+		$this->assertSame( '20/03/2027, de 16:00 a 20:00; 27/03/2027, de 09:30 a 13:30', $plain( A::SESSIONS ) );
 	}
 
 
