@@ -163,6 +163,31 @@ describe( 'Tom Select', () => {
 		detach();
 	} );
 
+	it( 'el diseño elegido dice su tipo, modalidad y horas y enlaza a su ficha en otra pestaña', async () => {
+		document.body.innerHTML = '<form><select id="f-d" data-fmc-hints><option value="">—</option><option value="7" data-fmc-hint="Curso · Mixta · 20 h (8 presenciales + 12 en línea)" data-fmc-hint-url="https://ejemplo.test/?fmc_edit=7">A001 · IA</option><option value="8" data-fmc-hint="Acción puntual">A002 · Robótica</option></select><div class="fmc-hint" data-fmc-hint-for="f-d"></div></form>';
+		await load();
+		const s = document.querySelector( 'select' );
+		const box = document.querySelector( '.fmc-hint' );
+
+		s.value = '7';
+		s.dispatchEvent( new Event( 'change', { bubbles: true } ) );
+		expect( box.textContent ).toBe( 'Curso · Mixta · 20 h (8 presenciales + 12 en línea) Ver la ficha del diseño' );
+		const link = box.querySelector( 'a' );
+		expect( link.getAttribute( 'href' ) ).toBe( 'https://ejemplo.test/?fmc_edit=7' );
+		expect( link.target ).toBe( '_blank' );
+		expect( link.rel ).toBe( 'noopener' );
+
+		s.value = '8';
+		s.dispatchEvent( new Event( 'change', { bubbles: true } ) );
+		expect( box.textContent ).toBe( 'Acción puntual' );
+		expect( box.querySelector( 'a' ) ).toBeNull();
+
+		s.value = '';
+		s.dispatchEvent( new Event( 'change', { bubbles: true } ) );
+		expect( box.textContent ).toBe( '' );
+		detach();
+	} );
+
 	it( 'sin Tom Select, los select se quedan como están', async () => {
 		delete window.TomSelect;
 		await load();
