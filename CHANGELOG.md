@@ -22,8 +22,13 @@ en el sitio de destino se hace después.
 - `make capturas` rehace todas las capturas de la ayuda desde Playground con los datos de demostración, que ahora traen ponentes, acciones en el mes en curso y una incidencia pendiente, todo inventado
 - **La ficha técnica se descarga desde el catálogo público**: la ficha de un curso del catálogo lista sus documentos de «Diseño del curso», que se descargan sin sesión, como en el catálogo anterior. El resto de los documentos sigue siendo de trabajo
 
+### Cambiado
+
+- **El documento «Diseño del curso» es el fichero maestro del diseño**, y la ficha lo dice: ahí va la versión vigente, guardada en el aplicativo; el histórico de versiones sigue en la nube
+
 ### Pendiente antes de desplegar
 
+- Comprobar que el sitio de destino tiene de 500 MB a 1 GB de espacio de subida para los documentos de los diseños
 - Crear en el sitio de destino el snippet nuevo **«FMC — Ayuda»** (`snippets/fmc-help.bundle.php`), activo y con ámbito global, además de actualizar el del aplicativo
 - Pasar `make protect-documents` en el destino, o su equivalente, para cerrar los documentos de diseño que ya estaban subidos
 

@@ -116,7 +116,7 @@ if ( ! function_exists( 'fmc_help_html' ) ) {
 		<li>Rellena el <strong>título</strong>, el <strong>tipo de formación</strong> y la <strong>modalidad</strong>. Las horas que se piden dependen de la modalidad. El código lo pone el aplicativo al guardar por primera vez.</li>
 		<li>En <strong>Clasificación</strong>, elige los programas que lo cubren y su temática. Solo se ofrecen los programas vigentes.</li>
 		<li>En <strong>Contenido del diseño</strong>, escribe la descripción, los destinatarios, los objetivos y los contenidos: esos cuatro salen en el catálogo público.</li>
-		<li>En <strong>Documentos</strong>, sube el diseño, la escaleta y las presentaciones en editable, y los recursos en PDF.</li>
+		<li>En <strong>Documentos</strong>, sube el diseño, la escaleta y las presentaciones en editable, y los recursos en PDF. El de <strong>Diseño del curso</strong> es el fichero maestro: aquí va siempre la versión vigente.</li>
 		<li>Abajo eliges qué hacer con él:
 			<ul>
 				<li><strong>Guardar borrador</strong>: lo sigues otro día; la asesoría todavía no lo ve.</li>

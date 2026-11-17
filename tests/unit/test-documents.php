@@ -148,6 +148,8 @@ class Test_Documents extends WP_UnitTestCase {
 		$this->assertFalse( $kinds['image']['multiple'] );
 		$this->assertSame( 3, $kinds['image']['max_mb'] );
 		$this->assertTrue( $kinds['design']['multiple'] );
+		// El fichero maestro del diseño es este, y la ficha lo dice (#26).
+		$this->assertStringContainsString( 'fichero maestro', $kinds['design']['help'] );
 		foreach ( array( 'design', 'sessions' ) as $editable ) {
 			$this->assertContains( 'application/vnd.oasis.opendocument.text', $kinds[ $editable ]['mimes'], $editable );
 			$this->assertNotContains( 'application/pdf', $kinds[ $editable ]['mimes'], $editable );
