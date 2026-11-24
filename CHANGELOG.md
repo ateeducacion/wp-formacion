@@ -8,6 +8,15 @@ lee de la cabecera superior y la escribe en el `@version` del bundle.
 `make release` crea el tag y la release en GitHub; el despliegue de los snippets
 en el sitio de destino se hace después.
 
+## [0.1.3] — 2026-11-24
+
+### Cambiado
+
+- **Documentos del diseño: cada documento es una ficha** con su tipo (PDF, DOCX, PPTX…), su nombre, su tamaño, un aspa para quitarlo y «Reemplazar». Quitar no borra nada hasta guardar: la ficha pasa a «Se quitará al guardar» con «Deshacer». La «Imagen representativa» enseña su miniatura (#101)
+- **«+ Añadir» es una zona donde se pulsa o se sueltan los ficheros**; donde caben varios, elegir otra vez se suma a lo ya elegido, y cada fichero pendiente se puede quitar antes de guardar. Un fichero con un formato no admitido o que pasa del tamaño se marca en rojo antes de enviar, y la sección dice cuánto se puede subir entre todos en cada guardado: si se pasa, no deja guardar en vez de perder el formulario (#101)
+- Soltar un fichero fuera de una zona ya no hace que el navegador lo abra y se pierda lo escrito; soltarlo sobre la ficha de un documento lo reemplaza (#101)
+- Bootstrap pasa a la versión 5.3.9 (#98)
+
 ## [0.1.2] — 2026-11-17
 
 ### Cambiado
