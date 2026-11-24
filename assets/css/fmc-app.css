@@ -234,8 +234,9 @@ body.has-panel { overflow: hidden; }
 
 /* Documentos del diseño: cada uno, una ficha con su tipo, su nombre, su tamaño,
    «Reemplazar» y el aspa; marcado para quitar, una barra oscura con «Deshacer».
-   El aspa y «Deshacer» son etiquetas de la misma casilla, que va delante: sin
-   guion el CSS ya enseña una cosa u otra. Debajo, la zona para añadir, que es
+   El aspa y «Deshacer» son etiquetas de la misma casilla, que va entre la
+   ficha y la barra (así el tabulador sigue el orden que se ve): sin guion el
+   CSS ya enseña una cosa u otra. Debajo, la zona para añadir, que es
    el propio campo de fichero, transparente y estirado encima. */
 .fmc-docs .fmc-icon { flex: none; width: 1rem; height: 1rem; }
 .fmc-doc-kind + .fmc-doc-kind { border-top: 1px dashed var(--fmc-line); padding-top: 1rem; margin-top: 1rem; }
@@ -263,16 +264,22 @@ body.has-panel { overflow: hidden; }
 .fmc-doc-x { flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; width: 2.25rem; height: 2.25rem; margin: 0; border-radius: 50%; color: var(--fmc-text-2); background: transparent; border: 0; cursor: pointer; transition: background-color .15s, color .15s; }
 .fmc-docs .fmc-doc-x .fmc-icon { width: 1.25rem; height: 1.25rem; }
 .fmc-doc-x:hover { background: var(--fmc-bad-cont); color: var(--fmc-bad); }
-.fmc-doc-rm:focus-visible ~ .fmc-doc-card .fmc-doc-x, .fmc-doc-x:focus-visible { outline: 2px solid var(--fmc-brand); outline-offset: 2px; }
+.fmc-doc:has(> .fmc-doc-rm:focus-visible) .fmc-doc-x, .fmc-doc-x:focus-visible { outline: 2px solid var(--fmc-brand); outline-offset: 2px; }
 .fmc-doc-gone { display: none; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: .5rem 1rem; padding: 10px 12px; border-radius: var(--fmc-r); background: var(--fmc-text); color: #fff; font-size: .875rem; min-width: 0; }
 .fmc-doc-gone-text { min-width: 0; overflow-wrap: anywhere; }
 .fmc-doc-undo { margin: 0; padding: .3rem .9rem; border: 1px solid #fff; border-radius: 999px; font-weight: 600; cursor: pointer; color: #fff; }
 .fmc-doc-undo:hover { background: #fff; color: var(--fmc-text); }
-.fmc-doc-rm:checked ~ .fmc-doc-card { display: none; }
+.fmc-doc:has(> .fmc-doc-rm:checked) > .fmc-doc-card { display: none; }
 .fmc-doc-rm:checked ~ .fmc-doc-gone { display: flex; }
 .fmc-doc-rm:focus-visible ~ .fmc-doc-gone .fmc-doc-undo { outline: 2px solid #fff; outline-offset: 2px; }
 .fmc-doc.is-new .fmc-doc-card { background: #fff; border-style: dashed; }
 .fmc-doc-new { flex-basis: 100%; font-size: .8125rem; color: var(--fmc-brand); font-weight: 600; }
+.fmc-doc.is-bad .fmc-doc-card { border-color: var(--fmc-bad); background: var(--fmc-bad-cont); }
+.fmc-doc.is-bad .fmc-doc-new, .fmc-doc-problem { color: var(--fmc-bad); }
+.fmc-doc-pending.is-bad { background: var(--fmc-bad-cont); }
+.fmc-doc.is-over .fmc-doc-card { border-color: var(--fmc-brand); background: var(--fmc-brand-cont); }
+.fmc-doc-replaces { font-size: .8125rem; color: var(--fmc-text-2); }
+.fmc-doc-alert[hidden] { display: none; }
 
 .fmc-drop { position: relative; display: flex; flex-direction: column; align-items: center; gap: .25rem; margin: 0; padding: 1rem; text-align: center; border: 2px dashed #b9c2cc; border-radius: var(--fmc-r); background: var(--fmc-soft); color: var(--fmc-text-2); cursor: pointer; transition: border-color .15s, background-color .15s; }
 .fmc-drop-input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }

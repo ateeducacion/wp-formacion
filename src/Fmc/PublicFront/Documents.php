@@ -51,6 +51,16 @@ final class Documents {
 	public const PUBLIC_KINDS = array( 'design' );
 
 	/**
+	 * Kinds the browser may keep and revalidate with an ETag.
+	 *
+	 * La miniatura de la imagen representativa sale en la ficha cada vez que
+	 * se abre. Con `no-cache` el navegador la guarda pero pregunta siempre: el
+	 * permiso se comprueba en cada petición igual, y si no ha cambiado se
+	 * contesta 304 sin mandar la imagen otra vez.
+	 */
+	public const REVALIDATED_KINDS = array( 'image' );
+
+	/**
 	 * Hook registration.
 	 *
 	 * @return void
@@ -420,21 +430,50 @@ final class Documents {
 	 * Siempre como descarga: el navegador no interpreta nada de lo que se sirve
 	 * desde aquí, `nosniff` le impide adivinar el tipo y `no-store` que se
 	 * quede en una caché compartida. Aparte del manejador para poder probarlas.
+	 * La imagen representativa va con `private, no-cache` y su ETag
+	 * ({@see self::REVALIDATED_KINDS}).
 	 *
-	 * @param int $attachment_id Attachment.
-	 * @param int $length        Length of the body.
+	 * @param int    $attachment_id Attachment.
+	 * @param int    $length        Length of the body.
+	 * @param string $etag          ETag of the body, for the kinds that are revalidated.
 	 * @return string[]
 	 */
-	public static function headers( int $attachment_id, int $length ): array {
+	public static function headers( int $attachment_id, int $length, string $etag = '' ): array {
 		$name  = self::name( $attachment_id );
 		$ascii = sanitize_file_name( remove_accents( $name ) );
-		return array(
-			'Content-Type: ' . sanitize_mime_type( (string) get_post_mime_type( $attachment_id ) ),
-			'Content-Disposition: attachment; filename="' . ( '' !== $ascii ? $ascii : 'documento' ) . '"; filename*=UTF-8\'\'' . rawurlencode( $name ),
-			'Content-Length: ' . $length,
-			'X-Content-Type-Options: nosniff',
-			'Cache-Control: private, no-store',
+		return array_merge(
+			array(
+				'Content-Type: ' . sanitize_mime_type( (string) get_post_mime_type( $attachment_id ) ),
+				'Content-Disposition: attachment; filename="' . ( '' !== $ascii ? $ascii : 'documento' ) . '"; filename*=UTF-8\'\'' . rawurlencode( $name ),
+				'Content-Length: ' . $length,
+				'X-Content-Type-Options: nosniff',
+			),
+			self::cache_headers( $attachment_id, $etag )
 		);
+	}
+
+	/**
+	 * Cache headers of a document: never stored, or revalidated by ETag.
+	 *
+	 * @param int    $attachment_id Attachment.
+	 * @param string $etag          ETag of the body.
+	 * @return string[]
+	 */
+	private static function cache_headers( int $attachment_id, string $etag ): array {
+		if ( '' === $etag || ! self::revalidated( $attachment_id ) ) {
+			return array( 'Cache-Control: private, no-store' );
+		}
+		return array( 'Cache-Control: private, no-cache', 'ETag: ' . $etag );
+	}
+
+	/**
+	 * Whether the browser may keep a document and revalidate it.
+	 *
+	 * @param int $attachment_id Attachment.
+	 * @return bool
+	 */
+	private static function revalidated( int $attachment_id ): bool {
+		return in_array( (string) get_post_meta( $attachment_id, self::KIND_META, true ), self::REVALIDATED_KINDS, true );
 	}
 
 	/**
@@ -445,19 +484,29 @@ final class Documents {
 	 * sin permiso, la respuesta es la misma que si no existiera. Aparte de
 	 * {@see self::serve()}, que acaba en `exit`, para poder probarla.
 	 *
-	 * @param int $attachment_id Attachment.
+	 * @param int    $attachment_id Attachment.
+	 * @param string $if_none_match The request's `If-None-Match`, if any.
 	 * @return array{redirect?: string, status?: int, headers?: string[], body?: string}
 	 */
-	public static function answer( int $attachment_id ): array {
+	public static function answer( int $attachment_id, string $if_none_match = '' ): array {
 		$verdict = self::verdict( $attachment_id );
 		if ( 'login' === $verdict ) {
 			return array( 'redirect' => wp_login_url( self::url( $attachment_id ) ) );
 		}
 		$bytes = 'denied' === $verdict ? null : DocumentStore::read( $attachment_id );
 		if ( null !== $bytes ) {
+			// El 304 llega después de comprobar el permiso, nunca antes.
+			$etag = self::revalidated( $attachment_id ) ? '"' . md5( $bytes ) . '"' : '';
+			if ( '' !== $etag && in_array( $etag, array_map( 'trim', explode( ',', $if_none_match ) ), true ) ) {
+				return array(
+					'status'  => 304,
+					'headers' => self::cache_headers( $attachment_id, $etag ),
+					'body'    => '',
+				);
+			}
 			return array(
 				'status'  => 200,
-				'headers' => self::headers( $attachment_id, strlen( $bytes ) ),
+				'headers' => self::headers( $attachment_id, strlen( $bytes ), $etag ),
 				'body'    => $bytes,
 			);
 		}
@@ -479,7 +528,7 @@ final class Documents {
 	 * @return void
 	 */
 	public static function serve(): void {
-		$answer = self::answer( absint( Lists::arg( self::ARG ) ) );
+		$answer = self::answer( absint( Lists::arg( self::ARG ) ), isset( $_SERVER['HTTP_IF_NONE_MATCH'] ) ? sanitize_text_field( wp_unslash( $_SERVER['HTTP_IF_NONE_MATCH'] ) ) : '' );
 		if ( isset( $answer['redirect'] ) ) {
 			Screen::leave( $answer['redirect'] );
 			return;

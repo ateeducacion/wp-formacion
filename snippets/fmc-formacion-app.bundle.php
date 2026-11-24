@@ -4389,6 +4389,16 @@ final class Documents {
 
 
 
+
+
+
+	public const REVALIDATED_KINDS = array( 'image' );
+
+
+
+
+
+
 	public static function register(): void {
 		add_filter( 'wp_get_attachment_url', array( self::class, 'attachment_url' ), 10, 2 );
 	}
@@ -4759,16 +4769,45 @@ final class Documents {
 
 
 
-	public static function headers( int $attachment_id, int $length ): array {
+
+
+
+	public static function headers( int $attachment_id, int $length, string $etag = '' ): array {
 		$name  = self::name( $attachment_id );
 		$ascii = sanitize_file_name( remove_accents( $name ) );
-		return array(
-			'Content-Type: ' . sanitize_mime_type( (string) get_post_mime_type( $attachment_id ) ),
-			'Content-Disposition: attachment; filename="' . ( '' !== $ascii ? $ascii : 'documento' ) . '"; filename*=UTF-8\'\'' . rawurlencode( $name ),
-			'Content-Length: ' . $length,
-			'X-Content-Type-Options: nosniff',
-			'Cache-Control: private, no-store',
+		return array_merge(
+			array(
+				'Content-Type: ' . sanitize_mime_type( (string) get_post_mime_type( $attachment_id ) ),
+				'Content-Disposition: attachment; filename="' . ( '' !== $ascii ? $ascii : 'documento' ) . '"; filename*=UTF-8\'\'' . rawurlencode( $name ),
+				'Content-Length: ' . $length,
+				'X-Content-Type-Options: nosniff',
+			),
+			self::cache_headers( $attachment_id, $etag )
 		);
+	}
+
+
+
+
+
+
+
+
+	private static function cache_headers( int $attachment_id, string $etag ): array {
+		if ( '' === $etag || ! self::revalidated( $attachment_id ) ) {
+			return array( 'Cache-Control: private, no-store' );
+		}
+		return array( 'Cache-Control: private, no-cache', 'ETag: ' . $etag );
+	}
+
+
+
+
+
+
+
+	private static function revalidated( int $attachment_id ): bool {
+		return in_array( (string) get_post_meta( $attachment_id, self::KIND_META, true ), self::REVALIDATED_KINDS, true );
 	}
 
 
@@ -4782,16 +4821,26 @@ final class Documents {
 
 
 
-	public static function answer( int $attachment_id ): array {
+
+	public static function answer( int $attachment_id, string $if_none_match = '' ): array {
 		$verdict = self::verdict( $attachment_id );
 		if ( 'login' === $verdict ) {
 			return array( 'redirect' => wp_login_url( self::url( $attachment_id ) ) );
 		}
 		$bytes = 'denied' === $verdict ? null : DocumentStore::read( $attachment_id );
 		if ( null !== $bytes ) {
+
+			$etag = self::revalidated( $attachment_id ) ? '"' . md5( $bytes ) . '"' : '';
+			if ( '' !== $etag && in_array( $etag, array_map( 'trim', explode( ',', $if_none_match ) ), true ) ) {
+				return array(
+					'status'  => 304,
+					'headers' => self::cache_headers( $attachment_id, $etag ),
+					'body'    => '',
+				);
+			}
 			return array(
 				'status'  => 200,
-				'headers' => self::headers( $attachment_id, strlen( $bytes ) ),
+				'headers' => self::headers( $attachment_id, strlen( $bytes ), $etag ),
 				'body'    => $bytes,
 			);
 		}
@@ -4813,7 +4862,7 @@ final class Documents {
 
 
 	public static function serve(): void {
-		$answer = self::answer( absint( Lists::arg( self::ARG ) ) );
+		$answer = self::answer( absint( Lists::arg( self::ARG ) ), isset( $_SERVER['HTTP_IF_NONE_MATCH'] ) ? sanitize_text_field( wp_unslash( $_SERVER['HTTP_IF_NONE_MATCH'] ) ) : '' );
 		if ( isset( $answer['redirect'] ) ) {
 			Screen::leave( $answer['redirect'] );
 			return;
@@ -8173,10 +8222,6 @@ final class Editor {
 
 
 
-
-
-
-
 	private static function docs( ?\WP_Post $post, bool $can ): string {
 		$current = Documents::of( $post ? $post->ID : 0 );
 		$legacy  = array(
@@ -8185,12 +8230,21 @@ final class Editor {
 			'sessions' => D::SESSIONS_FILE,
 			'support'  => D::SUPPORT_FILE,
 		);
-		$out     = '<div class="col-12 fmc-docs"><p class="visually-hidden" aria-live="polite" data-fmc-doc-status></p>';
+
+
+
+		$total = $can ? self::post_max() : 0;
+		$out   = '<div class="col-12 fmc-docs"' . ( $total ? ' data-fmc-post-max="' . esc_attr( (string) $total ) . '"' : '' ) . '><p class="visually-hidden" aria-live="polite" data-fmc-doc-status></p>';
+		if ( $total ) {
+			$out .= '<p class="fmc-doc-total form-text mt-0">En cada guardado se pueden subir, entre todos los ficheros, hasta ' . esc_html( (string) size_format( $total ) ) . '.</p>';
+		}
+		if ( $can ) {
+			$out .= '<p class="alert alert-danger fmc-doc-alert" role="alert" tabindex="-1" data-fmc-doc-alert hidden></p>';
+		}
 		foreach ( Documents::kinds() as $kind => $def ) {
-			$accept = implode( ',', array_map( static fn( $ext ) => '.' . str_replace( '|', ',.', $ext ), array_keys( $def['mimes'] ) ) );
-			$out   .= '<div class="fmc-doc-kind"><div class="fmc-doc-head"><span class="fw-semibold">' . esc_html( $def['label'] ) . '</span>' . ( $can ? '<span class="form-text m-0">' . esc_html( $def['help'] ) . '</span>' : '' ) . '</div><ul class="fmc-doc-list">';
+			$out .= '<div class="fmc-doc-kind"><div class="fmc-doc-head"><span class="fw-semibold">' . esc_html( $def['label'] ) . '</span>' . ( $can ? '<span class="form-text m-0">' . esc_html( $def['help'] ) . '</span>' : '' ) . '</div><ul class="fmc-doc-list">';
 			foreach ( $current[ $kind ] as $doc ) {
-				$out .= self::doc_card( $doc, 'image' === $kind, $can, $accept );
+				$out .= self::doc_card( $doc, $kind, $def, $can );
 			}
 			$old = isset( $legacy[ $kind ] ) && $post ? (string) get_post_meta( $post->ID, $legacy[ $kind ], true ) : '';
 			if ( '' !== $old ) {
@@ -8204,11 +8258,32 @@ final class Editor {
 
 
 			if ( $can && ( $def['multiple'] || ! $current[ $kind ] ) ) {
-				$out .= self::drop_zone( $kind, $def, $accept );
+				$out .= self::drop_zone( $kind, $def );
 			}
 			$out .= '</div>';
 		}
 		return $out . '</div>';
+	}
+
+
+
+
+
+
+	private static function post_max(): int {
+		return (int) wp_convert_hr_to_bytes( (string) ini_get( 'post_max_size' ) );
+	}
+
+
+
+
+
+
+
+	private static function file_rules( array $def ): string {
+		$exts = explode( '|', implode( '|', array_keys( $def['mimes'] ) ) );
+		$max  = min( (int) $def['max_mb'] * MB_IN_BYTES, (int) wp_max_upload_size() );
+		return ' accept="' . esc_attr( '.' . implode( ',.', $exts ) ) . '" data-fmc-exts="' . esc_attr( implode( ',', $exts ) ) . '" data-fmc-max="' . esc_attr( (string) $max ) . '"';
 	}
 
 
@@ -8225,7 +8300,7 @@ final class Editor {
 
 
 
-	private static function doc_card( \WP_Post $doc, bool $image, bool $can, string $accept ): string {
+	private static function doc_card( \WP_Post $doc, string $kind, array $def, bool $can ): string {
 		$name = Documents::name( $doc->ID );
 		$url  = Documents::url( $doc->ID );
 		$file = get_attached_file( $doc->ID );
@@ -8233,16 +8308,12 @@ final class Editor {
 		$id   = (string) $doc->ID;
 		$rid  = 'fmc-replace-' . $id;
 		$xid  = 'fmc-remove-' . $id;
-		$out  = '<li class="fmc-doc">';
-		if ( $can ) {
-			$out .= '<input class="fmc-doc-rm visually-hidden" type="checkbox" id="' . esc_attr( $xid ) . '" name="fmc_remove[]" value="' . esc_attr( $id ) . '" aria-label="' . esc_attr( 'Quitar: ' . $name ) . '" data-fmc-doc-name="' . esc_attr( $name ) . '">';
-		}
-		$out .= '<div class="fmc-doc-card">';
-		$out .= $image ? '<img class="fmc-doc-thumb" src="' . esc_url( $url ) . '" alt="" width="44" height="44" loading="lazy">' : self::doc_badge( $name );
+		$out  = '<li class="fmc-doc"><div class="fmc-doc-card">';
+		$out .= 'image' === $kind ? '<img class="fmc-doc-thumb" src="' . esc_url( $url ) . '" alt="" width="44" height="44" loading="lazy">' : self::doc_badge( $name );
 		$out .= '<div class="fmc-doc-main"><a class="fmc-doc-name" href="' . esc_url( $url ) . '" target="_blank" rel="noopener" title="' . esc_attr( $name ) . '">' . esc_html( $name ) . '</a>';
 		$out .= '' !== $size ? '<span class="fmc-doc-meta">' . esc_html( $size ) . '</span>' : '';
 		if ( $can ) {
-			$out .= '<input class="visually-hidden fmc-file" type="file" id="' . esc_attr( $rid ) . '" name="fmc_replace[' . esc_attr( $id ) . ']" accept="' . esc_attr( $accept ) . '"><label class="fmc-doc-replace" for="' . esc_attr( $rid ) . '">' . self::icon( 'replace' ) . 'Reemplazar<span class="visually-hidden">: ' . esc_html( $name ) . '</span></label>';
+			$out .= '<input class="visually-hidden fmc-file" type="file" id="' . esc_attr( $rid ) . '" name="fmc_replace[' . esc_attr( $id ) . ']"' . self::file_rules( $def ) . '><label class="fmc-doc-replace" for="' . esc_attr( $rid ) . '">' . self::icon( 'replace' ) . 'Reemplazar<span class="visually-hidden">: ' . esc_html( $name ) . '</span></label>';
 			$out .= '<p class="fmc-doc-pending" data-fmc-picked="' . esc_attr( $rid ) . '" hidden><span>Se reemplazará al guardar por: <strong data-fmc-picked-name></strong></span> <button type="button" class="fmc-doc-link" data-fmc-file-clear="' . esc_attr( $rid ) . '">Cancelar</button></p>';
 		}
 		$out .= '</div>';
@@ -8251,6 +8322,7 @@ final class Editor {
 		}
 		$out .= '</div>';
 		if ( $can ) {
+			$out .= '<input class="fmc-doc-rm visually-hidden" type="checkbox" id="' . esc_attr( $xid ) . '" name="fmc_remove[]" value="' . esc_attr( $id ) . '" aria-label="' . esc_attr( 'Quitar: ' . $name ) . '" data-fmc-doc-name="' . esc_attr( $name ) . '">';
 			$out .= '<div class="fmc-doc-gone"><span class="fmc-doc-gone-text">Se quitará al guardar: <strong>' . esc_html( $name ) . '</strong></span><label class="fmc-doc-undo" for="' . esc_attr( $xid ) . '">Deshacer</label></div>';
 		}
 		return $out . '</li>';
@@ -8266,16 +8338,15 @@ final class Editor {
 
 
 
-
-	private static function drop_zone( string $kind, array $def, string $accept ): string {
+	private static function drop_zone( string $kind, array $def ): string {
 		$aid   = 'fmc-add-' . $kind;
 		$max   = min( (int) $def['max_mb'] * MB_IN_BYTES, (int) wp_max_upload_size() );
 		$many  = (bool) $def['multiple'];
 		$limit = Documents::formats( $def['mimes'] ) . ' · hasta ' . size_format( $max ) . ( $many ? ' cada uno' : '' );
 		return '<div class="fmc-drop-wrap"><label class="fmc-drop" for="' . esc_attr( $aid ) . '">'
-			. '<input class="fmc-file fmc-drop-input" type="file" id="' . esc_attr( $aid ) . '" name="fmc_doc[' . esc_attr( $kind ) . '][]" accept="' . esc_attr( $accept ) . '"' . ( $many ? ' multiple' : '' ) . '>'
+			. '<input class="fmc-file fmc-drop-input" type="file" id="' . esc_attr( $aid ) . '" name="fmc_doc[' . esc_attr( $kind ) . '][]"' . self::file_rules( $def ) . ( $many ? ' multiple' : '' ) . '>'
 			. '<span class="fmc-drop-badge">' . self::icon( 'upload' ) . '</span>'
-			. '<span class="fmc-drop-text">' . ( $many ? '<strong>Elija ficheros</strong> o arrástrelos aquí' : '<strong>Elija un fichero</strong> o arrástrelo aquí' ) . '</span>'
+			. '<span class="fmc-drop-text"><span class="visually-hidden">' . esc_html( $def['label'] ) . ': </span>' . ( $many ? '<strong>Elija ficheros</strong> o arrástrelos aquí' : '<strong>Elija un fichero</strong> o arrástrelo aquí' ) . '</span>'
 			. '<span class="fmc-drop-limit">' . esc_html( $limit ) . '</span>'
 			. '</label><ul class="fmc-doc-list fmc-drop-list" data-fmc-picked="' . esc_attr( $aid ) . '"></ul></div>';
 	}
@@ -10943,8 +11014,9 @@ body.has-panel { overflow: hidden; }
 
 /* Documentos del diseño: cada uno, una ficha con su tipo, su nombre, su tamaño,
    «Reemplazar» y el aspa; marcado para quitar, una barra oscura con «Deshacer».
-   El aspa y «Deshacer» son etiquetas de la misma casilla, que va delante: sin
-   guion el CSS ya enseña una cosa u otra. Debajo, la zona para añadir, que es
+   El aspa y «Deshacer» son etiquetas de la misma casilla, que va entre la
+   ficha y la barra (así el tabulador sigue el orden que se ve): sin guion el
+   CSS ya enseña una cosa u otra. Debajo, la zona para añadir, que es
    el propio campo de fichero, transparente y estirado encima. */
 .fmc-docs .fmc-icon { flex: none; width: 1rem; height: 1rem; }
 .fmc-doc-kind + .fmc-doc-kind { border-top: 1px dashed var(--fmc-line); padding-top: 1rem; margin-top: 1rem; }
@@ -10972,16 +11044,22 @@ body.has-panel { overflow: hidden; }
 .fmc-doc-x { flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; width: 2.25rem; height: 2.25rem; margin: 0; border-radius: 50%; color: var(--fmc-text-2); background: transparent; border: 0; cursor: pointer; transition: background-color .15s, color .15s; }
 .fmc-docs .fmc-doc-x .fmc-icon { width: 1.25rem; height: 1.25rem; }
 .fmc-doc-x:hover { background: var(--fmc-bad-cont); color: var(--fmc-bad); }
-.fmc-doc-rm:focus-visible ~ .fmc-doc-card .fmc-doc-x, .fmc-doc-x:focus-visible { outline: 2px solid var(--fmc-brand); outline-offset: 2px; }
+.fmc-doc:has(> .fmc-doc-rm:focus-visible) .fmc-doc-x, .fmc-doc-x:focus-visible { outline: 2px solid var(--fmc-brand); outline-offset: 2px; }
 .fmc-doc-gone { display: none; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: .5rem 1rem; padding: 10px 12px; border-radius: var(--fmc-r); background: var(--fmc-text); color: #fff; font-size: .875rem; min-width: 0; }
 .fmc-doc-gone-text { min-width: 0; overflow-wrap: anywhere; }
 .fmc-doc-undo { margin: 0; padding: .3rem .9rem; border: 1px solid #fff; border-radius: 999px; font-weight: 600; cursor: pointer; color: #fff; }
 .fmc-doc-undo:hover { background: #fff; color: var(--fmc-text); }
-.fmc-doc-rm:checked ~ .fmc-doc-card { display: none; }
+.fmc-doc:has(> .fmc-doc-rm:checked) > .fmc-doc-card { display: none; }
 .fmc-doc-rm:checked ~ .fmc-doc-gone { display: flex; }
 .fmc-doc-rm:focus-visible ~ .fmc-doc-gone .fmc-doc-undo { outline: 2px solid #fff; outline-offset: 2px; }
 .fmc-doc.is-new .fmc-doc-card { background: #fff; border-style: dashed; }
 .fmc-doc-new { flex-basis: 100%; font-size: .8125rem; color: var(--fmc-brand); font-weight: 600; }
+.fmc-doc.is-bad .fmc-doc-card { border-color: var(--fmc-bad); background: var(--fmc-bad-cont); }
+.fmc-doc.is-bad .fmc-doc-new, .fmc-doc-problem { color: var(--fmc-bad); }
+.fmc-doc-pending.is-bad { background: var(--fmc-bad-cont); }
+.fmc-doc.is-over .fmc-doc-card { border-color: var(--fmc-brand); background: var(--fmc-brand-cont); }
+.fmc-doc-replaces { font-size: .8125rem; color: var(--fmc-text-2); }
+.fmc-doc-alert[hidden] { display: none; }
 
 .fmc-drop { position: relative; display: flex; flex-direction: column; align-items: center; gap: .25rem; margin: 0; padding: 1rem; text-align: center; border: 2px dashed #b9c2cc; border-radius: var(--fmc-r); background: var(--fmc-soft); color: var(--fmc-text-2); cursor: pointer; transition: border-color .15s, background-color .15s; }
 .fmc-drop-input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
@@ -11421,9 +11499,16 @@ body.has-panel { overflow: hidden; }
 
 	const ICON_X = \'<svg class="fmc-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M6 6l12 12M18 6L6 18"/></svg>\';
 
-	function docBadge( name ) {
+	// Lo ya elegido en cada zona que admite varios: una elección nueva se suma.
+	const pickedBefore = new WeakMap();
+
+	function extensionOf( name ) {
 		const match = /\\.([^.]+)$/.exec( name || \'\' );
-		const ext = match ? match[ 1 ].toLowerCase() : \'\';
+		return match ? match[ 1 ].toLowerCase() : \'\';
+	}
+
+	function docBadge( name ) {
+		const ext = extensionOf( name );
 		const badge = document.createElement( \'span\' );
 		badge.className = \'fmc-doc-type\';
 		badge.dataset.family = DOC_FAMILIES[ ext ] || \'other\';
@@ -11432,14 +11517,58 @@ body.has-panel { overflow: hidden; }
 		return badge;
 	}
 
+	// Same units and rounding as WordPress\'s size_format(): binary units, no decimals.
 	function humanSize( bytes ) {
-		if ( ! bytes && 0 !== bytes ) {
+		if ( \'number\' !== typeof bytes || bytes < 0 ) {
 			return \'\';
 		}
-		if ( bytes < 1048576 ) {
-			return Math.max( 1, Math.round( bytes / 1024 ) ) + \' KB\';
+		const units = [ [ \'TB\', 1099511627776 ], [ \'GB\', 1073741824 ], [ \'MB\', 1048576 ], [ \'KB\', 1024 ] ];
+		for ( let i = 0; i < units.length; i++ ) {
+			if ( bytes >= units[ i ][ 1 ] ) {
+				return Math.round( bytes / units[ i ][ 1 ] ) + \' \' + units[ i ][ 0 ];
+			}
 		}
-		return ( bytes / 1048576 ).toFixed( 1 ).replace( \'.\', \',\' ) + \' MB\';
+		return bytes + \' B\';
+	}
+
+	// Lo mismo que comprueba el servidor al guardar: el formato y el tamaño.
+	function fileProblem( input, file ) {
+		const exts = ( input.dataset.fmcExts || \'\' ).split( \',\' ).filter( Boolean );
+		const ext = extensionOf( file.name );
+		if ( exts.length && -1 === exts.indexOf( ext ) ) {
+			return ext ? \'No se admite el formato \' + ext.toUpperCase() : \'No se admite un fichero sin extensión\';
+		}
+		const max = parseInt( input.dataset.fmcMax, 10 );
+		if ( max && file.size > max ) {
+			return \'Pasa de \' + humanSize( max );
+		}
+		return \'\';
+	}
+
+	function fileKey( file ) {
+		return file.name + \'|\' + file.size + \'|\' + file.lastModified;
+	}
+
+	// Rewrites the files of an input; false where the browser does not allow it.
+	function setFiles( input, files ) {
+		try {
+			const transfer = new window.DataTransfer();
+			files.forEach( function ( file ) {
+				transfer.items.add( file );
+			} );
+			input.files = transfer.files;
+			return true;
+		} catch ( error ) {
+			return false;
+		}
+	}
+
+	function canSetFiles() {
+		try {
+			return !! new window.DataTransfer();
+		} catch ( error ) {
+			return false;
+		}
 	}
 
 	// Lo que se dice a un lector de pantalla cuando cambia algo de la lista.
@@ -11451,10 +11580,74 @@ body.has-panel { overflow: hidden; }
 		}
 	}
 
+	// Una elección nueva en una zona que admite varios se suma a la anterior,
+	// sin repetir ficheros. Los cambios que hace el propio guion (quitar uno,
+	// cancelar) llevan `fmcQuiet` y no se suman.
+	function mergePicked( input ) {
+		if ( ! input.multiple ) {
+			return;
+		}
+		const quiet = \'fmcQuiet\' in input.dataset;
+		delete input.dataset.fmcQuiet;
+		const before = pickedBefore.get( input ) || [];
+		const now = Array.prototype.slice.call( input.files || [] );
+		if ( ! quiet && before.length ) {
+			const all = before.slice();
+			const keys = all.map( fileKey );
+			now.forEach( function ( file ) {
+				if ( -1 === keys.indexOf( fileKey( file ) ) ) {
+					all.push( file );
+					keys.push( fileKey( file ) );
+				}
+			} );
+			if ( all.length !== now.length ) {
+				setFiles( input, all );
+			}
+		}
+		pickedBefore.set( input, Array.prototype.slice.call( input.files || [] ) );
+	}
+
+	function pendingCard( input, file, index ) {
+		const problem = fileProblem( input, file );
+		const item = document.createElement( \'li\' );
+		item.className = \'fmc-doc is-new\' + ( problem ? \' is-bad\' : \'\' );
+		const card = document.createElement( \'div\' );
+		card.className = \'fmc-doc-card\';
+		const main = document.createElement( \'div\' );
+		main.className = \'fmc-doc-main\';
+		const name = document.createElement( \'span\' );
+		name.className = \'fmc-doc-name\';
+		name.title = file.name;
+		name.textContent = file.name;
+		main.append( name );
+		const size = humanSize( file.size );
+		if ( size ) {
+			const meta = document.createElement( \'span\' );
+			meta.className = \'fmc-doc-meta\';
+			meta.textContent = size;
+			main.append( meta );
+		}
+		const note = document.createElement( \'span\' );
+		note.className = \'fmc-doc-new\';
+		note.textContent = problem ? problem + \': no se subirá. Quítelo de la lista.\' : \'Se subirá al guardar\';
+		main.append( note );
+		const drop = document.createElement( \'button\' );
+		drop.type = \'button\';
+		drop.className = \'fmc-doc-x\';
+		drop.title = \'No subir\';
+		drop.dataset.fmcUnpick = input.id;
+		drop.dataset.fmcIndex = String( index );
+		drop.setAttribute( \'aria-label\', \'No subir: \' + file.name );
+		drop.innerHTML = ICON_X;
+		card.append( docBadge( file.name ), main, drop );
+		item.append( card );
+		return item;
+	}
+
 	// Lo elegido en un campo de fichero se enseña antes de guardar: en un
 	// documento guardado, «Se reemplazará al guardar por…»; en la zona para
 	// añadir, una ficha por fichero, «Se subirá al guardar», cada una con su
-	// aspa para no subirlo.
+	// aspa para no subirlo. Lo que el servidor no va a admitir se dice ya.
 	function showPicked( input ) {
 		const box = document.querySelector( \'[data-fmc-picked="\' + input.id + \'"]\' );
 		if ( ! box ) {
@@ -11462,72 +11655,110 @@ body.has-panel { overflow: hidden; }
 		}
 		const files = Array.prototype.slice.call( input.files || [] );
 		if ( \'UL\' !== box.tagName ) {
+			const problem = files.length ? fileProblem( input, files[ 0 ] ) : \'\';
 			const name = box.querySelector( \'[data-fmc-picked-name]\' );
 			if ( name ) {
 				name.textContent = files.length ? files[ 0 ].name : \'\';
 			}
-			box.hidden = ! files.length;
-			docStatus( input, files.length ? \'Se reemplazará al guardar por: \' + files[ 0 ].name : \'\' );
+			let why = box.querySelector( \'[data-fmc-picked-problem]\' );
+			if ( ! why ) {
+				why = document.createElement( \'span\' );
+				why.className = \'fmc-doc-problem\';
+				why.dataset.fmcPickedProblem = \'\';
+				box.insertBefore( why, box.querySelector( \'button\' ) );
+			}
+			why.textContent = problem ? \' \' + problem + \': no se puede guardar así.\' : \'\';
+			box.classList.toggle( \'is-bad\', !! problem );
+			box.hidden = ! files.length || input.disabled;
+			docStatus( input, files.length ? \'Se reemplazará al guardar por: \' + files[ 0 ].name + ( problem ? \'. \' + problem : \'\' ) : \'\' );
 			return;
 		}
 		box.textContent = \'\';
 		files.forEach( function ( file, index ) {
-			const item = document.createElement( \'li\' );
-			item.className = \'fmc-doc is-new\';
-			const card = document.createElement( \'div\' );
-			card.className = \'fmc-doc-card\';
-			const main = document.createElement( \'div\' );
-			main.className = \'fmc-doc-main\';
-			const name = document.createElement( \'span\' );
-			name.className = \'fmc-doc-name\';
-			name.title = file.name;
-			name.textContent = file.name;
-			main.append( name );
-			const size = humanSize( file.size );
-			if ( size ) {
-				const meta = document.createElement( \'span\' );
-				meta.className = \'fmc-doc-meta\';
-				meta.textContent = size;
-				main.append( meta );
-			}
-			const note = document.createElement( \'span\' );
-			note.className = \'fmc-doc-new\';
-			note.textContent = \'Se subirá al guardar\';
-			main.append( note );
-			const drop = document.createElement( \'button\' );
-			drop.type = \'button\';
-			drop.className = \'fmc-doc-x\';
-			drop.title = \'No subir\';
-			drop.dataset.fmcUnpick = input.id;
-			drop.dataset.fmcIndex = String( index );
-			drop.setAttribute( \'aria-label\', \'No subir: \' + file.name );
-			drop.innerHTML = ICON_X;
-			card.append( docBadge( file.name ), main, drop );
-			item.append( card );
-			box.append( item );
+			box.append( pendingCard( input, file, index ) );
+		} );
+		if ( input.multiple && files.length && ! canSetFiles() ) {
+			const note = document.createElement( \'li\' );
+			note.className = \'fmc-doc-replaces\';
+			note.textContent = \'Si vuelve a elegir, la nueva elección sustituye a esta.\';
+			box.append( note );
+		}
+		const fine = files.filter( function ( file ) {
+			return ! fileProblem( input, file );
 		} );
 		let text = \'\';
-		if ( 1 === files.length ) {
-			text = \'Se subirá al guardar: \' + files[ 0 ].name;
-		} else if ( files.length ) {
-			text = \'Se subirán al guardar \' + files.length + \' ficheros\';
+		if ( 1 === fine.length ) {
+			text = \'Se subirá al guardar: \' + fine[ 0 ].name;
+		} else if ( fine.length ) {
+			text = \'Se subirán al guardar \' + fine.length + \' ficheros\';
+		}
+		if ( fine.length < files.length ) {
+			text += ( text ? \'. \' : \'\' ) + ( files.length - fine.length ) + \' no se pueden subir\';
 		}
 		docStatus( input, text );
 	}
 
-	// Quitar un fichero de los elegidos: con DataTransfer se rehace la lista
-	// sin él; donde no lo hay, se vacía la elección entera y se vuelve a elegir.
+	// Lo que impide guardar los documentos: un fichero que el servidor no
+	// admite, o que entre todos pasen de lo que PHP acepta en un envío, que
+	// entonces tira el formulario entero sin decir nada.
+	function docsProblem( form ) {
+		const docs = form && form.querySelector ? form.querySelector( \'.fmc-docs\' ) : null;
+		if ( ! docs ) {
+			return \'\';
+		}
+		let total = 0;
+		const bad = [];
+		form.querySelectorAll( \'input.fmc-file\' ).forEach( function ( input ) {
+			if ( input.disabled ) {
+				return;
+			}
+			Array.prototype.forEach.call( input.files || [], function ( file ) {
+				total += file.size || 0;
+				if ( fileProblem( input, file ) ) {
+					bad.push( \'«\' + file.name + \'»\' );
+				}
+			} );
+		} );
+		if ( bad.length ) {
+			return \'No se puede guardar: \' + bad.join( \', \' ) + ( 1 === bad.length ? \' no se puede subir. Quítelo\' : \' no se pueden subir. Quítelos\' ) + \' de la lista o elija otro.\';
+		}
+		const max = parseInt( docs.dataset.fmcPostMax, 10 );
+		if ( max && total > max ) {
+			return \'No se puede guardar: los ficheros elegidos suman \' + humanSize( total ) + \' y en cada guardado caben \' + humanSize( max ) + \'. Quite alguno y súbalo en otro guardado.\';
+		}
+		return \'\';
+	}
+
+	function showDocsProblem( form, focus ) {
+		const text = docsProblem( form );
+		const alert = form && form.querySelector ? form.querySelector( \'[data-fmc-doc-alert]\' ) : null;
+		if ( alert ) {
+			alert.textContent = text;
+			alert.hidden = ! text;
+			if ( text && focus ) {
+				alert.focus();
+			}
+		}
+		return text;
+	}
+
+	// Antes que cualquier otro envío (va en captura): con un problema en los
+	// documentos no sale nada, ni a la página ni al panel.
+	function onDocSubmit( event ) {
+		if ( showDocsProblem( event.target, true ) ) {
+			event.preventDefault();
+			event.stopImmediatePropagation();
+		}
+	}
+
+	// Quitar un fichero de los elegidos: se rehace la lista sin él; donde el
+	// navegador no deja, se vacía la elección entera.
 	function unpick( input, index ) {
 		const keep = Array.prototype.slice.call( input.files || [] ).filter( function ( file, i ) {
 			return i !== index;
 		} );
-		if ( keep.length && window.DataTransfer ) {
-			const transfer = new window.DataTransfer();
-			keep.forEach( function ( file ) {
-				transfer.items.add( file );
-			} );
-			input.files = transfer.files;
-		} else {
+		input.dataset.fmcQuiet = \'\';
+		if ( ! keep.length || ! setFiles( input, keep ) ) {
 			input.value = \'\';
 		}
 		input.dispatchEvent( new Event( \'change\', { bubbles: true } ) );
@@ -11548,13 +11779,20 @@ body.has-panel { overflow: hidden; }
 		}
 		event.preventDefault();
 		if ( clear ) {
+			const box = input.closest( \'.fmc-doc\' ) ? input.closest( \'.fmc-doc\' ).querySelector( \'.fmc-doc-rm\' ) : null;
+			input.dataset.fmcQuiet = \'\';
 			input.value = \'\';
 			input.dispatchEvent( new Event( \'change\', { bubbles: true } ) );
+			docStatus( input, \'Se mantiene: \' + ( box ? box.dataset.fmcDocName : \'\' ) );
 			input.focus();
 			return;
 		}
 		const index = parseInt( drop.dataset.fmcIndex, 10 ) || 0;
+		const file = ( input.files || [] )[ index ];
 		unpick( input, index );
+		if ( file ) {
+			docStatus( input, \'No se subirá: \' + file.name );
+		}
 		// El foco, a la ficha que queda en su sitio, o a la zona si no queda ninguna.
 		const left = document.querySelectorAll( \'button[data-fmc-unpick="\' + input.id + \'"]\' );
 		const next = left[ Math.min( index, left.length - 1 ) ];
@@ -11562,19 +11800,59 @@ body.has-panel { overflow: hidden; }
 	}
 
 	// Marcar o desmarcar un documento para quitar: lo enseña el CSS; aquí se
-	// dice en voz alta y el foco se queda en la casilla, cuyo anillo se pinta
-	// en «Deshacer» o en el aspa, la que se vea.
+	// dice en voz alta, el foco se queda en la casilla —su anillo se pinta en
+	// «Deshacer» o en el aspa, la que se vea— y el reemplazo que hubiera
+	// elegido se apaga, para que no se suba un documento que se quita.
 	function onDocRemove( box ) {
 		const name = box.dataset.fmcDocName || \'\';
+		const item = box.closest( \'.fmc-doc\' );
+		const replace = item ? item.querySelector( \'input.fmc-file\' ) : null;
+		if ( replace ) {
+			replace.disabled = box.checked;
+			const note = document.querySelector( \'[data-fmc-picked="\' + replace.id + \'"]\' );
+			if ( note ) {
+				note.hidden = box.checked || ! ( replace.files && replace.files.length );
+			}
+		}
 		docStatus( box, box.checked ? \'Se quitará al guardar: \' + name : \'Se mantiene: \' + name );
+		showDocsProblem( box.form, false );
 		box.focus();
 	}
 
-	// Arrastrar encima de la zona la resalta; soltar lo hace el propio campo.
+	function carriesFiles( event ) {
+		const types = event.dataTransfer ? event.dataTransfer.types : null;
+		return !! types && -1 !== Array.prototype.indexOf.call( types, \'Files\' );
+	}
+
+	// Arrastrar ficheros: la zona para añadir se resalta y el propio campo los
+	// recibe; sobre la ficha de un documento guardado, el fichero lo
+	// reemplaza; en cualquier otro sitio de la ficha no se deja soltar, porque
+	// el navegador abriría el fichero y se perdería lo que no se ha guardado.
 	function onDrag( event ) {
-		const zone = event.target && event.target.closest ? event.target.closest( \'.fmc-drop\' ) : null;
+		if ( ! carriesFiles( event ) || ! document.querySelector( \'.fmc-docs\' ) ) {
+			return;
+		}
+		const target = event.target && event.target.closest ? event.target : document.documentElement;
+		const over = \'dragenter\' === event.type || \'dragover\' === event.type;
+		const zone = target.closest( \'.fmc-drop\' );
 		if ( zone ) {
-			zone.classList.toggle( \'is-over\', \'dragenter\' === event.type || \'dragover\' === event.type );
+			zone.classList.toggle( \'is-over\', over );
+			return;
+		}
+		const item = target.closest( \'.fmc-doc\' );
+		const replace = item ? item.querySelector( \'input.fmc-file:not([disabled])\' ) : null;
+		if ( \'dragleave\' !== event.type ) {
+			event.preventDefault();
+		}
+		if ( ! replace ) {
+			event.dataTransfer.dropEffect = \'none\';
+			return;
+		}
+		item.classList.toggle( \'is-over\', over );
+		event.dataTransfer.dropEffect = \'copy\';
+		const file = \'drop\' === event.type && event.dataTransfer.files ? event.dataTransfer.files[ 0 ] : null;
+		if ( file && setFiles( replace, [ file ] ) ) {
+			replace.dispatchEvent( new Event( \'change\', { bubbles: true } ) );
 		}
 	}
 
@@ -11584,7 +11862,9 @@ body.has-panel { overflow: hidden; }
 			return;
 		}
 		if ( target.classList && target.classList.contains( \'fmc-file\' ) ) {
+			mergePicked( target );
 			showPicked( target );
+			showDocsProblem( target.form, false );
 		}
 		if ( target.classList && target.classList.contains( \'fmc-doc-rm\' ) ) {
 			onDocRemove( target );
@@ -12041,6 +12321,7 @@ body.has-panel { overflow: hidden; }
 	document.addEventListener( \'click\', onSessionClick );
 	document.addEventListener( \'input\', onSessionInput );
 	document.addEventListener( \'click\', onDocClick );
+	document.addEventListener( \'submit\', onDocSubmit, true );
 	[ \'dragenter\', \'dragover\', \'dragleave\', \'drop\' ].forEach( function ( type ) {
 		document.addEventListener( type, onDrag );
 	} );
@@ -12086,6 +12367,8 @@ body.has-panel { overflow: hidden; }
 		onSessionInput: onSessionInput,
 		sessionHours: sessionHours,
 		onDocClick: onDocClick,
+		onDocSubmit: onDocSubmit,
+		humanSize: humanSize,
 		onDrag: onDrag,
 		showPicked: showPicked,
 	};
