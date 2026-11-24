@@ -8,6 +8,12 @@ lee de la cabecera superior y la escribe en el `@version` del bundle.
 `make release` crea el tag y la release en GitHub; el despliegue de los snippets
 en el sitio de destino se hace después.
 
+## [0.1.4] — 2026-11-24
+
+### Corregido
+
+- **Documentos del diseño: la zona para añadir dice el tamaño máximo de verdad** («hasta 50 MB cada uno») y no «hasta 0 B». En un multisitio con la cuota de la biblioteca de medios agotada salía 0, aunque los documentos no van a la biblioteca y se podían subir igual
+
 ## [0.1.3] — 2026-11-24
 
 ### Cambiado

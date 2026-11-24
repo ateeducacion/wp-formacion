@@ -6,7 +6,7 @@
  * Priority: 15
  *
  * @package Fmc
- * @version 0.1.3
+ * @version 0.1.4
  */
 
 // phpcs:disable
@@ -8280,9 +8280,26 @@ final class Editor {
 
 
 
+
+
+
+
+
+	private static function file_max( array $def ): int {
+		$max = (int) $def['max_mb'] * MB_IN_BYTES;
+		$php = (int) wp_convert_hr_to_bytes( (string) ini_get( 'upload_max_filesize' ) );
+		return $php > 0 ? min( $max, $php ) : $max;
+	}
+
+
+
+
+
+
+
 	private static function file_rules( array $def ): string {
 		$exts = explode( '|', implode( '|', array_keys( $def['mimes'] ) ) );
-		$max  = min( (int) $def['max_mb'] * MB_IN_BYTES, (int) wp_max_upload_size() );
+		$max  = self::file_max( $def );
 		return ' accept="' . esc_attr( '.' . implode( ',.', $exts ) ) . '" data-fmc-exts="' . esc_attr( implode( ',', $exts ) ) . '" data-fmc-max="' . esc_attr( (string) $max ) . '"';
 	}
 
@@ -8340,7 +8357,7 @@ final class Editor {
 
 	private static function drop_zone( string $kind, array $def ): string {
 		$aid   = 'fmc-add-' . $kind;
-		$max   = min( (int) $def['max_mb'] * MB_IN_BYTES, (int) wp_max_upload_size() );
+		$max   = self::file_max( $def );
 		$many  = (bool) $def['multiple'];
 		$limit = Documents::formats( $def['mimes'] ) . ' · hasta ' . size_format( $max ) . ( $many ? ' cada uno' : '' );
 		return '<div class="fmc-drop-wrap"><label class="fmc-drop" for="' . esc_attr( $aid ) . '">'

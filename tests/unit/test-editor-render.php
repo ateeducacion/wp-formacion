@@ -665,6 +665,28 @@ class Test_Editor_Render extends WP_UnitTestCase {
 	}
 
 	/**
+	 * El límite de un documento no depende de la cuota de la biblioteca de medios.
+	 *
+	 * En un multisitio con la cuota de subida agotada, `wp_max_upload_size()`
+	 * devuelve 0, y la zona decía «hasta 0 B cada uno». Los documentos no van a
+	 * la biblioteca: lo que los limita es el tope de su clase y el de PHP.
+	 */
+	public function test_the_document_limit_ignores_the_media_quota() {
+		$curator = $this->as_role( 'fmc_curator' );
+		$design  = $this->post( PostTypes::DESIGN, $curator, 'draft' );
+		$no_room = static function () {
+			return 0;
+		};
+		add_filter( 'upload_size_limit', $no_room );
+		$body = $this->screen_of( $design )['body'];
+		remove_filter( 'upload_size_limit', $no_room );
+
+		$this->assertStringNotContainsString( 'hasta 0 B', $body );
+		$slides = $this->find( $body, '//input[@id="fmc-add-slides"]' )->item( 0 );
+		$this->assertGreaterThan( 0, (int) $slides->getAttribute( 'data-fmc-max' ) );
+	}
+
+	/**
 	 * Los documentos de un diseño: cada uno se cambia o se quita; los del sistema anterior, como enlace.
 	 */
 	public function test_the_documents_section_of_a_design() {
@@ -722,7 +744,8 @@ class Test_Editor_Render extends WP_UnitTestCase {
 		// El navegador comprueba lo mismo que el servidor: formatos, tamaño y el total de un envío.
 		$slides = $this->find( $body, '//input[@id="fmc-add-slides"]' )->item( 0 );
 		$this->assertSame( 'ppt,pptx,odp', $slides->getAttribute( 'data-fmc-exts' ) );
-		$this->assertSame( (string) min( 50 * MB_IN_BYTES, wp_max_upload_size() ), $slides->getAttribute( 'data-fmc-max' ) );
+		$php_max = (int) wp_convert_hr_to_bytes( (string) ini_get( 'upload_max_filesize' ) );
+		$this->assertSame( (string) ( $php_max > 0 ? min( 50 * MB_IN_BYTES, $php_max ) : 50 * MB_IN_BYTES ), $slides->getAttribute( 'data-fmc-max' ) );
 		$this->assertSame( 'doc,docx,odt', $this->find( $body, '//input[@name="fmc_replace[' . $doc . ']"]' )->item( 0 )->getAttribute( 'data-fmc-exts' ) );
 		$post_max = (int) wp_convert_hr_to_bytes( (string) ini_get( 'post_max_size' ) );
 		if ( $post_max ) {
