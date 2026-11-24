@@ -745,6 +745,23 @@ final class Editor {
 	}
 
 	/**
+	 * The most one document of a kind may weigh, in bytes.
+	 *
+	 * The kind's own cap, lowered to PHP's `upload_max_filesize` when that is
+	 * smaller. Not `wp_max_upload_size()`: on a multisite it also applies the
+	 * media library quota, and returns 0 once that quota is used up, while
+	 * these documents live in their own store and never count towards it.
+	 *
+	 * @param array<string, mixed> $def Kind definition, from {@see Documents::kinds()}.
+	 * @return int
+	 */
+	private static function file_max( array $def ): int {
+		$max = (int) $def['max_mb'] * MB_IN_BYTES;
+		$php = (int) wp_convert_hr_to_bytes( (string) ini_get( 'upload_max_filesize' ) );
+		return $php > 0 ? min( $max, $php ) : $max;
+	}
+
+	/**
 	 * Attributes of a file input that let the browser check a file as the server will.
 	 *
 	 * @param array<string, mixed> $def Kind definition, from {@see Documents::kinds()}.
@@ -752,7 +769,7 @@ final class Editor {
 	 */
 	private static function file_rules( array $def ): string {
 		$exts = explode( '|', implode( '|', array_keys( $def['mimes'] ) ) );
-		$max  = min( (int) $def['max_mb'] * MB_IN_BYTES, (int) wp_max_upload_size() );
+		$max  = self::file_max( $def );
 		return ' accept="' . esc_attr( '.' . implode( ',.', $exts ) ) . '" data-fmc-exts="' . esc_attr( implode( ',', $exts ) ) . '" data-fmc-max="' . esc_attr( (string) $max ) . '"';
 	}
 
@@ -810,7 +827,7 @@ final class Editor {
 	 */
 	private static function drop_zone( string $kind, array $def ): string {
 		$aid   = 'fmc-add-' . $kind;
-		$max   = min( (int) $def['max_mb'] * MB_IN_BYTES, (int) wp_max_upload_size() );
+		$max   = self::file_max( $def );
 		$many  = (bool) $def['multiple'];
 		$limit = Documents::formats( $def['mimes'] ) . ' · hasta ' . size_format( $max ) . ( $many ? ' cada uno' : '' );
 		return '<div class="fmc-drop-wrap"><label class="fmc-drop" for="' . esc_attr( $aid ) . '">'
