@@ -16,6 +16,9 @@ function detach() {
 		document.removeEventListener( 'click', window.fmcApp.onSessionClick );
 		document.removeEventListener( 'input', window.fmcApp.onSessionInput );
 		document.removeEventListener( 'change', window.fmcApp.onChange );
+		document.removeEventListener( 'click', window.fmcApp.onDocClick );
+		document.removeEventListener( 'submit', window.fmcApp.onDocSubmit, true );
+		[ 'dragenter', 'dragover', 'dragleave', 'drop' ].forEach( ( type ) => document.removeEventListener( type, window.fmcApp.onDrag ) );
 	}
 }
 
@@ -371,8 +374,7 @@ describe( 'campos que dependen de otro', () => {
 		document.body.innerHTML = '<form><select name="f[fmc_modality]"><option value="">—</option><option value="onsite">Presencial</option><option value="online">En línea</option><option value="blended">Mixta</option></select>'
 			+ '<div id="on" data-fmc-show="f[fmc_modality]" data-fmc-show-values="onsite,blended"></div>'
 			+ '<div id="off" data-fmc-show="f[fmc_modality]" data-fmc-show-values="online,blended"></div>'
-			+ '<input type="radio" name="f[fmc_training_plans]" value="" checked><input type="radio" name="f[fmc_training_plans]" value="plan"><div id="plan" data-fmc-show="f[fmc_training_plans]" data-fmc-show-values="plan,seminar"></div>'
-			+ '<input class="fmc-file" type="file" id="up"><span class="fmc-file-name" data-for="up"></span></form>';
+			+ '<input type="radio" name="f[fmc_training_plans]" value="" checked><input type="radio" name="f[fmc_training_plans]" value="plan"><div id="plan" data-fmc-show="f[fmc_training_plans]" data-fmc-show-values="plan,seminar"></div></form>';
 		await load();
 	} );
 	afterEach( () => detach() );
@@ -404,12 +406,303 @@ describe( 'campos que dependen de otro', () => {
 		change( none );
 		expect( document.getElementById( 'plan' ).classList.contains( 'd-none' ) ).toBe( true );
 	} );
+} );
 
-	it( 'el fichero elegido se nombra', () => {
-		const input = document.getElementById( 'up' );
-		Object.defineProperty( input, 'files', { value: [ { name: 'diseño.pdf' } ] } );
+describe( 'los documentos del diseño', () => {
+	const MB = 1048576;
+
+	// As Editor::docs() renders them: one stored document and the add area.
+	beforeEach( async () => {
+		document.body.innerHTML = '<form><div class="fmc-docs" data-fmc-post-max="' + ( 8 * MB ) + '"><p data-fmc-doc-status aria-live="polite"></p>'
+			+ '<p class="fmc-doc-alert" data-fmc-doc-alert tabindex="-1" hidden></p>'
+			+ '<ul class="fmc-doc-list"><li class="fmc-doc">'
+			+ '<div class="fmc-doc-card"><div class="fmc-doc-main"><input class="fmc-file" type="file" id="fmc-replace-7" name="fmc_replace[7]" data-fmc-exts="doc,docx,odt" data-fmc-max="' + ( 20 * MB ) + '"><label for="fmc-replace-7">Reemplazar</label>'
+			+ '<p class="fmc-doc-pending" data-fmc-picked="fmc-replace-7" hidden><span>Se reemplazará al guardar por: <strong data-fmc-picked-name></strong></span> <button type="button" data-fmc-file-clear="fmc-replace-7">Cancelar</button></p></div>'
+			+ '<label class="fmc-doc-x" for="fmc-remove-7">Quitar</label></div>'
+			+ '<input class="fmc-doc-rm" type="checkbox" id="fmc-remove-7" name="fmc_remove[]" value="7" aria-label="Quitar: escaleta.docx" data-fmc-doc-name="escaleta.docx">'
+			+ '<div class="fmc-doc-gone">Se quitará al guardar <label class="fmc-doc-undo" for="fmc-remove-7">Deshacer</label></div></li></ul>'
+			+ '<label class="fmc-drop" for="fmc-add-slides"><input class="fmc-file fmc-drop-input" type="file" id="fmc-add-slides" name="fmc_doc[slides][]" data-fmc-exts="ppt,pptx,odp" data-fmc-max="' + ( 5 * MB ) + '" multiple></label>'
+			+ '<ul class="fmc-drop-list" data-fmc-picked="fmc-add-slides"></ul></div><button>Guardar</button></form>';
+		await load();
+	} );
+	afterEach( () => {
+		delete window.DataTransfer;
+		detach();
+	} );
+
+	function change( el ) {
+		el.dispatchEvent( new Event( 'change', { bubbles: true } ) );
+	}
+
+	// jsdom does not let `files` be written: emulate it, and make an empty value empty it.
+	function fakeFiles( input, files ) {
+		let list = files;
+		Object.defineProperty( input, 'files', { configurable: true, get: () => list, set: ( v ) => {
+			list = Array.from( v );
+		} } );
+		Object.defineProperty( input, 'value', { configurable: true, get: () => ( list.length ? list[ 0 ].name : '' ), set: ( v ) => {
+			if ( '' === v ) {
+				list = [];
+			}
+		} } );
+	}
+
+	function pick( input, files ) {
+		fakeFiles( input, files );
 		change( input );
-		expect( document.querySelector( '.fmc-file-name' ).textContent ).toBe( 'Se subirá al guardar: diseño.pdf' );
+	}
+
+	// A DataTransfer good enough for what the script does with it.
+	function withDataTransfer() {
+		window.DataTransfer = class {
+			constructor() {
+				this.files = [];
+				this.items = { add: ( f ) => this.files.push( f ) };
+			}
+		};
+	}
+
+	function drag( target, type, dataTransfer ) {
+		const event = new Event( type, { bubbles: true, cancelable: true } );
+		Object.defineProperty( event, 'dataTransfer', { value: dataTransfer } );
+		target.dispatchEvent( event );
+		return event;
+	}
+
+	function submitForm() {
+		const event = new Event( 'submit', { bubbles: true, cancelable: true } );
+		document.querySelector( 'form' ).dispatchEvent( event );
+		return event;
+	}
+
+	const file = ( name, size, lastModified ) => ( { name, size, lastModified: lastModified || 1 } );
+	const status = () => document.querySelector( '[data-fmc-doc-status]' ).textContent;
+	const alertBox = () => document.querySelector( '[data-fmc-doc-alert]' );
+	const names = ( input ) => Array.from( input.files, ( f ) => f.name );
+
+	it( 'el aspa marca la casilla de quitar, sin borrar nada, y «Deshacer» la desmarca', () => {
+		const box = document.getElementById( 'fmc-remove-7' );
+		document.querySelector( '.fmc-doc-x' ).click();
+		expect( box.checked ).toBe( true );
+		expect( new FormData( document.querySelector( 'form' ) ).getAll( 'fmc_remove[]' ) ).toEqual( [ '7' ] );
+		expect( document.activeElement ).toBe( box );
+		expect( status() ).toBe( 'Se quitará al guardar: escaleta.docx' );
+
+		document.querySelector( '.fmc-doc-undo' ).click();
+		expect( box.checked ).toBe( false );
+		expect( new FormData( document.querySelector( 'form' ) ).getAll( 'fmc_remove[]' ) ).toEqual( [] );
+		expect( document.activeElement ).toBe( box );
+		expect( status() ).toBe( 'Se mantiene: escaleta.docx' );
+	} );
+
+	it( 'quitar un documento apaga su reemplazo, y «Deshacer» lo recupera', () => {
+		const input = document.getElementById( 'fmc-replace-7' );
+		const note = document.querySelector( '[data-fmc-picked="fmc-replace-7"]' );
+		pick( input, [ file( 'escaleta-v2.docx', 2048 ) ] );
+		document.querySelector( '.fmc-doc-x' ).click();
+		expect( input.disabled ).toBe( true );
+		expect( note.hidden ).toBe( true );
+
+		document.querySelector( '.fmc-doc-undo' ).click();
+		expect( input.disabled ).toBe( false );
+		expect( note.hidden ).toBe( false );
+	} );
+
+	it( 'el reemplazo elegido se anuncia y se puede cancelar', () => {
+		const input = document.getElementById( 'fmc-replace-7' );
+		const note = document.querySelector( '[data-fmc-picked="fmc-replace-7"]' );
+		pick( input, [ file( 'escaleta-v2.docx', 2048 ) ] );
+		expect( note.hidden ).toBe( false );
+		expect( note.textContent ).toContain( 'Se reemplazará al guardar por: escaleta-v2.docx' );
+
+		note.querySelector( 'button' ).click();
+		expect( input.value ).toBe( '' );
+		expect( note.hidden ).toBe( true );
+		expect( document.activeElement ).toBe( input );
+		expect( status() ).toBe( 'Se mantiene: escaleta.docx' );
+	} );
+
+	it( 'un reemplazo de otro formato se dice y no deja guardar', () => {
+		const note = document.querySelector( '[data-fmc-picked="fmc-replace-7"]' );
+		pick( document.getElementById( 'fmc-replace-7' ), [ file( 'escaleta.pdf', 2048 ) ] );
+		expect( note.classList.contains( 'is-bad' ) ).toBe( true );
+		expect( note.textContent ).toContain( 'No se admite el formato PDF' );
+		expect( submitForm().defaultPrevented ).toBe( true );
+		expect( alertBox().hidden ).toBe( false );
+		expect( alertBox().textContent ).toContain( '«escaleta.pdf» no se puede subir' );
+		expect( document.activeElement ).toBe( alertBox() );
+	} );
+
+	it( 'los ficheros que se añaden salen como fichas pendientes', () => {
+		const input = document.getElementById( 'fmc-add-slides' );
+		pick( input, [ file( 'sesion1.pptx', 3 * MB ), file( 'guion.odp', 500 ) ] );
+		const cards = document.querySelectorAll( '.fmc-drop-list .fmc-doc' );
+		expect( cards ).toHaveLength( 2 );
+		expect( cards[ 0 ].textContent ).toContain( 'PPTX' );
+		expect( cards[ 0 ].textContent ).toContain( 'sesion1.pptx' );
+		expect( cards[ 0 ].textContent ).toContain( '3 MB' );
+		expect( cards[ 0 ].textContent ).toContain( 'Se subirá al guardar' );
+		expect( cards[ 1 ].querySelector( '.fmc-doc-type' ).dataset.family ).toBe( 'slides' );
+		expect( cards[ 1 ].querySelector( 'button' ).getAttribute( 'aria-label' ) ).toBe( 'No subir: guion.odp' );
+		expect( status() ).toBe( 'Se subirán al guardar 2 ficheros' );
+		expect( submitForm().defaultPrevented ).toBe( false );
+	} );
+
+	it( 'lo que el servidor no admite se marca y no deja guardar hasta quitarlo', () => {
+		withDataTransfer();
+		const input = document.getElementById( 'fmc-add-slides' );
+		pick( input, [ file( 'enorme.pptx', 6 * MB ), file( 'virus.exe', 10 ), file( 'bien.odp', 10 ) ] );
+		const cards = document.querySelectorAll( '.fmc-drop-list .fmc-doc' );
+		expect( cards[ 0 ].classList.contains( 'is-bad' ) ).toBe( true );
+		expect( cards[ 0 ].textContent ).toContain( 'Pasa de 5 MB' );
+		expect( cards[ 1 ].textContent ).toContain( 'No se admite el formato EXE' );
+		expect( cards[ 2 ].classList.contains( 'is-bad' ) ).toBe( false );
+		expect( status() ).toBe( 'Se subirá al guardar: bien.odp. 2 no se pueden subir' );
+		expect( alertBox().hidden ).toBe( false );
+		expect( submitForm().defaultPrevented ).toBe( true );
+
+		document.querySelector( '.fmc-drop-list button' ).click();
+		document.querySelector( '.fmc-drop-list button' ).click();
+		expect( names( input ) ).toEqual( [ 'bien.odp' ] );
+		expect( alertBox().hidden ).toBe( true );
+		expect( submitForm().defaultPrevented ).toBe( false );
+	} );
+
+	it( 'si entre todos pasan de lo que admite un envío, no deja guardar', () => {
+		pick( document.getElementById( 'fmc-add-slides' ), [ file( 'a.pptx', 4 * MB ), file( 'b.pptx', 4 * MB ) ] );
+		expect( alertBox().hidden ).toBe( true );
+		pick( document.getElementById( 'fmc-replace-7' ), [ file( 'c.docx', 2 * MB ) ] );
+		expect( alertBox().hidden ).toBe( false );
+		expect( alertBox().textContent ).toContain( 'suman 10 MB y en cada guardado caben 8 MB' );
+		const event = submitForm();
+		expect( event.defaultPrevented ).toBe( true );
+
+		// Si el documento se quita, su reemplazo no viaja y ya cabe.
+		document.querySelector( '.fmc-doc-x' ).click();
+		expect( alertBox().hidden ).toBe( true );
+		expect( submitForm().defaultPrevented ).toBe( false );
+	} );
+
+	it( 'elegir otra vez suma a lo elegido, sin repetir', () => {
+		withDataTransfer();
+		const input = document.getElementById( 'fmc-add-slides' );
+		pick( input, [ file( 'a.pptx', 1 ), file( 'b.pptx', 1 ) ] );
+		pick( input, [ file( 'b.pptx', 1 ), file( 'c.pptx', 1 ) ] );
+		expect( names( input ) ).toEqual( [ 'a.pptx', 'b.pptx', 'c.pptx' ] );
+		expect( document.querySelectorAll( '.fmc-drop-list .fmc-doc' ) ).toHaveLength( 3 );
+		expect( document.querySelector( '.fmc-doc-replaces' ) ).toBeNull();
+	} );
+
+	it( 'sin DataTransfer, se avisa de que elegir otra vez sustituye', () => {
+		const input = document.getElementById( 'fmc-add-slides' );
+		pick( input, [ file( 'a.pptx', 1 ) ] );
+		pick( input, [ file( 'b.pptx', 1 ) ] );
+		expect( names( input ) ).toEqual( [ 'b.pptx' ] );
+		expect( document.querySelector( '.fmc-doc-replaces' ).textContent ).toContain( 'la nueva elección sustituye' );
+	} );
+
+	it( 'un fichero pendiente se quita de la subida, se dice y el foco va al que queda', () => {
+		withDataTransfer();
+		const input = document.getElementById( 'fmc-add-slides' );
+		pick( input, [ file( 'a.pptx', 1 ), file( 'b.pptx', 1 ) ] );
+		document.querySelector( '.fmc-drop-list button' ).click();
+		expect( names( input ) ).toEqual( [ 'b.pptx' ] );
+		expect( status() ).toBe( 'No se subirá: a.pptx' );
+		const left = document.querySelectorAll( '.fmc-drop-list button' );
+		expect( left ).toHaveLength( 1 );
+		expect( document.activeElement ).toBe( left[ 0 ] );
+
+		left[ 0 ].click();
+		expect( input.files ).toHaveLength( 0 );
+		expect( document.querySelectorAll( '.fmc-drop-list li' ) ).toHaveLength( 0 );
+		expect( document.activeElement ).toBe( input );
+		expect( status() ).toBe( 'No se subirá: b.pptx' );
+
+		// Lo quitado no vuelve al elegir otro.
+		pick( input, [ file( 'c.pptx', 1 ) ] );
+		expect( names( input ) ).toEqual( [ 'c.pptx' ] );
+	} );
+
+	it( 'sin DataTransfer, quitar uno vacía la elección', () => {
+		const input = document.getElementById( 'fmc-add-slides' );
+		pick( input, [ file( 'a.pptx', 1 ), file( 'b.pptx', 1 ) ] );
+		document.querySelector( '.fmc-drop-list button' ).click();
+		expect( input.files ).toHaveLength( 0 );
+		expect( document.querySelectorAll( '.fmc-drop-list li' ) ).toHaveLength( 0 );
+	} );
+
+	it( 'si DataTransfer falla, quitar uno vacía la elección y rehace la lista', () => {
+		window.DataTransfer = class {
+			constructor() {
+				throw new TypeError( 'Illegal constructor' );
+			}
+		};
+		const input = document.getElementById( 'fmc-add-slides' );
+		pick( input, [ file( 'a.pptx', 1 ), file( 'b.pptx', 1 ) ] );
+		expect( () => document.querySelector( '.fmc-drop-list button' ).click() ).not.toThrow();
+		expect( input.files ).toHaveLength( 0 );
+		expect( document.querySelectorAll( '.fmc-drop-list li' ) ).toHaveLength( 0 );
+	} );
+
+	it( 'arrastrar ficheros encima resalta la zona, y soltar o salir la apaga', () => {
+		const input = document.getElementById( 'fmc-add-slides' );
+		const zone = document.querySelector( '.fmc-drop' );
+		const files = { types: [ 'Files' ], files: [], dropEffect: '' };
+		drag( input, 'dragenter', files );
+		expect( zone.classList.contains( 'is-over' ) ).toBe( true );
+		drag( input, 'dragleave', files );
+		expect( zone.classList.contains( 'is-over' ) ).toBe( false );
+		drag( input, 'dragover', files );
+		const drop = drag( input, 'drop', files );
+		expect( zone.classList.contains( 'is-over' ) ).toBe( false );
+		expect( drop.defaultPrevented ).toBe( false );
+
+		// Arrastrar texto no es arrastrar ficheros.
+		drag( input, 'dragenter', { types: [ 'text/plain' ], dropEffect: '' } );
+		expect( zone.classList.contains( 'is-over' ) ).toBe( false );
+	} );
+
+	it( 'un fichero soltado fuera de una zona no se abre en el navegador', () => {
+		const data = { types: [ 'Files' ], files: [ file( 'x.pdf', 1 ) ], dropEffect: '' };
+		const outside = document.querySelector( '[data-fmc-doc-status]' );
+		expect( drag( outside, 'dragover', data ).defaultPrevented ).toBe( true );
+		expect( data.dropEffect ).toBe( 'none' );
+		expect( drag( outside, 'drop', data ).defaultPrevented ).toBe( true );
+		expect( drag( outside, 'dragover', { types: [ 'text/plain' ], dropEffect: '' } ).defaultPrevented ).toBe( false );
+	} );
+
+	it( 'un fichero soltado sobre un documento guardado lo reemplaza', () => {
+		withDataTransfer();
+		const input = document.getElementById( 'fmc-replace-7' );
+		fakeFiles( input, [] );
+		const card = document.querySelector( '.fmc-doc-card' );
+		const data = { types: [ 'Files' ], files: [ file( 'nueva.docx', 10 ) ], dropEffect: '' };
+		expect( drag( card, 'dragover', data ).defaultPrevented ).toBe( true );
+		expect( data.dropEffect ).toBe( 'copy' );
+		expect( card.closest( '.fmc-doc' ).classList.contains( 'is-over' ) ).toBe( true );
+		drag( card, 'drop', data );
+		expect( names( input ) ).toEqual( [ 'nueva.docx' ] );
+		expect( document.querySelector( '[data-fmc-picked="fmc-replace-7"]' ).textContent ).toContain( 'nueva.docx' );
+
+		// Marcado para quitar, ya no se reemplaza.
+		document.querySelector( '.fmc-doc-x' ).click();
+		const later = { types: [ 'Files' ], files: [ file( 'otra.docx', 10 ) ], dropEffect: '' };
+		expect( drag( card, 'drop', later ).defaultPrevented ).toBe( true );
+		expect( later.dropEffect ).toBe( 'none' );
+		expect( names( input ) ).toEqual( [ 'nueva.docx' ] );
+	} );
+
+	it( 'los tamaños se escriben como los escribe WordPress', () => {
+		const size = window.fmcApp.humanSize;
+		expect( size( 0 ) ).toBe( '0 B' );
+		expect( size( 665 ) ).toBe( '665 B' );
+		expect( size( 1024 ) ).toBe( '1 KB' );
+		expect( size( 20480 ) ).toBe( '20 KB' );
+		expect( size( MB - 1 ) ).toBe( '1024 KB' );
+		expect( size( MB ) ).toBe( '1 MB' );
+		expect( size( 1.6 * MB ) ).toBe( '2 MB' );
+		expect( size( 3 * 1073741824 ) ).toBe( '3 GB' );
+		expect( size( undefined ) ).toBe( '' );
 	} );
 } );
 

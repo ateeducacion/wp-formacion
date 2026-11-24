@@ -569,6 +569,36 @@ class Test_Documents extends WP_UnitTestCase {
 	}
 
 	/**
+	 * La miniatura de la imagen se revalida con su ETag; el permiso se comprueba antes.
+	 */
+	public function test_the_image_is_revalidated_with_its_etag() {
+		$id    = $this->curator_design();
+		$image = $this->stored( $id, 'image', $this->png( 'portada.png' ) );
+
+		$answer = Documents::answer( $image );
+		$this->assertSame( 200, $answer['status'] );
+		$this->assertContains( 'Cache-Control: private, no-cache', $answer['headers'] );
+		$etags = preg_grep( '/^ETag: "[0-9a-f]{32}"$/', $answer['headers'] );
+		$this->assertCount( 1, $etags );
+		$etag = substr( (string) reset( $etags ), 6 );
+
+		$again = Documents::answer( $image, 'W/"otro", ' . $etag );
+		$this->assertSame( 304, $again['status'] );
+		$this->assertSame( '', $again['body'] );
+		$this->assertContains( 'ETag: ' . $etag, $again['headers'] );
+		$this->assertSame( 200, Documents::answer( $image, '"otro"' )['status'] );
+
+		wp_set_current_user( self::factory()->user->create( array( 'role' => 'fmc_adviser' ) ) );
+		$this->assertSame( 404, Documents::answer( $image, $etag )['status'], 'sin permiso no hay 304' );
+
+		// El resto de documentos no se guarda en el navegador.
+		wp_set_current_user( (int) get_post_field( 'post_author', $id ) );
+		$doc = $this->stored( $id, 'support', $this->upload( 'recurso.pdf', self::PDF ) );
+		$this->assertContains( 'Cache-Control: private, no-store', Documents::answer( $doc )['headers'] );
+		$this->assertEmpty( preg_grep( '/^ETag/', Documents::answer( $doc )['headers'] ) );
+	}
+
+	/**
 	 * `serve()` manda lo que dice `answer()`: a entrar, o con su código.
 	 */
 	public function test_serve_sends_the_answer() {

@@ -10,7 +10,10 @@
  * 4. Los campos con `data-fmc-show` se ven solo si otro campo tiene uno de
  *    los valores de `data-fmc-show-values` (las horas según la modalidad, por
  *    ejemplo). El servidor aplica la misma regla al guardar.
- * 5. Al elegir un fichero, su nombre aparece al lado del botón.
+ * 5. Los documentos del diseño: lo elegido para subir o para reemplazar se
+ *    enseña antes de guardar, cada fichero nuevo con su aspa para no subirlo;
+ *    la zona para añadir se resalta al arrastrar encima. Quitar y «Deshacer»
+ *    no necesitan guion: son etiquetas de la casilla `fmc_remove[]`.
  * 6. Los `textarea[data-fmc-rich]` llevan el TinyMCE que trae WordPress,
  *    con lo justo: negrita, cursiva y listas. Sin él, se quedan como cuadro
  *    de texto y el HTML se guarda igual.
@@ -287,19 +290,396 @@
 			} );
 	}
 
+	// Documentos: la familia de un fichero por su extensión, como la pinta el
+	// servidor en la ficha de cada documento guardado.
+	const DOC_FAMILIES = {
+		pdf: 'pdf',
+		doc: 'text',
+		docx: 'text',
+		odt: 'text',
+		rtf: 'text',
+		txt: 'text',
+		ppt: 'slides',
+		pptx: 'slides',
+		odp: 'slides',
+		jpg: 'image',
+		jpeg: 'image',
+		png: 'image',
+		gif: 'image',
+		webp: 'image',
+	};
+
+	const ICON_X = '<svg class="fmc-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M6 6l12 12M18 6L6 18"/></svg>';
+
+	// Lo ya elegido en cada zona que admite varios: una elección nueva se suma.
+	const pickedBefore = new WeakMap();
+
+	function extensionOf( name ) {
+		const match = /\.([^.]+)$/.exec( name || '' );
+		return match ? match[ 1 ].toLowerCase() : '';
+	}
+
+	function docBadge( name ) {
+		const ext = extensionOf( name );
+		const badge = document.createElement( 'span' );
+		badge.className = 'fmc-doc-type';
+		badge.dataset.family = DOC_FAMILIES[ ext ] || 'other';
+		badge.setAttribute( 'aria-hidden', 'true' );
+		badge.textContent = ext ? ext.slice( 0, 4 ).toUpperCase() : 'FICH';
+		return badge;
+	}
+
+	// Same units and rounding as WordPress's size_format(): binary units, no decimals.
+	function humanSize( bytes ) {
+		if ( 'number' !== typeof bytes || bytes < 0 ) {
+			return '';
+		}
+		const units = [ [ 'TB', 1099511627776 ], [ 'GB', 1073741824 ], [ 'MB', 1048576 ], [ 'KB', 1024 ] ];
+		for ( let i = 0; i < units.length; i++ ) {
+			if ( bytes >= units[ i ][ 1 ] ) {
+				return Math.round( bytes / units[ i ][ 1 ] ) + ' ' + units[ i ][ 0 ];
+			}
+		}
+		return bytes + ' B';
+	}
+
+	// Lo mismo que comprueba el servidor al guardar: el formato y el tamaño.
+	function fileProblem( input, file ) {
+		const exts = ( input.dataset.fmcExts || '' ).split( ',' ).filter( Boolean );
+		const ext = extensionOf( file.name );
+		if ( exts.length && -1 === exts.indexOf( ext ) ) {
+			return ext ? 'No se admite el formato ' + ext.toUpperCase() : 'No se admite un fichero sin extensión';
+		}
+		const max = parseInt( input.dataset.fmcMax, 10 );
+		if ( max && file.size > max ) {
+			return 'Pasa de ' + humanSize( max );
+		}
+		return '';
+	}
+
+	function fileKey( file ) {
+		return file.name + '|' + file.size + '|' + file.lastModified;
+	}
+
+	// Rewrites the files of an input; false where the browser does not allow it.
+	function setFiles( input, files ) {
+		try {
+			const transfer = new window.DataTransfer();
+			files.forEach( function ( file ) {
+				transfer.items.add( file );
+			} );
+			input.files = transfer.files;
+			return true;
+		} catch ( error ) {
+			return false;
+		}
+	}
+
+	function canSetFiles() {
+		try {
+			return !! new window.DataTransfer();
+		} catch ( error ) {
+			return false;
+		}
+	}
+
+	// Lo que se dice a un lector de pantalla cuando cambia algo de la lista.
+	function docStatus( el, text ) {
+		const docs = el.closest( '.fmc-docs' );
+		const region = docs && docs.querySelector( '[data-fmc-doc-status]' );
+		if ( region ) {
+			region.textContent = text;
+		}
+	}
+
+	// Una elección nueva en una zona que admite varios se suma a la anterior,
+	// sin repetir ficheros. Los cambios que hace el propio guion (quitar uno,
+	// cancelar) llevan `fmcQuiet` y no se suman.
+	function mergePicked( input ) {
+		if ( ! input.multiple ) {
+			return;
+		}
+		const quiet = 'fmcQuiet' in input.dataset;
+		delete input.dataset.fmcQuiet;
+		const before = pickedBefore.get( input ) || [];
+		const now = Array.prototype.slice.call( input.files || [] );
+		if ( ! quiet && before.length ) {
+			const all = before.slice();
+			const keys = all.map( fileKey );
+			now.forEach( function ( file ) {
+				if ( -1 === keys.indexOf( fileKey( file ) ) ) {
+					all.push( file );
+					keys.push( fileKey( file ) );
+				}
+			} );
+			if ( all.length !== now.length ) {
+				setFiles( input, all );
+			}
+		}
+		pickedBefore.set( input, Array.prototype.slice.call( input.files || [] ) );
+	}
+
+	function pendingCard( input, file, index ) {
+		const problem = fileProblem( input, file );
+		const item = document.createElement( 'li' );
+		item.className = 'fmc-doc is-new' + ( problem ? ' is-bad' : '' );
+		const card = document.createElement( 'div' );
+		card.className = 'fmc-doc-card';
+		const main = document.createElement( 'div' );
+		main.className = 'fmc-doc-main';
+		const name = document.createElement( 'span' );
+		name.className = 'fmc-doc-name';
+		name.title = file.name;
+		name.textContent = file.name;
+		main.append( name );
+		const size = humanSize( file.size );
+		if ( size ) {
+			const meta = document.createElement( 'span' );
+			meta.className = 'fmc-doc-meta';
+			meta.textContent = size;
+			main.append( meta );
+		}
+		const note = document.createElement( 'span' );
+		note.className = 'fmc-doc-new';
+		note.textContent = problem ? problem + ': no se subirá. Quítelo de la lista.' : 'Se subirá al guardar';
+		main.append( note );
+		const drop = document.createElement( 'button' );
+		drop.type = 'button';
+		drop.className = 'fmc-doc-x';
+		drop.title = 'No subir';
+		drop.dataset.fmcUnpick = input.id;
+		drop.dataset.fmcIndex = String( index );
+		drop.setAttribute( 'aria-label', 'No subir: ' + file.name );
+		drop.innerHTML = ICON_X;
+		card.append( docBadge( file.name ), main, drop );
+		item.append( card );
+		return item;
+	}
+
+	// Lo elegido en un campo de fichero se enseña antes de guardar: en un
+	// documento guardado, «Se reemplazará al guardar por…»; en la zona para
+	// añadir, una ficha por fichero, «Se subirá al guardar», cada una con su
+	// aspa para no subirlo. Lo que el servidor no va a admitir se dice ya.
+	function showPicked( input ) {
+		const box = document.querySelector( '[data-fmc-picked="' + input.id + '"]' );
+		if ( ! box ) {
+			return;
+		}
+		const files = Array.prototype.slice.call( input.files || [] );
+		if ( 'UL' !== box.tagName ) {
+			const problem = files.length ? fileProblem( input, files[ 0 ] ) : '';
+			const name = box.querySelector( '[data-fmc-picked-name]' );
+			if ( name ) {
+				name.textContent = files.length ? files[ 0 ].name : '';
+			}
+			let why = box.querySelector( '[data-fmc-picked-problem]' );
+			if ( ! why ) {
+				why = document.createElement( 'span' );
+				why.className = 'fmc-doc-problem';
+				why.dataset.fmcPickedProblem = '';
+				box.insertBefore( why, box.querySelector( 'button' ) );
+			}
+			why.textContent = problem ? ' ' + problem + ': no se puede guardar así.' : '';
+			box.classList.toggle( 'is-bad', !! problem );
+			box.hidden = ! files.length || input.disabled;
+			docStatus( input, files.length ? 'Se reemplazará al guardar por: ' + files[ 0 ].name + ( problem ? '. ' + problem : '' ) : '' );
+			return;
+		}
+		box.textContent = '';
+		files.forEach( function ( file, index ) {
+			box.append( pendingCard( input, file, index ) );
+		} );
+		if ( input.multiple && files.length && ! canSetFiles() ) {
+			const note = document.createElement( 'li' );
+			note.className = 'fmc-doc-replaces';
+			note.textContent = 'Si vuelve a elegir, la nueva elección sustituye a esta.';
+			box.append( note );
+		}
+		const fine = files.filter( function ( file ) {
+			return ! fileProblem( input, file );
+		} );
+		let text = '';
+		if ( 1 === fine.length ) {
+			text = 'Se subirá al guardar: ' + fine[ 0 ].name;
+		} else if ( fine.length ) {
+			text = 'Se subirán al guardar ' + fine.length + ' ficheros';
+		}
+		if ( fine.length < files.length ) {
+			text += ( text ? '. ' : '' ) + ( files.length - fine.length ) + ' no se pueden subir';
+		}
+		docStatus( input, text );
+	}
+
+	// Lo que impide guardar los documentos: un fichero que el servidor no
+	// admite, o que entre todos pasen de lo que PHP acepta en un envío, que
+	// entonces tira el formulario entero sin decir nada.
+	function docsProblem( form ) {
+		const docs = form && form.querySelector ? form.querySelector( '.fmc-docs' ) : null;
+		if ( ! docs ) {
+			return '';
+		}
+		let total = 0;
+		const bad = [];
+		form.querySelectorAll( 'input.fmc-file' ).forEach( function ( input ) {
+			if ( input.disabled ) {
+				return;
+			}
+			Array.prototype.forEach.call( input.files || [], function ( file ) {
+				total += file.size || 0;
+				if ( fileProblem( input, file ) ) {
+					bad.push( '«' + file.name + '»' );
+				}
+			} );
+		} );
+		if ( bad.length ) {
+			return 'No se puede guardar: ' + bad.join( ', ' ) + ( 1 === bad.length ? ' no se puede subir. Quítelo' : ' no se pueden subir. Quítelos' ) + ' de la lista o elija otro.';
+		}
+		const max = parseInt( docs.dataset.fmcPostMax, 10 );
+		if ( max && total > max ) {
+			return 'No se puede guardar: los ficheros elegidos suman ' + humanSize( total ) + ' y en cada guardado caben ' + humanSize( max ) + '. Quite alguno y súbalo en otro guardado.';
+		}
+		return '';
+	}
+
+	function showDocsProblem( form, focus ) {
+		const text = docsProblem( form );
+		const alert = form && form.querySelector ? form.querySelector( '[data-fmc-doc-alert]' ) : null;
+		if ( alert ) {
+			alert.textContent = text;
+			alert.hidden = ! text;
+			if ( text && focus ) {
+				alert.focus();
+			}
+		}
+		return text;
+	}
+
+	// Antes que cualquier otro envío (va en captura): con un problema en los
+	// documentos no sale nada, ni a la página ni al panel.
+	function onDocSubmit( event ) {
+		if ( showDocsProblem( event.target, true ) ) {
+			event.preventDefault();
+			event.stopImmediatePropagation();
+		}
+	}
+
+	// Quitar un fichero de los elegidos: se rehace la lista sin él; donde el
+	// navegador no deja, se vacía la elección entera.
+	function unpick( input, index ) {
+		const keep = Array.prototype.slice.call( input.files || [] ).filter( function ( file, i ) {
+			return i !== index;
+		} );
+		input.dataset.fmcQuiet = '';
+		if ( ! keep.length || ! setFiles( input, keep ) ) {
+			input.value = '';
+		}
+		input.dispatchEvent( new Event( 'change', { bubbles: true } ) );
+	}
+
+	function onDocClick( event ) {
+		if ( ! event.target.closest ) {
+			return;
+		}
+		const clear = event.target.closest( 'button[data-fmc-file-clear]' );
+		const drop = event.target.closest( 'button[data-fmc-unpick]' );
+		if ( ! clear && ! drop ) {
+			return;
+		}
+		const input = document.getElementById( clear ? clear.dataset.fmcFileClear : drop.dataset.fmcUnpick );
+		if ( ! input ) {
+			return;
+		}
+		event.preventDefault();
+		if ( clear ) {
+			const box = input.closest( '.fmc-doc' ) ? input.closest( '.fmc-doc' ).querySelector( '.fmc-doc-rm' ) : null;
+			input.dataset.fmcQuiet = '';
+			input.value = '';
+			input.dispatchEvent( new Event( 'change', { bubbles: true } ) );
+			docStatus( input, 'Se mantiene: ' + ( box ? box.dataset.fmcDocName : '' ) );
+			input.focus();
+			return;
+		}
+		const index = parseInt( drop.dataset.fmcIndex, 10 ) || 0;
+		const file = ( input.files || [] )[ index ];
+		unpick( input, index );
+		if ( file ) {
+			docStatus( input, 'No se subirá: ' + file.name );
+		}
+		// El foco, a la ficha que queda en su sitio, o a la zona si no queda ninguna.
+		const left = document.querySelectorAll( 'button[data-fmc-unpick="' + input.id + '"]' );
+		const next = left[ Math.min( index, left.length - 1 ) ];
+		( next || input ).focus();
+	}
+
+	// Marcar o desmarcar un documento para quitar: lo enseña el CSS; aquí se
+	// dice en voz alta, el foco se queda en la casilla —su anillo se pinta en
+	// «Deshacer» o en el aspa, la que se vea— y el reemplazo que hubiera
+	// elegido se apaga, para que no se suba un documento que se quita.
+	function onDocRemove( box ) {
+		const name = box.dataset.fmcDocName || '';
+		const item = box.closest( '.fmc-doc' );
+		const replace = item ? item.querySelector( 'input.fmc-file' ) : null;
+		if ( replace ) {
+			replace.disabled = box.checked;
+			const note = document.querySelector( '[data-fmc-picked="' + replace.id + '"]' );
+			if ( note ) {
+				note.hidden = box.checked || ! ( replace.files && replace.files.length );
+			}
+		}
+		docStatus( box, box.checked ? 'Se quitará al guardar: ' + name : 'Se mantiene: ' + name );
+		showDocsProblem( box.form, false );
+		box.focus();
+	}
+
+	function carriesFiles( event ) {
+		const types = event.dataTransfer ? event.dataTransfer.types : null;
+		return !! types && -1 !== Array.prototype.indexOf.call( types, 'Files' );
+	}
+
+	// Arrastrar ficheros: la zona para añadir se resalta y el propio campo los
+	// recibe; sobre la ficha de un documento guardado, el fichero lo
+	// reemplaza; en cualquier otro sitio de la ficha no se deja soltar, porque
+	// el navegador abriría el fichero y se perdería lo que no se ha guardado.
+	function onDrag( event ) {
+		if ( ! carriesFiles( event ) || ! document.querySelector( '.fmc-docs' ) ) {
+			return;
+		}
+		const target = event.target && event.target.closest ? event.target : document.documentElement;
+		const over = 'dragenter' === event.type || 'dragover' === event.type;
+		const zone = target.closest( '.fmc-drop' );
+		if ( zone ) {
+			zone.classList.toggle( 'is-over', over );
+			return;
+		}
+		const item = target.closest( '.fmc-doc' );
+		const replace = item ? item.querySelector( 'input.fmc-file:not([disabled])' ) : null;
+		if ( 'dragleave' !== event.type ) {
+			event.preventDefault();
+		}
+		if ( ! replace ) {
+			event.dataTransfer.dropEffect = 'none';
+			return;
+		}
+		item.classList.toggle( 'is-over', over );
+		event.dataTransfer.dropEffect = 'copy';
+		const file = 'drop' === event.type && event.dataTransfer.files ? event.dataTransfer.files[ 0 ] : null;
+		if ( file && setFiles( replace, [ file ] ) ) {
+			replace.dispatchEvent( new Event( 'change', { bubbles: true } ) );
+		}
+	}
+
 	function onChange( event ) {
 		const target = event.target;
 		if ( ! target || ! target.closest ) {
 			return;
 		}
 		if ( target.classList && target.classList.contains( 'fmc-file' ) ) {
-			const label = document.querySelector( '.fmc-file-name[data-for="' + target.id + '"]' );
-			if ( label ) {
-				const names = Array.prototype.map.call( target.files || [], function ( f ) {
-					return f.name;
-				} );
-				label.textContent = names.length ? 'Se subirá al guardar: ' + names.join( ', ' ) : '';
-			}
+			mergePicked( target );
+			showPicked( target );
+			showDocsProblem( target.form, false );
+		}
+		if ( target.classList && target.classList.contains( 'fmc-doc-rm' ) ) {
+			onDocRemove( target );
 		}
 		if ( target.hasAttribute && target.hasAttribute( 'data-fmc-hints' ) ) {
 			showHint( target );
@@ -752,6 +1132,11 @@
 	document.addEventListener( 'change', onChange );
 	document.addEventListener( 'click', onSessionClick );
 	document.addEventListener( 'input', onSessionInput );
+	document.addEventListener( 'click', onDocClick );
+	document.addEventListener( 'submit', onDocSubmit, true );
+	[ 'dragenter', 'dragover', 'dragleave', 'drop' ].forEach( function ( type ) {
+		document.addEventListener( type, onDrag );
+	} );
 	if ( 'loading' === document.readyState ) {
 		document.addEventListener( 'DOMContentLoaded', function () {
 			initSelects();
@@ -793,5 +1178,10 @@
 		onSessionClick: onSessionClick,
 		onSessionInput: onSessionInput,
 		sessionHours: sessionHours,
+		onDocClick: onDocClick,
+		onDocSubmit: onDocSubmit,
+		humanSize: humanSize,
+		onDrag: onDrag,
+		showPicked: showPicked,
 	};
 } )();

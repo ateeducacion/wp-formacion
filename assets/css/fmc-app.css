@@ -232,10 +232,65 @@ body.has-panel { overflow: hidden; }
 .fmc-panel .fmc-counters { grid-template-columns: repeat(auto-fit, minmax(7.5rem, 1fr)); }
 .fmc-panel .fmc-counter strong { font-size: 1.25rem; }
 
-/* Documentos del diseño */
-.fmc-doc-kind + .fmc-doc-kind { border-top: 1px dashed var(--fmc-line); padding-top: .75rem; }
-.fmc-docs .btn-check:checked + .btn-outline-danger { color: #fff; }
-.fmc-docs .list-group-item:has(.btn-check:checked) a { text-decoration: line-through; opacity: .6; }
+/* Documentos del diseño: cada uno, una ficha con su tipo, su nombre, su tamaño,
+   «Reemplazar» y el aspa; marcado para quitar, una barra oscura con «Deshacer».
+   El aspa y «Deshacer» son etiquetas de la misma casilla, que va entre la
+   ficha y la barra (así el tabulador sigue el orden que se ve): sin guion el
+   CSS ya enseña una cosa u otra. Debajo, la zona para añadir, que es
+   el propio campo de fichero, transparente y estirado encima. */
+.fmc-docs .fmc-icon { flex: none; width: 1rem; height: 1rem; }
+.fmc-doc-kind + .fmc-doc-kind { border-top: 1px dashed var(--fmc-line); padding-top: 1rem; margin-top: 1rem; }
+.fmc-doc-head { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: .5rem; margin-bottom: .5rem; }
+.fmc-doc-list { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: .5rem; }
+.fmc-doc-list:empty { display: none; }
+.fmc-doc-list:not(:empty) + .fmc-drop-wrap, .fmc-drop + .fmc-drop-list:not(:empty) { margin-top: .5rem; }
+.fmc-doc-none { color: var(--fmc-text-2); font-size: .875rem; }
+.fmc-doc-card { display: flex; align-items: center; gap: .75rem; padding: 12px; background: var(--fmc-soft); border: 1px solid var(--fmc-line); border-radius: var(--fmc-r); min-width: 0; }
+.fmc-doc-type { flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px; border-radius: 8px; font-size: .7rem; font-weight: 700; letter-spacing: .02em; background: var(--fmc-sup-2); color: var(--fmc-text-2); border: 1px solid var(--fmc-line); }
+.fmc-doc-type[data-family="pdf"] { background: var(--fmc-bad-cont); color: var(--fmc-bad); border-color: transparent; }
+.fmc-doc-type[data-family="text"] { background: var(--fmc-brand-cont); color: var(--fmc-brand); border-color: transparent; }
+.fmc-doc-type[data-family="slides"] { background: var(--fmc-wait-cont); color: var(--fmc-wait); border-color: transparent; }
+.fmc-doc-type[data-family="image"] { background: var(--fmc-ok-cont); color: var(--fmc-ok); border-color: transparent; }
+.fmc-doc-thumb { flex: 0 0 auto; width: 44px; height: 44px; object-fit: cover; border-radius: 8px; border: 1px solid var(--fmc-line); background: #fff; }
+.fmc-doc-main { flex: 1 1 auto; min-width: 0; display: flex; flex-wrap: wrap; align-items: baseline; column-gap: .75rem; row-gap: .15rem; }
+.fmc-doc-name { flex: 0 1 auto; min-width: 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+.fmc-doc-meta { font-family: var(--bs-font-monospace); font-size: .75rem; color: var(--fmc-text-2); white-space: nowrap; }
+.fmc-doc-replace, .fmc-doc-link { flex-basis: 100%; display: inline-flex; align-items: center; gap: .3rem; width: max-content; max-width: 100%; margin: 0; padding: 0; border: 0; background: none; font-size: .8125rem; font-weight: 600; color: var(--fmc-brand); cursor: pointer; text-decoration: underline; text-underline-offset: 2px; text-decoration-color: transparent; }
+.fmc-doc-replace:hover, .fmc-doc-link:hover { text-decoration-color: currentColor; }
+.fmc-doc-link { flex-basis: auto; }
+.fmc-file:focus-visible + .fmc-doc-replace, .fmc-doc-link:focus-visible { outline: 2px solid var(--fmc-brand); outline-offset: 2px; border-radius: 4px; }
+.fmc-doc-pending { flex-basis: 100%; margin: .25rem 0 0; padding: .35rem .6rem; border-radius: 8px; background: var(--fmc-brand-cont); color: var(--fmc-brand); font-size: .8125rem; overflow-wrap: anywhere; }
+.fmc-doc-pending[hidden] { display: none; }
+.fmc-doc-x { flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; width: 2.25rem; height: 2.25rem; margin: 0; border-radius: 50%; color: var(--fmc-text-2); background: transparent; border: 0; cursor: pointer; transition: background-color .15s, color .15s; }
+.fmc-docs .fmc-doc-x .fmc-icon { width: 1.25rem; height: 1.25rem; }
+.fmc-doc-x:hover { background: var(--fmc-bad-cont); color: var(--fmc-bad); }
+.fmc-doc:has(> .fmc-doc-rm:focus-visible) .fmc-doc-x, .fmc-doc-x:focus-visible { outline: 2px solid var(--fmc-brand); outline-offset: 2px; }
+.fmc-doc-gone { display: none; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: .5rem 1rem; padding: 10px 12px; border-radius: var(--fmc-r); background: var(--fmc-text); color: #fff; font-size: .875rem; min-width: 0; }
+.fmc-doc-gone-text { min-width: 0; overflow-wrap: anywhere; }
+.fmc-doc-undo { margin: 0; padding: .3rem .9rem; border: 1px solid #fff; border-radius: 999px; font-weight: 600; cursor: pointer; color: #fff; }
+.fmc-doc-undo:hover { background: #fff; color: var(--fmc-text); }
+.fmc-doc:has(> .fmc-doc-rm:checked) > .fmc-doc-card { display: none; }
+.fmc-doc-rm:checked ~ .fmc-doc-gone { display: flex; }
+.fmc-doc-rm:focus-visible ~ .fmc-doc-gone .fmc-doc-undo { outline: 2px solid #fff; outline-offset: 2px; }
+.fmc-doc.is-new .fmc-doc-card { background: #fff; border-style: dashed; }
+.fmc-doc-new { flex-basis: 100%; font-size: .8125rem; color: var(--fmc-brand); font-weight: 600; }
+.fmc-doc.is-bad .fmc-doc-card { border-color: var(--fmc-bad); background: var(--fmc-bad-cont); }
+.fmc-doc.is-bad .fmc-doc-new, .fmc-doc-problem { color: var(--fmc-bad); }
+.fmc-doc-pending.is-bad { background: var(--fmc-bad-cont); }
+.fmc-doc.is-over .fmc-doc-card { border-color: var(--fmc-brand); background: var(--fmc-brand-cont); }
+.fmc-doc-replaces { font-size: .8125rem; color: var(--fmc-text-2); }
+.fmc-doc-alert[hidden] { display: none; }
+
+.fmc-drop { position: relative; display: flex; flex-direction: column; align-items: center; gap: .25rem; margin: 0; padding: 1rem; text-align: center; border: 2px dashed #b9c2cc; border-radius: var(--fmc-r); background: var(--fmc-soft); color: var(--fmc-text-2); cursor: pointer; transition: border-color .15s, background-color .15s; }
+.fmc-drop-input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
+.fmc-drop:hover, .fmc-drop:focus-within { border-color: var(--fmc-brand); background: var(--fmc-brand-cont); }
+.fmc-drop:has(.fmc-drop-input:focus-visible) { outline: 2px solid var(--fmc-brand); outline-offset: 2px; }
+.fmc-drop.is-over { border-style: solid; border-color: var(--fmc-brand); background: var(--fmc-brand-cont); }
+.fmc-drop-badge { display: inline-flex; align-items: center; justify-content: center; width: 2.5rem; height: 2.5rem; border-radius: 50%; background: #fff; color: var(--fmc-brand); box-shadow: var(--fmc-e1); }
+.fmc-docs .fmc-drop-badge .fmc-icon { width: 1.25rem; height: 1.25rem; }
+.fmc-drop-text { color: var(--fmc-text); }
+.fmc-drop-text strong { color: var(--fmc-brand); }
+.fmc-drop-limit { font-size: .8125rem; }
 
 /* Vistas y periodo, con los colores del registro de visitas: la vista activa,
    en blanco sobre gris; debajo, las flechas, «Hoy», el periodo y su recuento.
