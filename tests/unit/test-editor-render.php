@@ -206,6 +206,7 @@ class Test_Editor_Render extends WP_UnitTestCase {
 		$this->assertFalse( $this->disabled( $screen['body'], 'post_title' ) );
 		$this->assertCount( count( Documents::kinds() ), iterator_to_array( $this->find( $screen['body'], '//input[@type="file"][starts-with(@name, "fmc_doc[")]' ) ) );
 		$this->assertSame( 1, $this->find( $screen['body'], '//input[@name="fmc_doc[image][]"][not(@multiple)]' )->length, 'una sola imagen' );
+		$this->assertStringContainsString( 'Elija un fichero o arrástrelo aquí', $this->find( $screen['body'], '//label[@for="fmc-add-image"]' )->item( 0 )->textContent );
 	}
 
 	/**
@@ -691,13 +692,32 @@ class Test_Editor_Render extends WP_UnitTestCase {
 		$this->assertSame( 1, $this->find( $body, '//input[@type="file"][@name="fmc_replace[' . $doc . ']"]' )->length );
 		$this->assertSame( 1, $this->find( $body, '//input[@name="fmc_remove[]"][@value="' . $doc . '"]' )->length );
 		// Imagen y diseño son de un documento: el que hay se cambia con su
-		// «Cambiar», y «Añadir» no sale hasta que se quite.
+		// «Reemplazar», y la zona para añadir no sale hasta que se quite.
 		$this->assertSame( 0, $this->find( $body, '//input[@name="fmc_doc[image][]"]' )->length );
 		$this->assertSame( 0, $this->find( $body, '//input[@name="fmc_doc[design][]"]' )->length );
 		$this->assertStringContainsString( 'uno solo, la versión vigente', $body );
 		$this->assertStringContainsString( 'Sistema anterior', $body );
 		$this->assertStringContainsString( '>apoyo curso.zip</a>', $body );
-		$this->assertSame( 3, substr_count( $body, 'Ninguno.' ), 'escaleta, presentaciones y otros, vacíos' );
+		// Cada documento es una ficha: su tipo, su nombre, «Reemplazar» y el aspa,
+		// que es una etiqueta de la casilla `fmc_remove[]` igual que «Deshacer»:
+		// sin guion, quitar y deshacer funcionan.
+		$this->assertSame( 'Quitar: diseno.pdf', $this->find( $body, '//input[@name="fmc_remove[]"][@value="' . $doc . '"]' )->item( 0 )->getAttribute( 'aria-label' ) );
+		$this->assertSame( 'PDF', trim( $this->find( $body, '//li[.//input[@value="' . $doc . '"]]//span[contains(@class, "fmc-doc-type")]' )->item( 0 )->textContent ) );
+		$this->assertSame( 1, $this->find( $body, '//label[contains(@class, "fmc-doc-x")][@for="fmc-remove-' . $doc . '"]' )->length );
+		$this->assertSame( 1, $this->find( $body, '//label[contains(@class, "fmc-doc-undo")][@for="fmc-remove-' . $doc . '"]' )->length );
+		$this->assertSame( 1, $this->find( $body, '//label[@for="fmc-replace-' . $doc . '"][contains(., "Reemplazar")]' )->length );
+		$this->assertSame( 1, $this->find( $body, '//*[@data-fmc-picked="fmc-replace-' . $doc . '"][@hidden]' )->length );
+		// La imagen representativa se ve en miniatura, servida por el aplicativo.
+		$this->assertSame( Documents::url( $image ), $this->find( $body, '//img[contains(@class, "fmc-doc-thumb")]' )->item( 0 )->getAttribute( 'src' ) );
+		// Las clases vacías se llenan en su zona: el campo de fichero dentro de su etiqueta, con lo que el servidor admite.
+		$this->assertSame( 0, substr_count( $body, 'Ninguno.' ), 'la zona para añadir ya dice que no hay nada' );
+		$zone = $this->find( $body, '//label[contains(@class, "fmc-drop")][@for="fmc-add-slides"]' );
+		$this->assertSame( 1, $zone->length );
+		$this->assertSame( 1, $this->find( $body, '//label[@for="fmc-add-slides"]/input[@type="file"][@id="fmc-add-slides"][@multiple]' )->length );
+		$this->assertStringContainsString( 'Elija ficheros o arrástrelos aquí', $zone->item( 0 )->textContent );
+		$this->assertStringContainsString( 'PPT, PPTX u ODP · hasta ', $zone->item( 0 )->textContent );
+		$this->assertStringContainsString( ' cada uno', $zone->item( 0 )->textContent );
+		$this->assertSame( 1, $this->find( $body, '//ul[@data-fmc-picked="fmc-add-slides"]' )->length );
 		$this->assertSame( '.doc,.docx,.odt', $this->find( $body, '//input[@name="fmc_doc[sessions][]"]' )->item( 0 )->getAttribute( 'accept' ) );
 		$this->assertSame( '.ppt,.pptx,.odp', $this->find( $body, '//input[@name="fmc_doc[slides][]"]' )->item( 0 )->getAttribute( 'accept' ) );
 		$this->assertSame( '.pdf', $this->find( $body, '//input[@name="fmc_doc[support][]"]' )->item( 0 )->getAttribute( 'accept' ) );
@@ -709,6 +729,8 @@ class Test_Editor_Render extends WP_UnitTestCase {
 		$this->assertStringContainsString( '>diseno.pdf</a>', $body );
 		$this->assertSame( 0, $this->find( $body, '//input[@type="file"]' )->length );
 		$this->assertSame( 0, $this->find( $body, '//input[@name="fmc_remove[]"]' )->length );
+		$this->assertSame( 0, $this->find( $body, '//label[contains(@class, "fmc-drop")]' )->length );
+		$this->assertSame( 3, substr_count( $body, 'Ninguno.' ), 'escaleta, presentaciones y otros, vacíos' );
 		$this->assertStringNotContainsString( 'uno solo, la versión vigente', $body, 'lo que se hace al subir no lo lee quien no sube' );
 	}
 

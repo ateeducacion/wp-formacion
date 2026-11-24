@@ -16,6 +16,8 @@ function detach() {
 		document.removeEventListener( 'click', window.fmcApp.onSessionClick );
 		document.removeEventListener( 'input', window.fmcApp.onSessionInput );
 		document.removeEventListener( 'change', window.fmcApp.onChange );
+		document.removeEventListener( 'click', window.fmcApp.onDocClick );
+		[ 'dragenter', 'dragover', 'dragleave', 'drop' ].forEach( ( type ) => document.removeEventListener( type, window.fmcApp.onDrag ) );
 	}
 }
 
@@ -371,8 +373,7 @@ describe( 'campos que dependen de otro', () => {
 		document.body.innerHTML = '<form><select name="f[fmc_modality]"><option value="">—</option><option value="onsite">Presencial</option><option value="online">En línea</option><option value="blended">Mixta</option></select>'
 			+ '<div id="on" data-fmc-show="f[fmc_modality]" data-fmc-show-values="onsite,blended"></div>'
 			+ '<div id="off" data-fmc-show="f[fmc_modality]" data-fmc-show-values="online,blended"></div>'
-			+ '<input type="radio" name="f[fmc_training_plans]" value="" checked><input type="radio" name="f[fmc_training_plans]" value="plan"><div id="plan" data-fmc-show="f[fmc_training_plans]" data-fmc-show-values="plan,seminar"></div>'
-			+ '<input class="fmc-file" type="file" id="up"><span class="fmc-file-name" data-for="up"></span></form>';
+			+ '<input type="radio" name="f[fmc_training_plans]" value="" checked><input type="radio" name="f[fmc_training_plans]" value="plan"><div id="plan" data-fmc-show="f[fmc_training_plans]" data-fmc-show-values="plan,seminar"></div></form>';
 		await load();
 	} );
 	afterEach( () => detach() );
@@ -404,12 +405,128 @@ describe( 'campos que dependen de otro', () => {
 		change( none );
 		expect( document.getElementById( 'plan' ).classList.contains( 'd-none' ) ).toBe( true );
 	} );
+} );
 
-	it( 'el fichero elegido se nombra', () => {
-		const input = document.getElementById( 'up' );
-		Object.defineProperty( input, 'files', { value: [ { name: 'diseño.pdf' } ] } );
+describe( 'los documentos del diseño', () => {
+	// Como los pinta Editor::docs(): un documento guardado y la zona para añadir.
+	beforeEach( async () => {
+		document.body.innerHTML = '<form><div class="fmc-docs"><p data-fmc-doc-status aria-live="polite"></p>'
+			+ '<ul class="fmc-doc-list"><li class="fmc-doc">'
+			+ '<input class="fmc-doc-rm" type="checkbox" id="fmc-remove-7" name="fmc_remove[]" value="7" aria-label="Quitar: escaleta.docx" data-fmc-doc-name="escaleta.docx">'
+			+ '<div class="fmc-doc-card"><div class="fmc-doc-main"><input class="fmc-file" type="file" id="fmc-replace-7" name="fmc_replace[7]"><label for="fmc-replace-7">Reemplazar</label>'
+			+ '<p class="fmc-doc-pending" data-fmc-picked="fmc-replace-7" hidden><span>Se reemplazará al guardar por: <strong data-fmc-picked-name></strong></span> <button type="button" data-fmc-file-clear="fmc-replace-7">Cancelar</button></p></div>'
+			+ '<label class="fmc-doc-x" for="fmc-remove-7">Quitar</label></div>'
+			+ '<div class="fmc-doc-gone">Se quitará al guardar <label class="fmc-doc-undo" for="fmc-remove-7">Deshacer</label></div></li></ul>'
+			+ '<label class="fmc-drop" for="fmc-add-slides"><input class="fmc-file fmc-drop-input" type="file" id="fmc-add-slides" name="fmc_doc[slides][]" multiple></label>'
+			+ '<ul class="fmc-drop-list" data-fmc-picked="fmc-add-slides"></ul></div></form>';
+		await load();
+	} );
+	afterEach( () => {
+		delete window.DataTransfer;
+		detach();
+	} );
+
+	function change( el ) {
+		el.dispatchEvent( new Event( 'change', { bubbles: true } ) );
+	}
+
+	// jsdom no deja escribir `files`: se hace a mano, y vaciar el valor lo vacía.
+	function pick( input, files ) {
+		let list = files;
+		Object.defineProperty( input, 'files', { configurable: true, get: () => list, set: ( v ) => {
+			list = v;
+		} } );
+		Object.defineProperty( input, 'value', { configurable: true, get: () => ( list.length ? list[ 0 ].name : '' ), set: ( v ) => {
+			if ( '' === v ) {
+				list = [];
+			}
+		} } );
 		change( input );
-		expect( document.querySelector( '.fmc-file-name' ).textContent ).toBe( 'Se subirá al guardar: diseño.pdf' );
+	}
+
+	const status = () => document.querySelector( '[data-fmc-doc-status]' ).textContent;
+
+	it( 'el aspa marca la casilla de quitar, sin borrar nada, y «Deshacer» la desmarca', () => {
+		const box = document.getElementById( 'fmc-remove-7' );
+		document.querySelector( '.fmc-doc-x' ).click();
+		expect( box.checked ).toBe( true );
+		expect( new FormData( document.querySelector( 'form' ) ).getAll( 'fmc_remove[]' ) ).toEqual( [ '7' ] );
+		expect( document.activeElement ).toBe( box );
+		expect( status() ).toBe( 'Se quitará al guardar: escaleta.docx' );
+
+		document.querySelector( '.fmc-doc-undo' ).click();
+		expect( box.checked ).toBe( false );
+		expect( new FormData( document.querySelector( 'form' ) ).getAll( 'fmc_remove[]' ) ).toEqual( [] );
+		expect( document.activeElement ).toBe( box );
+		expect( status() ).toBe( 'Se mantiene: escaleta.docx' );
+	} );
+
+	it( 'el reemplazo elegido se anuncia y se puede cancelar', () => {
+		const input = document.getElementById( 'fmc-replace-7' );
+		const note = document.querySelector( '[data-fmc-picked="fmc-replace-7"]' );
+		pick( input, [ { name: 'escaleta-v2.docx', size: 2048 } ] );
+		expect( note.hidden ).toBe( false );
+		expect( note.textContent ).toContain( 'Se reemplazará al guardar por: escaleta-v2.docx' );
+
+		note.querySelector( 'button' ).click();
+		expect( input.value ).toBe( '' );
+		expect( note.hidden ).toBe( true );
+		expect( document.activeElement ).toBe( input );
+	} );
+
+	it( 'los ficheros que se añaden salen como fichas pendientes', () => {
+		const input = document.getElementById( 'fmc-add-slides' );
+		pick( input, [ { name: 'sesion1.pptx', size: 3 * 1048576 }, { name: 'guion.odp', size: 500 } ] );
+		const cards = document.querySelectorAll( '.fmc-drop-list .fmc-doc' );
+		expect( cards ).toHaveLength( 2 );
+		expect( cards[ 0 ].textContent ).toContain( 'PPTX' );
+		expect( cards[ 0 ].textContent ).toContain( 'sesion1.pptx' );
+		expect( cards[ 0 ].textContent ).toContain( '3,0 MB' );
+		expect( cards[ 0 ].textContent ).toContain( 'Se subirá al guardar' );
+		expect( cards[ 1 ].querySelector( '.fmc-doc-type' ).dataset.family ).toBe( 'slides' );
+		expect( cards[ 1 ].querySelector( 'button' ).getAttribute( 'aria-label' ) ).toBe( 'No subir: guion.odp' );
+		expect( status() ).toBe( 'Se subirán al guardar 2 ficheros' );
+	} );
+
+	it( 'un fichero pendiente se quita de la subida y el foco va al que queda', () => {
+		window.DataTransfer = class {
+			constructor() {
+				this.files = [];
+				this.items = { add: ( f ) => this.files.push( f ) };
+			}
+		};
+		const input = document.getElementById( 'fmc-add-slides' );
+		pick( input, [ { name: 'a.pptx', size: 1 }, { name: 'b.pptx', size: 1 } ] );
+		document.querySelector( '.fmc-drop-list button' ).click();
+		expect( Array.from( input.files, ( f ) => f.name ) ).toEqual( [ 'b.pptx' ] );
+		const left = document.querySelectorAll( '.fmc-drop-list button' );
+		expect( left ).toHaveLength( 1 );
+		expect( document.activeElement ).toBe( left[ 0 ] );
+
+		left[ 0 ].click();
+		expect( input.files ).toHaveLength( 0 );
+		expect( document.querySelectorAll( '.fmc-drop-list li' ) ).toHaveLength( 0 );
+		expect( document.activeElement ).toBe( input );
+	} );
+
+	it( 'sin DataTransfer, quitar uno vacía la elección', () => {
+		const input = document.getElementById( 'fmc-add-slides' );
+		pick( input, [ { name: 'a.pptx', size: 1 }, { name: 'b.pptx', size: 1 } ] );
+		document.querySelector( '.fmc-drop-list button' ).click();
+		expect( input.files ).toHaveLength( 0 );
+		expect( document.querySelectorAll( '.fmc-drop-list li' ) ).toHaveLength( 0 );
+	} );
+
+	it( 'arrastrar encima resalta la zona, y soltar o salir la apaga', () => {
+		const input = document.getElementById( 'fmc-add-slides' );
+		const zone = document.querySelector( '.fmc-drop' );
+		input.dispatchEvent( new Event( 'dragenter', { bubbles: true } ) );
+		expect( zone.classList.contains( 'is-over' ) ).toBe( true );
+		input.dispatchEvent( new Event( 'dragleave', { bubbles: true } ) );
+		expect( zone.classList.contains( 'is-over' ) ).toBe( false );
+		input.dispatchEvent( new Event( 'dragover', { bubbles: true } ) );
+		input.dispatchEvent( new Event( 'drop', { bubbles: true } ) );
+		expect( zone.classList.contains( 'is-over' ) ).toBe( false );
 	} );
 } );
 

@@ -682,10 +682,15 @@ final class Editor {
 	/**
 	 * The documents section of a design.
 	 *
-	 * Cada clase es una lista: cada documento se abre, se cambia por otro
-	 * («Cambiar» elige el fichero nuevo) o se marca para quitar; y al final,
-	 * «Añadir». Todo viaja con el formulario y se aplica al guardar. Los
+	 * Cada clase es una lista de fichas: cada documento se abre, se reemplaza
+	 * por otro («Reemplazar» elige el fichero nuevo) o se marca para quitar con
+	 * su aspa; y debajo, la zona para añadir, donde se suelta o se elige el
+	 * fichero. Todo viaja con el formulario y se aplica al guardar. Los
 	 * documentos que solo existían en el sistema anterior salen como enlaces.
+	 *
+	 * Sin guion funciona igual: el aspa y «Deshacer» son etiquetas de la misma
+	 * casilla `fmc_remove[]`, y la zona es el propio campo de fichero, estirado
+	 * y transparente encima, así que recibe el clic y el fichero soltado.
 	 *
 	 * @param \WP_Post|null $post Design.
 	 * @param bool          $can  Whether they can be changed.
@@ -699,39 +704,138 @@ final class Editor {
 			'sessions' => D::SESSIONS_FILE,
 			'support'  => D::SUPPORT_FILE,
 		);
-		$out     = '<div class="col-12 fmc-docs">';
+		$out     = '<div class="col-12 fmc-docs"><p class="visually-hidden" aria-live="polite" data-fmc-doc-status></p>';
 		foreach ( Documents::kinds() as $kind => $def ) {
 			$accept = implode( ',', array_map( static fn( $ext ) => '.' . str_replace( '|', ',.', $ext ), array_keys( $def['mimes'] ) ) );
-			$out   .= '<div class="fmc-doc-kind"><div class="d-flex flex-wrap align-items-baseline column-gap-2 mb-1"><span class="fw-semibold">' . esc_html( $def['label'] ) . '</span>' . ( $can ? '<span class="form-text m-0">' . esc_html( $def['help'] ) . '</span>' : '' ) . '</div><ul class="list-group mb-2">';
+			$out   .= '<div class="fmc-doc-kind"><div class="fmc-doc-head"><span class="fw-semibold">' . esc_html( $def['label'] ) . '</span>' . ( $can ? '<span class="form-text m-0">' . esc_html( $def['help'] ) . '</span>' : '' ) . '</div><ul class="fmc-doc-list">';
 			foreach ( $current[ $kind ] as $doc ) {
-				$file = get_attached_file( $doc->ID );
-				$size = $file && file_exists( $file ) ? size_format( (int) filesize( $file ) ) : '';
-				$out .= '<li class="list-group-item d-flex align-items-center gap-2 flex-wrap"><a class="me-auto text-break" href="' . esc_url( Documents::url( $doc->ID ) ) . '" target="_blank" rel="noopener">' . esc_html( Documents::name( $doc->ID ) ) . '</a><span class="text-secondary small">' . esc_html( $size ) . '</span>';
-				if ( $can ) {
-					$rid  = 'fmc-replace-' . $doc->ID;
-					$out .= '<label class="btn btn-sm btn-outline-primary mb-0" for="' . esc_attr( $rid ) . '">Cambiar</label><input class="visually-hidden fmc-file" type="file" id="' . esc_attr( $rid ) . '" name="fmc_replace[' . esc_attr( (string) $doc->ID ) . ']" accept="' . esc_attr( $accept ) . '">';
-					$out .= '<input class="btn-check" type="checkbox" id="fmc-remove-' . esc_attr( (string) $doc->ID ) . '" name="fmc_remove[]" value="' . esc_attr( (string) $doc->ID ) . '"><label class="btn btn-sm btn-outline-danger mb-0" for="fmc-remove-' . esc_attr( (string) $doc->ID ) . '">Quitar</label>';
-					$out .= '<span class="fmc-file-name small text-primary w-100" data-for="' . esc_attr( $rid ) . '"></span>';
-				}
-				$out .= '</li>';
+				$out .= self::doc_card( $doc, 'image' === $kind, $can, $accept );
 			}
 			$old = isset( $legacy[ $kind ] ) && $post ? (string) get_post_meta( $post->ID, $legacy[ $kind ], true ) : '';
 			if ( '' !== $old ) {
-				$out .= '<li class="list-group-item small"><span class="badge text-bg-light me-1">Sistema anterior</span><a href="' . esc_url( $old ) . '" target="_blank" rel="noopener">' . esc_html( rawurldecode( basename( (string) wp_parse_url( $old, PHP_URL_PATH ) ) ) ) . '</a></li>';
+				$name = rawurldecode( basename( (string) wp_parse_url( $old, PHP_URL_PATH ) ) );
+				$out .= '<li class="fmc-doc"><div class="fmc-doc-card">' . self::doc_badge( $name ) . '<div class="fmc-doc-main"><a class="fmc-doc-name" href="' . esc_url( $old ) . '" target="_blank" rel="noopener">' . esc_html( $name ) . '</a><span class="fmc-doc-meta">Sistema anterior</span></div></div></li>';
 			}
-			if ( ! $current[ $kind ] && '' === $old ) {
-				$out .= '<li class="list-group-item small text-secondary">Ninguno.</li>';
+			if ( ! $current[ $kind ] && '' === $old && ! $can ) {
+				$out .= '<li class="fmc-doc-none">Ninguno.</li>';
 			}
 			$out .= '</ul>';
 			// De una clase de un solo documento, el que hay se cambia con su
-			// «Cambiar»; «Añadir» sale cuando no hay ninguno.
+			// «Reemplazar»; la zona para añadir sale cuando no hay ninguno.
 			if ( $can && ( $def['multiple'] || ! $current[ $kind ] ) ) {
-				$aid  = 'fmc-add-' . $kind;
-				$out .= '<div class="mb-3"><label class="btn btn-sm btn-outline-secondary mb-0" for="' . esc_attr( $aid ) . '">+ Añadir</label><input class="visually-hidden fmc-file" type="file" id="' . esc_attr( $aid ) . '" name="fmc_doc[' . esc_attr( $kind ) . '][]" accept="' . esc_attr( $accept ) . '"' . ( $def['multiple'] ? ' multiple' : '' ) . '> <span class="fmc-file-name small text-primary" data-for="' . esc_attr( $aid ) . '"></span></div>';
+				$out .= self::drop_zone( $kind, $def, $accept );
 			}
 			$out .= '</div>';
 		}
 		return $out . '</div>';
+	}
+
+	/**
+	 * One stored document, as a file card: open it, replace it or mark it for removal.
+	 *
+	 * La casilla `fmc_remove[]` va delante de la ficha y de la barra «Se quitará
+	 * al guardar», y el CSS enseña una u otra según esté marcada: el aspa y
+	 * «Deshacer» son dos etiquetas suyas. El foco se queda en la casilla, y su
+	 * anillo se pinta en la que se ve.
+	 *
+	 * @param \WP_Post $doc    Attachment.
+	 * @param bool     $image  Whether it is the representative image: a thumbnail instead of the badge.
+	 * @param bool     $can    Whether it can be changed.
+	 * @param string   $accept The `accept` attribute of its kind.
+	 * @return string
+	 */
+	private static function doc_card( \WP_Post $doc, bool $image, bool $can, string $accept ): string {
+		$name = Documents::name( $doc->ID );
+		$url  = Documents::url( $doc->ID );
+		$file = get_attached_file( $doc->ID );
+		$size = $file && file_exists( $file ) ? size_format( (int) filesize( $file ) ) : '';
+		$id   = (string) $doc->ID;
+		$rid  = 'fmc-replace-' . $id;
+		$xid  = 'fmc-remove-' . $id;
+		$out  = '<li class="fmc-doc">';
+		if ( $can ) {
+			$out .= '<input class="fmc-doc-rm visually-hidden" type="checkbox" id="' . esc_attr( $xid ) . '" name="fmc_remove[]" value="' . esc_attr( $id ) . '" aria-label="' . esc_attr( 'Quitar: ' . $name ) . '" data-fmc-doc-name="' . esc_attr( $name ) . '">';
+		}
+		$out .= '<div class="fmc-doc-card">';
+		$out .= $image ? '<img class="fmc-doc-thumb" src="' . esc_url( $url ) . '" alt="" width="44" height="44" loading="lazy">' : self::doc_badge( $name );
+		$out .= '<div class="fmc-doc-main"><a class="fmc-doc-name" href="' . esc_url( $url ) . '" target="_blank" rel="noopener" title="' . esc_attr( $name ) . '">' . esc_html( $name ) . '</a>';
+		$out .= '' !== $size ? '<span class="fmc-doc-meta">' . esc_html( $size ) . '</span>' : '';
+		if ( $can ) {
+			$out .= '<input class="visually-hidden fmc-file" type="file" id="' . esc_attr( $rid ) . '" name="fmc_replace[' . esc_attr( $id ) . ']" accept="' . esc_attr( $accept ) . '"><label class="fmc-doc-replace" for="' . esc_attr( $rid ) . '">' . self::icon( 'replace' ) . 'Reemplazar<span class="visually-hidden">: ' . esc_html( $name ) . '</span></label>';
+			$out .= '<p class="fmc-doc-pending" data-fmc-picked="' . esc_attr( $rid ) . '" hidden><span>Se reemplazará al guardar por: <strong data-fmc-picked-name></strong></span> <button type="button" class="fmc-doc-link" data-fmc-file-clear="' . esc_attr( $rid ) . '">Cancelar</button></p>';
+		}
+		$out .= '</div>';
+		if ( $can ) {
+			$out .= '<label class="fmc-doc-x" for="' . esc_attr( $xid ) . '" title="Quitar">' . self::icon( 'x' ) . '<span class="visually-hidden">Quitar: ' . esc_html( $name ) . '</span></label>';
+		}
+		$out .= '</div>';
+		if ( $can ) {
+			$out .= '<div class="fmc-doc-gone"><span class="fmc-doc-gone-text">Se quitará al guardar: <strong>' . esc_html( $name ) . '</strong></span><label class="fmc-doc-undo" for="' . esc_attr( $xid ) . '">Deshacer</label></div>';
+		}
+		return $out . '</li>';
+	}
+
+	/**
+	 * The area to add documents of a kind: the file input itself, spread over it.
+	 *
+	 * Se elige con un clic o se suelta el fichero encima, con guion o sin él;
+	 * los formatos y el tamaño que dice son los que el servidor comprueba.
+	 *
+	 * @param string               $kind   Kind.
+	 * @param array<string, mixed> $def    Its definition, from {@see Documents::kinds()}.
+	 * @param string               $accept The `accept` attribute.
+	 * @return string
+	 */
+	private static function drop_zone( string $kind, array $def, string $accept ): string {
+		$aid   = 'fmc-add-' . $kind;
+		$max   = min( (int) $def['max_mb'] * MB_IN_BYTES, (int) wp_max_upload_size() );
+		$many  = (bool) $def['multiple'];
+		$limit = Documents::formats( $def['mimes'] ) . ' · hasta ' . size_format( $max ) . ( $many ? ' cada uno' : '' );
+		return '<div class="fmc-drop-wrap"><label class="fmc-drop" for="' . esc_attr( $aid ) . '">'
+			. '<input class="fmc-file fmc-drop-input" type="file" id="' . esc_attr( $aid ) . '" name="fmc_doc[' . esc_attr( $kind ) . '][]" accept="' . esc_attr( $accept ) . '"' . ( $many ? ' multiple' : '' ) . '>'
+			. '<span class="fmc-drop-badge">' . self::icon( 'upload' ) . '</span>'
+			. '<span class="fmc-drop-text">' . ( $many ? '<strong>Elija ficheros</strong> o arrástrelos aquí' : '<strong>Elija un fichero</strong> o arrástrelo aquí' ) . '</span>'
+			. '<span class="fmc-drop-limit">' . esc_html( $limit ) . '</span>'
+			. '</label><ul class="fmc-doc-list fmc-drop-list" data-fmc-picked="' . esc_attr( $aid ) . '"></ul></div>';
+	}
+
+	/**
+	 * The type badge of a file card: its extension, coloured by family.
+	 *
+	 * @param string $name File name.
+	 * @return string
+	 */
+	private static function doc_badge( string $name ): string {
+		$ext      = strtolower( (string) pathinfo( $name, PATHINFO_EXTENSION ) );
+		$families = array(
+			'pdf'    => array( 'pdf' ),
+			'text'   => array( 'doc', 'docx', 'odt', 'rtf', 'txt' ),
+			'slides' => array( 'ppt', 'pptx', 'odp' ),
+			'image'  => array( 'jpg', 'jpeg', 'png', 'gif', 'webp' ),
+		);
+		$family   = 'other';
+		foreach ( $families as $key => $list ) {
+			if ( in_array( $ext, $list, true ) ) {
+				$family = $key;
+			}
+		}
+		$label = '' !== $ext ? strtoupper( substr( $ext, 0, 4 ) ) : 'FICH';
+		return '<span class="fmc-doc-type" data-family="' . esc_attr( $family ) . '" aria-hidden="true">' . esc_html( $label ) . '</span>';
+	}
+
+	/**
+	 * An inline SVG icon, hidden from assistive technology.
+	 *
+	 * @param string $name `x`, `replace` or `upload`.
+	 * @return string
+	 */
+	private static function icon( string $name ): string {
+		$paths = array(
+			'x'       => '<path d="M6 6l12 12M18 6L6 18"/>',
+			'replace' => '<path d="M4 9h13l-3-3M20 15H7l3 3"/>',
+			'upload'  => '<path d="M12 16V4M7 9l5-5 5 5M5 20h14"/>',
+		);
+		return '<svg class="fmc-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">' . $paths[ $name ] . '</svg>';
 	}
 
 	/**

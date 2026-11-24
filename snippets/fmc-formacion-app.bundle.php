@@ -8172,6 +8172,11 @@ final class Editor {
 
 
 
+
+
+
+
+
 	private static function docs( ?\WP_Post $post, bool $can ): string {
 		$current = Documents::of( $post ? $post->ID : 0 );
 		$legacy  = array(
@@ -8180,39 +8185,138 @@ final class Editor {
 			'sessions' => D::SESSIONS_FILE,
 			'support'  => D::SUPPORT_FILE,
 		);
-		$out     = '<div class="col-12 fmc-docs">';
+		$out     = '<div class="col-12 fmc-docs"><p class="visually-hidden" aria-live="polite" data-fmc-doc-status></p>';
 		foreach ( Documents::kinds() as $kind => $def ) {
 			$accept = implode( ',', array_map( static fn( $ext ) => '.' . str_replace( '|', ',.', $ext ), array_keys( $def['mimes'] ) ) );
-			$out   .= '<div class="fmc-doc-kind"><div class="d-flex flex-wrap align-items-baseline column-gap-2 mb-1"><span class="fw-semibold">' . esc_html( $def['label'] ) . '</span>' . ( $can ? '<span class="form-text m-0">' . esc_html( $def['help'] ) . '</span>' : '' ) . '</div><ul class="list-group mb-2">';
+			$out   .= '<div class="fmc-doc-kind"><div class="fmc-doc-head"><span class="fw-semibold">' . esc_html( $def['label'] ) . '</span>' . ( $can ? '<span class="form-text m-0">' . esc_html( $def['help'] ) . '</span>' : '' ) . '</div><ul class="fmc-doc-list">';
 			foreach ( $current[ $kind ] as $doc ) {
-				$file = get_attached_file( $doc->ID );
-				$size = $file && file_exists( $file ) ? size_format( (int) filesize( $file ) ) : '';
-				$out .= '<li class="list-group-item d-flex align-items-center gap-2 flex-wrap"><a class="me-auto text-break" href="' . esc_url( Documents::url( $doc->ID ) ) . '" target="_blank" rel="noopener">' . esc_html( Documents::name( $doc->ID ) ) . '</a><span class="text-secondary small">' . esc_html( $size ) . '</span>';
-				if ( $can ) {
-					$rid  = 'fmc-replace-' . $doc->ID;
-					$out .= '<label class="btn btn-sm btn-outline-primary mb-0" for="' . esc_attr( $rid ) . '">Cambiar</label><input class="visually-hidden fmc-file" type="file" id="' . esc_attr( $rid ) . '" name="fmc_replace[' . esc_attr( (string) $doc->ID ) . ']" accept="' . esc_attr( $accept ) . '">';
-					$out .= '<input class="btn-check" type="checkbox" id="fmc-remove-' . esc_attr( (string) $doc->ID ) . '" name="fmc_remove[]" value="' . esc_attr( (string) $doc->ID ) . '"><label class="btn btn-sm btn-outline-danger mb-0" for="fmc-remove-' . esc_attr( (string) $doc->ID ) . '">Quitar</label>';
-					$out .= '<span class="fmc-file-name small text-primary w-100" data-for="' . esc_attr( $rid ) . '"></span>';
-				}
-				$out .= '</li>';
+				$out .= self::doc_card( $doc, 'image' === $kind, $can, $accept );
 			}
 			$old = isset( $legacy[ $kind ] ) && $post ? (string) get_post_meta( $post->ID, $legacy[ $kind ], true ) : '';
 			if ( '' !== $old ) {
-				$out .= '<li class="list-group-item small"><span class="badge text-bg-light me-1">Sistema anterior</span><a href="' . esc_url( $old ) . '" target="_blank" rel="noopener">' . esc_html( rawurldecode( basename( (string) wp_parse_url( $old, PHP_URL_PATH ) ) ) ) . '</a></li>';
+				$name = rawurldecode( basename( (string) wp_parse_url( $old, PHP_URL_PATH ) ) );
+				$out .= '<li class="fmc-doc"><div class="fmc-doc-card">' . self::doc_badge( $name ) . '<div class="fmc-doc-main"><a class="fmc-doc-name" href="' . esc_url( $old ) . '" target="_blank" rel="noopener">' . esc_html( $name ) . '</a><span class="fmc-doc-meta">Sistema anterior</span></div></div></li>';
 			}
-			if ( ! $current[ $kind ] && '' === $old ) {
-				$out .= '<li class="list-group-item small text-secondary">Ninguno.</li>';
+			if ( ! $current[ $kind ] && '' === $old && ! $can ) {
+				$out .= '<li class="fmc-doc-none">Ninguno.</li>';
 			}
 			$out .= '</ul>';
 
 
 			if ( $can && ( $def['multiple'] || ! $current[ $kind ] ) ) {
-				$aid  = 'fmc-add-' . $kind;
-				$out .= '<div class="mb-3"><label class="btn btn-sm btn-outline-secondary mb-0" for="' . esc_attr( $aid ) . '">+ Añadir</label><input class="visually-hidden fmc-file" type="file" id="' . esc_attr( $aid ) . '" name="fmc_doc[' . esc_attr( $kind ) . '][]" accept="' . esc_attr( $accept ) . '"' . ( $def['multiple'] ? ' multiple' : '' ) . '> <span class="fmc-file-name small text-primary" data-for="' . esc_attr( $aid ) . '"></span></div>';
+				$out .= self::drop_zone( $kind, $def, $accept );
 			}
 			$out .= '</div>';
 		}
 		return $out . '</div>';
+	}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+	private static function doc_card( \WP_Post $doc, bool $image, bool $can, string $accept ): string {
+		$name = Documents::name( $doc->ID );
+		$url  = Documents::url( $doc->ID );
+		$file = get_attached_file( $doc->ID );
+		$size = $file && file_exists( $file ) ? size_format( (int) filesize( $file ) ) : '';
+		$id   = (string) $doc->ID;
+		$rid  = 'fmc-replace-' . $id;
+		$xid  = 'fmc-remove-' . $id;
+		$out  = '<li class="fmc-doc">';
+		if ( $can ) {
+			$out .= '<input class="fmc-doc-rm visually-hidden" type="checkbox" id="' . esc_attr( $xid ) . '" name="fmc_remove[]" value="' . esc_attr( $id ) . '" aria-label="' . esc_attr( 'Quitar: ' . $name ) . '" data-fmc-doc-name="' . esc_attr( $name ) . '">';
+		}
+		$out .= '<div class="fmc-doc-card">';
+		$out .= $image ? '<img class="fmc-doc-thumb" src="' . esc_url( $url ) . '" alt="" width="44" height="44" loading="lazy">' : self::doc_badge( $name );
+		$out .= '<div class="fmc-doc-main"><a class="fmc-doc-name" href="' . esc_url( $url ) . '" target="_blank" rel="noopener" title="' . esc_attr( $name ) . '">' . esc_html( $name ) . '</a>';
+		$out .= '' !== $size ? '<span class="fmc-doc-meta">' . esc_html( $size ) . '</span>' : '';
+		if ( $can ) {
+			$out .= '<input class="visually-hidden fmc-file" type="file" id="' . esc_attr( $rid ) . '" name="fmc_replace[' . esc_attr( $id ) . ']" accept="' . esc_attr( $accept ) . '"><label class="fmc-doc-replace" for="' . esc_attr( $rid ) . '">' . self::icon( 'replace' ) . 'Reemplazar<span class="visually-hidden">: ' . esc_html( $name ) . '</span></label>';
+			$out .= '<p class="fmc-doc-pending" data-fmc-picked="' . esc_attr( $rid ) . '" hidden><span>Se reemplazará al guardar por: <strong data-fmc-picked-name></strong></span> <button type="button" class="fmc-doc-link" data-fmc-file-clear="' . esc_attr( $rid ) . '">Cancelar</button></p>';
+		}
+		$out .= '</div>';
+		if ( $can ) {
+			$out .= '<label class="fmc-doc-x" for="' . esc_attr( $xid ) . '" title="Quitar">' . self::icon( 'x' ) . '<span class="visually-hidden">Quitar: ' . esc_html( $name ) . '</span></label>';
+		}
+		$out .= '</div>';
+		if ( $can ) {
+			$out .= '<div class="fmc-doc-gone"><span class="fmc-doc-gone-text">Se quitará al guardar: <strong>' . esc_html( $name ) . '</strong></span><label class="fmc-doc-undo" for="' . esc_attr( $xid ) . '">Deshacer</label></div>';
+		}
+		return $out . '</li>';
+	}
+
+
+
+
+
+
+
+
+
+
+
+
+	private static function drop_zone( string $kind, array $def, string $accept ): string {
+		$aid   = 'fmc-add-' . $kind;
+		$max   = min( (int) $def['max_mb'] * MB_IN_BYTES, (int) wp_max_upload_size() );
+		$many  = (bool) $def['multiple'];
+		$limit = Documents::formats( $def['mimes'] ) . ' · hasta ' . size_format( $max ) . ( $many ? ' cada uno' : '' );
+		return '<div class="fmc-drop-wrap"><label class="fmc-drop" for="' . esc_attr( $aid ) . '">'
+			. '<input class="fmc-file fmc-drop-input" type="file" id="' . esc_attr( $aid ) . '" name="fmc_doc[' . esc_attr( $kind ) . '][]" accept="' . esc_attr( $accept ) . '"' . ( $many ? ' multiple' : '' ) . '>'
+			. '<span class="fmc-drop-badge">' . self::icon( 'upload' ) . '</span>'
+			. '<span class="fmc-drop-text">' . ( $many ? '<strong>Elija ficheros</strong> o arrástrelos aquí' : '<strong>Elija un fichero</strong> o arrástrelo aquí' ) . '</span>'
+			. '<span class="fmc-drop-limit">' . esc_html( $limit ) . '</span>'
+			. '</label><ul class="fmc-doc-list fmc-drop-list" data-fmc-picked="' . esc_attr( $aid ) . '"></ul></div>';
+	}
+
+
+
+
+
+
+
+	private static function doc_badge( string $name ): string {
+		$ext      = strtolower( (string) pathinfo( $name, PATHINFO_EXTENSION ) );
+		$families = array(
+			'pdf'    => array( 'pdf' ),
+			'text'   => array( 'doc', 'docx', 'odt', 'rtf', 'txt' ),
+			'slides' => array( 'ppt', 'pptx', 'odp' ),
+			'image'  => array( 'jpg', 'jpeg', 'png', 'gif', 'webp' ),
+		);
+		$family   = 'other';
+		foreach ( $families as $key => $list ) {
+			if ( in_array( $ext, $list, true ) ) {
+				$family = $key;
+			}
+		}
+		$label = '' !== $ext ? strtoupper( substr( $ext, 0, 4 ) ) : 'FICH';
+		return '<span class="fmc-doc-type" data-family="' . esc_attr( $family ) . '" aria-hidden="true">' . esc_html( $label ) . '</span>';
+	}
+
+
+
+
+
+
+
+	private static function icon( string $name ): string {
+		$paths = array(
+			'x'       => '<path d="M6 6l12 12M18 6L6 18"/>',
+			'replace' => '<path d="M4 9h13l-3-3M20 15H7l3 3"/>',
+			'upload'  => '<path d="M12 16V4M7 9l5-5 5 5M5 20h14"/>',
+		);
+		return '<svg class="fmc-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">' . $paths[ $name ] . '</svg>';
 	}
 
 
@@ -10837,10 +10941,58 @@ body.has-panel { overflow: hidden; }
 .fmc-panel .fmc-counters { grid-template-columns: repeat(auto-fit, minmax(7.5rem, 1fr)); }
 .fmc-panel .fmc-counter strong { font-size: 1.25rem; }
 
-/* Documentos del diseño */
-.fmc-doc-kind + .fmc-doc-kind { border-top: 1px dashed var(--fmc-line); padding-top: .75rem; }
-.fmc-docs .btn-check:checked + .btn-outline-danger { color: #fff; }
-.fmc-docs .list-group-item:has(.btn-check:checked) a { text-decoration: line-through; opacity: .6; }
+/* Documentos del diseño: cada uno, una ficha con su tipo, su nombre, su tamaño,
+   «Reemplazar» y el aspa; marcado para quitar, una barra oscura con «Deshacer».
+   El aspa y «Deshacer» son etiquetas de la misma casilla, que va delante: sin
+   guion el CSS ya enseña una cosa u otra. Debajo, la zona para añadir, que es
+   el propio campo de fichero, transparente y estirado encima. */
+.fmc-docs .fmc-icon { flex: none; width: 1rem; height: 1rem; }
+.fmc-doc-kind + .fmc-doc-kind { border-top: 1px dashed var(--fmc-line); padding-top: 1rem; margin-top: 1rem; }
+.fmc-doc-head { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: .5rem; margin-bottom: .5rem; }
+.fmc-doc-list { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: .5rem; }
+.fmc-doc-list:empty { display: none; }
+.fmc-doc-list:not(:empty) + .fmc-drop-wrap, .fmc-drop + .fmc-drop-list:not(:empty) { margin-top: .5rem; }
+.fmc-doc-none { color: var(--fmc-text-2); font-size: .875rem; }
+.fmc-doc-card { display: flex; align-items: center; gap: .75rem; padding: 12px; background: var(--fmc-soft); border: 1px solid var(--fmc-line); border-radius: var(--fmc-r); min-width: 0; }
+.fmc-doc-type { flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px; border-radius: 8px; font-size: .7rem; font-weight: 700; letter-spacing: .02em; background: var(--fmc-sup-2); color: var(--fmc-text-2); border: 1px solid var(--fmc-line); }
+.fmc-doc-type[data-family="pdf"] { background: var(--fmc-bad-cont); color: var(--fmc-bad); border-color: transparent; }
+.fmc-doc-type[data-family="text"] { background: var(--fmc-brand-cont); color: var(--fmc-brand); border-color: transparent; }
+.fmc-doc-type[data-family="slides"] { background: var(--fmc-wait-cont); color: var(--fmc-wait); border-color: transparent; }
+.fmc-doc-type[data-family="image"] { background: var(--fmc-ok-cont); color: var(--fmc-ok); border-color: transparent; }
+.fmc-doc-thumb { flex: 0 0 auto; width: 44px; height: 44px; object-fit: cover; border-radius: 8px; border: 1px solid var(--fmc-line); background: #fff; }
+.fmc-doc-main { flex: 1 1 auto; min-width: 0; display: flex; flex-wrap: wrap; align-items: baseline; column-gap: .75rem; row-gap: .15rem; }
+.fmc-doc-name { flex: 0 1 auto; min-width: 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+.fmc-doc-meta { font-family: var(--bs-font-monospace); font-size: .75rem; color: var(--fmc-text-2); white-space: nowrap; }
+.fmc-doc-replace, .fmc-doc-link { flex-basis: 100%; display: inline-flex; align-items: center; gap: .3rem; width: max-content; max-width: 100%; margin: 0; padding: 0; border: 0; background: none; font-size: .8125rem; font-weight: 600; color: var(--fmc-brand); cursor: pointer; text-decoration: underline; text-underline-offset: 2px; text-decoration-color: transparent; }
+.fmc-doc-replace:hover, .fmc-doc-link:hover { text-decoration-color: currentColor; }
+.fmc-doc-link { flex-basis: auto; }
+.fmc-file:focus-visible + .fmc-doc-replace, .fmc-doc-link:focus-visible { outline: 2px solid var(--fmc-brand); outline-offset: 2px; border-radius: 4px; }
+.fmc-doc-pending { flex-basis: 100%; margin: .25rem 0 0; padding: .35rem .6rem; border-radius: 8px; background: var(--fmc-brand-cont); color: var(--fmc-brand); font-size: .8125rem; overflow-wrap: anywhere; }
+.fmc-doc-pending[hidden] { display: none; }
+.fmc-doc-x { flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; width: 2.25rem; height: 2.25rem; margin: 0; border-radius: 50%; color: var(--fmc-text-2); background: transparent; border: 0; cursor: pointer; transition: background-color .15s, color .15s; }
+.fmc-docs .fmc-doc-x .fmc-icon { width: 1.25rem; height: 1.25rem; }
+.fmc-doc-x:hover { background: var(--fmc-bad-cont); color: var(--fmc-bad); }
+.fmc-doc-rm:focus-visible ~ .fmc-doc-card .fmc-doc-x, .fmc-doc-x:focus-visible { outline: 2px solid var(--fmc-brand); outline-offset: 2px; }
+.fmc-doc-gone { display: none; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: .5rem 1rem; padding: 10px 12px; border-radius: var(--fmc-r); background: var(--fmc-text); color: #fff; font-size: .875rem; min-width: 0; }
+.fmc-doc-gone-text { min-width: 0; overflow-wrap: anywhere; }
+.fmc-doc-undo { margin: 0; padding: .3rem .9rem; border: 1px solid #fff; border-radius: 999px; font-weight: 600; cursor: pointer; color: #fff; }
+.fmc-doc-undo:hover { background: #fff; color: var(--fmc-text); }
+.fmc-doc-rm:checked ~ .fmc-doc-card { display: none; }
+.fmc-doc-rm:checked ~ .fmc-doc-gone { display: flex; }
+.fmc-doc-rm:focus-visible ~ .fmc-doc-gone .fmc-doc-undo { outline: 2px solid #fff; outline-offset: 2px; }
+.fmc-doc.is-new .fmc-doc-card { background: #fff; border-style: dashed; }
+.fmc-doc-new { flex-basis: 100%; font-size: .8125rem; color: var(--fmc-brand); font-weight: 600; }
+
+.fmc-drop { position: relative; display: flex; flex-direction: column; align-items: center; gap: .25rem; margin: 0; padding: 1rem; text-align: center; border: 2px dashed #b9c2cc; border-radius: var(--fmc-r); background: var(--fmc-soft); color: var(--fmc-text-2); cursor: pointer; transition: border-color .15s, background-color .15s; }
+.fmc-drop-input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
+.fmc-drop:hover, .fmc-drop:focus-within { border-color: var(--fmc-brand); background: var(--fmc-brand-cont); }
+.fmc-drop:has(.fmc-drop-input:focus-visible) { outline: 2px solid var(--fmc-brand); outline-offset: 2px; }
+.fmc-drop.is-over { border-style: solid; border-color: var(--fmc-brand); background: var(--fmc-brand-cont); }
+.fmc-drop-badge { display: inline-flex; align-items: center; justify-content: center; width: 2.5rem; height: 2.5rem; border-radius: 50%; background: #fff; color: var(--fmc-brand); box-shadow: var(--fmc-e1); }
+.fmc-docs .fmc-drop-badge .fmc-icon { width: 1.25rem; height: 1.25rem; }
+.fmc-drop-text { color: var(--fmc-text); }
+.fmc-drop-text strong { color: var(--fmc-brand); }
+.fmc-drop-limit { font-size: .8125rem; }
 
 /* Vistas y periodo, con los colores del registro de visitas: la vista activa,
    en blanco sobre gris; debajo, las flechas, «Hoy», el periodo y su recuento.
@@ -10968,7 +11120,10 @@ body.has-panel { overflow: hidden; }
  * 4. Los campos con `data-fmc-show` se ven solo si otro campo tiene uno de
  *    los valores de `data-fmc-show-values` (las horas según la modalidad, por
  *    ejemplo). El servidor aplica la misma regla al guardar.
- * 5. Al elegir un fichero, su nombre aparece al lado del botón.
+ * 5. Los documentos del diseño: lo elegido para subir o para reemplazar se
+ *    enseña antes de guardar, cada fichero nuevo con su aspa para no subirlo;
+ *    la zona para añadir se resalta al arrastrar encima. Quitar y «Deshacer»
+ *    no necesitan guion: son etiquetas de la casilla `fmc_remove[]`.
  * 6. Los `textarea[data-fmc-rich]` llevan el TinyMCE que trae WordPress,
  *    con lo justo: negrita, cursiva y listas. Sin él, se quedan como cuadro
  *    de texto y el HTML se guarda igual.
@@ -11245,19 +11400,194 @@ body.has-panel { overflow: hidden; }
 			} );
 	}
 
+	// Documentos: la familia de un fichero por su extensión, como la pinta el
+	// servidor en la ficha de cada documento guardado.
+	const DOC_FAMILIES = {
+		pdf: \'pdf\',
+		doc: \'text\',
+		docx: \'text\',
+		odt: \'text\',
+		rtf: \'text\',
+		txt: \'text\',
+		ppt: \'slides\',
+		pptx: \'slides\',
+		odp: \'slides\',
+		jpg: \'image\',
+		jpeg: \'image\',
+		png: \'image\',
+		gif: \'image\',
+		webp: \'image\',
+	};
+
+	const ICON_X = \'<svg class="fmc-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M6 6l12 12M18 6L6 18"/></svg>\';
+
+	function docBadge( name ) {
+		const match = /\\.([^.]+)$/.exec( name || \'\' );
+		const ext = match ? match[ 1 ].toLowerCase() : \'\';
+		const badge = document.createElement( \'span\' );
+		badge.className = \'fmc-doc-type\';
+		badge.dataset.family = DOC_FAMILIES[ ext ] || \'other\';
+		badge.setAttribute( \'aria-hidden\', \'true\' );
+		badge.textContent = ext ? ext.slice( 0, 4 ).toUpperCase() : \'FICH\';
+		return badge;
+	}
+
+	function humanSize( bytes ) {
+		if ( ! bytes && 0 !== bytes ) {
+			return \'\';
+		}
+		if ( bytes < 1048576 ) {
+			return Math.max( 1, Math.round( bytes / 1024 ) ) + \' KB\';
+		}
+		return ( bytes / 1048576 ).toFixed( 1 ).replace( \'.\', \',\' ) + \' MB\';
+	}
+
+	// Lo que se dice a un lector de pantalla cuando cambia algo de la lista.
+	function docStatus( el, text ) {
+		const docs = el.closest( \'.fmc-docs\' );
+		const region = docs && docs.querySelector( \'[data-fmc-doc-status]\' );
+		if ( region ) {
+			region.textContent = text;
+		}
+	}
+
+	// Lo elegido en un campo de fichero se enseña antes de guardar: en un
+	// documento guardado, «Se reemplazará al guardar por…»; en la zona para
+	// añadir, una ficha por fichero, «Se subirá al guardar», cada una con su
+	// aspa para no subirlo.
+	function showPicked( input ) {
+		const box = document.querySelector( \'[data-fmc-picked="\' + input.id + \'"]\' );
+		if ( ! box ) {
+			return;
+		}
+		const files = Array.prototype.slice.call( input.files || [] );
+		if ( \'UL\' !== box.tagName ) {
+			const name = box.querySelector( \'[data-fmc-picked-name]\' );
+			if ( name ) {
+				name.textContent = files.length ? files[ 0 ].name : \'\';
+			}
+			box.hidden = ! files.length;
+			docStatus( input, files.length ? \'Se reemplazará al guardar por: \' + files[ 0 ].name : \'\' );
+			return;
+		}
+		box.textContent = \'\';
+		files.forEach( function ( file, index ) {
+			const item = document.createElement( \'li\' );
+			item.className = \'fmc-doc is-new\';
+			const card = document.createElement( \'div\' );
+			card.className = \'fmc-doc-card\';
+			const main = document.createElement( \'div\' );
+			main.className = \'fmc-doc-main\';
+			const name = document.createElement( \'span\' );
+			name.className = \'fmc-doc-name\';
+			name.title = file.name;
+			name.textContent = file.name;
+			main.append( name );
+			const size = humanSize( file.size );
+			if ( size ) {
+				const meta = document.createElement( \'span\' );
+				meta.className = \'fmc-doc-meta\';
+				meta.textContent = size;
+				main.append( meta );
+			}
+			const note = document.createElement( \'span\' );
+			note.className = \'fmc-doc-new\';
+			note.textContent = \'Se subirá al guardar\';
+			main.append( note );
+			const drop = document.createElement( \'button\' );
+			drop.type = \'button\';
+			drop.className = \'fmc-doc-x\';
+			drop.title = \'No subir\';
+			drop.dataset.fmcUnpick = input.id;
+			drop.dataset.fmcIndex = String( index );
+			drop.setAttribute( \'aria-label\', \'No subir: \' + file.name );
+			drop.innerHTML = ICON_X;
+			card.append( docBadge( file.name ), main, drop );
+			item.append( card );
+			box.append( item );
+		} );
+		let text = \'\';
+		if ( 1 === files.length ) {
+			text = \'Se subirá al guardar: \' + files[ 0 ].name;
+		} else if ( files.length ) {
+			text = \'Se subirán al guardar \' + files.length + \' ficheros\';
+		}
+		docStatus( input, text );
+	}
+
+	// Quitar un fichero de los elegidos: con DataTransfer se rehace la lista
+	// sin él; donde no lo hay, se vacía la elección entera y se vuelve a elegir.
+	function unpick( input, index ) {
+		const keep = Array.prototype.slice.call( input.files || [] ).filter( function ( file, i ) {
+			return i !== index;
+		} );
+		if ( keep.length && window.DataTransfer ) {
+			const transfer = new window.DataTransfer();
+			keep.forEach( function ( file ) {
+				transfer.items.add( file );
+			} );
+			input.files = transfer.files;
+		} else {
+			input.value = \'\';
+		}
+		input.dispatchEvent( new Event( \'change\', { bubbles: true } ) );
+	}
+
+	function onDocClick( event ) {
+		if ( ! event.target.closest ) {
+			return;
+		}
+		const clear = event.target.closest( \'button[data-fmc-file-clear]\' );
+		const drop = event.target.closest( \'button[data-fmc-unpick]\' );
+		if ( ! clear && ! drop ) {
+			return;
+		}
+		const input = document.getElementById( clear ? clear.dataset.fmcFileClear : drop.dataset.fmcUnpick );
+		if ( ! input ) {
+			return;
+		}
+		event.preventDefault();
+		if ( clear ) {
+			input.value = \'\';
+			input.dispatchEvent( new Event( \'change\', { bubbles: true } ) );
+			input.focus();
+			return;
+		}
+		const index = parseInt( drop.dataset.fmcIndex, 10 ) || 0;
+		unpick( input, index );
+		// El foco, a la ficha que queda en su sitio, o a la zona si no queda ninguna.
+		const left = document.querySelectorAll( \'button[data-fmc-unpick="\' + input.id + \'"]\' );
+		const next = left[ Math.min( index, left.length - 1 ) ];
+		( next || input ).focus();
+	}
+
+	// Marcar o desmarcar un documento para quitar: lo enseña el CSS; aquí se
+	// dice en voz alta y el foco se queda en la casilla, cuyo anillo se pinta
+	// en «Deshacer» o en el aspa, la que se vea.
+	function onDocRemove( box ) {
+		const name = box.dataset.fmcDocName || \'\';
+		docStatus( box, box.checked ? \'Se quitará al guardar: \' + name : \'Se mantiene: \' + name );
+		box.focus();
+	}
+
+	// Arrastrar encima de la zona la resalta; soltar lo hace el propio campo.
+	function onDrag( event ) {
+		const zone = event.target && event.target.closest ? event.target.closest( \'.fmc-drop\' ) : null;
+		if ( zone ) {
+			zone.classList.toggle( \'is-over\', \'dragenter\' === event.type || \'dragover\' === event.type );
+		}
+	}
+
 	function onChange( event ) {
 		const target = event.target;
 		if ( ! target || ! target.closest ) {
 			return;
 		}
 		if ( target.classList && target.classList.contains( \'fmc-file\' ) ) {
-			const label = document.querySelector( \'.fmc-file-name[data-for="\' + target.id + \'"]\' );
-			if ( label ) {
-				const names = Array.prototype.map.call( target.files || [], function ( f ) {
-					return f.name;
-				} );
-				label.textContent = names.length ? \'Se subirá al guardar: \' + names.join( \', \' ) : \'\';
-			}
+			showPicked( target );
+		}
+		if ( target.classList && target.classList.contains( \'fmc-doc-rm\' ) ) {
+			onDocRemove( target );
 		}
 		if ( target.hasAttribute && target.hasAttribute( \'data-fmc-hints\' ) ) {
 			showHint( target );
@@ -11710,6 +12040,10 @@ body.has-panel { overflow: hidden; }
 	document.addEventListener( \'change\', onChange );
 	document.addEventListener( \'click\', onSessionClick );
 	document.addEventListener( \'input\', onSessionInput );
+	document.addEventListener( \'click\', onDocClick );
+	[ \'dragenter\', \'dragover\', \'dragleave\', \'drop\' ].forEach( function ( type ) {
+		document.addEventListener( type, onDrag );
+	} );
 	if ( \'loading\' === document.readyState ) {
 		document.addEventListener( \'DOMContentLoaded\', function () {
 			initSelects();
@@ -11751,6 +12085,9 @@ body.has-panel { overflow: hidden; }
 		onSessionClick: onSessionClick,
 		onSessionInput: onSessionInput,
 		sessionHours: sessionHours,
+		onDocClick: onDocClick,
+		onDrag: onDrag,
+		showPicked: showPicked,
 	};
 } )();
 ',

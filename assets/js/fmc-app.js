@@ -10,7 +10,10 @@
  * 4. Los campos con `data-fmc-show` se ven solo si otro campo tiene uno de
  *    los valores de `data-fmc-show-values` (las horas según la modalidad, por
  *    ejemplo). El servidor aplica la misma regla al guardar.
- * 5. Al elegir un fichero, su nombre aparece al lado del botón.
+ * 5. Los documentos del diseño: lo elegido para subir o para reemplazar se
+ *    enseña antes de guardar, cada fichero nuevo con su aspa para no subirlo;
+ *    la zona para añadir se resalta al arrastrar encima. Quitar y «Deshacer»
+ *    no necesitan guion: son etiquetas de la casilla `fmc_remove[]`.
  * 6. Los `textarea[data-fmc-rich]` llevan el TinyMCE que trae WordPress,
  *    con lo justo: negrita, cursiva y listas. Sin él, se quedan como cuadro
  *    de texto y el HTML se guarda igual.
@@ -287,19 +290,194 @@
 			} );
 	}
 
+	// Documentos: la familia de un fichero por su extensión, como la pinta el
+	// servidor en la ficha de cada documento guardado.
+	const DOC_FAMILIES = {
+		pdf: 'pdf',
+		doc: 'text',
+		docx: 'text',
+		odt: 'text',
+		rtf: 'text',
+		txt: 'text',
+		ppt: 'slides',
+		pptx: 'slides',
+		odp: 'slides',
+		jpg: 'image',
+		jpeg: 'image',
+		png: 'image',
+		gif: 'image',
+		webp: 'image',
+	};
+
+	const ICON_X = '<svg class="fmc-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M6 6l12 12M18 6L6 18"/></svg>';
+
+	function docBadge( name ) {
+		const match = /\.([^.]+)$/.exec( name || '' );
+		const ext = match ? match[ 1 ].toLowerCase() : '';
+		const badge = document.createElement( 'span' );
+		badge.className = 'fmc-doc-type';
+		badge.dataset.family = DOC_FAMILIES[ ext ] || 'other';
+		badge.setAttribute( 'aria-hidden', 'true' );
+		badge.textContent = ext ? ext.slice( 0, 4 ).toUpperCase() : 'FICH';
+		return badge;
+	}
+
+	function humanSize( bytes ) {
+		if ( ! bytes && 0 !== bytes ) {
+			return '';
+		}
+		if ( bytes < 1048576 ) {
+			return Math.max( 1, Math.round( bytes / 1024 ) ) + ' KB';
+		}
+		return ( bytes / 1048576 ).toFixed( 1 ).replace( '.', ',' ) + ' MB';
+	}
+
+	// Lo que se dice a un lector de pantalla cuando cambia algo de la lista.
+	function docStatus( el, text ) {
+		const docs = el.closest( '.fmc-docs' );
+		const region = docs && docs.querySelector( '[data-fmc-doc-status]' );
+		if ( region ) {
+			region.textContent = text;
+		}
+	}
+
+	// Lo elegido en un campo de fichero se enseña antes de guardar: en un
+	// documento guardado, «Se reemplazará al guardar por…»; en la zona para
+	// añadir, una ficha por fichero, «Se subirá al guardar», cada una con su
+	// aspa para no subirlo.
+	function showPicked( input ) {
+		const box = document.querySelector( '[data-fmc-picked="' + input.id + '"]' );
+		if ( ! box ) {
+			return;
+		}
+		const files = Array.prototype.slice.call( input.files || [] );
+		if ( 'UL' !== box.tagName ) {
+			const name = box.querySelector( '[data-fmc-picked-name]' );
+			if ( name ) {
+				name.textContent = files.length ? files[ 0 ].name : '';
+			}
+			box.hidden = ! files.length;
+			docStatus( input, files.length ? 'Se reemplazará al guardar por: ' + files[ 0 ].name : '' );
+			return;
+		}
+		box.textContent = '';
+		files.forEach( function ( file, index ) {
+			const item = document.createElement( 'li' );
+			item.className = 'fmc-doc is-new';
+			const card = document.createElement( 'div' );
+			card.className = 'fmc-doc-card';
+			const main = document.createElement( 'div' );
+			main.className = 'fmc-doc-main';
+			const name = document.createElement( 'span' );
+			name.className = 'fmc-doc-name';
+			name.title = file.name;
+			name.textContent = file.name;
+			main.append( name );
+			const size = humanSize( file.size );
+			if ( size ) {
+				const meta = document.createElement( 'span' );
+				meta.className = 'fmc-doc-meta';
+				meta.textContent = size;
+				main.append( meta );
+			}
+			const note = document.createElement( 'span' );
+			note.className = 'fmc-doc-new';
+			note.textContent = 'Se subirá al guardar';
+			main.append( note );
+			const drop = document.createElement( 'button' );
+			drop.type = 'button';
+			drop.className = 'fmc-doc-x';
+			drop.title = 'No subir';
+			drop.dataset.fmcUnpick = input.id;
+			drop.dataset.fmcIndex = String( index );
+			drop.setAttribute( 'aria-label', 'No subir: ' + file.name );
+			drop.innerHTML = ICON_X;
+			card.append( docBadge( file.name ), main, drop );
+			item.append( card );
+			box.append( item );
+		} );
+		let text = '';
+		if ( 1 === files.length ) {
+			text = 'Se subirá al guardar: ' + files[ 0 ].name;
+		} else if ( files.length ) {
+			text = 'Se subirán al guardar ' + files.length + ' ficheros';
+		}
+		docStatus( input, text );
+	}
+
+	// Quitar un fichero de los elegidos: con DataTransfer se rehace la lista
+	// sin él; donde no lo hay, se vacía la elección entera y se vuelve a elegir.
+	function unpick( input, index ) {
+		const keep = Array.prototype.slice.call( input.files || [] ).filter( function ( file, i ) {
+			return i !== index;
+		} );
+		if ( keep.length && window.DataTransfer ) {
+			const transfer = new window.DataTransfer();
+			keep.forEach( function ( file ) {
+				transfer.items.add( file );
+			} );
+			input.files = transfer.files;
+		} else {
+			input.value = '';
+		}
+		input.dispatchEvent( new Event( 'change', { bubbles: true } ) );
+	}
+
+	function onDocClick( event ) {
+		if ( ! event.target.closest ) {
+			return;
+		}
+		const clear = event.target.closest( 'button[data-fmc-file-clear]' );
+		const drop = event.target.closest( 'button[data-fmc-unpick]' );
+		if ( ! clear && ! drop ) {
+			return;
+		}
+		const input = document.getElementById( clear ? clear.dataset.fmcFileClear : drop.dataset.fmcUnpick );
+		if ( ! input ) {
+			return;
+		}
+		event.preventDefault();
+		if ( clear ) {
+			input.value = '';
+			input.dispatchEvent( new Event( 'change', { bubbles: true } ) );
+			input.focus();
+			return;
+		}
+		const index = parseInt( drop.dataset.fmcIndex, 10 ) || 0;
+		unpick( input, index );
+		// El foco, a la ficha que queda en su sitio, o a la zona si no queda ninguna.
+		const left = document.querySelectorAll( 'button[data-fmc-unpick="' + input.id + '"]' );
+		const next = left[ Math.min( index, left.length - 1 ) ];
+		( next || input ).focus();
+	}
+
+	// Marcar o desmarcar un documento para quitar: lo enseña el CSS; aquí se
+	// dice en voz alta y el foco se queda en la casilla, cuyo anillo se pinta
+	// en «Deshacer» o en el aspa, la que se vea.
+	function onDocRemove( box ) {
+		const name = box.dataset.fmcDocName || '';
+		docStatus( box, box.checked ? 'Se quitará al guardar: ' + name : 'Se mantiene: ' + name );
+		box.focus();
+	}
+
+	// Arrastrar encima de la zona la resalta; soltar lo hace el propio campo.
+	function onDrag( event ) {
+		const zone = event.target && event.target.closest ? event.target.closest( '.fmc-drop' ) : null;
+		if ( zone ) {
+			zone.classList.toggle( 'is-over', 'dragenter' === event.type || 'dragover' === event.type );
+		}
+	}
+
 	function onChange( event ) {
 		const target = event.target;
 		if ( ! target || ! target.closest ) {
 			return;
 		}
 		if ( target.classList && target.classList.contains( 'fmc-file' ) ) {
-			const label = document.querySelector( '.fmc-file-name[data-for="' + target.id + '"]' );
-			if ( label ) {
-				const names = Array.prototype.map.call( target.files || [], function ( f ) {
-					return f.name;
-				} );
-				label.textContent = names.length ? 'Se subirá al guardar: ' + names.join( ', ' ) : '';
-			}
+			showPicked( target );
+		}
+		if ( target.classList && target.classList.contains( 'fmc-doc-rm' ) ) {
+			onDocRemove( target );
 		}
 		if ( target.hasAttribute && target.hasAttribute( 'data-fmc-hints' ) ) {
 			showHint( target );
@@ -752,6 +930,10 @@
 	document.addEventListener( 'change', onChange );
 	document.addEventListener( 'click', onSessionClick );
 	document.addEventListener( 'input', onSessionInput );
+	document.addEventListener( 'click', onDocClick );
+	[ 'dragenter', 'dragover', 'dragleave', 'drop' ].forEach( function ( type ) {
+		document.addEventListener( type, onDrag );
+	} );
 	if ( 'loading' === document.readyState ) {
 		document.addEventListener( 'DOMContentLoaded', function () {
 			initSelects();
@@ -793,5 +975,8 @@
 		onSessionClick: onSessionClick,
 		onSessionInput: onSessionInput,
 		sessionHours: sessionHours,
+		onDocClick: onDocClick,
+		onDrag: onDrag,
+		showPicked: showPicked,
 	};
 } )();
