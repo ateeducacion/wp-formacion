@@ -241,26 +241,18 @@ describe( 'el guiño escondido del perfil', () => {
 	it( 'tres clics seguidos hacen llover hamburguesas, por encima de la página y sin poder pulsarse', () => {
 		click( avatar, 3 );
 		const box = document.querySelector( '.fmc-party' );
-		expect( box.classList.contains( 'is-rain' ) ).toBe( true );
 		expect( box.getAttribute( 'aria-hidden' ) ).toBe( 'true' );
 		expect( box.querySelectorAll( 'span' ).length ).toBeGreaterThan( 20 );
-		expect( box.textContent ).toContain( '🍔' );
+		expect( box.textContent.replace( /🍔/gu, '' ) ).toBe( '' );
 	} );
 
-	it( 'se quita solo, y la vez siguiente cruza un gato; luego vuelven las hamburguesas', () => {
+	it( 'se quita solo, y se puede repetir', () => {
 		click( avatar, 3 );
 		vi.advanceTimersByTime( 9000 );
 		expect( document.querySelector( '.fmc-party' ) ).toBeNull();
 
 		click( avatar, 3 );
-		const walk = document.querySelector( '.fmc-party' );
-		expect( walk.classList.contains( 'is-walk' ) ).toBe( true );
-		expect( walk.querySelectorAll( 'span' ).length ).toBe( 1 );
-		expect( walk.textContent ).toBe( '🐈' );
-		vi.advanceTimersByTime( 9000 );
-
-		click( avatar, 3 );
-		expect( document.querySelector( '.fmc-party' ).classList.contains( 'is-rain' ) ).toBe( true );
+		expect( document.querySelector( '.fmc-party' ).textContent ).toContain( '🍔' );
 	} );
 
 	it( 'mientras dura no se apila otro', () => {

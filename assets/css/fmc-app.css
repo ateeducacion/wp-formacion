@@ -447,10 +447,6 @@ body.has-panel { overflow: hidden; }
    encima de todo, que no se puede pulsar y se quita solo. */
 .fmc-yo .fmc-avatar { user-select: none; }
 .fmc-party { position: fixed; inset: 0; z-index: 100004; overflow: hidden; pointer-events: none; }
-.fmc-party span { position: absolute; line-height: 1; }
-.fmc-party.is-rain span { top: -4rem; animation: fmc-party-fall linear both; }
-.fmc-party.is-walk span { bottom: .75rem; right: -5rem; font-size: 4rem; animation: fmc-party-walk 7s linear both, fmc-party-hop .3s ease-in-out infinite alternate; }
+.fmc-party span { position: absolute; top: -4rem; line-height: 1; animation: fmc-party-fall linear both; }
 @keyframes fmc-party-fall { to { transform: translateY(calc(100vh + 8rem)) rotate(1turn); } }
-@keyframes fmc-party-walk { to { right: calc(100% + 5rem); } }
-@keyframes fmc-party-hop { to { transform: translateY(-.45rem); } }
 
