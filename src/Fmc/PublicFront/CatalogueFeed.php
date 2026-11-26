@@ -223,7 +223,8 @@ final class CatalogueFeed {
 			$value                   = 'post_content' === $key ? $post->post_content : $m( $key );
 			$course[ $keys[ $key ] ] = '' !== trim( $value ) ? wp_kses_post( wpautop( $value ) ) : '';
 		}
-		$course['digcomp_url'] = esc_url_raw( $m( D::DIGCOMP_URL ) );
+		// El enlace al perfil entero: a la herramienta, con la selección del diseño.
+		$course['digcomp_url'] = esc_url_raw( DigComp::tool_link( $m( D::DIGCOMP_URL ), Editor::digcomp_tool() ) );
 		// El perfil, ya resumido por áreas: quien pinta la ficha en otra web
 		// hace el cuadro sin conocer el marco de competencia.
 		$course['digcomp']   = DigComp::profile( $m( D::DIGCOMP_URL ) );

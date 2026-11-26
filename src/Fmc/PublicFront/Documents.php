@@ -116,7 +116,10 @@ final class Documents {
 	/**
 	 * The kinds of document, with what each one accepts.
 	 *
-	 * @return array<string, array{label:string, help:string, mimes:array<string, string>, multiple:bool, max_mb:int}>
+	 * `per_format` is for a kind that keeps one document of each format: a new
+	 * one replaces the one of its format and leaves the others.
+	 *
+	 * @return array<string, array{label:string, help:string, mimes:array<string, string>, multiple:bool, max_mb:int, per_format?:bool}>
 	 */
 	public static function kinds(): array {
 		// Del diseño y de la escaleta se suben los editables; para conservar la
@@ -144,15 +147,17 @@ final class Documents {
 				'multiple' => false,
 				'max_mb'   => 3,
 			),
-			// Es la ficha técnica y el fichero maestro del diseño: uno solo, la
-			// versión vigente; las anteriores siguen donde se guardaban (issue
-			// #26). De un curso del catálogo la descarga cualquiera (ADR-0025).
+			// Es la ficha técnica y el fichero maestro del diseño: la versión
+			// vigente, en editable y, si se quiere, también en PDF. Uno por
+			// formato; las versiones anteriores siguen donde se guardaban (issue
+			// #26). De un curso del catálogo los descarga cualquiera (ADR-0025).
 			'design'   => array(
-				'label'    => 'Diseño del curso',
-				'help'     => 'En formato editable: DOC, DOCX u ODT. Uno solo, la versión vigente. Se puede descargar desde el catálogo.',
-				'mimes'    => $texts,
-				'multiple' => false,
-				'max_mb'   => 20,
+				'label'      => 'Diseño del curso',
+				'help'       => 'En formato editable (DOC, DOCX u ODT) y, si quiere, también en PDF. Uno por formato, la versión vigente. Se descargan desde el catálogo.',
+				'mimes'      => array_merge( $texts, $pdf ),
+				'multiple'   => true,
+				'per_format' => true,
+				'max_mb'     => 20,
 			),
 			'sessions' => array(
 				'label'    => 'Escaleta de las sesiones',
@@ -314,6 +319,7 @@ final class Documents {
 				)
 			);
 			wp_delete_attachment( $attachment_id, true );
+			self::keep_one_per_format( $post_id, $kind, $new );
 		}
 
 		foreach ( self::kinds() as $kind => $def ) {
@@ -335,7 +341,9 @@ final class Documents {
 				$new = self::store( $post_id, $kind, $file );
 				if ( is_string( $new ) ) {
 					$problems[] = $new;
+					continue;
 				}
+				self::keep_one_per_format( $post_id, $kind, $new );
 			}
 		}
 
@@ -346,6 +354,41 @@ final class Documents {
 			delete_post_thumbnail( $post_id );
 		}
 		return $problems;
+	}
+
+	/**
+	 * In a kind that keeps one document per format, drop the others of the
+	 * format of the one just stored.
+	 *
+	 * Se hace después de guardar el nuevo: si no se pudo guardar, el que había
+	 * sigue ahí.
+	 *
+	 * @param int    $post_id Design.
+	 * @param string $kind    Kind.
+	 * @param int    $keep    Attachment just stored.
+	 */
+	private static function keep_one_per_format( int $post_id, string $kind, int $keep ): void {
+		if ( empty( self::kinds()[ $kind ]['per_format'] ) ) {
+			return;
+		}
+		$format = self::format( $keep );
+		foreach ( self::of( $post_id )[ $kind ] as $doc ) {
+			if ( $doc->ID !== $keep && self::format( $doc->ID ) === $format ) {
+				wp_delete_attachment( $doc->ID, true );
+			}
+		}
+	}
+
+	/**
+	 * The format of a document, to tell which ones are the same file in another format.
+	 *
+	 * @param int $attachment_id Attachment.
+	 * @return string
+	 */
+	private static function format( int $attachment_id ): string {
+		$mime = (string) get_post_mime_type( $attachment_id );
+		// DOC y DOCX son el mismo formato a estos efectos: el de Word.
+		return 'application/msword' === $mime ? 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' : $mime;
 	}
 
 	/**

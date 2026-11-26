@@ -127,6 +127,28 @@ class Test_Documents extends WP_UnitTestCase {
 	}
 
 	/**
+	 * A DOCX upload: a ZIP with the parts Word puts first.
+	 *
+	 * @param string $name File name.
+	 * @return array<string, mixed>
+	 */
+	private function docx( string $name ): array {
+		$tmp = wp_tempnam( $name );
+		$zip = new ZipArchive();
+		$zip->open( $tmp, ZipArchive::OVERWRITE );
+		$zip->addFromString( '[Content_Types].xml', '<?xml version="1.0" encoding="UTF-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"/>' );
+		$zip->addFromString( 'word/document.xml', '<?xml version="1.0" encoding="UTF-8"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>' );
+		$zip->close();
+		return array(
+			'name'     => $name,
+			'type'     => '',
+			'tmp_name' => $tmp,
+			'error'    => 0,
+			'size'     => (int) filesize( $tmp ),
+		);
+	}
+
+	/**
 	 * A PNG upload.
 	 *
 	 * @param string $name File name.
@@ -138,8 +160,9 @@ class Test_Documents extends WP_UnitTestCase {
 	}
 
 	/**
-	 * La imagen es una sola y pequeña; el resto, listas. Del diseño, la
-	 * escaleta y las presentaciones, los editables; los recursos, en PDF (#11).
+	 * La imagen es una sola y pequeña; el resto, listas. De la escaleta y las
+	 * presentaciones, los editables; los recursos, en PDF (#11). El diseño del
+	 * curso, en editable y en PDF: uno por formato.
 	 */
 	public function test_each_kind_accepts_its_own_formats() {
 		$kinds = Documents::kinds();
@@ -147,11 +170,16 @@ class Test_Documents extends WP_UnitTestCase {
 		$this->assertSame( array( 'image', 'design', 'sessions', 'slides', 'support', 'extra' ), array_keys( $kinds ) );
 		$this->assertFalse( $kinds['image']['multiple'] );
 		$this->assertSame( 3, $kinds['image']['max_mb'] );
-		// El diseño del curso es el fichero maestro: uno, el vigente (#26).
-		$this->assertFalse( $kinds['design']['multiple'] );
+		// El diseño del curso es el fichero maestro: el vigente, en cada formato (#26).
+		$this->assertTrue( $kinds['design']['multiple'] );
+		$this->assertTrue( $kinds['design']['per_format'] );
+		$this->assertContains( 'application/pdf', $kinds['design']['mimes'] );
 		foreach ( array( 'design', 'sessions' ) as $editable ) {
 			$this->assertContains( 'application/vnd.oasis.opendocument.text', $kinds[ $editable ]['mimes'], $editable );
-			$this->assertNotContains( 'application/pdf', $kinds[ $editable ]['mimes'], $editable );
+		}
+		$this->assertNotContains( 'application/pdf', $kinds['sessions']['mimes'] );
+		foreach ( array( 'image', 'sessions', 'slides', 'support', 'extra' ) as $other ) {
+			$this->assertArrayNotHasKey( 'per_format', $kinds[ $other ], $other );
 		}
 		$this->assertContains( 'application/vnd.openxmlformats-officedocument.presentationml.presentation', $kinds['slides']['mimes'] );
 		$this->assertContains( 'application/vnd.oasis.opendocument.presentation', $kinds['slides']['mimes'] );
@@ -168,7 +196,9 @@ class Test_Documents extends WP_UnitTestCase {
 
 		$this->assertSame( '', Documents::check( 'design', $odt ) );
 		$this->assertSame( '', Documents::check( 'support', $pdf ) );
-		$this->assertSame( '«diseno.pdf» no tiene un formato admitido. Se admite DOC, DOCX u ODT.', Documents::check( 'design', $pdf ), 'del diseño, el editable' );
+		$this->assertSame( '', Documents::check( 'design', $pdf ), 'el diseño, también en PDF' );
+		$this->assertSame( '«diseno.pdf» no tiene un formato admitido. Se admite DOC, DOCX u ODT.', Documents::check( 'sessions', $pdf ), 'de la escaleta, el editable' );
+		$this->assertSame( '«foto.png» no tiene un formato admitido. Se admite DOC, DOCX, ODT o PDF.', Documents::check( 'design', $this->png( 'foto.png' ) ) );
 		$this->assertSame( '«diseno.odt» no tiene un formato admitido. Se admite PDF.', Documents::check( 'support', $odt ), 'los recursos, en PDF' );
 		$this->assertSame( 'JPG, JPEG, PNG o GIF', Documents::formats( Documents::kinds()['image']['mimes'] ) );
 		$this->assertSame( 'Tipo de documento desconocido.', Documents::check( 'poster', $odt ) );
@@ -216,20 +246,67 @@ class Test_Documents extends WP_UnitTestCase {
 	}
 
 	/**
-	 * El diseño del curso es el fichero maestro: subir otro, también con
-	 * «Añadir», deja solo el nuevo, y el anterior deja de descargarse (#26).
+	 * El diseño del curso es el fichero maestro, y puede estar en varios
+	 * formatos: subir otro del mismo formato, también con «Añadir», deja solo el
+	 * nuevo y el anterior deja de descargarse (#26); el de otro formato se queda.
 	 */
-	public function test_a_new_design_file_replaces_the_previous_one() {
-		$id = $this->curator_design();
+	public function test_the_design_file_is_one_per_format() {
+		$id    = $this->curator_design();
+		$names = static fn(): array => array_map( array( Documents::class, 'name' ), wp_list_pluck( Documents::of( $id )['design'], 'ID' ) );
 		Documents::apply( $id, array( 'design' => array( $this->odt( 'v1.odt' ) ) ), array() );
-		$old = Documents::of( $id )['design'][0]->ID;
+		$old   = Documents::of( $id )['design'][0]->ID;
 
+		// El PDF de la misma ficha se suma: es otro formato.
+		$this->assertSame( array(), Documents::apply( $id, array( 'design' => array( $this->upload( 'v1.pdf', self::PDF ) ) ), array() ) );
+		$this->assertEqualsCanonicalizing( array( 'v1.odt', 'v1.pdf' ), $names() );
+
+		// Otro ODT sustituye al ODT, y solo a él.
 		$this->assertSame( array(), Documents::apply( $id, array( 'design' => array( $this->odt( 'v2.odt' ) ) ), array() ) );
+		$this->assertEqualsCanonicalizing( array( 'v1.pdf', 'v2.odt' ), $names() );
+		$this->assertNull( get_post( $old ) );
+
+		// DOC y DOCX son el mismo formato: el de Word.
+		$doc = self::factory()->attachment->create(
+			array(
+				'post_parent'    => $id,
+				'post_mime_type' => 'application/msword',
+			)
+		);
+		update_post_meta( $doc, Documents::KIND_META, 'design' );
+		update_post_meta( $doc, Documents::NAME_META, 'v1.doc' );
+		$this->assertSame( array(), Documents::apply( $id, array( 'design' => array( $this->docx( 'v2.docx' ) ) ), array() ) );
+		$this->assertEqualsCanonicalizing( array( 'v1.pdf', 'v2.odt', 'v2.docx' ), $names() );
+		$this->assertNull( get_post( $doc ) );
+	}
+
+	/**
+	 * «Reemplazar» un documento del diseño por uno de otro formato que ya
+	 * estaba deja uno solo de ese formato: el nuevo.
+	 */
+	public function test_replacing_a_design_file_keeps_one_per_format() {
+		$id  = $this->curator_design();
+		$odt = $this->stored( $id, 'design', $this->odt( 'ficha.odt' ) );
+		Documents::apply( $id, array( 'design' => array( $this->upload( 'ficha.pdf', self::PDF ) ) ), array() );
+		$pdf = (int) current( array_diff( wp_list_pluck( Documents::of( $id )['design'], 'ID' ), array( $odt ) ) );
+
+		$this->assertSame( array(), Documents::apply( $id, array( 'replace' => array( $odt => $this->upload( 'nueva.pdf', self::PDF ) ) ), array() ) );
 
 		$docs = Documents::of( $id )['design'];
 		$this->assertCount( 1, $docs );
-		$this->assertSame( 'v2.odt', Documents::name( $docs[0]->ID ) );
-		$this->assertNull( get_post( $old ) );
+		$this->assertSame( 'nueva.pdf', Documents::name( $docs[0]->ID ) );
+		$this->assertNull( get_post( $odt ) );
+		$this->assertNull( get_post( $pdf ) );
+	}
+
+	/**
+	 * Las demás clases con varios documentos no miran el formato: dos PDF de
+	 * recursos son dos recursos.
+	 */
+	public function test_other_kinds_keep_several_of_the_same_format() {
+		$id = $this->curator_design();
+		Documents::apply( $id, array( 'support' => array( $this->upload( 'uno.pdf', self::PDF ), $this->upload( 'dos.pdf', self::PDF ) ) ), array() );
+
+		$this->assertCount( 2, Documents::of( $id )['support'] );
 	}
 
 	/**
@@ -250,8 +327,8 @@ class Test_Documents extends WP_UnitTestCase {
 
 		$this->assertCount( 2, $problems );
 		$docs = Documents::of( $id );
-		$this->assertCount( 1, $docs['design'], 'el diseño es uno: cuenta el primero' );
-		$this->assertSame( 'a.odt', Documents::name( $docs['design'][0]->ID ) );
+		$this->assertCount( 1, $docs['design'], 'el diseño es uno por formato: de dos ODT queda el último' );
+		$this->assertSame( 'b.odt', Documents::name( $docs['design'][0]->ID ) );
 		$this->assertCount( 1, $docs['sessions'] );
 		$this->assertCount( 0, $docs['support'] );
 		$this->assertSame( 0, get_post_thumbnail_id( $id ), 'sin imagen no hay destacada' );

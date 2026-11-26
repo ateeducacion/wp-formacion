@@ -209,7 +209,8 @@ class Test_Catalogue_Feed extends WP_UnitTestCase {
 		$this->assertStringContainsString( '<p>Uno</p>', $data['objectives'] );
 		$this->assertStringNotContainsString( '<script', $data['objectives'] );
 		$this->assertSame( '', $data['contents'], 'lo vacío, vacío' );
-		$this->assertSame( 'https://ejemplo.example/perfil?c=1.3.A2.1|2.2.A1.3#x', $data['digcomp_url'] );
+		// El enlace al perfil lleva a la herramienta, con la misma selección.
+		$this->assertSame( 'https://elidd.ernesto.es/?c=1.3.A2.1|2.2.A1.3', $data['digcomp_url'] );
 		// El perfil, ya resumido: quien lo pinta en otra web no necesita conocer el marco.
 		$this->assertCount( 6, $data['digcomp'] );
 		$this->assertSame( 'A2', array_column( $data['digcomp'][0]['competences'], 'level', 'code' )['1.3'] );

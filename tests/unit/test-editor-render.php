@@ -727,11 +727,13 @@ class Test_Editor_Render extends WP_UnitTestCase {
 		$this->assertStringContainsString( '>diseno.pdf</a>', $body );
 		$this->assertSame( 1, $this->find( $body, '//input[@type="file"][@name="fmc_replace[' . $doc . ']"]' )->length );
 		$this->assertSame( 1, $this->find( $body, '//input[@name="fmc_remove[]"][@value="' . $doc . '"]' )->length );
-		// Imagen y diseño son de un documento: el que hay se cambia con su
-		// «Reemplazar», y la zona para añadir no sale hasta que se quite.
+		// La imagen es de un documento: la que hay se cambia con su «Reemplazar»,
+		// y la zona para añadir no sale hasta que se quite.
 		$this->assertSame( 0, $this->find( $body, '//input[@name="fmc_doc[image][]"]' )->length );
-		$this->assertSame( 0, $this->find( $body, '//input[@name="fmc_doc[design][]"]' )->length );
-		$this->assertStringContainsString( 'Uno solo, la versión vigente', $body );
+		// El diseño es uno por formato: junto al PDF se puede añadir el editable.
+		$this->assertSame( 1, $this->find( $body, '//input[@name="fmc_doc[design][]"][@multiple]' )->length );
+		$this->assertStringContainsString( 'Uno por formato, la versión vigente', $body );
+		$this->assertStringContainsString( 'DOC, DOCX, ODT o PDF · hasta', $body );
 		$this->assertStringContainsString( 'Sistema anterior', $body );
 		$this->assertStringContainsString( '>apoyo curso.zip</a>', $body );
 		// Cada documento es una ficha: su tipo, su nombre, «Reemplazar» y el aspa,
@@ -760,7 +762,7 @@ class Test_Editor_Render extends WP_UnitTestCase {
 		$this->assertSame( 'ppt,pptx,odp', $slides->getAttribute( 'data-fmc-exts' ) );
 		$php_max = (int) wp_convert_hr_to_bytes( (string) ini_get( 'upload_max_filesize' ) );
 		$this->assertSame( (string) ( $php_max > 0 ? min( 50 * MB_IN_BYTES, $php_max ) : 50 * MB_IN_BYTES ), $slides->getAttribute( 'data-fmc-max' ) );
-		$this->assertSame( 'doc,docx,odt', $this->find( $body, '//input[@name="fmc_replace[' . $doc . ']"]' )->item( 0 )->getAttribute( 'data-fmc-exts' ) );
+		$this->assertSame( 'doc,docx,odt,pdf', $this->find( $body, '//input[@name="fmc_replace[' . $doc . ']"]' )->item( 0 )->getAttribute( 'data-fmc-exts' ) );
 		$post_max = (int) wp_convert_hr_to_bytes( (string) ini_get( 'post_max_size' ) );
 		if ( $post_max ) {
 			$this->assertSame( (string) $post_max, $this->find( $body, '//div[contains(@class, "fmc-docs")]' )->item( 0 )->getAttribute( 'data-fmc-post-max' ) );
@@ -850,13 +852,15 @@ class Test_Editor_Render extends WP_UnitTestCase {
 		$this->assertStringContainsString( '<td class="fmc-area-1" title="Comunicación organizativa: A1 (2), B1 (1) indicador(es)">B1</td>', $body );
 		$this->assertStringContainsString( '<td class="fmc-area-3" title="Enseñanza: B1 (1) indicador(es)">B1</td>', $body );
 		$this->assertStringContainsString( '<td class="fmc-area-2"></td>', $body );
-		$this->assertStringContainsString( '>Abrir en elidd</a>', $body );
+		$this->assertStringContainsString( 'href="https://elidd.ernesto.es/?c=1.1.A1.1|1.1.A1.2|1.1.B1.1|3.1.B1.1" target="_blank" rel="noopener">Abrir en elidd</a>', $body, 'el enlace va a la herramienta, no a donde se guardó' );
 		$this->assertStringContainsString( 'data-fmc-tool="f-' . D::DIGCOMP_URL . '" data-fmc-tool-url="https://elidd.ernesto.es/">Elegir los indicadores en elidd</button>', $body );
 
 		// Quien despliega puede usar su propia copia de elidd.
 		$copy = static fn() => 'https://copia.example/elidd/';
 		add_filter( 'fmc_digcomp_tool', $copy );
-		$this->assertStringContainsString( 'data-fmc-tool-url="https://copia.example/elidd/"', $this->screen_of( $design )['body'] );
+		$body = $this->screen_of( $design )['body'];
+		$this->assertStringContainsString( 'data-fmc-tool-url="https://copia.example/elidd/"', $body );
+		$this->assertStringContainsString( 'href="https://copia.example/elidd/?c=1.1.A1.1|1.1.A1.2|1.1.B1.1|3.1.B1.1"', $body );
 		remove_filter( 'fmc_digcomp_tool', $copy );
 	}
 

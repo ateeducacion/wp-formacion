@@ -765,8 +765,9 @@ final class Editor {
 				$out .= '<li class="fmc-doc-none">Ninguno.</li>';
 			}
 			$out .= '</ul>';
-			// De una clase de un solo documento, el que hay se cambia con su
-			// «Reemplazar»; la zona para añadir sale cuando no hay ninguno.
+			// De una clase de un solo documento —la imagen—, el que hay se
+			// cambia con su «Reemplazar»; la zona para añadir sale cuando no
+			// hay ninguno. El diseño, uno por formato, la tiene siempre.
 			if ( $can && ( $def['multiple'] || ! $current[ $kind ] ) ) {
 				$out .= self::drop_zone( $kind, $def );
 			}
@@ -1273,10 +1274,18 @@ final class Editor {
 	private static function digcomp_field( string $id, bool $can, string $value ): string {
 		$out = '';
 		if ( $can ) {
-			$tool = (string) apply_filters( 'fmc_digcomp_tool', DigComp::TOOL );
-			$out .= '<div class="mt-2"><button type="button" class="btn btn-outline-primary btn-sm" data-fmc-tool="' . esc_attr( $id ) . '" data-fmc-tool-url="' . esc_url( $tool ) . '">Elegir los indicadores en elidd</button></div>';
+			$out .= '<div class="mt-2"><button type="button" class="btn btn-outline-primary btn-sm" data-fmc-tool="' . esc_attr( $id ) . '" data-fmc-tool-url="' . esc_url( self::digcomp_tool() ) . '">Elegir los indicadores en elidd</button></div>';
 		}
 		return $out . ( '' !== $value ? self::digcomp( $value ) : '' );
+	}
+
+	/**
+	 * Where profiles are chosen and opened: elidd, or the copy the deployment says.
+	 *
+	 * @return string
+	 */
+	public static function digcomp_tool(): string {
+		return (string) apply_filters( 'fmc_digcomp_tool', DigComp::TOOL );
 	}
 
 	/**
@@ -1305,7 +1314,7 @@ final class Editor {
 				$cells .= '<td class="' . $css . '"' . ( '' !== $detail ? ' title="' . esc_attr( $competence['name'] . ': ' . $detail . ' indicador(es)' ) . '"' : '' ) . '>' . esc_html( $competence['level'] ) . '</td>';
 			}
 		}
-		return '<div class="fmc-digcomp card card-body mt-2"><div class="d-flex align-items-center mb-2"><strong class="me-auto">Resumen del perfil</strong><a class="btn btn-sm btn-outline-primary" href="' . esc_url( $url ) . '" target="_blank" rel="noopener">Abrir en elidd</a></div>'
+		return '<div class="fmc-digcomp card card-body mt-2"><div class="d-flex align-items-center mb-2"><strong class="me-auto">Resumen del perfil</strong><a class="btn btn-sm btn-outline-primary" href="' . esc_url( DigComp::tool_link( $url, self::digcomp_tool() ) ) . '" target="_blank" rel="noopener">Abrir en elidd</a></div>'
 			. '<div class="table-responsive"><table class="fmc-digcomp-table"><thead><tr>' . $areas . '</tr><tr>' . $codes . '</tr></thead><tbody><tr>' . $cells . '</tr></tbody></table></div>'
 			. '<div class="form-text">Se muestra el nivel más alto marcado en cada competencia. Pase el ratón por encima para ver todos, con sus indicadores.</div></div>';
 	}

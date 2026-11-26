@@ -69,6 +69,23 @@ class Test_DigComp extends WP_UnitTestCase {
 	}
 
 	/**
+	 * El enlace al perfil lleva a la herramienta con la misma selección, la
+	 * guardara el diseño con la dirección que la guardara: la de otra copia, o
+	 * la de una página que ya no existe.
+	 */
+	public function test_the_link_goes_to_the_tool_with_the_same_selection() {
+		$tool = 'https://herramienta.example/';
+
+		$this->assertSame( 'https://herramienta.example/?c=1.1.A1.1|3.1.B1.2', DigComp::tool_link( 'https://sitio-anterior.example/formacion/elidd/?c=1.1.A1.1|3.1.B1.2', $tool ) );
+		$this->assertSame( 'https://herramienta.example/?c=1.1.A1.1|3.1.B1.2', DigComp::tool_link( 'https://herramienta.example/?c=1.1.A1.1|3.1.B1.2', $tool ), 'la que ya apunta a la herramienta se queda igual' );
+		$this->assertSame( 'https://copia.example/elidd/?c=2.2.A2.1', DigComp::tool_link( 'https://herramienta.example/?c=2.2.A2.1&otra=cosa', 'https://copia.example/elidd' ), 'con o sin barra final' );
+		$this->assertSame( 'https://herramienta.example/?c=1.1.A1.1', DigComp::tool_link( 'https://x.example/?c=1.1.A1.1|<script>|9', $tool ), 'solo pasan indicadores' );
+		// Sin selección no hay nada que llevar: se deja como está.
+		$this->assertSame( 'https://x.example/perfil', DigComp::tool_link( 'https://x.example/perfil', $tool ) );
+		$this->assertSame( '', DigComp::tool_link( '', $tool ) );
+	}
+
+	/**
 	 * Sin indicadores no hay perfil que dar.
 	 */
 	public function test_an_url_without_indicators_has_no_profile() {

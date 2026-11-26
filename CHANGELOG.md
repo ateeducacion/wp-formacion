@@ -8,6 +8,16 @@ lee de la cabecera superior y la escribe en el `@version` del bundle.
 `make release` crea el tag y la release en GitHub; el despliegue de los snippets
 en el sitio de destino se hace después.
 
+## [1.0.1] — 2026-11-26
+
+### Cambiado
+
+- **Diseño del curso: la ficha técnica, en varios formatos**. Se puede subir en editable (DOC, DOCX u ODT) y también en PDF, uno por formato: al subir otro del mismo formato, sustituye al que había y deja los demás. El catálogo público y sus datos los ofrecen todos (ADR-0025)
+
+### Corregido
+
+- **El enlace al perfil de competencia digital lleva siempre a la herramienta**, con la selección del diseño, aunque el diseño lo guardara con la dirección de otra copia o de una página que ya no existe. Vale para «Abrir en elidd» y para el enlace que reciben las webs que enseñan el catálogo (ADR-0014)
+
 ## [1.0.0] — 2026-11-26
 
 La primera versión que está en uso: el aplicativo ya es el planificador de

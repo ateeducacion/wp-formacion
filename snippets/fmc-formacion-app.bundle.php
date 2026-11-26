@@ -6,7 +6,7 @@
  * Priority: 15
  *
  * @package Fmc
- * @version 1.0.0
+ * @version 1.0.1
  */
 
 // phpcs:disable
@@ -1359,13 +1359,11 @@ final class DigComp {
 
 
 	public static function summary( string $url ): array {
-		$query = (string) parse_url( $url, PHP_URL_QUERY ); 
-		parse_str( $query, $args );
 		$out = array();
-		foreach ( explode( '|', is_string( $args['c'] ?? null ) ? $args['c'] : '' ) as $item ) {
-			if ( preg_match( '/^(\d\.\d)\.([ABC][12])\.\d+$/', trim( $item ), $m ) ) {
-				$out[ $m[1] ][ $m[2] ] = ( $out[ $m[1] ][ $m[2] ] ?? 0 ) + 1;
-			}
+		foreach ( self::indicators( $url ) as $item ) {
+			list( $area, $competence, $level ) = explode( '.', $item );
+			$code                              = $area . '.' . $competence;
+			$out[ $code ][ $level ]            = ( $out[ $code ][ $level ] ?? 0 ) + 1;
 		}
 		ksort( $out );
 		foreach ( $out as &$levels ) {
@@ -1411,6 +1409,35 @@ final class DigComp {
 			);
 		}
 		return $out;
+	}
+
+
+
+
+
+
+
+
+
+
+
+
+	public static function tool_link( string $url, string $tool ): string {
+		$selection = self::indicators( $url );
+		return array() === $selection ? $url : rtrim( $tool, '/' ) . '/?c=' . implode( '|', $selection );
+	}
+
+
+
+
+
+
+
+	private static function indicators( string $url ): array {
+		$query = (string) parse_url( $url, PHP_URL_QUERY ); 
+		parse_str( $query, $args );
+		$items = array_map( 'trim', explode( '|', is_string( $args['c'] ?? null ) ? $args['c'] : '' ) );
+		return array_values( array_filter( $items, static fn( $item ) => 1 === preg_match( '/^\d\.\d\.[ABC][12]\.\d+$/', $item ) ) );
 	}
 }
 }
@@ -4662,6 +4689,9 @@ final class Documents {
 
 
 
+
+
+
 	public static function kinds(): array {
 
 
@@ -4691,12 +4721,14 @@ final class Documents {
 
 
 
+
 			'design'   => array(
-				'label'    => 'Diseño del curso',
-				'help'     => 'En formato editable: DOC, DOCX u ODT. Uno solo, la versión vigente. Se puede descargar desde el catálogo.',
-				'mimes'    => $texts,
-				'multiple' => false,
-				'max_mb'   => 20,
+				'label'      => 'Diseño del curso',
+				'help'       => 'En formato editable (DOC, DOCX u ODT) y, si quiere, también en PDF. Uno por formato, la versión vigente. Se descargan desde el catálogo.',
+				'mimes'      => array_merge( $texts, $pdf ),
+				'multiple'   => true,
+				'per_format' => true,
+				'max_mb'     => 20,
 			),
 			'sessions' => array(
 				'label'    => 'Escaleta de las sesiones',
@@ -4858,6 +4890,7 @@ final class Documents {
 				)
 			);
 			wp_delete_attachment( $attachment_id, true );
+			self::keep_one_per_format( $post_id, $kind, $new );
 		}
 
 		foreach ( self::kinds() as $kind => $def ) {
@@ -4879,7 +4912,9 @@ final class Documents {
 				$new = self::store( $post_id, $kind, $file );
 				if ( is_string( $new ) ) {
 					$problems[] = $new;
+					continue;
 				}
+				self::keep_one_per_format( $post_id, $kind, $new );
 			}
 		}
 
@@ -4890,6 +4925,41 @@ final class Documents {
 			delete_post_thumbnail( $post_id );
 		}
 		return $problems;
+	}
+
+
+
+
+
+
+
+
+
+
+
+
+	private static function keep_one_per_format( int $post_id, string $kind, int $keep ): void {
+		if ( empty( self::kinds()[ $kind ]['per_format'] ) ) {
+			return;
+		}
+		$format = self::format( $keep );
+		foreach ( self::of( $post_id )[ $kind ] as $doc ) {
+			if ( $doc->ID !== $keep && self::format( $doc->ID ) === $format ) {
+				wp_delete_attachment( $doc->ID, true );
+			}
+		}
+	}
+
+
+
+
+
+
+
+	private static function format( int $attachment_id ): string {
+		$mime = (string) get_post_mime_type( $attachment_id );
+
+		return 'application/msword' === $mime ? 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' : $mime;
 	}
 
 
@@ -8701,6 +8771,7 @@ final class Editor {
 			$out .= '</ul>';
 
 
+
 			if ( $can && ( $def['multiple'] || ! $current[ $kind ] ) ) {
 				$out .= self::drop_zone( $kind, $def );
 			}
@@ -9207,10 +9278,18 @@ final class Editor {
 	private static function digcomp_field( string $id, bool $can, string $value ): string {
 		$out = '';
 		if ( $can ) {
-			$tool = (string) apply_filters( 'fmc_digcomp_tool', DigComp::TOOL );
-			$out .= '<div class="mt-2"><button type="button" class="btn btn-outline-primary btn-sm" data-fmc-tool="' . esc_attr( $id ) . '" data-fmc-tool-url="' . esc_url( $tool ) . '">Elegir los indicadores en elidd</button></div>';
+			$out .= '<div class="mt-2"><button type="button" class="btn btn-outline-primary btn-sm" data-fmc-tool="' . esc_attr( $id ) . '" data-fmc-tool-url="' . esc_url( self::digcomp_tool() ) . '">Elegir los indicadores en elidd</button></div>';
 		}
 		return $out . ( '' !== $value ? self::digcomp( $value ) : '' );
+	}
+
+
+
+
+
+
+	public static function digcomp_tool(): string {
+		return (string) apply_filters( 'fmc_digcomp_tool', DigComp::TOOL );
 	}
 
 
@@ -9239,7 +9318,7 @@ final class Editor {
 				$cells .= '<td class="' . $css . '"' . ( '' !== $detail ? ' title="' . esc_attr( $competence['name'] . ': ' . $detail . ' indicador(es)' ) . '"' : '' ) . '>' . esc_html( $competence['level'] ) . '</td>';
 			}
 		}
-		return '<div class="fmc-digcomp card card-body mt-2"><div class="d-flex align-items-center mb-2"><strong class="me-auto">Resumen del perfil</strong><a class="btn btn-sm btn-outline-primary" href="' . esc_url( $url ) . '" target="_blank" rel="noopener">Abrir en elidd</a></div>'
+		return '<div class="fmc-digcomp card card-body mt-2"><div class="d-flex align-items-center mb-2"><strong class="me-auto">Resumen del perfil</strong><a class="btn btn-sm btn-outline-primary" href="' . esc_url( DigComp::tool_link( $url, self::digcomp_tool() ) ) . '" target="_blank" rel="noopener">Abrir en elidd</a></div>'
 			. '<div class="table-responsive"><table class="fmc-digcomp-table"><thead><tr>' . $areas . '</tr><tr>' . $codes . '</tr></thead><tbody><tr>' . $cells . '</tr></tbody></table></div>'
 			. '<div class="form-text">Se muestra el nivel más alto marcado en cada competencia. Pase el ratón por encima para ver todos, con sus indicadores.</div></div>';
 	}
@@ -11424,7 +11503,8 @@ final class CatalogueFeed {
 			$value                   = 'post_content' === $key ? $post->post_content : $m( $key );
 			$course[ $keys[ $key ] ] = '' !== trim( $value ) ? wp_kses_post( wpautop( $value ) ) : '';
 		}
-		$course['digcomp_url'] = esc_url_raw( $m( D::DIGCOMP_URL ) );
+
+		$course['digcomp_url'] = esc_url_raw( DigComp::tool_link( $m( D::DIGCOMP_URL ), Editor::digcomp_tool() ) );
 
 
 		$course['digcomp']   = DigComp::profile( $m( D::DIGCOMP_URL ) );
