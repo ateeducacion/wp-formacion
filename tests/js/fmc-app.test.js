@@ -564,6 +564,51 @@ describe( 'el perfil en elidd', () => {
 	} );
 } );
 
+describe( 'ver el perfil en elidd', () => {
+	beforeEach( async () => {
+		document.body.innerHTML = '<a id="ver" href="https://elidd.example/?c=1.1.A1.1|3.1.B1.2" target="_blank" rel="noopener" data-fmc-tool-view>Abrir en elidd</a>'
+			+ '<a id="raro" href="javascript:void(0)" data-fmc-tool-view>Otro</a>';
+		await load();
+	} );
+	afterEach( () => {
+		delete window.matchMedia;
+		detach();
+	} );
+
+	function click( id, init ) {
+		const event = new MouseEvent( 'click', { bubbles: true, cancelable: true, ...init } );
+		document.getElementById( id ).dispatchEvent( event );
+		return event;
+	}
+
+	it( 'abre la herramienta en una ventana sobre la página, con la selección del enlace', () => {
+		const event = click( 'ver' );
+		expect( event.defaultPrevented ).toBe( true );
+		const dialog = document.querySelector( 'dialog.fmc-tool' );
+		expect( dialog.querySelector( 'iframe' ).src ).toBe( 'https://elidd.example/?c=1.1.A1.1|3.1.B1.2' );
+		// Es para verlo: no va incrustada con «Guardar».
+		expect( dialog.querySelector( 'iframe' ).src ).not.toContain( 'embed=' );
+		expect( dialog.textContent ).toContain( 'Pulse «Generar»' );
+		dialog.querySelector( '.btn-close' ).click();
+		expect( document.querySelector( 'dialog' ) ).toBeNull();
+	} );
+
+	it( 'sigue siendo un enlace: con Ctrl, con el botón central o en una pantalla estrecha abre su pestaña', () => {
+		expect( click( 'ver', { ctrlKey: true } ).defaultPrevented ).toBe( false );
+		expect( click( 'ver', { metaKey: true } ).defaultPrevented ).toBe( false );
+		expect( click( 'ver', { button: 1 } ).defaultPrevented ).toBe( false );
+		window.matchMedia = () => ( { matches: true } );
+		expect( click( 'ver' ).defaultPrevented ).toBe( false );
+		expect( document.querySelector( 'dialog' ) ).toBeNull();
+	} );
+
+	it( 'no incrusta lo que no es una dirección web', () => {
+		expect( click( 'raro' ).defaultPrevented ).toBe( false );
+		expect( window.fmcApp.openView( document.getElementById( 'raro' ) ) ).toBeNull();
+		expect( document.querySelector( 'dialog' ) ).toBeNull();
+	} );
+} );
+
 describe( 'campos que dependen de otro', () => {
 	beforeEach( async () => {
 		document.body.innerHTML = '<form><select name="f[fmc_modality]"><option value="">—</option><option value="onsite">Presencial</option><option value="online">En línea</option><option value="blended">Mixta</option></select>'

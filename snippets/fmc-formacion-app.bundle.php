@@ -6,7 +6,7 @@
  * Priority: 15
  *
  * @package Fmc
- * @version 1.0.1
+ * @version 1.0.2
  */
 
 // phpcs:disable
@@ -9318,7 +9318,7 @@ final class Editor {
 				$cells .= '<td class="' . $css . '"' . ( '' !== $detail ? ' title="' . esc_attr( $competence['name'] . ': ' . $detail . ' indicador(es)' ) . '"' : '' ) . '>' . esc_html( $competence['level'] ) . '</td>';
 			}
 		}
-		return '<div class="fmc-digcomp card card-body mt-2"><div class="d-flex align-items-center mb-2"><strong class="me-auto">Resumen del perfil</strong><a class="btn btn-sm btn-outline-primary" href="' . esc_url( DigComp::tool_link( $url, self::digcomp_tool() ) ) . '" target="_blank" rel="noopener">Abrir en elidd</a></div>'
+		return '<div class="fmc-digcomp card card-body mt-2"><div class="d-flex align-items-center mb-2"><strong class="me-auto">Resumen del perfil</strong><a class="btn btn-sm btn-outline-primary" href="' . esc_url( DigComp::tool_link( $url, self::digcomp_tool() ) ) . '" target="_blank" rel="noopener" data-fmc-tool-view>Abrir en elidd</a></div>'
 			. '<div class="table-responsive"><table class="fmc-digcomp-table"><thead><tr>' . $areas . '</tr><tr>' . $codes . '</tr></thead><tbody><tr>' . $cells . '</tr></tbody></table></div>'
 			. '<div class="form-text">Se muestra el nivel más alto marcado en cada competencia. Pase el ratón por encima para ver todos, con sus indicadores.</div></div>';
 	}
@@ -12190,6 +12190,8 @@ body.has-panel { overflow: hidden; }
  * 7. Los `button[data-fmc-tool]` abren elidd incrustada en un diálogo: su
  *    «Guardar» devuelve los indicadores elegidos, que se escriben en el campo
  *    del perfil como su dirección. Sin guion, la dirección se pega a mano.
+ *    Los `a[data-fmc-tool-view]` —«Abrir en elidd»— la abren en el mismo
+ *    diálogo para ver el perfil; sin guion, son un enlace a otra pestaña.
  * 2. Los `form[data-fmc-confirm]` piden confirmación antes de enviarse, en
  *    tres escalones como en eventos: SweetAlert2 si ha cargado; si no, el
  *    `confirm()` del navegador; y sin JavaScript el formulario se envía tal
@@ -13230,6 +13232,39 @@ body.has-panel { overflow: hidden; }
 	// Una selección de elidd: indicadores `1.1.A1.2` separados por `|`, o nada.
 	const SELECTION = /^(\\d\\.\\d\\.[ABC][12]\\.\\d+(\\|\\d\\.\\d\\.[ABC][12]\\.\\d+)*)?$/;
 
+	// La ventana en que se incrusta elidd, para elegir un perfil o para verlo.
+	function toolDialog( src, hint ) {
+		const dialog = document.createElement( \'dialog\' );
+		dialog.className = \'fmc-tool\';
+		dialog.setAttribute( \'aria-label\', \'Perfil de competencia digital\' );
+		dialog.innerHTML = \'<div class="fmc-tool-head"><strong>Perfil de competencia digital</strong><span class="small text-secondary"></span><button type="button" class="btn-close ms-auto" aria-label="Cerrar"></button></div><iframe title="elidd"></iframe>\';
+		dialog.querySelector( \'span\' ).textContent = hint;
+		const frame = dialog.querySelector( \'iframe\' );
+		frame.src = src;
+
+		// Sin `<dialog>` nativo (navegadores viejos), se cierra a mano.
+		function close() {
+			if ( dialog.close ) {
+				dialog.close();
+			} else {
+				dialog.removeAttribute( \'open\' );
+				dialog.dispatchEvent( new Event( \'close\' ) );
+			}
+		}
+
+		dialog.addEventListener( \'close\', function () {
+			dialog.remove();
+		} );
+		dialog.querySelector( \'.btn-close\' ).addEventListener( \'click\', close );
+		document.body.append( dialog );
+		if ( dialog.showModal ) {
+			dialog.showModal();
+		} else {
+			dialog.setAttribute( \'open\', \'\' );
+		}
+		return { dialog: dialog, frame: frame, close: close };
+	}
+
 	function openTool( button ) {
 		const field = document.getElementById( button.dataset.fmcTool );
 		let tool;
@@ -13256,22 +13291,10 @@ body.has-panel { overflow: hidden; }
 			src.searchParams.set( \'c\', current );
 		}
 
-		const dialog = document.createElement( \'dialog\' );
-		dialog.className = \'fmc-tool\';
-		dialog.setAttribute( \'aria-label\', \'Perfil de competencia digital\' );
-		dialog.innerHTML = \'<div class="fmc-tool-head"><strong>Perfil de competencia digital</strong><span class="small text-secondary">Marque los indicadores y pulse «Guardar».</span><button type="button" class="btn-close ms-auto" aria-label="Cerrar"></button></div><iframe title="elidd"></iframe>\';
-		const frame = dialog.querySelector( \'iframe\' );
-		frame.src = src.toString();
-
-		// Sin `<dialog>` nativo (navegadores viejos), se cierra a mano.
-		function close() {
-			if ( dialog.close ) {
-				dialog.close();
-			} else {
-				dialog.removeAttribute( \'open\' );
-				dialog.dispatchEvent( new Event( \'close\' ) );
-			}
-		}
+		const opened = toolDialog( src.toString(), \'Marque los indicadores y pulse «Guardar».\' );
+		const dialog = opened.dialog;
+		const frame = opened.frame;
+		const close = opened.close;
 
 		// Solo se acepta lo que manda elidd desde este marco, y con su formato.
 		function onMessage( event ) {
@@ -13290,21 +13313,37 @@ body.has-panel { overflow: hidden; }
 		window.addEventListener( \'message\', onMessage );
 		dialog.addEventListener( \'close\', function () {
 			window.removeEventListener( \'message\', onMessage );
-			dialog.remove();
 		} );
-		dialog.querySelector( \'.btn-close\' ).addEventListener( \'click\', close );
-		document.body.append( dialog );
-		if ( dialog.showModal ) {
-			dialog.showModal();
-		} else {
-			dialog.setAttribute( \'open\', \'\' );
-		}
 		return dialog;
+	}
+
+	// «Abrir en elidd»: el perfil se ve en la misma ventana, sin salir de la
+	// página. Es la herramienta tal cual, sin «Guardar»: no hay nada que devolver.
+	function openView( link ) {
+		let url;
+		try {
+			url = new URL( link.href );
+		} catch ( error ) {
+			return null;
+		}
+		if ( ! /^https?:$/.test( url.protocol ) ) {
+			return null;
+		}
+		return toolDialog( url.toString(), \'Pulse «Generar» para ver el resumen con sus indicadores.\' ).dialog;
 	}
 
 	function onToolClick( event ) {
 		const button = event.target.closest ? event.target.closest( \'button[data-fmc-tool]\' ) : null;
 		if ( button && openTool( button ) ) {
+			event.preventDefault();
+			return;
+		}
+		// El enlace sigue siendo un enlace: con Ctrl, con el botón central o en
+		// una pantalla estrecha —donde la ventana no cabe— abre su pestaña.
+		const link = event.target.closest ? event.target.closest( \'a[data-fmc-tool-view]\' ) : null;
+		const aside = event.button || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey;
+		const narrow = window.matchMedia && window.matchMedia( \'(max-width: 767px)\' ).matches;
+		if ( link && ! aside && ! narrow && openView( link ) ) {
 			event.preventDefault();
 		}
 	}
@@ -13460,6 +13499,7 @@ body.has-panel { overflow: hidden; }
 		removeRich: removeRich,
 		openPanel: openPanel,
 		openTool: openTool,
+		openView: openView,
 		onToolClick: onToolClick,
 		onNoteClick: onNoteClick,
 		speakerHtml: speakerHtml,
