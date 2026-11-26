@@ -478,12 +478,12 @@ class Test_Calendar extends WP_UnitTestCase {
 		$this->assertStringContainsString( 'fmc_edit=' . $id, $card );
 		$this->assertStringContainsString( '<span class="fmc-ribbon">×2</span>', $card );
 		$this->assertStringNotContainsString( 'is-warn', $card );
-		$this->assertStringContainsString( '<span class="fmc-ev-meta">EXP-1</span><span class="fmc-ev-meta">Ámbito norte</span>', $card );
+		$this->assertStringContainsString( '<span class="fmc-ev-meta fmc-ev-ref">EXP-1</span><span class="fmc-ev-meta">Ámbito norte</span>', $card );
 		// Los dos expedientes, y el subtítulo no (adenda de ADR-0009).
 		update_post_meta( $id, A::INTERNAL_REF, 'AF9-10/03/2026-08:00:00' );
 		update_post_meta( $id, A::SUBTITLE, 'Edición de primavera' );
 		$both = Calendar::card( get_post( $id ) );
-		$this->assertStringContainsString( '<span class="fmc-ev-meta">AF9-10/03/2026-08:00:00</span><span class="fmc-ev-meta">EXP-1</span>', $both );
+		$this->assertStringContainsString( '<span class="fmc-ev-meta fmc-ev-ref">AF9-10/03/2026-08:00:00</span><span class="fmc-ev-meta fmc-ev-ref">EXP-1</span>', $both );
 		$this->assertStringNotContainsString( 'Edición de primavera', $both );
 		$this->assertStringContainsString( '<span class="fmc-ev-meta">En: IES Las Palmeras</span>', $card );
 		$this->assertStringContainsString( '<i class="fmc-dot" style="background:#6f42c1" title="Asume: Área"></i>Área · Programa uno</span>', $card );

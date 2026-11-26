@@ -30,6 +30,7 @@ usa y dejar a la vista lo que se busca cada día.
 - **La incidencia deja constancia y nadie la resuelve**: fuera aprobar y denegar, la campana y «pendiente / resuelta». Un solo cuadro obligatorio, «Justificación». Se elige el tipo —cambio de fechas, cambio de ponente, cancelación u otro cambio—, y la acción dice cuál fue (ADR-0029)
 - **Un cambio de fechas mueve la acción** al enviar la incidencia, con sus sesiones los mismos días. Sin fecha nueva, queda aplazada (ADR-0029)
 - **La acción cancelada sale tachada** y no va en el CSV, salvo que se filtre por «Cancelada»
+- **El calendario, más limpio**: cada acción es una banda del color de su situación, sin borde lateral, y la leyenda usa esos mismos colores. Los días de la semana se quedan a la vista al bajar por el mes, el fin de semana vacío se estrecha en la vista de semana y la semana del mes que no trae ningún día laborable no se pinta
 - **Fuera «Mandar a revisión»**: el diseño está en borrador, finalizado o en el histórico. Lo que estaba en revisión es un borrador (ADR-0004, adenda)
 - **Un diseño en borrador solo pide el título**, para reservar su código. Lo demás se pide al marcarlo como finalizado
 - **El listado de diseños sale por código**, del último al primero, con el código en la primera columna

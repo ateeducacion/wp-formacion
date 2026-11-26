@@ -18,6 +18,7 @@ function detach() {
 		document.removeEventListener( 'change', window.fmcApp.onChange );
 		document.removeEventListener( 'submit', window.fmcApp.onFilterSubmit );
 		document.removeEventListener( 'search', window.fmcApp.onSearch );
+		document.removeEventListener( 'click', window.fmcApp.onPartyClick );
 		document.removeEventListener( 'click', window.fmcApp.onDocClick );
 		document.removeEventListener( 'submit', window.fmcApp.onDocSubmit, true );
 		[ 'dragenter', 'dragover', 'dragleave', 'drop' ].forEach( ( type ) => document.removeEventListener( type, window.fmcApp.onDrag ) );
@@ -209,6 +210,74 @@ describe( 'los filtros se aplican al cambiarlos', () => {
 		change( other.querySelector( 'select' ), 'course' );
 		expect( other.requestSubmit ).not.toHaveBeenCalled();
 		expect( f.requestSubmit ).not.toHaveBeenCalled();
+	} );
+} );
+
+describe( 'el guiño escondido del perfil', () => {
+	let avatar;
+	beforeEach( async () => {
+		vi.useFakeTimers();
+		await load();
+		document.body.innerHTML = '<details class="fmc-yo"><summary><span class="fmc-avatar">A</span><span class="fmc-yo-txt"><strong>Ana</strong></span></summary><div class="fmc-yo-menu"><a href="#">Salir</a></div></details>';
+		avatar = document.querySelector( '.fmc-avatar' );
+	} );
+	afterEach( () => {
+		detach();
+		vi.useRealTimers();
+		vi.restoreAllMocks();
+		delete window.matchMedia;
+	} );
+
+	function click( target, times ) {
+		target.dispatchEvent( new MouseEvent( 'click', { bubbles: true, detail: times } ) );
+	}
+
+	it( 'un clic o dos en la inicial no hacen nada: es el menú de siempre', () => {
+		click( avatar, 1 );
+		click( avatar, 2 );
+		expect( document.querySelector( '.fmc-party' ) ).toBeNull();
+	} );
+
+	it( 'tres clics seguidos hacen llover hamburguesas, por encima de la página y sin poder pulsarse', () => {
+		click( avatar, 3 );
+		const box = document.querySelector( '.fmc-party' );
+		expect( box.classList.contains( 'is-rain' ) ).toBe( true );
+		expect( box.getAttribute( 'aria-hidden' ) ).toBe( 'true' );
+		expect( box.querySelectorAll( 'span' ).length ).toBeGreaterThan( 20 );
+		expect( box.textContent ).toContain( '🍔' );
+	} );
+
+	it( 'se quita solo, y la vez siguiente cruza un gato; luego vuelven las hamburguesas', () => {
+		click( avatar, 3 );
+		vi.advanceTimersByTime( 9000 );
+		expect( document.querySelector( '.fmc-party' ) ).toBeNull();
+
+		click( avatar, 3 );
+		const walk = document.querySelector( '.fmc-party' );
+		expect( walk.classList.contains( 'is-walk' ) ).toBe( true );
+		expect( walk.querySelectorAll( 'span' ).length ).toBe( 1 );
+		expect( walk.textContent ).toBe( '🐈' );
+		vi.advanceTimersByTime( 9000 );
+
+		click( avatar, 3 );
+		expect( document.querySelector( '.fmc-party' ).classList.contains( 'is-rain' ) ).toBe( true );
+	} );
+
+	it( 'mientras dura no se apila otro', () => {
+		click( avatar, 3 );
+		click( avatar, 3 );
+		expect( document.querySelectorAll( '.fmc-party' ).length ).toBe( 1 );
+	} );
+
+	it( 'tres clics en otro sitio del menú no lo lanzan', () => {
+		click( document.querySelector( '.fmc-yo-txt strong' ), 3 );
+		expect( document.querySelector( '.fmc-party' ) ).toBeNull();
+	} );
+
+	it( 'quien ha pedido menos movimiento no lo ve', () => {
+		window.matchMedia = vi.fn().mockReturnValue( { matches: true } );
+		click( avatar, 3 );
+		expect( document.querySelector( '.fmc-party' ) ).toBeNull();
 	} );
 } );
 

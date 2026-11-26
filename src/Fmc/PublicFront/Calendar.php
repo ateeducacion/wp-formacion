@@ -659,9 +659,17 @@ final class Calendar {
 		if ( 'draft' === $post->post_status ) {
 			$out .= '<span class="fmc-ev-meta">Borrador, sin entregar</span>';
 		}
-		// Los dos expedientes y el ámbito, cada uno en su línea: el interno es largo.
-		foreach ( array_filter( array( $m( A::INTERNAL_REF ), $m( A::FILE_NUMBER ), Lists::terms( $post->ID, 'fmc_scope' ) ), 'strlen' ) as $line ) {
-			$out .= '<span class="fmc-ev-meta">' . esc_html( $line ) . '</span>';
+		// Los dos expedientes y el ámbito, cada uno en su línea: el interno es
+		// largo. Los expedientes llevan su clase, para pintarlos como cifras.
+		foreach ( array_filter(
+			array(
+				array( 'fmc-ev-meta fmc-ev-ref', $m( A::INTERNAL_REF ) ),
+				array( 'fmc-ev-meta fmc-ev-ref', $m( A::FILE_NUMBER ) ),
+				array( 'fmc-ev-meta', Lists::terms( $post->ID, 'fmc_scope' ) ),
+			),
+			static fn( array $line ): bool => '' !== $line[1]
+		) as $line ) {
+			$out .= '<span class="' . esc_attr( $line[0] ) . '">' . esc_html( $line[1] ) . '</span>';
 		}
 		$venue = $m( A::VENUE_CENTRE );
 		if ( '' !== $venue && false === strpos( $venue, Lists::terms( $post->ID, 'fmc_scope' ) ) ) {

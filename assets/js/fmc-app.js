@@ -1200,6 +1200,47 @@
 		}
 	}
 
+	// Un guiño escondido: tres clics seguidos en el círculo de la inicial, en
+	// el perfil. Una vez llueven hamburguesas y la siguiente cruza un gato, y
+	// así se van turnando. No toca nada: es un adorno por encima de la página,
+	// que no se puede pulsar y se quita solo; quien ha pedido menos movimiento
+	// no lo ve.
+	let partyTurn = 0;
+
+	function party() {
+		if ( window.matchMedia && window.matchMedia( '(prefers-reduced-motion: reduce)' ).matches ) {
+			return;
+		}
+		if ( document.querySelector( '.fmc-party' ) ) {
+			return;
+		}
+		const rain = 0 === partyTurn++ % 2;
+		const box = document.createElement( 'div' );
+		box.className = 'fmc-party ' + ( rain ? 'is-rain' : 'is-walk' );
+		box.setAttribute( 'aria-hidden', 'true' );
+		for ( let i = 0; i < ( rain ? 36 : 1 ); i++ ) {
+			const bit = document.createElement( 'span' );
+			bit.textContent = rain ? '🍔' : '🐈';
+			if ( rain ) {
+				bit.style.left = ( Math.random() * 100 ) + '%';
+				bit.style.fontSize = ( 1.4 + Math.random() * 1.6 ) + 'rem';
+				bit.style.animationDuration = ( 2.5 + Math.random() * 2.5 ) + 's';
+				bit.style.animationDelay = ( Math.random() * 1.5 ) + 's';
+			}
+			box.appendChild( bit );
+		}
+		document.body.appendChild( box );
+		window.setTimeout( function () {
+			box.remove();
+		}, 8000 );
+	}
+
+	function onPartyClick( event ) {
+		if ( 3 === event.detail && event.target.closest && event.target.closest( '.fmc-yo .fmc-avatar' ) ) {
+			party();
+		}
+	}
+
 	function onKey( event ) {
 		if ( 'Escape' === event.key ) {
 			closePanel();
@@ -1215,6 +1256,7 @@
 	document.addEventListener( 'change', onChange );
 	document.addEventListener( 'submit', onFilterSubmit );
 	document.addEventListener( 'search', onSearch );
+	document.addEventListener( 'click', onPartyClick );
 	window.addEventListener( 'pageshow', onPageShow );
 	document.addEventListener( 'click', onSessionClick );
 	document.addEventListener( 'input', onSessionInput );
@@ -1246,6 +1288,7 @@
 		onChange: onChange,
 		onFilterSubmit: onFilterSubmit,
 		onSearch: onSearch,
+		onPartyClick: onPartyClick,
 		setFromOption: setFromOption,
 		refreshField: refreshField,
 		applyShow: applyShow,

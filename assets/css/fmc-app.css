@@ -128,38 +128,59 @@ a.fmc-counter:hover, .fmc-counter.is-active { border-color: var(--fmc-brand); bo
 .fmc-savebar { position: sticky; bottom: 0; background: var(--fmc-soft); padding: .75rem 0; border-top: 1px solid var(--fmc-line); z-index: 2; }
 .fmc-form :disabled { background-color: #f8f9fa; }
 
-/* Leyenda y colores de la situación */
-.fmc-legend { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem; }
-.fmc-chip { display: inline-flex; align-items: center; gap: .3rem; font-size: .78rem; padding: .15rem .55rem; border-radius: 1rem; background: #fff; border: 2px solid var(--fmc-line); }
-.fmc-ev.is-draft { border-style: dashed; border-left-style: solid; background: var(--fmc-soft); }
-.fmc-sit-running { --sit: #0d6efd; }
-.fmc-sit-done { --sit: #198754; }
-.fmc-sit-postponed { --sit: #e0a800; }
-.fmc-sit-cancelled { --sit: #dc3545; }
-.fmc-sit-none { --sit: #ced4da; }
-.fmc-chip[class*="fmc-sit-"] { border-color: var(--sit); }
-a.fmc-chip { color: inherit; text-decoration: none; }
-a.fmc-chip:hover, a.fmc-chip:focus-visible { background: var(--fmc-soft); }
-a.fmc-chip.is-active { font-weight: 700; box-shadow: 0 0 0 2px var(--fmc-text); }
+/* Leyenda y colores de la situación.
+   Cada situación tiene un fondo suave y una tinta: con ellos se pinta la acción
+   en el calendario y su muestra en la leyenda, que por eso se parecen. Sin
+   bordes de color: el color va en la banda entera, y lo demás es texto. */
+.fmc-sit-running { --sit: #0d6efd; --sit-bg: #e4eeff; --sit-ink: #0b3d91; }
+.fmc-sit-done { --sit: #198754; --sit-bg: #e6f3ec; --sit-ink: #0f5132; }
+.fmc-sit-postponed { --sit: #e0a800; --sit-bg: #fff3cd; --sit-ink: #664d03; }
+.fmc-sit-cancelled { --sit: #dc3545; --sit-bg: #fde7e9; --sit-ink: #842029; }
+.fmc-sit-none { --sit: #8b96a3; --sit-bg: #eef1f4; --sit-ink: var(--fmc-text); }
+.fmc-legend { display: flex; flex-wrap: wrap; align-items: center; gap: .3rem .5rem; font-size: .8rem; color: var(--fmc-text-2); }
+.fmc-legend > strong { font-weight: 600; }
+.fmc-chip { display: inline-flex; align-items: center; gap: .35rem; padding: .2rem .55rem; border-radius: .45rem; font-size: .8rem; color: var(--fmc-text-2); }
+.fmc-chip[class*="fmc-sit-"] { background: var(--sit-bg); color: var(--sit-ink); font-weight: 600; }
+a.fmc-chip { text-decoration: none; }
+a.fmc-chip:not([class*="fmc-sit-"]) { color: var(--fmc-text); }
+a.fmc-chip:hover, a.fmc-chip:focus-visible { box-shadow: inset 0 0 0 1px var(--sit, var(--fmc-text-2)); }
+a.fmc-chip.is-active { box-shadow: inset 0 0 0 2px var(--sit, var(--fmc-text)); }
+a.fmc-chip.is-active::after { content: "×"; font-weight: 700; }
 
-/* Calendario */
-.fmc-cal { border-radius: var(--fmc-r); overflow: hidden; }
+/* Calendario: una rejilla de días y, en cada día, sus acciones como bandas. */
+.fmc-cal { border-radius: var(--fmc-r); overflow: clip; }
 .fmc-cal-head, .fmc-cal-week { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)) repeat(2, minmax(0, .55fr)); }
-.fmc-cal-head div { padding: .5rem; font-size: .78rem; font-weight: 600; text-transform: uppercase; color: #6c757d; border-bottom: 1px solid var(--fmc-line); background: #fff; }
-.fmc-cal-day { min-height: 7rem; padding: .35rem; border-right: 1px solid var(--fmc-line); border-bottom: 1px solid var(--fmc-line); background: #fff; display: flex; flex-direction: column; gap: .3rem; min-width: 0; }
-.fmc-cal-day.is-weekend { background: #fafbfc; }
+/* Los días de la semana no se pierden al bajar por un mes largo. */
+.fmc-cal-head { position: sticky; top: 0; z-index: 3; }
+.fmc-cal-head div { padding: .55rem .65rem; font-size: .8rem; font-weight: 600; color: var(--fmc-text-2); border-bottom: 1px solid var(--fmc-line); background: #fff; }
+.fmc-cal-day { min-height: 6.5rem; padding: .35rem; border-right: 1px solid var(--fmc-line); border-bottom: 1px solid var(--fmc-line); background: #fff; display: flex; flex-direction: column; gap: .25rem; min-width: 0; }
+.fmc-cal-week > .fmc-cal-day:last-child { border-right: 0; }
+.fmc-cal-week:last-child > .fmc-cal-day { border-bottom: 0; }
+.fmc-cal-day.is-weekend { background: #fbfcfd; }
 .fmc-cal-day.is-out { background: var(--fmc-soft); }
+/* Sin fin de semana a la vista, la semana que solo trae sábado o domingo del mes se queda vacía: no se pinta. */
+.fmc-cal.no-weekend .fmc-cal-week:not(:has(.fmc-cal-day:not(.is-out):not(.is-weekend))) { display: none; }
+.fmc-cal-day.is-today { background: #f3f7fd; }
+.fmc-cal-num { align-self: flex-start; min-width: 1.6rem; height: 1.6rem; padding: 0 .3rem; border-radius: 1rem; font-size: .8rem; font-weight: 700; line-height: 1.6rem; text-align: center; color: var(--fmc-text-2); }
 .fmc-cal-day.is-today .fmc-cal-num { background: var(--fmc-brand); color: #fff; }
-.fmc-cal-num { align-self: flex-end; font-size: .78rem; font-weight: 600; min-width: 1.5rem; text-align: center; border-radius: 1rem; }
-.fmc-ev { position: relative; display: block; text-decoration: none; color: inherit; background: #fff; border: 1px solid var(--fmc-line); border-left: 4px solid var(--sit); border-radius: .35rem; padding: .25rem .4rem; font-size: .75rem; line-height: 1.25; }
-.fmc-ev:hover { box-shadow: 0 1px 4px rgba(0, 0, 0, .15); }
-.fmc-dot { display: inline-block; width: .55rem; height: .55rem; border-radius: 50%; margin-right: .3rem; }
-.fmc-ev.fmc-sit-running { background: #eef5ff; }
+
+/* Una acción en su día. La banda dice la situación; dentro, el título manda y
+   lo demás —expedientes, ámbito, quién asume— va más pequeño y más claro. */
+.fmc-ev { position: relative; display: block; padding: .3rem .45rem .35rem; border-radius: .45rem; background: var(--sit-bg); color: var(--fmc-text); font-size: .75rem; line-height: 1.25; text-decoration: none; transition: background-color .12s ease; }
+.fmc-ev:hover { background: color-mix(in srgb, var(--sit) 24%, #fff); color: var(--fmc-text); }
+.fmc-ev:focus-visible { outline: 2px solid var(--fmc-brand); outline-offset: 1px; }
+.fmc-ev-title { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; margin-bottom: .1rem; font-size: .78rem; font-weight: 600; color: var(--sit-ink); }
+.fmc-ev-meta { display: block; overflow: hidden; color: #4d5863; white-space: nowrap; text-overflow: ellipsis; }
+/* Los expedientes son cifras: alineadas, y un punto más pequeñas que el resto. */
+.fmc-ev-ref { font-size: .7rem; font-variant-numeric: tabular-nums; }
 .fmc-ev.fmc-sit-cancelled .fmc-ev-title { text-decoration: line-through; }
-.fmc-ev-title { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; font-weight: 600; }
-.fmc-ev-meta { display: block; color: #6c757d; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.fmc-ribbon { float: right; margin-left: .2rem; font-size: .65rem; font-weight: 700; padding: 0 .3rem; border-radius: .3rem; background: #ffe69c; color: #664d03; }
-.fmc-ribbon.is-warn { background: #f8d7da; color: #842029; }
+.fmc-ev.fmc-sit-cancelled .fmc-ev-meta { opacity: .75; }
+/* El borrador aún no está entregado: hueco, con el contorno a trazos. */
+.fmc-ev.is-draft { background: #fff; outline: 1px dashed #aab3bd; outline-offset: -1px; }
+.fmc-ev.is-draft:hover { background: var(--fmc-soft); }
+.fmc-dot { display: inline-block; width: .5rem; height: .5rem; border-radius: 50%; margin-right: .3rem; }
+.fmc-ribbon { float: right; margin-left: .3rem; padding: 0 .35rem; border-radius: .3rem; background: #ffe69c; color: #664d03; font-size: .65rem; font-weight: 700; line-height: 1.5; }
+.fmc-ribbon.is-warn { background: #dc3545; color: #fff; }
 
 @media (max-width: 767px) {
 	.fmc-cal-head { display: none; }
@@ -336,20 +357,25 @@ body.has-panel { overflow: hidden; }
 /* Filtros: que quepan todos sin cortar el texto de los desplegables */
 .fmc-filters .row > [class*="col-md"]:not(.col-md-2):not(.col-md-3) { flex: 1 0 9rem; max-width: 100%; }
 
-/* Calendario por semana y por día: una columna por día, con lo que empieza */
-.fmc-days { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); overflow: hidden; }
-.fmc-days.is-one { grid-template-columns: 1fr; }
-.fmc-days-col { padding: .5rem; border-right: 1px solid var(--fmc-line); min-height: 12rem; display: flex; flex-direction: column; gap: .4rem; min-width: 0; }
+/* Calendario por semana y por día: una columna por día, con lo que empieza.
+   El fin de semana sin acciones se estrecha: casi siempre está vacío. */
+/* `.card` de Bootstrap apila: aquí los días van en fila. */
+.fmc-days { display: flex; flex-direction: row; overflow: clip; }
+.fmc-days-col { flex: 1 1 0; padding: .5rem; border-right: 1px solid var(--fmc-line); min-height: 12rem; display: flex; flex-direction: column; gap: .35rem; min-width: 0; }
 .fmc-days-col:last-child { border-right: 0; }
-.fmc-days-col.is-today { background: var(--fmc-brand-cont); }
-.fmc-days-h { font-size: .78rem; font-weight: 600; text-transform: uppercase; margin: 0 0 .25rem; }
+.fmc-days:not(.is-one) > .fmc-days-col:nth-child(n+6):not(:has(.fmc-ev)) { flex-grow: .5; background: #fbfcfd; }
+.fmc-days-col.is-today { background: #f3f7fd; }
+.fmc-days-h { margin: 0 0 .3rem; font-size: .8rem; font-weight: 600; }
 .fmc-days-a { color: var(--fmc-text-2); text-decoration: none; }
 .fmc-days-a:hover { color: var(--fmc-brand); }
+.fmc-days-col.is-today .fmc-days-a { color: var(--fmc-brand); font-weight: 700; }
+/* Un día sin acciones lo dice bajito: en una semana se repite cinco veces. */
+.fmc-days-col > p { font-size: .75rem; opacity: .75; }
 .fmc-days.is-one .fmc-days-col { display: grid; grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr)); align-content: start; }
 .fmc-days.is-one .fmc-days-h { grid-column: 1 / -1; }
 .fmc-running { display: grid; grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr)); gap: .4rem; }
 @media (max-width: 767px) {
-	.fmc-days { grid-template-columns: 1fr; }
+	.fmc-days { flex-direction: column; }
 	.fmc-days-col { border-right: 0; border-bottom: 1px solid var(--fmc-line); min-height: 0; }
 }
 
@@ -416,3 +442,15 @@ body.has-panel { overflow: hidden; }
 .fmc-sessions.is-invalid table { outline: 1px solid var(--fmc-bad); outline-offset: 4px; border-radius: 4px; }
 .fmc-legacy { white-space: normal; background: var(--fmc-sup-2); border: 1px dashed var(--fmc-line); border-radius: 8px; padding: .5rem .75rem; color: var(--fmc-text-2); }
 .fmc-ev-time { font-weight: 600; color: var(--fmc-text); }
+
+/* Un guiño escondido (tres clics en la inicial del perfil): un adorno por
+   encima de todo, que no se puede pulsar y se quita solo. */
+.fmc-yo .fmc-avatar { user-select: none; }
+.fmc-party { position: fixed; inset: 0; z-index: 100004; overflow: hidden; pointer-events: none; }
+.fmc-party span { position: absolute; line-height: 1; }
+.fmc-party.is-rain span { top: -4rem; animation: fmc-party-fall linear both; }
+.fmc-party.is-walk span { bottom: .75rem; right: -5rem; font-size: 4rem; animation: fmc-party-walk 7s linear both, fmc-party-hop .3s ease-in-out infinite alternate; }
+@keyframes fmc-party-fall { to { transform: translateY(calc(100vh + 8rem)) rotate(1turn); } }
+@keyframes fmc-party-walk { to { right: calc(100% + 5rem); } }
+@keyframes fmc-party-hop { to { transform: translateY(-.45rem); } }
+
