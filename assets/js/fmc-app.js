@@ -536,7 +536,7 @@
 		}
 		const max = parseInt( docs.dataset.fmcPostMax, 10 );
 		if ( max && total > max ) {
-			return 'No se puede guardar: los ficheros elegidos suman ' + humanSize( total ) + ' y en cada guardado caben ' + humanSize( max ) + '. Quite alguno y súbalo en otro guardado.';
+			return 'No se puede guardar: los ficheros elegidos suman ' + humanSize( total ) + ' y el máximo por guardado es ' + humanSize( max ) + '. Quite alguno y súbalo después.';
 		}
 		return '';
 	}
@@ -668,9 +668,75 @@
 		}
 	}
 
+	// Los filtros de un listado se aplican al cambiarlos, sin botón: un
+	// desplegable o una fecha, en el momento. Lo que se escribe espera a Intro
+	// o a la lupa: al salir de la casilla para elegir otro filtro se recargaría
+	// la página a medio camino, y ese otro filtro ya lo envía todo.
+	function filterForm( field ) {
+		return field && field.form && field.form.matches && field.form.matches( 'form.fmc-filters' ) ? field.form : null;
+	}
+
+	// Una fecha a medio teclear ya es una fecha —el año «0002»—: se espera a
+	// que el año tenga sus cuatro cifras.
+	function filterReady( field ) {
+		if ( 'date' === field.type ) {
+			return '' === field.value || Number( field.value.slice( 0, 4 ) ) > 999;
+		}
+		return 'SELECT' === field.tagName || 'checkbox' === field.type;
+	}
+
+	function applyFilters( form ) {
+		if ( form.dataset.fmcSent ) {
+			return;
+		}
+		if ( form.requestSubmit ) {
+			form.requestSubmit();
+		} else {
+			form.submit();
+		}
+	}
+
+	// El primer envío deja la tarjeta «cargando»; otro igual mientras tanto
+	// —Intro después de elegir— no hace falta, y se para.
+	function onFilterSubmit( event ) {
+		const form = event.target;
+		if ( ! form || ! form.matches || ! form.matches( 'form.fmc-filters' ) ) {
+			return;
+		}
+		if ( form.dataset.fmcSent ) {
+			event.preventDefault();
+			return;
+		}
+		form.dataset.fmcSent = '1';
+		form.setAttribute( 'aria-busy', 'true' );
+	}
+
+	// El aspa de una caja de búsqueda la vacía sin pasar por Intro.
+	function onSearch( event ) {
+		const form = filterForm( event.target );
+		if ( form && '' === event.target.value ) {
+			applyFilters( form );
+		}
+	}
+
+	// Al volver atrás, el navegador devuelve la página como se dejó: enviada.
+	function onPageShow() {
+		document.querySelectorAll( 'form.fmc-filters' ).forEach( function ( form ) {
+			delete form.dataset.fmcSent;
+			form.removeAttribute( 'aria-busy' );
+		} );
+	}
+
 	function onChange( event ) {
 		const target = event.target;
 		if ( ! target || ! target.closest ) {
+			return;
+		}
+		const filters = filterForm( target );
+		if ( filters ) {
+			if ( filterReady( target ) ) {
+				applyFilters( filters );
+			}
 			return;
 		}
 		if ( target.classList && target.classList.contains( 'fmc-file' ) ) {
@@ -754,8 +820,16 @@
 		return n;
 	}
 
-	function send( form ) {
+	// Una ficha (`form.fmc-form`) se vuelve a enviar como lo haría su botón:
+	// `submit()` se saltaría el guardado dentro del panel y no mandaría el
+	// botón pulsado. Lo demás, como siempre.
+	function send( form, submitter ) {
 		form.dataset.fmcConfirmed = '1';
+		if ( form.matches( 'form.fmc-form' ) && form.requestSubmit ) {
+			form.requestSubmit( submitter && submitter.form === form ? submitter : undefined );
+			delete form.dataset.fmcConfirmed;
+			return;
+		}
 		form.submit();
 	}
 
@@ -773,7 +847,7 @@
 				inputPlaceholder: 'Por ejemplo: ha pedido que se borren sus datos.',
 				inputAttributes: { maxlength: '500', 'aria-label': 'Motivo de la baja' },
 				inputValidator: function ( value ) {
-					return value && value.trim() ? null : 'Diga el motivo: sin motivo no hay baja.';
+					return value && value.trim() ? null : 'Indique el motivo de la baja.';
 				},
 				showCancelButton: true,
 				confirmButtonText: form.dataset.fmcConfirmButton || 'Dar de baja',
@@ -799,28 +873,37 @@
 			return;
 		}
 		event.preventDefault();
+		// Que el aviso no deje pasar a los demás oyentes: el del panel
+		// guardaría la ficha antes de que nadie conteste.
+		event.stopImmediatePropagation();
 		const question = form.dataset.fmcConfirm;
+		const submitter = event.submitter;
 		if ( 'fmcReason' in form.dataset ) {
 			return askReason( form, question );
 		}
+		// Con su propio icono —un recordatorio, una advertencia— no es un
+		// borrado: sin rojo, y con el foco en seguir.
+		const icon = form.dataset.fmcConfirmIcon;
+		const calm = !! icon;
 		if ( window.Swal && window.Swal.fire ) {
 			return window.Swal.fire( {
 				title: question,
 				text: form.dataset.fmcConfirmText || '',
-				icon: 'warning',
+				icon: icon || 'warning',
 				showCancelButton: true,
-				focusCancel: true,
+				focusCancel: ! calm,
 				confirmButtonText: form.dataset.fmcConfirmButton || 'Sí',
 				cancelButtonText: 'Cancelar',
-				confirmButtonColor: '#dc3545',
+				confirmButtonColor: calm ? '#0d6efd' : '#dc3545',
 			} ).then( function ( result ) {
 				if ( result && result.isConfirmed ) {
-					send( form );
+					send( form, submitter );
 				}
 			} );
 		}
-		if ( window.confirm( question ) ) {
-			send( form );
+		const text = form.dataset.fmcConfirmText ? '\n\n' + form.dataset.fmcConfirmText : '';
+		if ( window.confirm( question + ( calm ? text : '' ) ) ) {
+			send( form, submitter );
 		}
 	}
 
@@ -936,7 +1019,7 @@
 		panel.querySelector( '.offcanvas-title' ).textContent = title;
 		const out = panel.querySelector( '.fmc-panel-out' );
 		out.href = url;
-		out.textContent = 'Abrir en la página entera';
+		out.textContent = 'Abrir en página completa';
 		load( panel, { url: target.toString(), fallback: url } );
 		return true;
 	}
@@ -1117,6 +1200,41 @@
 		}
 	}
 
+	// Un guiño escondido: tres clics seguidos en el círculo de la inicial, en
+	// el perfil, y llueven hamburguesas. No toca nada: es un adorno por encima
+	// de la página, que no se puede pulsar y se quita solo; quien ha pedido
+	// menos movimiento no lo ve.
+	function party() {
+		if ( window.matchMedia && window.matchMedia( '(prefers-reduced-motion: reduce)' ).matches ) {
+			return;
+		}
+		if ( document.querySelector( '.fmc-party' ) ) {
+			return;
+		}
+		const box = document.createElement( 'div' );
+		box.className = 'fmc-party';
+		box.setAttribute( 'aria-hidden', 'true' );
+		for ( let i = 0; i < 36; i++ ) {
+			const bit = document.createElement( 'span' );
+			bit.textContent = '🍔';
+			bit.style.left = ( Math.random() * 100 ) + '%';
+			bit.style.fontSize = ( 1.4 + Math.random() * 1.6 ) + 'rem';
+			bit.style.animationDuration = ( 2.5 + Math.random() * 2.5 ) + 's';
+			bit.style.animationDelay = ( Math.random() * 1.5 ) + 's';
+			box.appendChild( bit );
+		}
+		document.body.appendChild( box );
+		window.setTimeout( function () {
+			box.remove();
+		}, 8000 );
+	}
+
+	function onPartyClick( event ) {
+		if ( 3 === event.detail && event.target.closest && event.target.closest( '.fmc-yo .fmc-avatar' ) ) {
+			party();
+		}
+	}
+
 	function onKey( event ) {
 		if ( 'Escape' === event.key ) {
 			closePanel();
@@ -1130,6 +1248,10 @@
 	document.addEventListener( 'click', onNoteClick );
 	document.addEventListener( 'keydown', onKey );
 	document.addEventListener( 'change', onChange );
+	document.addEventListener( 'submit', onFilterSubmit );
+	document.addEventListener( 'search', onSearch );
+	document.addEventListener( 'click', onPartyClick );
+	window.addEventListener( 'pageshow', onPageShow );
 	document.addEventListener( 'click', onSessionClick );
 	document.addEventListener( 'input', onSessionInput );
 	document.addEventListener( 'click', onDocClick );
@@ -1158,6 +1280,9 @@
 		onPanelSubmit: onPanelSubmit,
 		onKey: onKey,
 		onChange: onChange,
+		onFilterSubmit: onFilterSubmit,
+		onSearch: onSearch,
+		onPartyClick: onPartyClick,
 		setFromOption: setFromOption,
 		refreshField: refreshField,
 		applyShow: applyShow,

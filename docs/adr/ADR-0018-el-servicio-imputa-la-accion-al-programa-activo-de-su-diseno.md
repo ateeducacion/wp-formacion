@@ -156,3 +156,19 @@ antiguos es justo por donde se busca lo migrado.
 Lo que **no** cambia: el guardado acepta cualquier término de la taxonomía. La
 vigencia es una regla de la elección, no un permiso, y lo migrado necesita que
 siga siendo así.
+
+## Adenda — 2026-11-26: el programa solo cuenta si la asume quien carga a programas
+
+En la tercera revisión se pidió que «Con cargo al programa» no se pueda poner
+cuando la asume el centro de formación o no tiene coste: ahí no hay programa
+que valga, y verlo confundía.
+
+- El campo solo se ve, y solo se guarda, si la asume el área o el servicio
+  (`ActionMetaKeys::PROGRAMME_FUNDERS`, regla `show` en `Fields::rules()`). Con
+  el servicio lo sigue poniendo el aplicativo.
+- **Lo ya guardado no se borra por editar otra cosa**: una acción que llegó con
+  programa y asumida por el centro lo conserva mientras no se le cambie quién la
+  asume (`Editor::apply()`).
+
+Queda abierto lo que se habló antes con el servicio: que hay casos que se
+tramitan en un sitio y se pagan desde otro. Si aparecen, esta regla se revisa.

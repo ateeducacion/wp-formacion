@@ -109,7 +109,7 @@ fmc_seed_post(
 		'post_type'   => PostTypes::DESIGN,
 		'post_name'   => 'demo-diseno-borrador',
 		'post_title'  => 'Robótica educativa (borrador)',
-		'post_status' => 'pending',
+		'post_status' => 'draft',
 		'post_author' => $fmc_curator,
 	),
 	array(
@@ -140,12 +140,13 @@ fmc_seed_post(
 	array(
 		'post_type'   => PostTypes::ACTION,
 		'post_name'   => 'demo-accion-ia-ambito-1',
-		'post_title'  => 'La inteligencia artificial en el aula — Ámbito 1',
+		'post_title'  => 'La inteligencia artificial en el aula',
 		'post_status' => 'publish',
 		'post_author' => $fmc_adviser,
 	),
 	array(
 		ActionMetaKeys::DESIGN_ID    => $fmc_design,
+		ActionMetaKeys::INTERNAL_REF => 'AF2-' . gmdate( 'd/m/Y' ) . '-09:15:00',
 		ActionMetaKeys::PLACES       => 25,
 		ActionMetaKeys::MODALITY     => 'blended',
 		ActionMetaKeys::HOURS_ONSITE => 8,
@@ -239,7 +240,7 @@ $fmc_delivered = fmc_seed_post(
 	),
 	array(
 		ActionMetaKeys::DESIGN_ID    => $fmc_design,
-		ActionMetaKeys::SUBTITLE     => 'Segunda edición',
+		ActionMetaKeys::INTERNAL_REF => 'AF2-' . gmdate( 'd/m/Y' ) . '-10:02:31',
 		ActionMetaKeys::FILE_NUMBER  => 'EXP-0001/2026',
 		ActionMetaKeys::MODALITY     => 'blended',
 		ActionMetaKeys::HOURS_ONSITE => 8,
@@ -274,7 +275,7 @@ fmc_seed_post(
 	),
 	array(
 		ActionMetaKeys::DESIGN_ID    => $fmc_design,
-		ActionMetaKeys::SUBTITLE     => 'Primera edición',
+		ActionMetaKeys::INTERNAL_REF => 'AF2-' . gmdate( 'd/m/Y' ) . '-08:47:05',
 		// Como llega lo migrado: «Días y horas» escrito a mano, sin sesiones.
 		ActionMetaKeys::SCHEDULE     => 'Lunes y miércoles, de 17:00 a 20:00.',
 		ActionMetaKeys::MODALITY     => 'blended',
@@ -298,7 +299,7 @@ fmc_seed_post(
 	),
 	array(
 		ActionMetaKeys::DESIGN_ID    => $fmc_design,
-		ActionMetaKeys::SUBTITLE     => 'Edición de tarde',
+		ActionMetaKeys::INTERNAL_REF => 'AF2-' . gmdate( 'd/m/Y' ) . '-12:30:44',
 		ActionMetaKeys::MODALITY     => 'blended',
 		ActionMetaKeys::HOURS_ONSITE => 8,
 		ActionMetaKeys::HOURS_ONLINE => 12,
@@ -320,9 +321,7 @@ fmc_seed_post(
 		'post_parent' => $fmc_delivered,
 	),
 	array(
-		IncidentMetaKeys::REQUEST    => 'postpone',
-		IncidentMetaKeys::REASON     => 'La ponente no puede en las fechas previstas.',
-		IncidentMetaKeys::PROPOSAL   => 'Retrasar la acción dos semanas.',
-		IncidentMetaKeys::RESOLUTION => 'pending',
+		IncidentMetaKeys::REQUEST => 'postpone',
+		IncidentMetaKeys::REASON  => 'La ponente no puede en las fechas previstas: se retrasa dos semanas.',
 	)
 );

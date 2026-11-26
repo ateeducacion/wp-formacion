@@ -425,6 +425,6 @@ class Test_Centres extends WP_UnitTestCase {
 	 */
 	public function test_an_empty_catalogue_says_where_to_update_it() {
 		$this->as_role( 'fmc_curator' );
-		$this->assertStringContainsString( 'la administración lo actualiza en «Ajustes → Centros educativos»', Editor::screen( 0, PostTypes::ACTION )['body'] );
+		$this->assertStringContainsString( 'La administración lo actualiza en «Ajustes → Centros educativos»', Editor::screen( 0, PostTypes::ACTION )['body'] );
 	}
 }

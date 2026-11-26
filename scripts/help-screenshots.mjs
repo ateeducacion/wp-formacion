@@ -35,7 +35,7 @@ const shots = [
 	{ name: 'incidencia-nueva', user: 'asesoria', path: '/?fmc_view=list', open: 'a[href*="fmc_new=fmc_incident"]' },
 	{ name: 'ponentes', user: 'asesoria', path: '/?fmc_tab=speakers', clip: { x: 0, y: 0, width: 1280, height: 560 } },
 	{ name: 'incidencias-servicio', user: 'servicio', path: '/?fmc_tab=incidents', clip: { x: 0, y: 0, width: 1280, height: 560 } },
-	{ name: 'incidencia-resolver', user: 'servicio', path: '/?fmc_tab=incidents', open: 'tbody a.fmc-abre-panel' },
+	{ name: 'acciones-servicio', user: 'servicio', path: '/', clip: { x: 0, y: 0, width: 1280, height: 700 } },
 	{ name: 'catalogo', user: '', path: '/?fmc_catalogo=1', clip: { x: 0, y: 0, width: 1280, height: 640 } },
 ];
 

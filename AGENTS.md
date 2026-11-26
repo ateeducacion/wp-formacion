@@ -111,11 +111,11 @@ src/Fmc/
 ├── Meta/DesignMetaKeys.php       Claves del diseño y sus listas cerradas (tipos, modalidades)
 ├── Meta/ActionMetaKeys.php       Claves de la acción y sus listas (financiación, proceso, situación)
 ├── Meta/SpeakerMetaKeys.php      Claves del ponente (datos personales)
-├── Meta/IncidentMetaKeys.php     Claves de la incidencia y sus resoluciones
+├── Meta/IncidentMetaKeys.php     Claves de la incidencia y lo que pide: deja constancia y nadie la resuelve (ADR-0029)
 ├── Meta/MetaRegistration.php     register_post_meta con tipo, lista cerrada y permiso por campo
 ├── Domain/SchoolYear.php         El curso escolar de una fecha. Puro
 ├── Domain/Situation.php          La situación de una acción: de sus fechas y de lo que deja una incidencia. Puro
-├── Domain/Sessions.php           Las sesiones de una acción: día y horas de cada una, su lectura, sus horas y si caen en sus fechas (ADR-0027). Puro
+├── Domain/Sessions.php           Las sesiones de una acción: día y horas de cada una, su lectura, sus horas, si caen en sus fechas (ADR-0027) y cómo se mueven con ellas (ADR-0029). Puro
 ├── Domain/DigComp.php            El perfil de competencia digital de elidd (su dirección), sus áreas y competencias. Puro
 ├── PostType/PostTypes.php        Los cuatro CPT, el estado «Histórico» y qué capacidades tiene cada rol en cada uno
 ├── Taxonomy/Taxonomies.php       Programa, temática, competencia digital, ámbito e isla o zona
@@ -133,6 +133,7 @@ src/Fmc/
     ├── Documents.php             Documentos del diseño: adjuntos colgados de él, por clase y formato, quién los descarga y la descarga, `?fmc_documento=ID` (ADR-0025)
     ├── Speakers.php              Lo que ha impartido cada ponente y la cadena de diseños que se sustituyen
     ├── Catalogue.php             El catálogo público, sin sesión: lista y ficha de los cursos (ADR-0013)
+    ├── CatalogueFeed.php         El catálogo, como datos para las webs que lo enseñan en sus páginas: `fmc/v1/catalogue`, público y de solo lectura (ADR-0028)
     ├── Help.php                  La pestaña «Ayuda» (`?fmc_ayuda=1`): sale si está desplegado el snippet «FMC — Ayuda» (ADR-0026)
     └── Assets.php                El CSS de assets/, inlineado en el bundle
 ```
@@ -140,7 +141,9 @@ src/Fmc/
 **La portada del sitio es el aplicativo**: sin sesión manda al acceso, salvo
 el catálogo público (`?fmc_catalogo=1`, `?fmc_curso=ID`, ADR-0013), que es la
 única pantalla que se ve sin entrar y solo enseña lo que está en él, y la
-ficha técnica de sus cursos (`?fmc_documento=ID`, ADR-0025); con
+ficha técnica y la imagen de sus cursos (`?fmc_documento=ID`, ADR-0025). Ese
+mismo catálogo se da como datos a las webs que lo enseñan en sus páginas
+(`fmc/v1/catalogue`, ADR-0028). Con
 sesión pinta su propio documento (Bootstrap 5, Tom Select y SweetAlert2 desde
 jsDelivr con SRI), no el del tema, con la piel de los aplicativos hermanos. La
 barra de WordPress sale solo para la administración y para quien la
@@ -383,6 +386,8 @@ ni en este fichero:
 | URL de analítica, de avisos de cookies o de servicios de una organización, y sus identificadores | Configuración: el filtro `fmc_chrome`, vacío por defecto |
 | El nombre, el escudo, el rótulo o los enlaces legales de una organización | Lo mismo |
 | Cómo llama una instalación a sus perfiles o a quién paga | Configuración: los filtros `fmc_role_labels` y `fmc_funders`, en un snippet de despliegue que no se versiona |
+| Sus líneas estratégicas, el prefijo de su expediente interno —que es también como se le nombra en corto—, lo que se recuerda al enviar una incidencia y la web donde enseña el catálogo | Lo mismo: `fmc_strategic_lines`, `fmc_internal_ref_prefix`, `fmc_incident_reminder` y `fmc_catalogue_url` |
+| Cómo pinta otra web el catálogo: su marcado y sus estilos | Un snippet de esa web, que no se versiona. Aquí solo van los datos (ADR-0028) |
 | El nombre de la red, del sitio o del subsitio de destino | El `.env`, que no se sube. `.env.dist` los trae **vacíos** |
 | Cómo era la instalación anterior por dentro: sus formularios, vistas, campos, fragmentos de código y sus números | `.local/`, que está en el `.gitignore` |
 | Cuánta gente hay, en qué áreas y con qué rol | `.local/`, o se escribe la decisión sin la cifra |

@@ -96,3 +96,18 @@ aplican las capacidades.
   (`PostTypes::lock_archived()` y `PostTypes::hide_unfinished()`).
 
 Asistencia de IA: Claude Code (claude-opus-5-5).
+
+## Adenda — 2026-11-26: sin «en revisión», y el borrador solo pide el título
+
+En la tercera revisión con la coordinación se quitó «Mandar a revisión». Los
+diseños los escriben muy pocas personas, que se avisan entre ellas por otro
+lado: el estado hacía lo mismo que el borrador y era un botón más que explicar.
+
+- El ciclo es **borrador, finalizado, histórico**. `pending` deja de ofrecerse y
+  de aceptarse (`Editor::next_status()`); un diseño que se quedó ahí se lee como
+  un borrador (`Lists::design_status()`), sin migrar nada.
+- **Un borrador solo exige el título.** Se da de alta para reservar su código;
+  el tipo, la modalidad, las horas y la descripción se piden al darlo por
+  finalizado. Un límite —las horas fuera de rango— se sigue comprobando.
+- **El listado sale por código, del último al primero**, y el código es la
+  primera columna. Se ordena por su número, no como texto.

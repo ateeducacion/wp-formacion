@@ -51,6 +51,15 @@ final class Documents {
 	public const PUBLIC_KINDS = array( 'design' );
 
 	/**
+	 * Kinds the catalogue shows without being a download: the image of a card.
+	 *
+	 * La imagen representativa se sube para el catálogo. Mientras el diseño
+	 * está en él, la ve cualquiera, como su ficha; fuera de él, solo quien lee
+	 * el diseño.
+	 */
+	public const SHOWN_KINDS = array( 'image' );
+
+	/**
 	 * Kinds the browser may keep and revalidate with an ETag.
 	 *
 	 * La miniatura de la imagen representativa sale en la ficha cada vez que
@@ -126,7 +135,7 @@ final class Documents {
 		return array(
 			'image'    => array(
 				'label'    => 'Imagen representativa',
-				'help'     => 'JPG, PNG o GIF, de hasta 3 MB. Sale en el catálogo.',
+				'help'     => 'JPG, PNG o GIF de hasta 3 MB. Se ve en el catálogo.',
 				'mimes'    => array(
 					'jpg|jpeg' => 'image/jpeg',
 					'png'      => 'image/png',
@@ -140,21 +149,21 @@ final class Documents {
 			// #26). De un curso del catálogo la descarga cualquiera (ADR-0025).
 			'design'   => array(
 				'label'    => 'Diseño del curso',
-				'help'     => 'El editable: DOC, DOCX u ODT. Es el fichero maestro: uno solo, la versión vigente. Sale en el catálogo.',
+				'help'     => 'En formato editable: DOC, DOCX u ODT. Uno solo, la versión vigente. Se puede descargar desde el catálogo.',
 				'mimes'    => $texts,
 				'multiple' => false,
 				'max_mb'   => 20,
 			),
 			'sessions' => array(
 				'label'    => 'Escaleta de las sesiones',
-				'help'     => 'El editable: DOC, DOCX u ODT.',
+				'help'     => 'En formato editable: DOC, DOCX u ODT.',
 				'mimes'    => $texts,
 				'multiple' => true,
 				'max_mb'   => 20,
 			),
 			'slides'   => array(
 				'label'    => 'Presentaciones',
-				'help'     => 'Las editables: PPT, PPTX u ODP.',
+				'help'     => 'En formato editable: PPT, PPTX u ODP.',
 				'mimes'    => $slides,
 				'multiple' => true,
 				'max_mb'   => 50,
@@ -223,17 +232,17 @@ final class Documents {
 	public static function check( string $kind, array $file ): string {
 		$def = self::kinds()[ $kind ] ?? null;
 		if ( ! $def ) {
-			return 'Clase de documento desconocida.';
+			return 'Tipo de documento desconocido.';
 		}
 		if ( ! empty( $file['error'] ) ) {
-			return 'No se pudo subir «' . $file['name'] . '».';
+			return 'No se ha podido subir «' . $file['name'] . '».';
 		}
 		if ( (int) $file['size'] > $def['max_mb'] * MB_IN_BYTES ) {
-			return '«' . $file['name'] . '» pasa de ' . $def['max_mb'] . ' MB.';
+			return '«' . $file['name'] . '» supera el máximo de ' . $def['max_mb'] . ' MB.';
 		}
 		$type = wp_check_filetype_and_ext( (string) $file['tmp_name'], (string) $file['name'], $def['mimes'] );
 		if ( empty( $type['type'] ) || ! in_array( $type['type'], $def['mimes'], true ) ) {
-			return '«' . $file['name'] . '» no es de un formato admitido aquí. Se admite ' . self::formats( $def['mimes'] ) . '.';
+			return '«' . $file['name'] . '» no tiene un formato admitido. Se admite ' . self::formats( $def['mimes'] ) . '.';
 		}
 		return '';
 	}
@@ -415,7 +424,7 @@ final class Documents {
 		if ( 'attachment' !== get_post_type( $attachment_id ) || ! isset( self::kinds()[ $kind ] ) || ! $design instanceof \WP_Post || PostTypes::DESIGN !== $design->post_type ) {
 			return 'denied';
 		}
-		if ( in_array( $kind, self::PUBLIC_KINDS, true ) && Catalogue::is_listed( $design ) ) {
+		if ( in_array( $kind, array_merge( self::PUBLIC_KINDS, self::SHOWN_KINDS ), true ) && Catalogue::is_listed( $design ) ) {
 			return 'public';
 		}
 		if ( ! is_user_logged_in() ) {
@@ -462,6 +471,12 @@ final class Documents {
 	private static function cache_headers( int $attachment_id, string $etag ): array {
 		if ( '' === $etag || ! self::revalidated( $attachment_id ) ) {
 			return array( 'Cache-Control: private, no-store' );
+		}
+		// La imagen de un curso del catálogo es pública y sale en cada tarjeta:
+		// el navegador la guarda una hora sin volver a preguntar. Si el curso
+		// sale del catálogo, durante ese rato la sigue teniendo quien ya la vio.
+		if ( 'public' === self::verdict( $attachment_id ) ) {
+			return array( 'Cache-Control: public, max-age=' . HOUR_IN_SECONDS, 'ETag: ' . $etag );
 		}
 		return array( 'Cache-Control: private, no-cache', 'ETag: ' . $etag );
 	}
@@ -518,7 +533,7 @@ final class Documents {
 		return array(
 			'status'  => 'denied' === $verdict ? 404 : 503,
 			'headers' => array_merge( $nocache, array( 'Content-Type: text/plain; charset=utf-8', 'X-Content-Type-Options: nosniff' ) ),
-			'body'    => 'denied' === $verdict ? 'Este documento no existe, o no puede verlo.' : 'No se ha podido leer el documento. Pruebe otra vez dentro de un momento.',
+			'body'    => 'denied' === $verdict ? 'Este documento no existe o no tiene permiso para verlo.' : 'No se ha podido leer el documento. Inténtelo de nuevo dentro de un momento.',
 		);
 	}
 

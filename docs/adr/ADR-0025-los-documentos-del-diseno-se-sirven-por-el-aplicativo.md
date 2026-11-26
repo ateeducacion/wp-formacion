@@ -250,3 +250,10 @@ en la nube. Eso toca a esta ADR en dos cosas:
   día hace falta separar el maestro de lo que se publica, es una clase nueva
   fuera de `Documents::PUBLIC_KINDS`, no un cambio de esta.
 
+## Adenda — 2026-11-26: la imagen de un curso del catálogo es pública
+
+La imagen representativa se sube para el catálogo. Mientras su diseño está en
+él, la ve cualquiera, como la ficha técnica (`Documents::SHOWN_KINDS`); fuera
+de él vuelve a ser de quien lee el diseño. No aparece entre las descargas de la
+ficha del curso: es la imagen de su tarjeta. El navegador puede guardarla una
+hora ([ADR-0028](ADR-0028-el-catalogo-se-ofrece-como-datos-a-las-webs-que-lo-ensenan.md)).

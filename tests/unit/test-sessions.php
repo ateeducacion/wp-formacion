@@ -61,7 +61,7 @@ class Test_Sessions extends WP_UnitTestCase {
 	 */
 	public function test_wrong_rows_are_errors() {
 		$half = Sessions::read( array( $this->row( '2027-03-20', '16:00', '' ) ) );
-		$this->assertSame( 'Cada sesión necesita el día y las horas de inicio y de fin.', $half['error'] );
+		$this->assertSame( 'Cada sesión necesita el día, la hora de inicio y la de fin.', $half['error'] );
 		$this->assertSame( array(), $half['sessions'] );
 
 		$back = Sessions::read( array( $this->row( '2027-03-20', '20:00', '16:00' ) ) );

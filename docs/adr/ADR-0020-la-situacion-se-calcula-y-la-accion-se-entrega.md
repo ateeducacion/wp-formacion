@@ -146,3 +146,17 @@ Lo prueban `tests/unit/test-situation.php`, `test-incidents.php`,
   servicio, y no cambia la situación.
 - Una incidencia no cambia las fechas de la acción: las fechas nuevas que trae
   las pone quien gestiona la acción.
+
+## Adenda — 2026-11-26: la incidencia ya no se resuelve, y sí mueve las fechas
+
+Dos de las consecuencias neutras de arriba dejan de valer, por
+[ADR-0029](ADR-0029-la-incidencia-deja-constancia-y-nadie-la-resuelve.md):
+
+- **No hay resolución.** La incidencia deja constancia y nadie la aprueba.
+- **Una incidencia de cambio de fechas con la fecha nueva pasa la acción a
+  esas fechas** al enviarla, con sus sesiones. Sin fecha, la deja aplazada,
+  como decía esta ADR.
+
+Y la acción entregada tiene un tercer estado, calculado: **completada**, cuando
+el servicio le ha puesto su expediente
+([ADR-0030](ADR-0030-el-expediente-interno-lo-pone-el-aplicativo-y-la-accion-se-completa.md)).

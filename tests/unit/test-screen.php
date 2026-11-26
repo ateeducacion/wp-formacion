@@ -721,6 +721,34 @@ class Test_Screen extends WP_UnitTestCase {
 	}
 
 	/**
+	 * Al volver a la ficha recién guardada, el aviso dice qué se ha guardado:
+	 * «Creado», a secas, no dice el qué.
+	 */
+	public function test_the_notice_names_what_was_saved() {
+		$this->as_role( 'fmc_curator' );
+		$incident = self::factory()->post->create( array( 'post_type' => PostTypes::INCIDENT ) );
+		$design   = self::factory()->post->create( array( 'post_type' => PostTypes::DESIGN ) );
+
+		$_GET[ Screen::ARG_EDIT ]   = (string) $incident;
+		$_GET[ Screen::ARG_NOTICE ] = 'created';
+		$this->assertStringContainsString( '<div class="alert alert-success" role="status">Incidencia creada.</div>', Screen::fragment( $this->screen() ) );
+
+		$_GET[ Screen::ARG_EDIT ] = (string) $design;
+		$this->assertStringContainsString( 'role="status">Diseño creado.</div>', Screen::fragment( $this->screen() ) );
+		$_GET[ Screen::ARG_NOTICE ] = 'saved';
+		$this->assertStringContainsString( 'role="status">Diseño guardado.</div>', Screen::fragment( $this->screen() ) );
+	}
+
+	/**
+	 * Las cuentas se dicen en singular o en plural, no con «(s)».
+	 */
+	public function test_counts_are_said_in_singular_or_plural() {
+		$this->assertSame( '1 acción', Screen::counted( 1, 'acción', 'acciones' ) );
+		$this->assertSame( '0 acciones', Screen::counted( 0, 'acción', 'acciones' ) );
+		$this->assertSame( number_format_i18n( 1250 ) . ' acciones', Screen::counted( 1250, 'acción', 'acciones' ), 'con los miles como los escriba el sitio' );
+	}
+
+	/**
 	 * Los documentos que no se subieron se dicen una vez, escapados.
 	 */
 	public function test_upload_problems_are_shown_once_and_escaped() {

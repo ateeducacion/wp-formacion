@@ -12,6 +12,7 @@ use Fmc\Centre\CentreSettings;
 use Fmc\Meta\MetaRegistration;
 use Fmc\PostType\PostTypes;
 use Fmc\PublicFront\Catalogue;
+use Fmc\PublicFront\CatalogueFeed;
 use Fmc\PublicFront\Documents;
 use Fmc\PublicFront\Lists;
 use Fmc\PublicFront\Screen;
@@ -61,6 +62,8 @@ final class App {
 		Lists::register();
 		Screen::register();
 		Catalogue::register();
+		// El catálogo, como datos para las webs que lo enseñan en sus páginas (ADR-0028).
+		CatalogueFeed::register();
 		// Los documentos se descargan por el aplicativo, no por su dirección (ADR-0025).
 		Documents::register();
 	}

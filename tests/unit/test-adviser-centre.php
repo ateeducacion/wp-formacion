@@ -353,7 +353,7 @@ class Test_Adviser_Centre extends WP_UnitTestCase {
 		$this->assertStringContainsString( 'value="38000004"', $screen['body'], 'Un centro del ámbito, sí.' );
 		$this->assertStringNotContainsString( 'value="38000005"', $screen['body'], 'Uno de otro ámbito de la misma isla, no.' );
 		$this->assertStringContainsString( 'value="' . self::CODE . '"', $screen['body'], 'Y el centro del profesorado mismo, también.' );
-		$this->assertStringContainsString( 'Solo los centros de ' . self::NAME, $screen['body'], 'Y se dice por qué.' );
+		$this->assertStringContainsString( 'Solo salen los centros de ' . self::NAME, $screen['body'], 'Y se dice por qué.' );
 	}
 
 	/**
@@ -509,7 +509,7 @@ class Test_Adviser_Centre extends WP_UnitTestCase {
 
 		$this->assertStringContainsString( 'value="38000002"', $screen['body'], 'Un centro de la isla del ámbito, sí.' );
 		$this->assertStringNotContainsString( 'value="38000003"', $screen['body'], 'Uno de otra isla, no.' );
-		$this->assertStringContainsString( 'Solo los centros de Isla Norte', $screen['body'], 'Y se dice por qué.' );
+		$this->assertStringContainsString( 'Solo salen los centros de Isla Norte', $screen['body'], 'Y se dice por qué.' );
 	}
 
 	/**
@@ -528,5 +528,46 @@ class Test_Adviser_Centre extends WP_UnitTestCase {
 		$this->adviser();
 		$this->assertTrue( current_user_can( 'edit_post', $speaker ) );
 		$this->assertTrue( Editor::can_view( get_post( $speaker ) ) );
+	}
+
+	/**
+	 * La asesoría tiene a un clic sus acciones y las de su centro: son los
+	 * filtros de asesoría y de ámbito, ya puestos. Pulsado otra vez, se quita.
+	 */
+	public function test_an_adviser_has_shortcuts_to_their_actions_and_their_centres() {
+		$scope = $this->scope_term();
+		$slug  = get_term( $scope, Taxonomies::SCOPE )->slug;
+		$me    = $this->adviser();
+		$mine  = $this->action( $me, $scope );
+		$this->action( self::factory()->user->create( array( 'role' => 'fmc_adviser' ) ) );
+		$card = static fn(): string => Lists::filters_html( 'actions', PostTypes::ACTION );
+		$ids  = static fn(): array => array_map( 'intval', wp_list_pluck( ( new WP_Query( Lists::query_args( PostTypes::ACTION ) ) )->posts, 'ID' ) );
+
+		// Sin fechas no son de ningún curso: se miran todos.
+		$_GET['fmc_year'] = 'all';
+
+		$html = $card();
+		$this->assertMatchesRegularExpression( '/<a class="btn btn-sm fmc-mine btn-outline-dark" href="[^"]*fmc_adviser=' . $me . '[^"]*" title="[^"]+">Las mías<\/a>/', $html );
+		$this->assertMatchesRegularExpression( '/<a class="btn btn-sm fmc-mine btn-outline-dark" href="[^"]*fmc_scope=' . $slug . '[^"]*" title="[^"]+">Las de mi centro<\/a>/', $html );
+		$this->assertCount( 2, $ids(), 'sin pulsar nada, todas' );
+
+		// Puesto, se ve pulsado, filtra, y el enlace lo quita sin llevarse lo demás.
+		$_GET['fmc_adviser']   = (string) $me;
+		$_GET['fmc_situation'] = 'cancelled';
+		$this->assertMatchesRegularExpression( '/<a class="btn btn-sm fmc-mine btn-dark" href="(?![^"]*fmc_adviser=)[^"]*fmc_situation=cancelled[^"]*" title="[^"]+" aria-current="true">Las mías<\/a>/', $card() );
+		unset( $_GET['fmc_situation'] );
+		$this->assertSame( array( $mine ), $ids() );
+		unset( $_GET['fmc_adviser'] );
+		$_GET['fmc_scope'] = $slug;
+		$this->assertSame( array( $mine ), $ids(), 'las de mi centro' );
+		$this->assertMatchesRegularExpression( '/fmc-mine btn-dark"[^>]*>Las de mi centro</', $card() );
+
+		// Sin centro de referencia no hay «de mi centro»; y quien no es asesoría no tiene accesos.
+		$_GET = array();
+		$this->adviser( '' );
+		$this->assertStringNotContainsString( 'Las de mi centro', $card() );
+		$this->assertStringContainsString( '>Las mías</a>', $card() );
+		wp_set_current_user( self::factory()->user->create( array( 'role' => 'fmc_curator' ) ) );
+		$this->assertStringNotContainsString( 'fmc-mine', $card() );
 	}
 }

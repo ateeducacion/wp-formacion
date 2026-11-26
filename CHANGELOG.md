@@ -8,6 +8,50 @@ lee de la cabecera superior y la escribe en el `@version` del bundle.
 `make release` crea el tag y la release en GitHub; el despliegue de los snippets
 en el sitio de destino se hace después.
 
+## [0.2.0] — 2026-11-26
+
+Lo que salió de la tercera revisión con la coordinación: quitar lo que no se
+usa y dejar a la vista lo que se busca cada día.
+
+### Añadido
+
+- **El expediente interno lo pone el aplicativo** al crear la acción, con el prefijo que diga el despliegue (`fmc_internal_ref_prefix`). Es el que la asesoría da al servicio de perfeccionamiento. Va junto al del servicio, que ahora se llama «Expediente de perfeccionamiento», arriba en la ficha, bajo el título en la lista, en el calendario y en el CSV, cada uno en su línea. Bajo el título, el interno se nombra con ese prefijo —las siglas de la casa— (ADR-0030)
+- **Estado «Completada»**: la acción entregada pasa a completada cuando el servicio le pone su expediente. Se filtra por borrador, entregada o completada, y quien pone el expediente tiene el contador «Sin expediente» (ADR-0030)
+- **Al servicio de perfeccionamiento la planificación se le abre en lista**, con los dos expedientes en las primeras columnas
+- **La leyenda del calendario filtra**: pulsar una situación, o «Sin expediente», enseña solo esas
+- **«Las mías» y «Las de mi centro»**: la asesoría tiene a un clic, junto a los filtros de la planificación, las acciones de las que es responsable y las que gestiona su centro de referencia
+- **El catálogo, como datos** para las webs que lo enseñan en sus páginas: `fmc/v1/catalogue`, público y de solo lectura. «Ver en el catálogo» lleva a donde diga el despliegue (`fmc_catalogue_url`) (ADR-0028)
+- **Las tarjetas del catálogo llevan la imagen** del curso
+- Botón **«Descargar»** en cada documento del diseño
+- **Enviar una incidencia pide confirmar**: avisa de que no se puede modificar después y de que una cancelación o un cambio de fechas se aplican en el momento. Ahí mismo se recuerda que hay que hacer también el trámite en el sistema de gestión del servicio de perfeccionamiento; el despliegue lo dice con sus palabras (`fmc_incident_reminder`)
+
+### Cambiado
+
+- **La incidencia deja constancia y nadie la resuelve**: fuera aprobar y denegar, la campana y «pendiente / resuelta». Un solo cuadro obligatorio, «Justificación». Se elige el tipo —cambio de fechas, cambio de ponente, cancelación u otro cambio—, y la acción dice cuál fue (ADR-0029)
+- **Un cambio de fechas mueve la acción** al enviar la incidencia, con sus sesiones los mismos días. Sin fecha nueva, queda aplazada (ADR-0029)
+- **La acción cancelada sale tachada** y no va en el CSV, salvo que se filtre por «Cancelada»
+- **El calendario, más limpio**: cada acción es una banda del color de su situación, sin borde lateral, y la leyenda usa esos mismos colores. Los días de la semana se quedan a la vista al bajar por el mes, el fin de semana vacío se estrecha en la vista de semana y la semana del mes que no trae ningún día laborable no se pinta
+- **Fuera «Mandar a revisión»**: el diseño está en borrador, finalizado o en el histórico. Lo que estaba en revisión es un borrador (ADR-0004, adenda)
+- **Un diseño en borrador solo pide el título**, para reservar su código. Lo demás se pide al marcarlo como finalizado
+- **El listado de diseños sale por código**, del último al primero, con el código en la primera columna
+- «Sale en el catálogo público» pasa a llamarse **«Visible en el catálogo público»**, sin letra pequeña
+- **En el listado de diseños, el finalizado no lleva chapa**: es lo normal. Se marcan el borrador y el histórico, y un ojo junto al título dice si está visible en el catálogo público (tachado: finalizado, pero fuera)
+- **Los diseños se ordenan también por tipo y por horas**
+- **En el listado de acciones, las fechas van delante del título**: se lee como una agenda. Al servicio de perfeccionamiento le siguen saliendo primero los dos expedientes
+- **Los listados, más limpios**: cabeceras en minúscula, títulos sin subrayar, chapas suaves con los colores del calendario y botones de fila sin cerco
+- **El subtítulo de la acción deja de enseñarse** en la ficha, los listados, el calendario, el CSV y el buscador. Lo guardado se conserva (ADR-0009, adenda)
+- **La línea estratégica se elige de una lista** que da el despliegue (`fmc_strategic_lines`). Sin lista, el campo no sale (ADR-0031)
+- **«Con cargo al programa» solo sale si la asume el área o el servicio**. Lo ya guardado no se borra por editar otra cosa (ADR-0018, adenda)
+- La cinta **!** del calendario marca la acción entregada que espera el expediente del servicio, y no la que no tiene plazas, que ya no se piden
+- El correo de una incidencia dice en el asunto de qué tipo es y lleva los dos expedientes, las fechas y la justificación
+- **Los filtros se aplican al cambiarlos**: desaparece el botón «Filtrar». Un desplegable o una fecha filtran al elegirlos; lo que se escribe, con Intro o con la lupa de «Buscar». «Búsqueda avanzada» pasa a llamarse **«Más filtros»**
+- **Repaso de los textos de pantalla**, para que digan lo mismo con menos palabras: «Dar por finalizado» es **«Marcar como finalizado»**; «Devolver a borrador», «Volver a borrador»; la sección «Identidad» del diseño, «Datos generales»; «Qué se pide» de la incidencia, «Tipo de incidencia». Las cuentas se dicen en singular o en plural («1 acción», «3 acciones») y no con «(s)», y el aviso tras guardar dice qué se ha guardado («Incidencia creada»)
+
+### Corregido
+
+- **Cambiar de vista o de mes ya no pierde filtros**: se perdían la asesoría, el tipo de asesoría, el estado y las fechas
+- El orden por código era el de un texto, y «A99» quedaba por delante de «A247»
+
 ## [0.1.4] — 2026-11-24
 
 ### Corregido

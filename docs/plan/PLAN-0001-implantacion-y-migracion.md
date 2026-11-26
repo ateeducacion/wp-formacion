@@ -72,7 +72,19 @@ decisiones, en dos ADR propuestas:
 (la asesoría consulta los diseños y no los escribe). Con esta última queda
 contestado quién valida: el área. El perfil de empresa sigue sin cerrar.
 
-**Siguiente:** una sesión con el servicio de perfeccionamiento y una o dos asesorías
+**Hecho, 2026-11-26:** tercera sesión, con la coordinación, sobre el sitio de
+pruebas y a punto del corte. Lo que cambió está en el
+[§11 de REQ-0001](../requisitos/REQ-0001-aplicativo-de-formacion.md), y las
+decisiones, en cuatro ADR propuestas —
+[ADR-0028](../adr/ADR-0028-el-catalogo-se-ofrece-como-datos-a-las-webs-que-lo-ensenan.md),
+[ADR-0029](../adr/ADR-0029-la-incidencia-deja-constancia-y-nadie-la-resuelve.md),
+[ADR-0030](../adr/ADR-0030-el-expediente-interno-lo-pone-el-aplicativo-y-la-accion-se-completa.md)
+y [ADR-0031](../adr/ADR-0031-la-linea-estrategica-se-elige-de-una-lista-del-despliegue.md)—
+y en las adendas de las ADR 0004, 0009, 0013, 0018, 0020 y 0025. Con ellas
+queda cerrado el protocolo de incidencias: dejan constancia y nadie las
+resuelve.
+
+**Siguiente, si hace falta:** una sesión con el servicio de perfeccionamiento y una o dos asesorías
 de las que más tiempo llevan, para cerrar:
 
 - el protocolo de incidencias y cancelaciones —quién abre, quién cierra, y
@@ -170,11 +182,21 @@ pruebas en navegador, que vuelven aquí):
    `scripts/protect-documents.php` (ADR-0025).
 2. **Listados consumidos por otras webs:** inventariar quién los llama y
    decidir, uno a uno, si se sirven igual desde el sitio nuevo o se avisa con
-   fecha.
+   fecha. **Hecho el inventario** (el detalle, en `.local/`): los catálogos de
+   cursos pasan a pintarse con los datos de
+   [ADR-0028](../adr/ADR-0028-el-catalogo-se-ofrece-como-datos-a-las-webs-que-lo-ensenan.md),
+   desde un snippet en cada web, y se dejan instalados y probados **antes** del
+   corte, apuntando al sitio nuevo. Los listados de acciones no tienen
+   equivalente: el aplicativo no publica acciones, y esas páginas se quedan con
+   el archivo.
 3. **Congelación:** el sitio actual pasa a solo lectura; última exportación.
 4. **Corte:** el actual se mueve a su dirección de archivo; en la de siempre se
    monta el sitio limpio con Code Snippets y WPFront, los snippets de
-   este repositorio y la importación final.
+   este repositorio y la importación final. Antes de la importación final se
+   quita del sitio nuevo lo que se creó en él para probar, y los documentos se
+   traen **antes** de mover el sitio actual, que es de donde se descargan.
+   Después, las webs que pintan el catálogo cambian la dirección a la que lo
+   piden.
 5. **Comprobación:** recuentos contra la exportación, enlaces antiguos más
    usados y una semana de convivencia con el archivo accesible.
 

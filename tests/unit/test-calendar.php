@@ -128,7 +128,7 @@ class Test_Calendar extends WP_UnitTestCase {
 		$this->assertMatchesRegularExpression( '/fmc_tab=actions[^"]*fmc_csv=1[^"]*fmc_from=2026-03-01[^"]*fmc_to=2026-03-31">Exportar CSV</', $screen['actions'], 'el CSV, de lo que empieza ese mes' );
 		$this->assertSame( 'Planificación de acciones formativas', $screen['title'] );
 		$this->assertStringContainsString( '<h2 class="fmc-period-title">Marzo de 2026</h2>', $screen['body'] );
-		$this->assertStringContainsString( '3 acción(es) este mes.', $this->period( $screen ) );
+		$this->assertStringContainsString( '3 acciones este mes.', $this->period( $screen ) );
 		$this->assertSame( array( 'Ajedrez', 'Robótica' ), $this->cards_on( $screen['body'], 10 ) );
 		$this->assertSame( array( 'Teatro' ), $this->cards_on( $screen['body'], 31 ) );
 		$this->assertStringNotContainsString( 'De febrero', $screen['body'] );
@@ -175,7 +175,7 @@ class Test_Calendar extends WP_UnitTestCase {
 		$this->assertSame( array( 'Con sesiones' ), $this->cards_on( $screen['body'], 17 ) );
 		$this->assertSame( array(), $this->cards_on( $screen['body'], 24 ), 'el día de inicio no es una sesión de marzo' );
 		$this->assertStringContainsString( '<span class="fmc-ev-meta fmc-ev-time">09:30–13:30</span>', $screen['body'] );
-		$this->assertStringContainsString( '2 acción(es) este mes.', $this->period( $screen ), 'tres sesiones son una acción' );
+		$this->assertStringContainsString( '2 acciones este mes.', $this->period( $screen ), 'tres sesiones son una acción' );
 
 		// En febrero, la sesión de su día de inicio.
 		$this->assertSame( array( '2026-02-24' ), array_keys( Calendar::by_day( '2026-02-01' ) ) );
@@ -207,7 +207,7 @@ class Test_Calendar extends WP_UnitTestCase {
 		$_GET['fmc_day']  = '2026-10-21';
 		$screen           = Calendar::screen();
 
-		$this->assertStringContainsString( '1 acción(es) esta semana; 1 siguen en curso.', $this->period( $screen ) );
+		$this->assertStringContainsString( '1 acción esta semana. Además, 1 sigue en curso.', $this->period( $screen ) );
 		$this->assertSame( 1, substr_count( $screen['body'], 'Con sesión el jueves</span>' ) );
 		$this->assertStringContainsString( '17:00–19:00', $screen['body'] );
 	}
@@ -354,18 +354,97 @@ class Test_Calendar extends WP_UnitTestCase {
 	}
 
 	/**
-	 * La leyenda explica las situaciones y quién paga, sin «sin coste».
+	 * La leyenda explica las situaciones y quién paga, sin «sin coste». Lo que
+	 * filtra se puede pulsar —cada situación y lo que espera el expediente—, y
+	 * pulsar lo que ya filtra lo quita; ni la vista ni el mes se pierden.
 	 */
-	public function test_the_legend_explains_the_colours() {
+	public function test_the_legend_explains_the_colours_and_filters() {
 		$this->as_role( 'fmc_curator' );
+		$_GET = array(
+			'fmc_view'    => 'week',
+			'fmc_day'     => '2026-03-10',
+			'fmc_adviser' => '7',
+		);
 
 		$body = Calendar::screen()['body'];
 
 		foreach ( A::SITUATIONS as $key => $label ) {
-			$this->assertStringContainsString( '<span class="fmc-chip fmc-sit-' . $key . '">' . $label . '</span>', $body );
+			$this->assertMatchesRegularExpression( '#<a class="fmc-chip fmc-sit-' . $key . '" href="[^"]*fmc_adviser=7[^"]*fmc_view=week[^"]*fmc_day=2026-03-10[^"]*fmc_situation=' . $key . '" title="Ver solo estas">' . $label . '</a>#', $body );
 		}
+		$this->assertMatchesRegularExpression( '#<a class="fmc-chip " href="[^"]*fmc_status=publish" title="Ver solo estas"><span class="fmc-ribbon is-warn">!</span> Sin expediente</a>#', $body );
 		$this->assertStringContainsString( 'style="background:#6f42c1"></i>Asume: área</span>', $body );
 		$this->assertStringNotContainsString( 'Asume: sin coste', $body );
+		$this->assertStringNotContainsString( 'Incompleta', $body );
+
+		$_GET['fmc_situation'] = 'done';
+		$body                  = Calendar::screen()['body'];
+		$this->assertMatchesRegularExpression( '#<a class="fmc-chip fmc-sit-done is-active" href="([^"]*)" aria-current="true" title="Quitar este filtro">Realizada</a>#', $body );
+		preg_match( '#<a class="fmc-chip fmc-sit-done is-active" href="([^"]*)"#', $body, $m );
+		$this->assertStringNotContainsString( 'fmc_situation', $m[1] );
+	}
+
+	/**
+	 * Cambiar de vista, de mes o exportar no pierde ningún filtro: ni la
+	 * asesoría, ni el estado, ni las fechas. El curso viaja al cambiar de
+	 * vista, y no con las flechas.
+	 */
+	public function test_no_filter_is_lost_when_moving_around() {
+		$this->as_role( 'fmc_curator' );
+		$_GET = array(
+			'fmc_month'        => '2026-01',
+			'fmc_year'         => '2025-2026',
+			'fmc_adviser'      => '7',
+			'fmc_adviser_kind' => 'ict',
+			'fmc_status'       => 'completed',
+			'fmc_from'         => '2026-01-01',
+			'fmc_to'           => '2026-06-30',
+			'fmc_scope'        => 'norte',
+		);
+
+		$screen = Calendar::screen();
+		$kept   = array( 'fmc_adviser=7', 'fmc_adviser_kind=ict', 'fmc_status=completed', 'fmc_scope=norte' );
+		preg_match_all( '#<a class="fmc-view" href="([^"]*)"#', $screen['actions'], $views );
+		$this->assertCount( 4, $views[1] );
+		foreach ( $views[1] as $url ) {
+			foreach ( array_merge( $kept, array( 'fmc_from=2026-01-01', 'fmc_to=2026-06-30', 'fmc_year=2025-2026' ) ) as $filter ) {
+				$this->assertStringContainsString( $filter, $url );
+			}
+		}
+		$nav = $this->period( $screen );
+		foreach ( $kept as $filter ) {
+			$this->assertSame( 3, substr_count( $nav, $filter ), $filter . ' en las dos flechas y en «Hoy»' );
+		}
+		$this->assertStringNotContainsString( 'fmc_year', $nav );
+		// Desde la lista, lo mismo: sus botones de vista son los del calendario.
+		$_GET['fmc_view'] = 'list';
+		preg_match_all( '#<a class="fmc-view" href="([^"]*)"#', Lists::screen( 'actions', PostTypes::ACTION )['actions'], $views );
+		foreach ( $views[1] as $url ) {
+			$this->assertStringContainsString( 'fmc_adviser=7', $url );
+			$this->assertStringContainsString( 'fmc_status=completed', $url );
+		}
+	}
+
+	/**
+	 * Al servicio de perfeccionamiento las acciones se le abren en lista: las
+	 * recorre una a una para ponerles el expediente. Los demás, en el mes.
+	 */
+	public function test_the_training_service_opens_the_actions_as_a_list() {
+		$this->as_role( 'fmc_curator' );
+		$this->assertSame( 'month', Calendar::view() );
+		$this->assertMatchesRegularExpression( '#<a class="fmc-view" href="[^"]*fmc_view=list[^"]*">Lista</a>#', Calendar::views_html( 'month' ) );
+
+		$this->as_role( 'fmc_training_service' );
+		$this->assertSame( 'list', Calendar::view() );
+		$views = Calendar::views_html( 'list' );
+		// Su «Mes» lo dice en la dirección; su «Lista» es la de serie y no lleva nada.
+		$this->assertMatchesRegularExpression( '#<a class="fmc-view" href="[^"]*fmc_view=month[^"]*">Mes</a>#', $views );
+		$this->assertMatchesRegularExpression( '#<a class="fmc-view" href="(?:(?!fmc_view)[^"])*" aria-current="true">Lista</a>#', $views );
+		$_GET['fmc_view'] = 'month';
+		$this->assertSame( 'month', Calendar::view(), 'si pide el mes, el mes' );
+
+		$this->as_role( 'administrator' );
+		unset( $_GET['fmc_view'] );
+		$this->assertSame( 'month', Calendar::view(), 'la administración gestiona las acciones: como la coordinación' );
 	}
 
 	/**
@@ -399,17 +478,24 @@ class Test_Calendar extends WP_UnitTestCase {
 		$this->assertStringContainsString( 'fmc_edit=' . $id, $card );
 		$this->assertStringContainsString( '<span class="fmc-ribbon">×2</span>', $card );
 		$this->assertStringNotContainsString( 'is-warn', $card );
-		$this->assertStringContainsString( '<span class="fmc-ev-meta">EXP-1 · Ámbito norte</span>', $card );
+		$this->assertStringContainsString( '<span class="fmc-ev-meta fmc-ev-ref">EXP-1</span><span class="fmc-ev-meta">Ámbito norte</span>', $card );
+		// Los dos expedientes, y el subtítulo no (adenda de ADR-0009).
+		update_post_meta( $id, A::INTERNAL_REF, 'AF9-10/03/2026-08:00:00' );
+		update_post_meta( $id, A::SUBTITLE, 'Edición de primavera' );
+		$both = Calendar::card( get_post( $id ) );
+		$this->assertStringContainsString( '<span class="fmc-ev-meta fmc-ev-ref">AF9-10/03/2026-08:00:00</span><span class="fmc-ev-meta fmc-ev-ref">EXP-1</span>', $both );
+		$this->assertStringNotContainsString( 'Edición de primavera', $both );
 		$this->assertStringContainsString( '<span class="fmc-ev-meta">En: IES Las Palmeras</span>', $card );
 		$this->assertStringContainsString( '<i class="fmc-dot" style="background:#6f42c1" title="Asume: Área"></i>Área · Programa uno</span>', $card );
 	}
 
 	/**
-	 * A una acción a medias le falta diseño, plazas o modalidad: lleva la
-	 * cinta de incompleta y, sin situación —aún no ha empezado— ni quién paga,
-	 * ni color ni punto. Si es un borrador, se dice.
+	 * Una acción entregada que espera el expediente del servicio de
+	 * perfeccionamiento lleva su cinta; y sin situación —aún no ha empezado—
+	 * ni quién paga, ni color ni punto. Si es un borrador, se dice, y no
+	 * lleva la cinta: todavía no se ha entregado.
 	 */
-	public function test_an_incomplete_card_is_flagged_and_has_no_colour() {
+	public function test_a_card_waiting_for_its_file_number_is_flagged_and_has_no_colour() {
 		$this->as_role( 'fmc_curator' );
 		$id = $this->action(
 			'A medias',
@@ -425,7 +511,10 @@ class Test_Calendar extends WP_UnitTestCase {
 		$card = Calendar::card( get_post( $id ) );
 
 		$this->assertStringContainsString( 'fmc-sit-none', $card );
-		$this->assertStringContainsString( '<span class="fmc-ribbon is-warn" title="Datos incompletos">!</span>', $card );
+		$this->assertStringContainsString( '<span class="fmc-ribbon is-warn" title="Sin expediente de perfeccionamiento">!</span>', $card );
+		update_post_meta( $id, A::FILE_NUMBER, 'EXP-3' );
+		$this->assertStringNotContainsString( 'is-warn', Calendar::card( get_post( $id ) ), 'con él, está completada' );
+		delete_post_meta( $id, A::FILE_NUMBER );
 		$this->assertStringNotContainsString( '×', $card );
 		$this->assertStringNotContainsString( 'fmc-dot', $card );
 		// El centro ya va en el ámbito: no se repite.
@@ -471,7 +560,7 @@ class Test_Calendar extends WP_UnitTestCase {
 		$_GET['fmc_day']  = '2026-03-04';
 		$screen           = Calendar::screen();
 
-		$this->assertStringContainsString( '0 acción(es) esta semana; 2 siguen en curso.', $this->period( $screen ) );
+		$this->assertStringContainsString( '0 acciones esta semana. Además, 2 siguen en curso.', $this->period( $screen ) );
 		$this->assertStringContainsString( 'Empieza sin sesión', $screen['body'] );
 		$this->assertStringContainsString( 'Sigue sin fecha de fin', $screen['body'] );
 		$this->assertStringNotContainsString( 'Acabó sin fecha de fin', $screen['body'] );
@@ -551,7 +640,7 @@ class Test_Calendar extends WP_UnitTestCase {
 		$screen           = Calendar::screen();
 
 		$this->assertStringContainsString( '>Semana del 19 de octubre de 2026</h2>', $screen['body'] );
-		$this->assertStringContainsString( '1 acción(es) esta semana; 1 siguen en curso.', $this->period( $screen ) );
+		$this->assertStringContainsString( '1 acción esta semana. Además, 1 sigue en curso.', $this->period( $screen ) );
 		$this->assertSame( 7, substr_count( $screen['body'], '<section class="fmc-days-col' ) );
 		$this->assertStringContainsString( 'Empieza el martes', $screen['body'] );
 		$this->assertStringContainsString( 'Empezó antes', $screen['body'] );

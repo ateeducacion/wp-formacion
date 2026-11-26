@@ -102,13 +102,23 @@ final class Calendar {
 	);
 
 	/**
-	 * The view asked for; the month when none.
+	 * The view asked for; when none, the one the user works with.
 	 *
 	 * @return string
 	 */
 	public static function view(): string {
 		$view = Lists::arg( 'fmc_view' );
-		return isset( self::VIEWS[ $view ] ) ? $view : 'month';
+		return isset( self::VIEWS[ $view ] ) ? $view : self::default_view();
+	}
+
+	/**
+	 * The view the actions open in: the month, or the list for the training
+	 * service, which goes through them one by one to give them a file number.
+	 *
+	 * @return string
+	 */
+	public static function default_view(): string {
+		return PostTypes::is_training_service() ? 'list' : 'month';
 	}
 
 	/**
@@ -350,14 +360,15 @@ final class Calendar {
 	 * @param string                $text Text.
 	 * @param string                $css  Classes.
 	 * @param array<string, string> $attr More attributes.
+	 * @param bool                  $year Whether the school year chosen travels with it.
 	 * @return string
 	 */
-	private static function nav_link( array $args, string $text, string $css = 'btn btn-outline-secondary', array $attr = array() ): string {
+	private static function nav_link( array $args, string $text, string $css = 'btn btn-outline-secondary', array $attr = array(), bool $year = false ): string {
 		$more = '';
 		foreach ( $attr as $name => $value ) {
 			$more .= ' ' . $name . '="' . esc_attr( $value ) . '"';
 		}
-		return '<a class="' . esc_attr( $css ) . '" href="' . esc_url( Screen::url( array_merge( self::filters(), array( Screen::ARG_TAB => 'actions' ), $args ) ) ) . '"' . $more . '>' . esc_html( $text ) . '</a>';
+		return '<a class="' . esc_attr( $css ) . '" href="' . esc_url( Screen::url( array_merge( self::filters( $year ), array( Screen::ARG_TAB => 'actions' ), $args ) ) ) . '"' . $more . '>' . esc_html( $text ) . '</a>';
 	}
 
 	/**
@@ -370,7 +381,8 @@ final class Calendar {
 		$out = '<nav class="fmc-views" aria-label="Vista">';
 		foreach ( self::VIEWS as $view => $label ) {
 			$anchor = 'week' === $view || 'day' === $view ? array( 'fmc_day' => self::day() ) : array( 'fmc_month' => substr( self::month(), 0, 7 ) );
-			$out   .= self::nav_link( array( 'fmc_view' => 'month' === $view ? '' : $view ) + $anchor, $label, 'fmc-view', $view === $current ? array( 'aria-current' => 'true' ) : array() );
+			// Cambiar de vista no cambia lo que se está filtrando: tampoco el curso.
+			$out .= self::nav_link( array( 'fmc_view' => self::default_view() === $view ? '' : $view ) + $anchor, $label, 'fmc-view', $view === $current ? array( 'aria-current' => 'true' ) : array(), true );
 		}
 		return $out . '</nav>';
 	}
@@ -403,7 +415,7 @@ final class Calendar {
 		$by_day = self::by_day( $first );
 		return array(
 			'title' => ucfirst( self::MONTHS[ (int) gmdate( 'n', $ts ) ] ) . ' de ' . gmdate( 'Y', $ts ),
-			'count' => sprintf( '%d acción(es) este mes.', self::distinct( $by_day ) ),
+			'count' => Screen::counted( self::distinct( $by_day ), 'acción', 'acciones' ) . ' este mes.',
 			'prev'  => array( 'fmc_month' => gmdate( 'Y-m', (int) strtotime( '-1 month', $ts ) ) ),
 			'next'  => array( 'fmc_month' => gmdate( 'Y-m', (int) strtotime( '+1 month', $ts ) ) ),
 			'today' => array( 'fmc_month' => substr( self::today(), 0, 7 ) ),
@@ -532,7 +544,8 @@ final class Calendar {
 		$label = (int) substr( $from, 8 ) . ' de ' . self::MONTHS[ (int) gmdate( 'n', (int) strtotime( $from ) ) ] . ' de ' . gmdate( 'Y', (int) strtotime( $from ) );
 		return array(
 			'title' => 'week' === $view ? 'Semana del ' . $label : self::WEEKDAYS[ (int) gmdate( 'N', $ts ) - 1 ] . ' ' . $label,
-			'count' => sprintf( '%1$d acción(es) %2$s; %3$d siguen en curso.', self::distinct( $by ), 'week' === $view ? 'esta semana' : 'este día', count( $running ) ),
+			// Las que empezaron antes y siguen abiertas se cuentan aparte, y solo si las hay.
+			'count' => Screen::counted( self::distinct( $by ), 'acción', 'acciones' ) . ( 'week' === $view ? ' esta semana.' : ' este día.' ) . str_repeat( ' Además, ' . Screen::counted( count( $running ), 'sigue', 'siguen' ) . ' en curso.', (int) (bool) $running ),
 			'prev'  => array(
 				'fmc_view' => $view,
 				'fmc_day'  => gmdate( 'Y-m-d', (int) strtotime( '-' . $step, $ts ) ),
@@ -552,16 +565,22 @@ final class Calendar {
 	}
 
 	/**
-	 * Filters applied, to keep them when moving between months.
+	 * Filters applied, to keep them when moving between months and views.
 	 *
+	 * Todos los del listado, que es de donde sale la tarjeta de filtros: con
+	 * una lista propia más corta, cambiar de vista perdía la asesoría, el
+	 * estado y las fechas. El periodo y la vista los pone cada enlace. El
+	 * curso escolar viaja al cambiar de vista, pero no con las flechas: ahí
+	 * manda el mes.
+	 *
+	 * @param bool $year Whether to keep the school year chosen.
 	 * @return array<string, string>
 	 */
-	private static function filters(): array {
-		$out = array();
-		foreach ( array( 'fmc_s', 'fmc_scope', 'fmc_programme', 'fmc_modality', 'fmc_process', 'fmc_situation', 'fmc_file', 'fmc_incident', 'fmc_type', 'fmc_speaker' ) as $key ) {
-			if ( '' !== Lists::arg( $key ) ) {
-				$out[ $key ] = Lists::arg( $key );
-			}
+	private static function filters( bool $year = false ): array {
+		$out = Lists::current_filters();
+		unset( $out['fmc_month'], $out['fmc_view'] );
+		if ( ! $year ) {
+			unset( $out['fmc_year'] );
 		}
 		return $out;
 	}
@@ -572,9 +591,28 @@ final class Calendar {
 	 * @return string
 	 */
 	private static function legend(): string {
-		$out = '<div class="fmc-legend mb-3"><strong class="small me-2">Leyenda:</strong>';
+		// Lo que filtra se puede pulsar: cada situación, y lo que espera el
+		// expediente del servicio. Pulsar la que ya filtra la quita.
+		$here = array_filter(
+			array(
+				'fmc_view'  => Lists::arg( 'fmc_view' ),
+				'fmc_month' => Lists::arg( 'fmc_month' ),
+				'fmc_day'   => Lists::arg( 'fmc_day' ),
+			),
+			'strlen'
+		);
+		$chip = static function ( string $arg, string $value, string $css, string $html ) use ( $here ): string {
+			// Sin filtrar, y filtrando por ella: la clase, lo que dice y a dónde lleva.
+			list( $state, $more, $next ) = array(
+				array( '', ' title="Ver solo estas"', $value ),
+				array( ' is-active', ' aria-current="true" title="Quitar este filtro"', '' ),
+			)[ (int) ( Lists::arg( $arg ) === $value ) ];
+			$args                        = array_merge( self::filters( true ), array( Screen::ARG_TAB => 'actions' ), $here, array( $arg => $next ) );
+			return '<a class="fmc-chip ' . esc_attr( $css ) . $state . '" href="' . esc_url( Screen::url( $args ) ) . '"' . $more . '>' . $html . '</a>';
+		};
+		$out  = '<div class="fmc-legend mb-3"><strong class="small me-2">Leyenda:</strong>';
 		foreach ( A::SITUATIONS as $key => $label ) {
-			$out .= '<span class="fmc-chip fmc-sit-' . esc_attr( $key ) . '">' . esc_html( $label ) . '</span>';
+			$out .= $chip( 'fmc_situation', $key, 'fmc-sit-' . $key, esc_html( $label ) );
 		}
 		foreach ( A::funders() as $key => $label ) {
 			if ( 'none' === $key ) {
@@ -582,7 +620,8 @@ final class Calendar {
 			}
 			$out .= '<span class="fmc-chip"><i class="fmc-dot" style="background:' . esc_attr( self::FUNDER_COLOURS[ $key ] ) . '"></i>Asume: ' . esc_html( mb_strtolower( $label ) ) . '</span>';
 		}
-		$out .= '<span class="fmc-chip"><span class="fmc-ribbon">×2</span> Desdoble</span><span class="fmc-chip"><span class="fmc-ribbon is-warn">!</span> Incompleta</span>';
+		$out .= '<span class="fmc-chip"><span class="fmc-ribbon">×2</span> Desdoble</span>';
+		$out .= $chip( 'fmc_status', 'publish', '', '<span class="fmc-ribbon is-warn">!</span> Sin expediente' );
 		return $out . '</div>';
 	}
 
@@ -594,19 +633,22 @@ final class Calendar {
 	 * @return string
 	 */
 	public static function card( \WP_Post $post, string $day = '' ): string {
-		$m          = static fn( string $key ): string => (string) get_post_meta( $post->ID, $key, true );
-		$situation  = A::situation( $post->ID );
-		$funded     = $m( A::FUNDED_BY );
-		$replicas   = (int) $m( A::REPLICAS );
-		$incomplete = ! $m( A::DESIGN_ID ) || ! $m( A::PLACES ) || ! $m( A::MODALITY );
+		$m         = static fn( string $key ): string => (string) get_post_meta( $post->ID, $key, true );
+		$situation = A::situation( $post->ID );
+		$funded    = $m( A::FUNDED_BY );
+		$replicas  = (int) $m( A::REPLICAS );
+		// Entregada y sin el expediente del servicio de perfeccionamiento: lo
+		// que le falta para estar completada. Las plazas ya no se piden aquí,
+		// así que no pueden ser lo que la deja incompleta.
+		$waiting = 'publish' === A::delivery( $post );
 
 		$dot = isset( self::FUNDER_COLOURS[ $funded ] ) && 'none' !== $funded ? '<i class="fmc-dot" style="background:' . esc_attr( self::FUNDER_COLOURS[ $funded ] ) . '" title="' . esc_attr( 'Asume: ' . A::funders()[ $funded ] ) . '"></i>' : '';
 		$out = '<a class="fmc-ev fmc-abre-panel fmc-sit-' . esc_attr( '' !== $situation ? $situation : 'none' ) . ( 'draft' === $post->post_status ? ' is-draft' : '' ) . '" href="' . esc_url( Screen::url( array( Screen::ARG_EDIT => $post->ID ) ) ) . '" title="' . esc_attr( get_the_title( $post ) ) . '">';
 		if ( $replicas > 1 ) {
 			$out .= '<span class="fmc-ribbon">×' . esc_html( (string) $replicas ) . '</span>';
 		}
-		if ( $incomplete ) {
-			$out .= '<span class="fmc-ribbon is-warn" title="Datos incompletos">!</span>';
+		if ( $waiting ) {
+			$out .= '<span class="fmc-ribbon is-warn" title="Sin expediente de perfeccionamiento">!</span>';
 		}
 		$out  .= '<span class="fmc-ev-title">' . esc_html( get_the_title( $post ) ) . '</span>';
 		$today = '' !== $day ? Sessions::by_day( Sessions::clean( get_post_meta( $post->ID, A::SESSIONS, true ) ) )[ $day ] ?? array() : array();
@@ -617,11 +659,18 @@ final class Calendar {
 		if ( 'draft' === $post->post_status ) {
 			$out .= '<span class="fmc-ev-meta">Borrador, sin entregar</span>';
 		}
-		$sub = $m( A::SUBTITLE );
-		if ( '' !== $sub ) {
-			$out .= '<span class="fmc-ev-meta">' . esc_html( $sub ) . '</span>';
+		// Los dos expedientes y el ámbito, cada uno en su línea: el interno es
+		// largo. Los expedientes llevan su clase, para pintarlos como cifras.
+		foreach ( array_filter(
+			array(
+				array( 'fmc-ev-meta fmc-ev-ref', $m( A::INTERNAL_REF ) ),
+				array( 'fmc-ev-meta fmc-ev-ref', $m( A::FILE_NUMBER ) ),
+				array( 'fmc-ev-meta', Lists::terms( $post->ID, 'fmc_scope' ) ),
+			),
+			static fn( array $line ): bool => '' !== $line[1]
+		) as $line ) {
+			$out .= '<span class="' . esc_attr( $line[0] ) . '">' . esc_html( $line[1] ) . '</span>';
 		}
-		$out  .= '<span class="fmc-ev-meta">' . esc_html( trim( $m( A::FILE_NUMBER ) . ' · ' . Lists::terms( $post->ID, 'fmc_scope' ), ' ·' ) ) . '</span>';
 		$venue = $m( A::VENUE_CENTRE );
 		if ( '' !== $venue && false === strpos( $venue, Lists::terms( $post->ID, 'fmc_scope' ) ) ) {
 			$out .= '<span class="fmc-ev-meta">En: ' . esc_html( $venue ) . '</span>';

@@ -96,7 +96,7 @@ class Test_Catalogue extends WP_UnitTestCase {
 		$this->assertSame( array( 'En el catálogo' ), $this->titles(), 'se busca también por el código' );
 		$screen = Catalogue::screen();
 		$this->assertTrue( $screen['public'] );
-		$this->assertStringContainsString( '1 curso(s)', $screen['body'] );
+		$this->assertStringContainsString( '1 curso', $screen['body'] );
 	}
 
 	/**
@@ -151,6 +151,49 @@ class Test_Catalogue extends WP_UnitTestCase {
 		$this->assertStringContainsString( '<a href="' . esc_url( Documents::url( $docs['design'] ) ) . '">Ficha técnica.odt</a>', $body );
 		$this->assertStringNotContainsString( 'Escaleta', $body );
 		$this->assertStringNotContainsString( 'fmc_documento=' . $docs['sessions'], $body );
+	}
+
+	/**
+	 * La tarjeta de un curso lleva su imagen representativa, que se sube para
+	 * eso; sin imagen, la tarjeta sale igual.
+	 */
+	public function test_a_card_shows_the_image_of_the_course() {
+		$with  = $this->design( 'Con imagen', array( D::IN_CATALOGUE => '1' ) );
+		$image = self::factory()->attachment->create( array( 'post_parent' => $with ) );
+		update_post_meta( $image, Documents::KIND_META, 'image' );
+		$this->design( 'Sin imagen', array( D::IN_CATALOGUE => '1' ) );
+		$_GET[ Catalogue::ARG_LIST ] = '1';
+
+		$body = Catalogue::screen()['body'];
+		$this->assertSame( Documents::url( $image ), Catalogue::image( $with ) );
+		$this->assertSame( 1, substr_count( $body, '<img ' ) );
+		$this->assertStringContainsString( '<img src="' . esc_url( Documents::url( $image ) ) . '" alt="" loading="lazy">', $body );
+		$this->assertSame( array( 'Con imagen', 'Sin imagen' ), $this->titles() );
+		// Sin sesión, la imagen de un curso del catálogo se ve.
+		$this->assertSame( 'public', Documents::verdict( $image ) );
+	}
+
+	/**
+	 * «Ver en el catálogo» lleva a donde el profesorado ve el catálogo, que
+	 * puede ser otra web: lo dice el despliegue. Los enlaces de dentro del
+	 * catálogo propio no cambian.
+	 */
+	public function test_the_deployment_says_where_the_catalogue_is_seen() {
+		$id = $this->design( 'Robótica', array( D::IN_CATALOGUE => '1' ) );
+		$this->assertSame( Catalogue::url(), Catalogue::public_url() );
+		$this->assertSame( Catalogue::url( $id ), Catalogue::public_url( $id ) );
+
+		$elsewhere = static fn( $url, $design ) => 'https://otra.example/catalogo/' . ( $design ? '?curso=' . $design : '' );
+		add_filter( 'fmc_catalogue_url', $elsewhere, 10, 2 );
+		$this->assertSame( 'https://otra.example/catalogo/', Catalogue::public_url() );
+		$this->assertSame( 'https://otra.example/catalogo/?curso=' . $id, Catalogue::public_url( $id ) );
+		$this->assertStringContainsString( 'fmc_curso=' . $id, Catalogue::url( $id ), 'el catálogo propio sigue en su sitio' );
+		remove_filter( 'fmc_catalogue_url', $elsewhere, 10 );
+
+		// Un filtro que no devuelve una dirección no deja el botón sin destino.
+		add_filter( 'fmc_catalogue_url', '__return_empty_string' );
+		$this->assertSame( Catalogue::url( $id ), Catalogue::public_url( $id ) );
+		remove_filter( 'fmc_catalogue_url', '__return_empty_string' );
 	}
 
 	/**

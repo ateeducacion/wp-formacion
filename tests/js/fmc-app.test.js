@@ -16,6 +16,9 @@ function detach() {
 		document.removeEventListener( 'click', window.fmcApp.onSessionClick );
 		document.removeEventListener( 'input', window.fmcApp.onSessionInput );
 		document.removeEventListener( 'change', window.fmcApp.onChange );
+		document.removeEventListener( 'submit', window.fmcApp.onFilterSubmit );
+		document.removeEventListener( 'search', window.fmcApp.onSearch );
+		document.removeEventListener( 'click', window.fmcApp.onPartyClick );
 		document.removeEventListener( 'click', window.fmcApp.onDocClick );
 		document.removeEventListener( 'submit', window.fmcApp.onDocSubmit, true );
 		[ 'dragenter', 'dragover', 'dragleave', 'drop' ].forEach( ( type ) => document.removeEventListener( type, window.fmcApp.onDrag ) );
@@ -75,6 +78,198 @@ describe( 'confirmación antes de enviar', () => {
 	it( 'un formulario sin data-fmc-confirm no se toca', () => {
 		document.body.innerHTML = '<form><button>Guardar</button></form>';
 		expect( submit( document.querySelector( 'form' ) ).defaultPrevented ).toBe( false );
+	} );
+
+	it( 'el recordatorio de una incidencia se enseña sin rojo, y al aceptar la ficha se envía con su botón', async () => {
+		document.body.innerHTML = '<form class="fmc-form" data-fmc-confirm="¿Enviar la incidencia?" data-fmc-confirm-icon="info" data-fmc-confirm-text="Recuerde tramitarlo también fuera." data-fmc-confirm-button="Enviar la incidencia"><button name="fmc_status" value="publish">Enviar la incidencia</button></form>';
+		const f = document.querySelector( 'form' );
+		const button = f.querySelector( 'button' );
+		f.submit = vi.fn();
+		f.requestSubmit = vi.fn();
+		window.Swal = { fire: vi.fn().mockResolvedValue( { isConfirmed: true } ) };
+
+		const event = new Event( 'submit', { bubbles: true, cancelable: true } );
+		Object.defineProperty( event, 'submitter', { value: button } );
+		// Otro oyente del mismo envío —el del panel— no llega a guardar nada.
+		const later = vi.fn();
+		document.addEventListener( 'submit', later );
+		f.dispatchEvent( event );
+		document.removeEventListener( 'submit', later );
+		await new Promise( ( r ) => setTimeout( r ) );
+
+		expect( event.defaultPrevented ).toBe( true );
+		expect( later ).not.toHaveBeenCalled();
+		const asked = window.Swal.fire.mock.calls[ 0 ][ 0 ];
+		expect( asked.title ).toBe( '¿Enviar la incidencia?' );
+		expect( asked.text ).toBe( 'Recuerde tramitarlo también fuera.' );
+		expect( asked.icon ).toBe( 'info' );
+		expect( asked.confirmButtonColor ).not.toBe( '#dc3545' );
+		expect( f.requestSubmit ).toHaveBeenCalledWith( button );
+		expect( f.submit ).not.toHaveBeenCalled();
+		expect( f.dataset.fmcConfirmed ).toBeUndefined();
+	} );
+
+	it( 'el aviso de que una incidencia no tiene vuelta atrás lleva su icono de advertencia, sin el rojo de un borrado', async () => {
+		document.body.innerHTML = '<form class="fmc-form" data-fmc-confirm="¿Enviar la incidencia?" data-fmc-confirm-icon="warning" data-fmc-confirm-text="Una vez enviada no se puede modificar."><button>Enviar</button></form>';
+		const f = document.querySelector( 'form' );
+		f.requestSubmit = vi.fn();
+		window.Swal = { fire: vi.fn().mockResolvedValue( { isConfirmed: false } ) };
+		submit( f );
+		await new Promise( ( r ) => setTimeout( r ) );
+
+		const asked = window.Swal.fire.mock.calls[ 0 ][ 0 ];
+		expect( asked.icon ).toBe( 'warning' );
+		expect( asked.text ).toBe( 'Una vez enviada no se puede modificar.' );
+		expect( asked.confirmButtonColor ).not.toBe( '#dc3545' );
+		expect( asked.focusCancel ).toBe( false );
+		expect( f.requestSubmit ).not.toHaveBeenCalled();
+	} );
+
+	it( 'sin SweetAlert, el recordatorio va en el confirm() del navegador', () => {
+		document.body.innerHTML = '<form class="fmc-form" data-fmc-confirm="¿Enviar la incidencia?" data-fmc-confirm-icon="info" data-fmc-confirm-text="Recuerde tramitarlo también fuera."><button>Enviar</button></form>';
+		const f = document.querySelector( 'form' );
+		f.requestSubmit = vi.fn();
+		const ask = vi.spyOn( window, 'confirm' ).mockReturnValue( false );
+		submit( f );
+		expect( ask ).toHaveBeenCalledWith( '¿Enviar la incidencia?\n\nRecuerde tramitarlo también fuera.' );
+		expect( f.requestSubmit ).not.toHaveBeenCalled();
+	} );
+} );
+
+describe( 'los filtros se aplican al cambiarlos', () => {
+	let f;
+	beforeEach( async () => {
+		await load();
+		document.body.innerHTML = '<form class="fmc-filters" method="get"><input type="search" name="fmc_s"><select name="fmc_situation"><option value="">Todas</option><option value="cancelled">Cancelada</option></select><input type="date" name="fmc_from"><button type="submit">Buscar</button></form><form class="fmc-form"><select name="fmc_type"><option value="">—</option><option value="course">Curso</option></select></form>';
+		f = document.querySelector( 'form.fmc-filters' );
+		// Como el navegador: pedir el envío lanza el `submit`, que se puede parar.
+		f.requestSubmit = vi.fn( () => f.dispatchEvent( new Event( 'submit', { bubbles: true, cancelable: true } ) ) );
+	} );
+	afterEach( () => {
+		detach();
+		vi.restoreAllMocks();
+	} );
+
+	function change( field, value ) {
+		field.value = value;
+		field.dispatchEvent( new Event( 'change', { bubbles: true } ) );
+	}
+
+	it( 'elegir en un desplegable envía los filtros, y se nota que está cargando', () => {
+		change( f.querySelector( 'select' ), 'cancelled' );
+		expect( f.requestSubmit ).toHaveBeenCalledOnce();
+		expect( f.getAttribute( 'aria-busy' ) ).toBe( 'true' );
+	} );
+
+	it( 'lo que se escribe no se envía al salir de la casilla: espera a Intro o a la lupa', () => {
+		change( f.querySelector( 'input[type="search"]' ), 'robótica' );
+		expect( f.requestSubmit ).not.toHaveBeenCalled();
+	} );
+
+	it( 'una fecha a medio teclear no se envía; entera o vacía, sí', () => {
+		const date = f.querySelector( 'input[type="date"]' );
+		change( date, '0002-03-01' );
+		change( date, '0202-03-01' );
+		expect( f.requestSubmit ).not.toHaveBeenCalled();
+		change( date, '2026-03-01' );
+		expect( f.requestSubmit ).toHaveBeenCalledOnce();
+	} );
+
+	it( 'quitar una fecha también filtra', () => {
+		change( f.querySelector( 'input[type="date"]' ), '' );
+		expect( f.requestSubmit ).toHaveBeenCalledOnce();
+	} );
+
+	it( 'no se envía dos veces: el segundo envío de los mismos filtros se para', () => {
+		change( f.querySelector( 'select' ), 'cancelled' );
+		const again = new Event( 'submit', { bubbles: true, cancelable: true } );
+		f.dispatchEvent( again );
+		expect( again.defaultPrevented ).toBe( true );
+		change( f.querySelector( 'select' ), '' );
+		expect( f.requestSubmit ).toHaveBeenCalledOnce();
+	} );
+
+	it( 'al volver atrás a la página, los filtros se pueden usar otra vez', () => {
+		change( f.querySelector( 'select' ), 'cancelled' );
+		window.dispatchEvent( new Event( 'pageshow' ) );
+		expect( f.hasAttribute( 'aria-busy' ) ).toBe( false );
+		change( f.querySelector( 'select' ), '' );
+		expect( f.requestSubmit ).toHaveBeenCalledTimes( 2 );
+	} );
+
+	it( 'vaciar la caja de «Buscar» con su aspa quita la búsqueda', () => {
+		const box = f.querySelector( 'input[type="search"]' );
+		box.value = '';
+		box.dispatchEvent( new Event( 'search', { bubbles: true } ) );
+		expect( f.requestSubmit ).toHaveBeenCalledOnce();
+	} );
+
+	it( 'un desplegable de una ficha no envía nada', () => {
+		const other = document.querySelector( 'form.fmc-form' );
+		other.requestSubmit = vi.fn();
+		change( other.querySelector( 'select' ), 'course' );
+		expect( other.requestSubmit ).not.toHaveBeenCalled();
+		expect( f.requestSubmit ).not.toHaveBeenCalled();
+	} );
+} );
+
+describe( 'el guiño escondido del perfil', () => {
+	let avatar;
+	beforeEach( async () => {
+		vi.useFakeTimers();
+		await load();
+		document.body.innerHTML = '<details class="fmc-yo"><summary><span class="fmc-avatar">A</span><span class="fmc-yo-txt"><strong>Ana</strong></span></summary><div class="fmc-yo-menu"><a href="#">Salir</a></div></details>';
+		avatar = document.querySelector( '.fmc-avatar' );
+	} );
+	afterEach( () => {
+		detach();
+		vi.useRealTimers();
+		vi.restoreAllMocks();
+		delete window.matchMedia;
+	} );
+
+	function click( target, times ) {
+		target.dispatchEvent( new MouseEvent( 'click', { bubbles: true, detail: times } ) );
+	}
+
+	it( 'un clic o dos en la inicial no hacen nada: es el menú de siempre', () => {
+		click( avatar, 1 );
+		click( avatar, 2 );
+		expect( document.querySelector( '.fmc-party' ) ).toBeNull();
+	} );
+
+	it( 'tres clics seguidos hacen llover hamburguesas, por encima de la página y sin poder pulsarse', () => {
+		click( avatar, 3 );
+		const box = document.querySelector( '.fmc-party' );
+		expect( box.getAttribute( 'aria-hidden' ) ).toBe( 'true' );
+		expect( box.querySelectorAll( 'span' ).length ).toBeGreaterThan( 20 );
+		expect( box.textContent.replace( /🍔/gu, '' ) ).toBe( '' );
+	} );
+
+	it( 'se quita solo, y se puede repetir', () => {
+		click( avatar, 3 );
+		vi.advanceTimersByTime( 9000 );
+		expect( document.querySelector( '.fmc-party' ) ).toBeNull();
+
+		click( avatar, 3 );
+		expect( document.querySelector( '.fmc-party' ).textContent ).toContain( '🍔' );
+	} );
+
+	it( 'mientras dura no se apila otro', () => {
+		click( avatar, 3 );
+		click( avatar, 3 );
+		expect( document.querySelectorAll( '.fmc-party' ).length ).toBe( 1 );
+	} );
+
+	it( 'tres clics en otro sitio del menú no lo lanzan', () => {
+		click( document.querySelector( '.fmc-yo-txt strong' ), 3 );
+		expect( document.querySelector( '.fmc-party' ) ).toBeNull();
+	} );
+
+	it( 'quien ha pedido menos movimiento no lo ve', () => {
+		window.matchMedia = vi.fn().mockReturnValue( { matches: true } );
+		click( avatar, 3 );
+		expect( document.querySelector( '.fmc-party' ) ).toBeNull();
 	} );
 } );
 
@@ -573,7 +768,7 @@ describe( 'los documentos del diseño', () => {
 		expect( alertBox().hidden ).toBe( true );
 		pick( document.getElementById( 'fmc-replace-7' ), [ file( 'c.docx', 2 * MB ) ] );
 		expect( alertBox().hidden ).toBe( false );
-		expect( alertBox().textContent ).toContain( 'suman 10 MB y en cada guardado caben 8 MB' );
+		expect( alertBox().textContent ).toContain( 'suman 10 MB y el máximo por guardado es 8 MB' );
 		const event = submitForm();
 		expect( event.defaultPrevented ).toBe( true );
 
@@ -791,12 +986,12 @@ describe( 'los ponentes de la acción', () => {
 	it( 'cada ponente, en dos líneas: nombre con etiquetas y, debajo, isla, cargo y lo impartido', () => {
 		const escape = ( t ) => String( t ).replace( /&/g, '&amp;' ).replace( /</g, '&lt;' ).replace( />/g, '&gt;' ).replace( /"/g, '&quot;' );
 		const [ zoe, ana, bea ] = document.querySelectorAll( '[data-fmc-speakers] option' );
-		Object.assign( zoe.dataset, { fmcName: 'Zoe', fmcZone: 'Norte', fmcRole: 'Docente jubilado', fmcGiven: '3 acción(es)' } );
+		Object.assign( zoe.dataset, { fmcName: 'Zoe', fmcZone: 'Norte', fmcRole: 'Docente jubilado', fmcGiven: '3 acciones' } );
 
 		const star = window.fmcApp.speakerHtml( { text: '★ Zoe · Norte', $option: zoe }, escape );
 		expect( star ).toContain( 'bi-star-fill' );
 		expect( star ).toContain( '<strong>Zoe</strong> <span class="badge fmc-rec">Recomendado</span>' );
-		expect( star ).toContain( '<div class="small text-secondary">Norte · Docente jubilado · 3 acción(es)</div>' );
+		expect( star ).toContain( '<div class="small text-secondary">Norte · Docente jubilado · 3 acciones</div>' );
 
 		expect( window.fmcApp.speakerHtml( { text: 'Ana', $option: ana }, escape ) ).toBe( '<div class="fmc-person"><div><strong>Ana</strong></div></div>' );
 

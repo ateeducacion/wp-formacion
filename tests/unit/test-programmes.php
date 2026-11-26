@@ -161,11 +161,11 @@ class Test_Programmes extends WP_UnitTestCase {
 		$result = Editor::apply( PostTypes::ACTION, 0, $this->fields( $design, A::PROGRAMME_FUNDER ), '', 0 );
 
 		$this->assertSame( 'invalid', $result['outcome'] );
-		$this->assertSame( 'El diseño no está en ningún programa activo, así que no la puede asumir «Servicio de Perfeccionamiento»: la asume «El centro propio».', $result['errors'][ A::FUNDED_BY ] );
+		$this->assertSame( 'El diseño no está en ningún programa activo, así que no la puede asumir «Servicio de Perfeccionamiento». La asume «El centro propio».', $result['errors'][ A::FUNDED_BY ] );
 	}
 
 	/**
-	 * Con otro que paga, el programa es el que se elija; y una acción guardada
+	 * Con el área, el programa es el que se elija; y una acción guardada
 	 * que no cambia ni de quién paga ni de diseño se guarda aunque su programa
 	 * se haya cerrado.
 	 */
@@ -175,13 +175,45 @@ class Test_Programmes extends WP_UnitTestCase {
 		$design    = $this->design( array( $programme ) );
 		wp_set_current_user( self::factory()->user->create( array( 'role' => 'fmc_adviser' ) ) );
 
-		$centre = Editor::apply( PostTypes::ACTION, 0, $this->fields( $design, 'centre', array( $other ) ), '', 0 );
-		$this->assertSame( array( $other ), $this->programmes_of( $centre['id'] ) );
+		$area = Editor::apply( PostTypes::ACTION, 0, $this->fields( $design, 'area', array( $other ) ), '', 0 );
+		$this->assertSame( array( $other ), $this->programmes_of( $area['id'] ) );
 
 		$service = Editor::apply( PostTypes::ACTION, 0, $this->fields( $design, A::PROGRAMME_FUNDER ), '', 0 );
 		delete_term_meta( $programme, Taxonomies::ACTIVE );
 		$this->assertSame( 'saved', Editor::apply( PostTypes::ACTION, $service['id'], $this->fields( $design, A::PROGRAMME_FUNDER, array( $programme ) ), '', 0 )['outcome'] );
 		$this->assertSame( array( $programme ), $this->programmes_of( $service['id'] ) );
+	}
+
+	/**
+	 * El programa solo cuenta si la asume quien puede cargarla a uno: con el
+	 * centro de formación o sin coste, no lo hay. Lo que ya estaba guardado así
+	 * —lo migrado— no se borra por editar otra cosa.
+	 */
+	public function test_a_programme_needs_a_funder_that_charges_to_programmes() {
+		$programme = $this->programme( 'Programa', true );
+		$design    = $this->design( array( $programme ) );
+		wp_set_current_user( self::factory()->user->create( array( 'role' => 'fmc_curator' ) ) );
+
+		foreach ( array( 'centre', 'none', '' ) as $funder ) {
+			$new = Editor::apply( PostTypes::ACTION, 0, $this->fields( $design, $funder, array( $programme ) ), '', 0 );
+			$this->assertSame( 'created', $new['outcome'] );
+			$this->assertSame( array(), $this->programmes_of( $new['id'] ), 'asumida por «' . $funder . '»' );
+		}
+		$this->assertSame( array( 'show' => array( A::FUNDED_BY => array( 'area', 'service' ) ) ), array_intersect_key( \Fmc\PublicFront\Fields::all( PostTypes::ACTION )['tax:fmc_programme'], array( 'show' => 1 ) ) );
+
+		// Una migrada: la pagaba el centro y trae su programa.
+		$old = Editor::apply( PostTypes::ACTION, 0, $this->fields( $design, 'centre' ), '', 0 )['id'];
+		wp_set_object_terms( $old, array( $programme ), Taxonomies::PROGRAMME );
+		$this->assertSame( 'saved', Editor::apply( PostTypes::ACTION, $old, array( A::NOTES => 'Una nota' ) + $this->fields( $design, 'centre' ), '', 0 )['outcome'] );
+		$this->assertSame( array( $programme ), $this->programmes_of( $old ), 'editar otra cosa no lo borra' );
+
+		// Al cambiar quién la asume, sí: pasa a no tener coste y se queda sin programa.
+		Editor::apply( PostTypes::ACTION, $old, $this->fields( $design, 'none', array( $programme ) ), '', 0 );
+		$this->assertSame( array(), $this->programmes_of( $old ) );
+
+		// Y al pasar al área, el que se elija.
+		Editor::apply( PostTypes::ACTION, $old, $this->fields( $design, 'area', array( $programme ) ), '', 0 );
+		$this->assertSame( array( $programme ), $this->programmes_of( $old ) );
 	}
 
 	/**
