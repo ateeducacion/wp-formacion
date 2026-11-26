@@ -6,7 +6,7 @@
  * Priority: 10
  *
  * @package Fmc
- * @version 0.2.1
+ * @version 1.0.0
  */
 
 // phpcs:disable

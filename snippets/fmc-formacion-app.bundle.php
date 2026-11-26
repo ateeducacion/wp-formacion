@@ -6,7 +6,7 @@
  * Priority: 15
  *
  * @package Fmc
- * @version 0.2.1
+ * @version 1.0.0
  */
 
 // phpcs:disable
@@ -1370,6 +1370,45 @@ final class DigComp {
 		ksort( $out );
 		foreach ( $out as &$levels ) {
 			ksort( $levels );
+		}
+		return $out;
+	}
+
+
+
+
+
+
+
+
+
+
+
+	public static function profile( string $url ): array {
+		$summary = self::summary( $url );
+		if ( array() === $summary ) {
+			return array();
+		}
+		$out = array();
+		foreach ( self::AREAS as $area => $name ) {
+			$competences = array();
+			foreach ( self::COMPETENCES as $code => $title ) {
+				if ( (int) $code !== $area ) {
+					continue;
+				}
+				$levels        = $summary[ $code ] ?? array();
+				$competences[] = array(
+					'code'   => (string) $code,
+					'name'   => $title,
+					'level'  => (string) array_key_last( $levels ),
+					'levels' => $levels,
+				);
+			}
+			$out[] = array(
+				'area'        => $area,
+				'name'        => $name,
+				'competences' => $competences,
+			);
 		}
 		return $out;
 	}
@@ -9181,8 +9220,8 @@ final class Editor {
 
 
 	public static function digcomp( string $url ): string {
-		$summary = DigComp::summary( $url );
-		if ( array() === $summary ) {
+		$profile = DigComp::profile( $url );
+		if ( array() === $profile ) {
 			return '<div class="form-text text-warning">En esa dirección no se ha encontrado ninguna competencia.</div>';
 		}
 
@@ -9190,14 +9229,14 @@ final class Editor {
 		$areas = '';
 		$codes = '';
 		$cells = '';
-		foreach ( DigComp::AREAS as $area => $name ) {
-			$competences = array_filter( DigComp::COMPETENCES, static fn( $code ) => (int) $code === $area, ARRAY_FILTER_USE_KEY );
-			$areas      .= '<th scope="colgroup" colspan="' . count( $competences ) . '" class="fmc-area-' . $area . '">' . esc_html( $area . '. ' . $name ) . '</th>';
-			foreach ( $competences as $code => $title ) {
-				$levels = $summary[ $code ] ?? array();
+		foreach ( $profile as $area ) {
+			$css    = 'fmc-area-' . $area['area'];
+			$areas .= '<th scope="colgroup" colspan="' . count( $area['competences'] ) . '" class="' . $css . '">' . esc_html( $area['area'] . '. ' . $area['name'] ) . '</th>';
+			foreach ( $area['competences'] as $competence ) {
+				$levels = $competence['levels'];
 				$detail = implode( ', ', array_map( static fn( $level, $n ) => $level . ' (' . $n . ')', array_keys( $levels ), $levels ) );
-				$codes .= '<th scope="col" class="fmc-area-' . $area . '" title="' . esc_attr( $title ) . '">' . esc_html( $code ) . '</th>';
-				$cells .= '<td class="fmc-area-' . $area . '"' . ( '' !== $detail ? ' title="' . esc_attr( $title . ': ' . $detail . ' indicador(es)' ) . '"' : '' ) . '>' . esc_html( (string) array_key_last( $levels ) ) . '</td>';
+				$codes .= '<th scope="col" class="' . $css . '" title="' . esc_attr( $competence['name'] ) . '">' . esc_html( $competence['code'] ) . '</th>';
+				$cells .= '<td class="' . $css . '"' . ( '' !== $detail ? ' title="' . esc_attr( $competence['name'] . ': ' . $detail . ' indicador(es)' ) . '"' : '' ) . '>' . esc_html( $competence['level'] ) . '</td>';
 			}
 		}
 		return '<div class="fmc-digcomp card card-body mt-2"><div class="d-flex align-items-center mb-2"><strong class="me-auto">Resumen del perfil</strong><a class="btn btn-sm btn-outline-primary" href="' . esc_url( $url ) . '" target="_blank" rel="noopener">Abrir en elidd</a></div>'
@@ -11168,6 +11207,7 @@ final class Catalogue {
 
 namespace Fmc\PublicFront;
 
+use Fmc\Domain\DigComp;
 use Fmc\Meta\DesignMetaKeys as D;
 use Fmc\PostType\PostTypes;
 
@@ -11385,8 +11425,11 @@ final class CatalogueFeed {
 			$course[ $keys[ $key ] ] = '' !== trim( $value ) ? wp_kses_post( wpautop( $value ) ) : '';
 		}
 		$course['digcomp_url'] = esc_url_raw( $m( D::DIGCOMP_URL ) );
-		$course['documents']   = array();
-		$documents             = Documents::of( $post->ID );
+
+
+		$course['digcomp']   = DigComp::profile( $m( D::DIGCOMP_URL ) );
+		$course['documents'] = array();
+		$documents           = Documents::of( $post->ID );
 		foreach ( Documents::PUBLIC_KINDS as $kind ) {
 			foreach ( $documents[ $kind ] as $doc ) {
 				$course['documents'][] = array(

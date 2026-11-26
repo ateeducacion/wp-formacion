@@ -187,7 +187,7 @@ class Test_Catalogue_Feed extends WP_UnitTestCase {
 				D::METHODOLOGY  => 'Solo de trabajo',
 				D::NOTES        => 'Observación interna',
 				D::AUTHORSHIP   => 'Quien lo escribió',
-				D::DIGCOMP_URL  => 'https://ejemplo.example/perfil#x',
+				D::DIGCOMP_URL  => 'https://ejemplo.example/perfil?c=1.3.A2.1|2.2.A1.3#x',
 			)
 		);
 		foreach ( array(
@@ -209,7 +209,12 @@ class Test_Catalogue_Feed extends WP_UnitTestCase {
 		$this->assertStringContainsString( '<p>Uno</p>', $data['objectives'] );
 		$this->assertStringNotContainsString( '<script', $data['objectives'] );
 		$this->assertSame( '', $data['contents'], 'lo vacío, vacío' );
-		$this->assertSame( 'https://ejemplo.example/perfil#x', $data['digcomp_url'] );
+		$this->assertSame( 'https://ejemplo.example/perfil?c=1.3.A2.1|2.2.A1.3#x', $data['digcomp_url'] );
+		// El perfil, ya resumido: quien lo pinta en otra web no necesita conocer el marco.
+		$this->assertCount( 6, $data['digcomp'] );
+		$this->assertSame( 'A2', array_column( $data['digcomp'][0]['competences'], 'level', 'code' )['1.3'] );
+		$this->assertSame( 'A1', array_column( $data['digcomp'][1]['competences'], 'level', 'code' )['2.2'] );
+		$this->assertSame( '', array_column( $data['digcomp'][2]['competences'], 'level', 'code' )['3.1'] );
 		$this->assertSame(
 			array(
 				array(

@@ -136,3 +136,30 @@ Lo prueban `tests/unit/test-catalogue-feed.php`, `test-catalogue.php` y
 
 - No hay ruta para las acciones: el aplicativo no publica qué se imparte ni
   cuándo ([ADR-0005](ADR-0005-la-matricula-no-es-de-este-aplicativo.md)).
+
+## Adenda — 2026-11-26: el curso entero lleva el perfil de competencia, ya resumido
+
+La ficha del catálogo del aplicativo enseña el cuadro de la competencia digital
+docente que trabaja el curso. A las otras webs solo les llegaba la dirección
+del perfil (`digcomp_url`): para pintar el mismo cuadro tenían que saber leer
+esa dirección y llevar dentro el marco —sus áreas, sus competencias y cómo se
+llaman—, que es justo lo que esta decisión quería que no hiciera falta.
+
+- `GET fmc/v1/catalogue/<id>` añade **`digcomp`**: las seis áreas, cada una con
+  todas sus competencias (`code`, `name`), el nivel más alto que marca el perfil
+  (`level`, vacío si no la trabaja) y cuántos indicadores hay en cada nivel
+  (`levels`). Sin perfil, o con una dirección que no trae competencias, es una
+  lista vacía. `digcomp_url` sigue saliendo: es el enlace al perfil entero, con
+  sus indicadores.
+- Lo calcula `Domain\DigComp::profile()`, y **el cuadro del aplicativo sale de
+  ahí también** (`Editor::digcomp()`): lo que ve quien entra y lo que reciben las
+  otras webs no pueden decir cosas distintas.
+- Es un campo más, no un cambio de los que había: quien ya leía la respuesta
+  sigue leyéndola igual.
+
+No van los textos de los indicadores: el aplicativo no los lleva, y están en la
+herramienta a la que apunta `digcomp_url`.
+
+Lo prueban `tests/unit/test-digcomp.php` y `test-catalogue-feed.php`.
+
+Asistencia de IA: Claude Code (claude-fable-5-2).

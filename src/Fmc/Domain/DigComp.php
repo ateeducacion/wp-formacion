@@ -87,4 +87,43 @@ final class DigComp {
 		}
 		return $out;
 	}
+
+	/**
+	 * The profile of a URL by areas: every competence of the framework with
+	 * the highest level marked, or '' when the profile leaves it out.
+	 *
+	 * Es el resumen ya hecho, para quien lo pinta sin conocer el marco: otra
+	 * web, con los datos del catálogo (ADR-0028).
+	 *
+	 * @param string $url Profile URL.
+	 * @return array<int, array{area:int, name:string, competences:array<int, array{code:string, name:string, level:string, levels:array<string, int>}>}> Empty when the URL brings no competence.
+	 */
+	public static function profile( string $url ): array {
+		$summary = self::summary( $url );
+		if ( array() === $summary ) {
+			return array();
+		}
+		$out = array();
+		foreach ( self::AREAS as $area => $name ) {
+			$competences = array();
+			foreach ( self::COMPETENCES as $code => $title ) {
+				if ( (int) $code !== $area ) {
+					continue;
+				}
+				$levels        = $summary[ $code ] ?? array();
+				$competences[] = array(
+					'code'   => (string) $code,
+					'name'   => $title,
+					'level'  => (string) array_key_last( $levels ),
+					'levels' => $levels,
+				);
+			}
+			$out[] = array(
+				'area'        => $area,
+				'name'        => $name,
+				'competences' => $competences,
+			);
+		}
+		return $out;
+	}
 }
