@@ -852,7 +852,7 @@ class Test_Editor_Render extends WP_UnitTestCase {
 		$this->assertStringContainsString( '<td class="fmc-area-1" title="Comunicación organizativa: A1 (2), B1 (1) indicador(es)">B1</td>', $body );
 		$this->assertStringContainsString( '<td class="fmc-area-3" title="Enseñanza: B1 (1) indicador(es)">B1</td>', $body );
 		$this->assertStringContainsString( '<td class="fmc-area-2"></td>', $body );
-		$this->assertStringContainsString( 'href="https://elidd.ernesto.es/?c=1.1.A1.1|1.1.A1.2|1.1.B1.1|3.1.B1.1" target="_blank" rel="noopener">Abrir en elidd</a>', $body, 'el enlace va a la herramienta, no a donde se guardó' );
+		$this->assertStringContainsString( 'href="https://elidd.ernesto.es/?c=1.1.A1.1|1.1.A1.2|1.1.B1.1|3.1.B1.1" target="_blank" rel="noopener" data-fmc-tool-view>Abrir en elidd</a>', $body, 'el enlace va a la herramienta, no a donde se guardó, y el guion lo abre en una ventana' );
 		$this->assertStringContainsString( 'data-fmc-tool="f-' . D::DIGCOMP_URL . '" data-fmc-tool-url="https://elidd.ernesto.es/">Elegir los indicadores en elidd</button>', $body );
 
 		// Quien despliega puede usar su propia copia de elidd.

@@ -8,6 +8,12 @@ lee de la cabecera superior y la escribe en el `@version` del bundle.
 `make release` crea el tag y la release en GitHub; el despliegue de los snippets
 en el sitio de destino se hace después.
 
+## [1.0.2] — 2026-11-26
+
+### Cambiado
+
+- **«Abrir en elidd» abre el perfil en una ventana sobre la página**, en la ficha del diseño y en la del catálogo público, sin salir de ella; el resumen con los indicadores sale al pulsar «Generar». Con Ctrl, sin JavaScript o en una pantalla estrecha sigue abriendo su pestaña (ADR-0014)
+
 ## [1.0.1] — 2026-11-26
 
 ### Cambiado

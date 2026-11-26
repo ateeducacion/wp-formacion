@@ -161,3 +161,26 @@ Lo prueban `tests/unit/test-digcomp.php`, `test-catalogue-feed.php` y
 `test-editor-render.php`.
 
 Asistencia de IA: Claude Code (claude-fable-5-2).
+
+## Adenda — 2026-11-26: el perfil también se ve incrustado
+
+«Abrir en elidd» llevaba a otra pestaña. Para quien consulta un curso —en la
+ficha del diseño y en la del catálogo público— es salir de la página para
+mirar una tabla y volver.
+
+- **El enlace abre la herramienta en el mismo diálogo en que se elige el
+  perfil**, sobre la página (`a[data-fmc-tool-view]`, `openView()` en
+  `assets/js/fmc-app.js`). Va tal cual, sin el modo incrustado: no hay
+  «Guardar» porque no hay nada que devolver. El resumen con los indicadores
+  sale al pulsar su «Generar».
+- **Sigue siendo un enlace**: sin JavaScript, con Ctrl o con el botón central
+  abre su pestaña. También en una pantalla estrecha, donde la ventana no cabe
+  y la herramienta avisa de que no está pensada para el móvil.
+
+Contra: se incrusta una página de otro origen en una pantalla pública. Es la
+misma que ya se incrustaba para elegir, y si el sitio llega a tener una
+política con `frame-src` hay que añadir su origen, como ya decía esta ADR.
+
+Lo prueban `tests/js/fmc-app.test.js` y `tests/unit/test-editor-render.php`.
+
+Asistencia de IA: Claude Code (claude-fable-5-2).

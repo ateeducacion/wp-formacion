@@ -1314,7 +1314,7 @@ final class Editor {
 				$cells .= '<td class="' . $css . '"' . ( '' !== $detail ? ' title="' . esc_attr( $competence['name'] . ': ' . $detail . ' indicador(es)' ) . '"' : '' ) . '>' . esc_html( $competence['level'] ) . '</td>';
 			}
 		}
-		return '<div class="fmc-digcomp card card-body mt-2"><div class="d-flex align-items-center mb-2"><strong class="me-auto">Resumen del perfil</strong><a class="btn btn-sm btn-outline-primary" href="' . esc_url( DigComp::tool_link( $url, self::digcomp_tool() ) ) . '" target="_blank" rel="noopener">Abrir en elidd</a></div>'
+		return '<div class="fmc-digcomp card card-body mt-2"><div class="d-flex align-items-center mb-2"><strong class="me-auto">Resumen del perfil</strong><a class="btn btn-sm btn-outline-primary" href="' . esc_url( DigComp::tool_link( $url, self::digcomp_tool() ) ) . '" target="_blank" rel="noopener" data-fmc-tool-view>Abrir en elidd</a></div>'
 			. '<div class="table-responsive"><table class="fmc-digcomp-table"><thead><tr>' . $areas . '</tr><tr>' . $codes . '</tr></thead><tbody><tr>' . $cells . '</tr></tbody></table></div>'
 			. '<div class="form-text">Se muestra el nivel más alto marcado en cada competencia. Pase el ratón por encima para ver todos, con sus indicadores.</div></div>';
 	}
