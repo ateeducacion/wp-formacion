@@ -5490,7 +5490,7 @@ final class Lists {
 
 
 	public const DESIGN_STATUSES = array(
-		'draft'             => array( 'Borrador', 'secondary' ),
+		'draft'             => array( 'Borrador', 'light border' ),
 		'publish'           => array( 'Finalizado', 'success' ),
 		PostTypes::ARCHIVED => array( 'Histórico', 'dark' ),
 	);
@@ -5514,7 +5514,9 @@ final class Lists {
 
 
 
-	private const LEADING = array( 'Código', 'Expediente interno', 'Expediente de perfeccionamiento' );
+
+
+	private const LEADING = array( 'Código', 'Expediente interno', 'Expediente de perfeccionamiento', 'Fechas' );
 
 
 
@@ -5558,6 +5560,7 @@ final class Lists {
 
 
 
+
 	public static function order_by_meta( $clauses, $query ) {
 		$order = $query instanceof \WP_Query ? $query->get( 'fmc_order_meta' ) : null;
 		if ( ! is_array( $order ) || count( $order ) < 2 ) {
@@ -5567,9 +5570,15 @@ final class Lists {
 		$dir = 'asc' === $order[1] ? 'ASC' : 'DESC';
 
 
-		$length             = ! empty( $order[2] ) ? "LENGTH( fmc_sort.meta_value ) $dir, " : '';
+		$mode               = $order[2] ?? '';
+		$length             = in_array( $mode, array( true, 'code' ), true ) ? "LENGTH( fmc_sort.meta_value ) $dir, " : '';
 		$clauses['join']   .= $wpdb->prepare( " LEFT JOIN $wpdb->postmeta AS fmc_sort ON ( fmc_sort.post_id = $wpdb->posts.ID AND fmc_sort.meta_key = %s )", (string) $order[0] );
 		$clauses['orderby'] = "( fmc_sort.meta_value IS NULL OR fmc_sort.meta_value = '' ) ASC, $length fmc_sort.meta_value $dir, $wpdb->posts.ID $dir";
+
+		if ( 'sum' === $mode && ! empty( $order[3] ) ) {
+			$clauses['join']   .= $wpdb->prepare( " LEFT JOIN $wpdb->postmeta AS fmc_sort2 ON ( fmc_sort2.post_id = $wpdb->posts.ID AND fmc_sort2.meta_key = %s )", (string) $order[3] );
+			$clauses['orderby'] = "( COALESCE( fmc_sort.meta_value, '' ) = '' AND COALESCE( fmc_sort2.meta_value, '' ) = '' ) ASC, ( CAST( COALESCE( NULLIF( fmc_sort.meta_value, '' ), '0' ) AS DECIMAL( 10, 2 ) ) + CAST( COALESCE( NULLIF( fmc_sort2.meta_value, '' ), '0' ) AS DECIMAL( 10, 2 ) ) ) $dir, $wpdb->posts.ID $dir";
+		}
 		return $clauses;
 	}
 
@@ -5587,6 +5596,8 @@ final class Lists {
 		PostTypes::DESIGN   => array(
 			'Diseño de acción formativa' => 'title',
 			'Código'                     => 'code',
+			'Tipo'                       => 'type',
+			'Horas'                      => 'hours',
 		),
 		PostTypes::SPEAKER  => array(
 			'Ponente'      => 'name',
@@ -5643,12 +5654,19 @@ final class Lists {
 
 	private static function sorted( string $type, array $args ): array {
 		list( $key, $dir ) = self::sort_of( $type );
-		$metas             = array(
-			'start' => A::START,
-			'code'  => D::CODE,
+
+
+		$metas = array(
+			PostTypes::ACTION => array( 'start' => array( A::START ) ),
+			PostTypes::DESIGN => array(
+				'code'  => array( D::CODE, 'code' ),
+				'type'  => array( D::TYPE ),
+				'hours' => array( D::HOURS_ONSITE, 'sum', D::HOURS_ONLINE ),
+			),
 		);
-		if ( isset( $metas[ $key ] ) ) {
-			$args['fmc_order_meta'] = array( $metas[ $key ], $dir, 'code' === $key );
+		$meta  = $metas[ $type ][ $key ] ?? null;
+		if ( $meta ) {
+			$args['fmc_order_meta'] = array( $meta[0], $dir, $meta[1] ?? '', $meta[2] ?? '' );
 		} elseif ( 'title' === $key || 'date' === $key ) {
 			$args['orderby'] = $key;
 			$args['order']   = strtoupper( $dir );
@@ -6724,7 +6742,7 @@ final class Lists {
 
 
 
-			$file = str_repeat( nl2br( esc_html( A::file_numbers( $post->ID, true ) ) ), (int) ! $leading );
+			$file = str_repeat( nl2br( esc_html( A::file_numbers( $post->ID, true ) ) ), (int) ! isset( $leading['Expediente interno'] ) );
 
 			$link = $thumb . $name . self::badge( $post, true ) . preg_replace( '/^(.+)$/s', '<div class="small text-secondary">$1</div>', $file );
 			$out .= '<tr>' . $cells( $leading ) . '<td class="fmc-col-title">' . $link . '</td>' . $cells( $columns ) . '<td class="text-end text-nowrap">' . self::row_buttons( $post ) . '</td></tr>';
@@ -6888,19 +6906,19 @@ final class Lists {
 					'Expediente interno'              => static fn( $p ) => $m( $p, A::INTERNAL_REF ),
 					'Expediente de perfeccionamiento' => static fn( $p ) => '' !== $m( $p, A::FILE_NUMBER ) ? $m( $p, A::FILE_NUMBER ) : '—',
 				) : array() ) + array(
-					'Ámbito y centro' => static fn( $p ) => self::terms( $p->ID, 'fmc_scope' ) . "\n" . $m( $p, A::VENUE_CENTRE ),
-					'Ponentes'        => static fn( $p ) => implode( "\n", array_map( 'get_the_title', array_filter( array_map( 'intval', (array) get_post_meta( $p->ID, A::SPEAKERS, true ) ) ) ) ),
-					'Tipo y horas'    => static fn( $p ) => ( D::TYPES[ (string) get_post_meta( (int) $m( $p, A::DESIGN_ID ), D::TYPE, true ) ] ?? '' ) . "\n" . trim( ( D::MODALITIES[ $m( $p, A::MODALITY ) ] ?? '' ) . ' · ' . self::hours( $m( $p, A::HOURS_ONSITE ), $m( $p, A::HOURS_ONLINE ) ), ' ·' ),
 
 					'Fechas'          => static function ( $p ) use ( $m ) {
 						$sessions = Sessions::summary( Sessions::clean( get_post_meta( $p->ID, A::SESSIONS, true ) ) );
 						return self::dates( $m( $p, A::START ), $m( $p, A::END ) ) . "\n" . ( '' !== $sessions ? $sessions : wp_trim_words( $m( $p, A::SCHEDULE ), 12 ) );
 					},
+					'Ámbito y centro' => static fn( $p ) => self::terms( $p->ID, 'fmc_scope' ) . "\n" . $m( $p, A::VENUE_CENTRE ),
+					'Ponentes'        => static fn( $p ) => implode( "\n", array_map( 'get_the_title', array_filter( array_map( 'intval', (array) get_post_meta( $p->ID, A::SPEAKERS, true ) ) ) ) ),
+					'Tipo y horas'    => static fn( $p ) => ( D::TYPES[ (string) get_post_meta( (int) $m( $p, A::DESIGN_ID ), D::TYPE, true ) ] ?? '' ) . "\n" . trim( ( D::MODALITIES[ $m( $p, A::MODALITY ) ] ?? '' ) . ' · ' . self::hours( $m( $p, A::HOURS_ONSITE ), $m( $p, A::HOURS_ONLINE ) ), ' ·' ),
 					'Estado'          => static fn( $p ) => ( A::DELIVERY[ A::delivery( $p ) ] ?? '' ) . "\n" . SchoolYear::of( $m( $p, A::START ) ),
 				);
 			case PostTypes::DESIGN:
 				return array(
-					'Código'    => static fn( $p ) => $m( $p, D::CODE ) . ( Catalogue::is_listed( $p ) ? "\nEn el catálogo" : '' ),
+					'Código'    => static fn( $p ) => $m( $p, D::CODE ),
 					'Tipo'      => static fn( $p ) => ( D::TYPES[ $m( $p, D::TYPE ) ] ?? '' ) . "\n" . ( D::MODALITIES[ $m( $p, D::MODALITY ) ] ?? '' ),
 					'Horas'     => static fn( $p ) => self::hours( $m( $p, D::HOURS_ONSITE ), $m( $p, D::HOURS_ONLINE ) ),
 					'Temática'  => static fn( $p ) => self::terms( $p->ID, 'fmc_topic' ),
@@ -7048,6 +7066,7 @@ final class Lists {
 
 
 
+
 	public static function badge( \WP_Post $post, bool $in_list = false ): string {
 		if ( PostTypes::ACTION === $post->post_type ) {
 			$s = A::situation( $post->ID );
@@ -7055,7 +7074,10 @@ final class Lists {
 				. ( isset( A::SITUATIONS[ $s ] ) ? ' <span class="badge rounded-pill text-bg-' . esc_attr( self::SITUATION_COLOURS[ $s ] ) . '">' . esc_html( A::SITUATIONS[ $s ] ) . '</span>' : '' ) . self::incident_badge( $post->ID );
 		}
 		if ( PostTypes::DESIGN === $post->post_type && $in_list && 'publish' === $post->post_status ) {
-			return '';
+
+
+			list( $icon, $text ) = Catalogue::is_listed( $post ) ? array( 'bi-eye', 'Visible en el catálogo público' ) : array( 'bi-eye-slash', 'No está en el catálogo público' );
+			return ' <i class="bi ' . $icon . ' fmc-listed" role="img" title="' . esc_attr( $text ) . '" aria-label="' . esc_attr( $text ) . '"></i>';
 		}
 		if ( PostTypes::DESIGN === $post->post_type && isset( self::DESIGN_STATUSES[ PostTypes::design_status( $post->post_status ) ] ) ) {
 			list( $label, $colour ) = self::DESIGN_STATUSES[ PostTypes::design_status( $post->post_status ) ];
@@ -11666,8 +11688,32 @@ a.fmc-counter:hover, .fmc-counter.is-active { border-color: var(--fmc-brand); bo
 /* Los accesos de la asesoría —las mías, las de mi centro—, a la altura de los campos. */
 .fmc-filters .fmc-mine { margin-bottom: .2rem; }
 .fmc-table { border-radius: var(--fmc-r); overflow: hidden; }
-.fmc-table th { font-size: .78rem; text-transform: uppercase; letter-spacing: .05em; color: var(--fmc-text-2); background: var(--fmc-sup-2); white-space: nowrap; }
+/* Los listados. La cabecera, en minúscula y sin gritar; la fila, con aire; el
+   título manda sin subrayado; las chapas, suaves, y solo para lo que se sale
+   de lo normal; los botones de la fila, sin cerco hasta que se pasa por ellos. */
+.fmc-table th { font-size: .8rem; font-weight: 600; color: var(--fmc-text-2); background: var(--fmc-sup-2); white-space: nowrap; }
 .fmc-table td { font-size: .9rem; }
+.fmc-table .table > :not(caption) > * > * { padding: .7rem .75rem; }
+/* Lo primero de la fila —el código, las fechas, un expediente— son cifras: alineadas y con peso. */
+.fmc-table tbody td:first-child:not(.fmc-col-title) { font-weight: 600; font-variant-numeric: tabular-nums; }
+.fmc-table td .small { font-weight: 400; }
+.fmc-col-title a.fw-semibold { color: var(--fmc-text); text-decoration: none; }
+.fmc-col-title a.fw-semibold:hover, .fmc-col-title a.fw-semibold:focus-visible { color: var(--fmc-brand); text-decoration: underline; }
+/* El ojo del catálogo, junto al título del diseño finalizado. */
+.fmc-listed { margin-left: .35rem; font-size: .95rem; vertical-align: -.08em; color: var(--fmc-brand); }
+.fmc-listed.bi-eye-slash { color: #8b96a3; }
+.fmc-table .fmc-icon { width: 2.25rem; height: 2.25rem; border-radius: .5rem; --bs-btn-color: var(--fmc-text-2); --bs-btn-border-color: transparent; --bs-btn-hover-color: var(--fmc-brand); --bs-btn-hover-bg: var(--fmc-sup-2); --bs-btn-hover-border-color: transparent; --bs-btn-active-color: var(--fmc-brand); --bs-btn-active-bg: var(--fmc-brand-cont); --bs-btn-active-border-color: transparent; }
+.fmc-table .btn-outline-danger.fmc-icon { --bs-btn-hover-color: var(--fmc-bad); --bs-btn-hover-bg: var(--fmc-bad-cont); --bs-btn-active-color: var(--fmc-bad); --bs-btn-active-bg: var(--fmc-bad-cont); }
+
+/* Las chapas de estado, con los colores suaves del calendario: dicen lo mismo aquí y allí. */
+.fmc .badge.rounded-pill { border-radius: .4rem; font-weight: 600; }
+.fmc .badge.text-bg-primary { background-color: #e4eeff !important; color: #0b3d91 !important; }
+.fmc .badge.text-bg-success { background-color: #e6f3ec !important; color: #0f5132 !important; }
+.fmc .badge.text-bg-warning { background-color: #fff3cd !important; color: #664d03 !important; }
+.fmc .badge.text-bg-danger { background-color: #fde7e9 !important; color: #842029 !important; }
+.fmc .badge.text-bg-secondary, .fmc .badge.text-bg-dark { background-color: #eef1f4 !important; color: #4d5863 !important; }
+/* El borrador, hueco y a trazos, como en el calendario. */
+.fmc .badge.text-bg-light.border { background-color: transparent !important; border: 1px dashed #8b96a3 !important; color: #4d5863 !important; }
 
 /* Fichas de edición: una tarjeta por sección */
 .fmc-section { border-radius: var(--fmc-r); padding-top: .25rem; }
@@ -11898,7 +11944,7 @@ body.has-panel { overflow: hidden; }
 .fmc-cal.no-weekend .is-weekend { display: none; }
 
 /* Listados: miniatura del diseño y detalle bajo cada dato */
-.fmc-thumb { width: 40px; height: 40px; object-fit: cover; border-radius: .3rem; margin-right: .5rem; float: left; }
+.fmc-thumb { width: 40px; height: 40px; object-fit: cover; border-radius: .5rem; margin-right: .6rem; float: left; }
 .fmc-col-title { min-width: 16rem; }
 .fmc-table td .small { line-height: 1.25; }
 

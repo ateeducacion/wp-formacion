@@ -356,10 +356,11 @@ class Test_Lists extends WP_UnitTestCase {
 		$_GET['fmc_sort'] = 'title';
 
 		$body = Lists::screen( 'designs', PostTypes::DESIGN )['body'];
-		$this->assertStringContainsString( 'A</a> <span class="badge rounded-pill text-bg-secondary">Borrador</span>', $body );
-		$this->assertStringContainsString( 'B</a> <span class="badge rounded-pill text-bg-secondary">Borrador</span>', $body );
+		$this->assertStringContainsString( 'A</a> <span class="badge rounded-pill text-bg-light border">Borrador</span>', $body );
+		$this->assertStringContainsString( 'B</a> <span class="badge rounded-pill text-bg-light border">Borrador</span>', $body );
 		// «Finalizado» es lo normal en el listado: decirlo en cada fila es ruido.
-		$this->assertStringContainsString( '>C</a></td>', $body );
+		// De él se dice si está en el catálogo público: aquí no, y el ojo sale tachado.
+		$this->assertStringContainsString( '>C</a> <i class="bi bi-eye-slash fmc-listed" role="img" title="No está en el catálogo público" aria-label="No está en el catálogo público"></i></td>', $body );
 		$this->assertStringNotContainsString( 'text-bg-success">Finalizado</span>', $body, 'el contador de arriba lo sigue diciendo; la fila, no' );
 		// El histórico, que hay que pedirlo, sí lo dice.
 		$_GET['fmc_status'] = PostTypes::ARCHIVED;
@@ -454,7 +455,12 @@ class Test_Lists extends WP_UnitTestCase {
 
 		$body = Lists::screen( 'designs', PostTypes::DESIGN )['body'];
 
-		$this->assertStringContainsString( '<td>CD-7<div class="small text-secondary">En el catálogo</div></td>', $body );
+		// El código, solo; que está en el catálogo lo dice el ojo, junto al título.
+		$this->assertStringContainsString( '<td>CD-7</td>', $body );
+		$this->assertStringContainsString( '>Curso</a> <i class="bi bi-eye fmc-listed" role="img" title="Visible en el catálogo público" aria-label="Visible en el catálogo público"></i></td>', $body );
+		// Se ordena también por tipo y por horas.
+		$this->assertMatchesRegularExpression( '#<th scope="col"><a class="fmc-sort" href="[^"]*fmc_sort=type[^"]*"[^>]*>Tipo#', $body );
+		$this->assertMatchesRegularExpression( '#<th scope="col"><a class="fmc-sort" href="[^"]*fmc_sort=hours[^"]*"[^>]*>Horas#', $body );
 		$this->assertStringContainsString( '<td>Curso<div class="small text-secondary">Mixta</div></td>', $body );
 		$this->assertStringContainsString( '<td>8 + 12 h</td>', $body );
 		$this->assertStringContainsString( '<td>Comunicación</td>', $body );
@@ -556,9 +562,10 @@ class Test_Lists extends WP_UnitTestCase {
 		update_post_meta( $done, A::INTERNAL_REF, 'AF5-04/03/2026-09:00:00' );
 		$body = Lists::screen( 'actions', PostTypes::ACTION )['body'];
 		$this->assertSame( 2, $this->counters( $body )['Sin expediente'] );
-		$this->assertMatchesRegularExpression( '#<thead><tr><th scope="col">Expediente interno</th><th scope="col">Expediente de perfeccionamiento</th><th scope="col"[^>]*><a[^>]*>Acción formativa#', $body );
-		$this->assertStringContainsString( '<tr><td>AF5-04/03/2026-09:00:00</td><td>EXP-7</td><td class="fmc-col-title">', $body );
-		$this->assertStringContainsString( '<td></td><td>—</td><td class="fmc-col-title">', $body, 'la que espera el suyo' );
+		// Delante, los dos expedientes; luego las fechas, y después el título.
+		$this->assertMatchesRegularExpression( '#<thead><tr><th scope="col">Expediente interno</th><th scope="col">Expediente de perfeccionamiento</th><th scope="col"[^>]*><a[^>]*>Fechas.*?</th><th scope="col"[^>]*><a[^>]*>Acción formativa#s', $body );
+		$this->assertMatchesRegularExpression( '#<tr><td>AF5-04/03/2026-09:00:00</td><td>EXP-7</td><td>[^<]*</td><td class="fmc-col-title">#', $body );
+		$this->assertMatchesRegularExpression( '#<tr><td></td><td>—</td><td>[^<]*</td><td class="fmc-col-title">#', $body, 'la que espera el suyo' );
 		$this->assertStringNotContainsString( 'Perfeccionamiento: EXP-7', $body, 'no se repiten debajo del título' );
 	}
 
@@ -1551,5 +1558,63 @@ class Test_Lists extends WP_UnitTestCase {
 
 		$this->assertStringContainsString( 'collapse show', $card, 'Con filtros avanzados puestos, abierta.' );
 		$this->assertStringContainsString( '>2</span>', $card, 'Y dice cuántos hay puestos.' );
+	}
+
+	/**
+	 * La lista de acciones se lee como una agenda: la fecha va delante del
+	 * título, y los expedientes siguen debajo de él para quien no los tiene
+	 * en sus columnas.
+	 */
+	public function test_the_actions_list_starts_with_the_dates() {
+		$this->as_role( 'fmc_curator' );
+		$this->post(
+			PostTypes::ACTION,
+			'Con fechas',
+			array(
+				A::START        => '2026-03-10',
+				A::END          => '2026-03-24',
+				A::INTERNAL_REF => 'AF3-01/03/2026-08:00:00',
+			)
+		);
+		$body = Lists::screen( 'actions', PostTypes::ACTION )['body'];
+
+		$this->assertMatchesRegularExpression( '#<thead><tr><th scope="col"[^>]*><a[^>]*>Fechas.*?</th><th scope="col"[^>]*><a[^>]*>Acción formativa#s', $body );
+		$this->assertMatchesRegularExpression( '#<tr><td>10/03/2026 – 24/03/2026</td><td class="fmc-col-title"><a [^>]*>Con fechas</a>.*?<div class="small text-secondary">Interno: AF3-01/03/2026-08:00:00</div></td>#s', $body );
+	}
+
+	/**
+	 * Los diseños se ordenan también por tipo y por horas: las horas son las
+	 * presenciales más las en línea, como números, y lo que no las tiene va
+	 * al final.
+	 */
+	public function test_designs_sort_by_type_and_by_hours() {
+		$this->as_role( 'fmc_curator' );
+		foreach ( array(
+			'Corto'    => array( 'one_off', 3, 0 ),
+			'Largo'    => array( 'course', 8, 12 ),
+			'Medio'    => array( 'e_learning', 0, 10 ),
+			'Sin nada' => array( '', '', '' ),
+		) as $title => $d ) {
+			$this->post(
+				PostTypes::DESIGN,
+				$title,
+				array_filter(
+					array(
+						D::TYPE         => $d[0],
+						D::HOURS_ONSITE => $d[1],
+						D::HOURS_ONLINE => $d[2],
+					),
+					static fn( $v ) => '' !== $v
+				)
+			);
+		}
+
+		$_GET['fmc_sort'] = 'hours';
+		$this->assertSame( array( 'Largo', 'Medio', 'Corto', 'Sin nada' ), $this->rows( PostTypes::DESIGN ), 'de más horas a menos' );
+		$_GET['fmc_dir'] = 'asc';
+		$this->assertSame( array( 'Corto', 'Medio', 'Largo', 'Sin nada' ), $this->rows( PostTypes::DESIGN ), 'lo que no tiene horas, siempre al final' );
+
+		$_GET['fmc_sort'] = 'type';
+		$this->assertSame( array( 'Largo', 'Medio', 'Corto', 'Sin nada' ), $this->rows( PostTypes::DESIGN ), 'agrupados por tipo' );
 	}
 }

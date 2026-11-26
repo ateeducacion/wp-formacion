@@ -118,8 +118,32 @@ a.fmc-counter:hover, .fmc-counter.is-active { border-color: var(--fmc-brand); bo
 /* Los accesos de la asesoría —las mías, las de mi centro—, a la altura de los campos. */
 .fmc-filters .fmc-mine { margin-bottom: .2rem; }
 .fmc-table { border-radius: var(--fmc-r); overflow: hidden; }
-.fmc-table th { font-size: .78rem; text-transform: uppercase; letter-spacing: .05em; color: var(--fmc-text-2); background: var(--fmc-sup-2); white-space: nowrap; }
+/* Los listados. La cabecera, en minúscula y sin gritar; la fila, con aire; el
+   título manda sin subrayado; las chapas, suaves, y solo para lo que se sale
+   de lo normal; los botones de la fila, sin cerco hasta que se pasa por ellos. */
+.fmc-table th { font-size: .8rem; font-weight: 600; color: var(--fmc-text-2); background: var(--fmc-sup-2); white-space: nowrap; }
 .fmc-table td { font-size: .9rem; }
+.fmc-table .table > :not(caption) > * > * { padding: .7rem .75rem; }
+/* Lo primero de la fila —el código, las fechas, un expediente— son cifras: alineadas y con peso. */
+.fmc-table tbody td:first-child:not(.fmc-col-title) { font-weight: 600; font-variant-numeric: tabular-nums; }
+.fmc-table td .small { font-weight: 400; }
+.fmc-col-title a.fw-semibold { color: var(--fmc-text); text-decoration: none; }
+.fmc-col-title a.fw-semibold:hover, .fmc-col-title a.fw-semibold:focus-visible { color: var(--fmc-brand); text-decoration: underline; }
+/* El ojo del catálogo, junto al título del diseño finalizado. */
+.fmc-listed { margin-left: .35rem; font-size: .95rem; vertical-align: -.08em; color: var(--fmc-brand); }
+.fmc-listed.bi-eye-slash { color: #8b96a3; }
+.fmc-table .fmc-icon { width: 2.25rem; height: 2.25rem; border-radius: .5rem; --bs-btn-color: var(--fmc-text-2); --bs-btn-border-color: transparent; --bs-btn-hover-color: var(--fmc-brand); --bs-btn-hover-bg: var(--fmc-sup-2); --bs-btn-hover-border-color: transparent; --bs-btn-active-color: var(--fmc-brand); --bs-btn-active-bg: var(--fmc-brand-cont); --bs-btn-active-border-color: transparent; }
+.fmc-table .btn-outline-danger.fmc-icon { --bs-btn-hover-color: var(--fmc-bad); --bs-btn-hover-bg: var(--fmc-bad-cont); --bs-btn-active-color: var(--fmc-bad); --bs-btn-active-bg: var(--fmc-bad-cont); }
+
+/* Las chapas de estado, con los colores suaves del calendario: dicen lo mismo aquí y allí. */
+.fmc .badge.rounded-pill { border-radius: .4rem; font-weight: 600; }
+.fmc .badge.text-bg-primary { background-color: #e4eeff !important; color: #0b3d91 !important; }
+.fmc .badge.text-bg-success { background-color: #e6f3ec !important; color: #0f5132 !important; }
+.fmc .badge.text-bg-warning { background-color: #fff3cd !important; color: #664d03 !important; }
+.fmc .badge.text-bg-danger { background-color: #fde7e9 !important; color: #842029 !important; }
+.fmc .badge.text-bg-secondary, .fmc .badge.text-bg-dark { background-color: #eef1f4 !important; color: #4d5863 !important; }
+/* El borrador, hueco y a trazos, como en el calendario. */
+.fmc .badge.text-bg-light.border { background-color: transparent !important; border: 1px dashed #8b96a3 !important; color: #4d5863 !important; }
 
 /* Fichas de edición: una tarjeta por sección */
 .fmc-section { border-radius: var(--fmc-r); padding-top: .25rem; }
@@ -350,7 +374,7 @@ body.has-panel { overflow: hidden; }
 .fmc-cal.no-weekend .is-weekend { display: none; }
 
 /* Listados: miniatura del diseño y detalle bajo cada dato */
-.fmc-thumb { width: 40px; height: 40px; object-fit: cover; border-radius: .3rem; margin-right: .5rem; float: left; }
+.fmc-thumb { width: 40px; height: 40px; object-fit: cover; border-radius: .5rem; margin-right: .6rem; float: left; }
 .fmc-col-title { min-width: 16rem; }
 .fmc-table td .small { line-height: 1.25; }
 

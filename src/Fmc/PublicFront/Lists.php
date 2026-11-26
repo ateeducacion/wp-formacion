@@ -51,7 +51,7 @@ final class Lists {
 	 * salió del ciclo: hacía lo mismo que el borrador (adenda de ADR-0004).
 	 */
 	public const DESIGN_STATUSES = array(
-		'draft'             => array( 'Borrador', 'secondary' ),
+		'draft'             => array( 'Borrador', 'light border' ),
 		'publish'           => array( 'Finalizado', 'success' ),
 		PostTypes::ARCHIVED => array( 'Histórico', 'dark' ),
 	);
@@ -72,10 +72,12 @@ final class Lists {
 	/**
 	 * Headings of the columns that go before the title, when the list has them.
 	 *
-	 * El código del diseño, que es por lo que se ordena; y los dos expedientes
-	 * de la acción, que solo están en la lista del servicio de perfeccionamiento.
+	 * El código del diseño, que es por lo que se ordena; las fechas de la
+	 * acción, por lo mismo: la lista se lee como una agenda; y, delante de
+	 * ellas, los dos expedientes, que solo están en la lista del servicio de
+	 * perfeccionamiento.
 	 */
-	private const LEADING = array( 'Código', 'Expediente interno', 'Expediente de perfeccionamiento' );
+	private const LEADING = array( 'Código', 'Expediente interno', 'Expediente de perfeccionamiento', 'Fechas' );
 
 	/**
 	 * The button of a search box: it sends the whole filter card.
@@ -108,8 +110,9 @@ final class Lists {
 
 	/**
 	 * `fmc_order_meta` query arg, `array( meta key, 'asc'|'desc' )`: by that
-	 * meta, with the posts that lack it last either way. A third item, true,
-	 * sorts it as a code: by its number and not as text.
+	 * meta, with the posts that lack it last either way. A third item says how
+	 * to read it: `code` (or true) sorts it as a code, by its number and not
+	 * as text; `sum` adds a second meta, the fourth item, as numbers.
 	 *
 	 * Ordenar con `meta_key` deja fuera lo que no tiene la meta, y con una
 	 * cláusula «no existe» WordPress ordena por otra unión cualquiera. Una
@@ -128,9 +131,15 @@ final class Lists {
 		$dir = 'asc' === $order[1] ? 'ASC' : 'DESC';
 		// Un código es una letra y un número: como texto, «A99» iría después de
 		// «A247». Primero los más cortos, y entre iguales, como texto.
-		$length             = ! empty( $order[2] ) ? "LENGTH( fmc_sort.meta_value ) $dir, " : '';
+		$mode               = $order[2] ?? '';
+		$length             = in_array( $mode, array( true, 'code' ), true ) ? "LENGTH( fmc_sort.meta_value ) $dir, " : '';
 		$clauses['join']   .= $wpdb->prepare( " LEFT JOIN $wpdb->postmeta AS fmc_sort ON ( fmc_sort.post_id = $wpdb->posts.ID AND fmc_sort.meta_key = %s )", (string) $order[0] );
 		$clauses['orderby'] = "( fmc_sort.meta_value IS NULL OR fmc_sort.meta_value = '' ) ASC, $length fmc_sort.meta_value $dir, $wpdb->posts.ID $dir";
+		// Dos metas que se suman, como números: las horas presenciales y las en línea.
+		if ( 'sum' === $mode && ! empty( $order[3] ) ) {
+			$clauses['join']   .= $wpdb->prepare( " LEFT JOIN $wpdb->postmeta AS fmc_sort2 ON ( fmc_sort2.post_id = $wpdb->posts.ID AND fmc_sort2.meta_key = %s )", (string) $order[3] );
+			$clauses['orderby'] = "( COALESCE( fmc_sort.meta_value, '' ) = '' AND COALESCE( fmc_sort2.meta_value, '' ) = '' ) ASC, ( CAST( COALESCE( NULLIF( fmc_sort.meta_value, '' ), '0' ) AS DECIMAL( 10, 2 ) ) + CAST( COALESCE( NULLIF( fmc_sort2.meta_value, '' ), '0' ) AS DECIMAL( 10, 2 ) ) ) $dir, $wpdb->posts.ID $dir";
+		}
 		return $clauses;
 	}
 
@@ -148,6 +157,8 @@ final class Lists {
 		PostTypes::DESIGN   => array(
 			'Diseño de acción formativa' => 'title',
 			'Código'                     => 'code',
+			'Tipo'                       => 'type',
+			'Horas'                      => 'hours',
 		),
 		PostTypes::SPEAKER  => array(
 			'Ponente'      => 'name',
@@ -204,12 +215,19 @@ final class Lists {
 	 */
 	private static function sorted( string $type, array $args ): array {
 		list( $key, $dir ) = self::sort_of( $type );
-		$metas             = array(
-			'start' => A::START,
-			'code'  => D::CODE,
+		// Por tipo: cada clave de orden, con la meta que la da y cómo se lee
+		// —`code`, un código; `sum`, sumada a otra: las horas son dos—.
+		$metas = array(
+			PostTypes::ACTION => array( 'start' => array( A::START ) ),
+			PostTypes::DESIGN => array(
+				'code'  => array( D::CODE, 'code' ),
+				'type'  => array( D::TYPE ),
+				'hours' => array( D::HOURS_ONSITE, 'sum', D::HOURS_ONLINE ),
+			),
 		);
-		if ( isset( $metas[ $key ] ) ) {
-			$args['fmc_order_meta'] = array( $metas[ $key ], $dir, 'code' === $key );
+		$meta  = $metas[ $type ][ $key ] ?? null;
+		if ( $meta ) {
+			$args['fmc_order_meta'] = array( $meta[0], $dir, $meta[1] ?? '', $meta[2] ?? '' );
 		} elseif ( 'title' === $key || 'date' === $key ) {
 			$args['orderby'] = $key;
 			$args['order']   = strtoupper( $dir );
@@ -1285,7 +1303,7 @@ final class Lists {
 			// línea: una columna menos, y el ámbito cabe. Quien los tiene en sus
 			// propias columnas no los repite; y lo que no es una acción no tiene
 			// ninguno.
-			$file = str_repeat( nl2br( esc_html( A::file_numbers( $post->ID, true ) ) ), (int) ! $leading );
+			$file = str_repeat( nl2br( esc_html( A::file_numbers( $post->ID, true ) ) ), (int) ! isset( $leading['Expediente interno'] ) );
 			// Solo si hay algo que poner: una línea vacía se queda en nada.
 			$link = $thumb . $name . self::badge( $post, true ) . preg_replace( '/^(.+)$/s', '<div class="small text-secondary">$1</div>', $file );
 			$out .= '<tr>' . $cells( $leading ) . '<td class="fmc-col-title">' . $link . '</td>' . $cells( $columns ) . '<td class="text-end text-nowrap">' . self::row_buttons( $post ) . '</td></tr>';
@@ -1449,19 +1467,19 @@ final class Lists {
 					'Expediente interno'              => static fn( $p ) => $m( $p, A::INTERNAL_REF ),
 					'Expediente de perfeccionamiento' => static fn( $p ) => '' !== $m( $p, A::FILE_NUMBER ) ? $m( $p, A::FILE_NUMBER ) : '—',
 				) : array() ) + array(
-					'Ámbito y centro' => static fn( $p ) => self::terms( $p->ID, 'fmc_scope' ) . "\n" . $m( $p, A::VENUE_CENTRE ),
-					'Ponentes'        => static fn( $p ) => implode( "\n", array_map( 'get_the_title', array_filter( array_map( 'intval', (array) get_post_meta( $p->ID, A::SPEAKERS, true ) ) ) ) ),
-					'Tipo y horas'    => static fn( $p ) => ( D::TYPES[ (string) get_post_meta( (int) $m( $p, A::DESIGN_ID ), D::TYPE, true ) ] ?? '' ) . "\n" . trim( ( D::MODALITIES[ $m( $p, A::MODALITY ) ] ?? '' ) . ' · ' . self::hours( $m( $p, A::HOURS_ONSITE ), $m( $p, A::HOURS_ONLINE ) ), ' ·' ),
 					// Debajo de las fechas, sus sesiones; lo escrito a mano, si no las tiene (ADR-0027).
 					'Fechas'          => static function ( $p ) use ( $m ) {
 						$sessions = Sessions::summary( Sessions::clean( get_post_meta( $p->ID, A::SESSIONS, true ) ) );
 						return self::dates( $m( $p, A::START ), $m( $p, A::END ) ) . "\n" . ( '' !== $sessions ? $sessions : wp_trim_words( $m( $p, A::SCHEDULE ), 12 ) );
 					},
+					'Ámbito y centro' => static fn( $p ) => self::terms( $p->ID, 'fmc_scope' ) . "\n" . $m( $p, A::VENUE_CENTRE ),
+					'Ponentes'        => static fn( $p ) => implode( "\n", array_map( 'get_the_title', array_filter( array_map( 'intval', (array) get_post_meta( $p->ID, A::SPEAKERS, true ) ) ) ) ),
+					'Tipo y horas'    => static fn( $p ) => ( D::TYPES[ (string) get_post_meta( (int) $m( $p, A::DESIGN_ID ), D::TYPE, true ) ] ?? '' ) . "\n" . trim( ( D::MODALITIES[ $m( $p, A::MODALITY ) ] ?? '' ) . ' · ' . self::hours( $m( $p, A::HOURS_ONSITE ), $m( $p, A::HOURS_ONLINE ) ), ' ·' ),
 					'Estado'          => static fn( $p ) => ( A::DELIVERY[ A::delivery( $p ) ] ?? '' ) . "\n" . SchoolYear::of( $m( $p, A::START ) ),
 				);
 			case PostTypes::DESIGN:
 				return array(
-					'Código'    => static fn( $p ) => $m( $p, D::CODE ) . ( Catalogue::is_listed( $p ) ? "\nEn el catálogo" : '' ),
+					'Código'    => static fn( $p ) => $m( $p, D::CODE ),
 					'Tipo'      => static fn( $p ) => ( D::TYPES[ $m( $p, D::TYPE ) ] ?? '' ) . "\n" . ( D::MODALITIES[ $m( $p, D::MODALITY ) ] ?? '' ),
 					'Horas'     => static fn( $p ) => self::hours( $m( $p, D::HOURS_ONSITE ), $m( $p, D::HOURS_ONLINE ) ),
 					'Temática'  => static fn( $p ) => self::terms( $p->ID, 'fmc_topic' ),
@@ -1603,7 +1621,8 @@ final class Lists {
 	 *
 	 * En un listado, el diseño finalizado no lleva chapa: es lo normal, y
 	 * decirlo en cada fila es ruido. Se dice lo que se sale de ahí —borrador,
-	 * histórico—. En la cabecera de su ficha sí, que ahí es su estado.
+	 * histórico— y, del finalizado, si está en el catálogo público. En la
+	 * cabecera de su ficha sí, que ahí es su estado.
 	 *
 	 * @param \WP_Post $post    Post.
 	 * @param bool     $in_list Whether it goes in a row of a list.
@@ -1616,7 +1635,10 @@ final class Lists {
 				. ( isset( A::SITUATIONS[ $s ] ) ? ' <span class="badge rounded-pill text-bg-' . esc_attr( self::SITUATION_COLOURS[ $s ] ) . '">' . esc_html( A::SITUATIONS[ $s ] ) . '</span>' : '' ) . self::incident_badge( $post->ID );
 		}
 		if ( PostTypes::DESIGN === $post->post_type && $in_list && 'publish' === $post->post_status ) {
-			return '';
+			// Si está en el catálogo público lo dice un ojo; tachado, que está
+			// finalizado pero fuera. Ocupa menos que una columna.
+			list( $icon, $text ) = Catalogue::is_listed( $post ) ? array( 'bi-eye', 'Visible en el catálogo público' ) : array( 'bi-eye-slash', 'No está en el catálogo público' );
+			return ' <i class="bi ' . $icon . ' fmc-listed" role="img" title="' . esc_attr( $text ) . '" aria-label="' . esc_attr( $text ) . '"></i>';
 		}
 		if ( PostTypes::DESIGN === $post->post_type && isset( self::DESIGN_STATUSES[ PostTypes::design_status( $post->post_status ) ] ) ) {
 			list( $label, $colour ) = self::DESIGN_STATUSES[ PostTypes::design_status( $post->post_status ) ];

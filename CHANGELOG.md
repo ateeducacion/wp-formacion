@@ -35,7 +35,10 @@ usa y dejar a la vista lo que se busca cada día.
 - **Un diseño en borrador solo pide el título**, para reservar su código. Lo demás se pide al marcarlo como finalizado
 - **El listado de diseños sale por código**, del último al primero, con el código en la primera columna
 - «Sale en el catálogo público» pasa a llamarse **«Visible en el catálogo público»**, sin letra pequeña
-- **En el listado de diseños, el finalizado no lleva chapa**: es lo normal. Se marcan el borrador y el histórico
+- **En el listado de diseños, el finalizado no lleva chapa**: es lo normal. Se marcan el borrador y el histórico, y un ojo junto al título dice si está visible en el catálogo público (tachado: finalizado, pero fuera)
+- **Los diseños se ordenan también por tipo y por horas**
+- **En el listado de acciones, las fechas van delante del título**: se lee como una agenda. Al servicio de perfeccionamiento le siguen saliendo primero los dos expedientes
+- **Los listados, más limpios**: cabeceras en minúscula, títulos sin subrayar, chapas suaves con los colores del calendario y botones de fila sin cerco
 - **El subtítulo de la acción deja de enseñarse** en la ficha, los listados, el calendario, el CSV y el buscador. Lo guardado se conserva (ADR-0009, adenda)
 - **La línea estratégica se elige de una lista** que da el despliegue (`fmc_strategic_lines`). Sin lista, el campo no sale (ADR-0031)
 - **«Con cargo al programa» solo sale si la asume el área o el servicio**. Lo ya guardado no se borra por editar otra cosa (ADR-0018, adenda)
