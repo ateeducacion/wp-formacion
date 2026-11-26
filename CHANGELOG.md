@@ -8,6 +8,12 @@ lee de la cabecera superior y la escribe en el `@version` del bundle.
 `make release` crea el tag y la release en GitHub; el despliegue de los snippets
 en el sitio de destino se hace después.
 
+## [0.2.1] — 2026-11-26
+
+### Cambiado
+
+- **La ayuda de «Financiación», cada cosa en su sitio**: la sección dice solo quién asume el coste y cuándo se pide el programa. Cómo se pone solo el programa, y qué pasa si el diseño no está en ninguno vigente, va junto al campo «Con cargo al programa», que es donde se lee
+
 ## [0.2.0] — 2026-11-26
 
 Lo que salió de la tercera revisión con la coordinación: quitar lo que no se
