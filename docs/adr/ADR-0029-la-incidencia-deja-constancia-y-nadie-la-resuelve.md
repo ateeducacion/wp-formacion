@@ -96,10 +96,12 @@ anterior y que nadie lo usa así:
   se cuenta lo impartido.
 - **El aviso al enviar.** Enviar la incidencia pide confirmar siempre: no se
   puede modificar después, y una cancelación o un cambio de fechas se aplican en
-  el momento (`Editor::INCIDENT_WARNING`). Si el despliegue lo dice con el
-  filtro `fmc_incident_reminder`, el mismo aviso recuerda lo que hay que
-  tramitar fuera; de serie no se recuerda nada. Sin JavaScript, va escrito
-  sobre la ficha.
+  el momento (`Editor::INCIDENT_WARNING`). El mismo aviso recuerda, en su
+  párrafo, que el cambio hay que tramitarlo además en el sistema de gestión del
+  servicio de perfeccionamiento (`Editor::INCIDENT_REMINDER`); el despliegue lo
+  dice con sus palabras —el nombre de su plataforma, su impreso— con el filtro
+  `fmc_incident_reminder`, o lo quita. Sin JavaScript, va escrito sobre la
+  ficha.
 - **El correo** dice en el asunto de qué tipo es, y lleva los dos expedientes, las
   fechas que tenía, las nuevas y la justificación.
 

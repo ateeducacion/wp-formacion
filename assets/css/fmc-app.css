@@ -94,6 +94,9 @@
 .fmc .btn-outline-primary { --bs-btn-color: var(--fmc-brand); --bs-btn-border-color: var(--fmc-brand); --bs-btn-hover-bg: var(--fmc-brand); --bs-btn-hover-border-color: var(--fmc-brand); --bs-btn-active-bg: var(--fmc-brand); }
 .fmc .card { border-color: var(--fmc-line); border-radius: var(--fmc-r); box-shadow: var(--fmc-e1); }
 .fmc .form-control, .fmc .form-select { border-color: #d3d8de; }
+/* La lupa de «Buscar» es parte de su caja: recta como ella y con su mismo
+   borde, no la píldora de los demás botones. */
+.fmc .input-group > .btn { border-radius: 0 var(--bs-border-radius) var(--bs-border-radius) 0; --bs-btn-color: var(--fmc-text-2); --bs-btn-bg: #fff; --bs-btn-border-color: #d3d8de; --bs-btn-hover-color: var(--fmc-text); --bs-btn-hover-bg: var(--fmc-soft); --bs-btn-hover-border-color: #d3d8de; --bs-btn-active-color: var(--fmc-text); --bs-btn-active-bg: var(--fmc-soft); --bs-btn-active-border-color: #d3d8de; }
 
 @media (max-width: 640px) {
 	/* Envuelto, el grupo de enlaces ocupa su propia línea: sin empujarlo a la derecha. */
@@ -228,6 +231,8 @@ body.has-panel { overflow: hidden; }
    página; y los avisos de SweetAlert2, por encima del panel. */
 .fmc-panel-backdrop { z-index: 100000; }
 .fmc .swal2-container { z-index: 100002; }
+/* El aviso puede traer dos párrafos: lo que pasa y lo que hay que recordar. */
+.fmc .swal2-html-container { white-space: pre-line; }
 /* Y los tooltips de las observaciones, que también salen dentro del panel. */
 .fmc .tooltip { --bs-tooltip-zindex: 100003; z-index: 100003; }
 .fmc-panel .offcanvas-header { background: #fff; }

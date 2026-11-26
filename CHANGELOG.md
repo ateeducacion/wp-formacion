@@ -23,7 +23,7 @@ usa y dejar a la vista lo que se busca cada día.
 - **El catálogo, como datos** para las webs que lo enseñan en sus páginas: `fmc/v1/catalogue`, público y de solo lectura. «Ver en el catálogo» lleva a donde diga el despliegue (`fmc_catalogue_url`) (ADR-0028)
 - **Las tarjetas del catálogo llevan la imagen** del curso
 - Botón **«Descargar»** en cada documento del diseño
-- **Enviar una incidencia pide confirmar**: avisa de que no se puede modificar después y de que una cancelación o un cambio de fechas se aplican en el momento. Ahí mismo se recuerda lo que hay que tramitar fuera, si el despliegue lo dice (`fmc_incident_reminder`)
+- **Enviar una incidencia pide confirmar**: avisa de que no se puede modificar después y de que una cancelación o un cambio de fechas se aplican en el momento. Ahí mismo se recuerda que hay que hacer también el trámite en el sistema de gestión del servicio de perfeccionamiento; el despliegue lo dice con sus palabras (`fmc_incident_reminder`)
 
 ### Cambiado
 

@@ -52,6 +52,11 @@ final class Editor {
 	public const INCIDENT_WARNING = 'Una vez enviada no se puede modificar. Si es una cancelación o un cambio de fechas, se aplica a la acción en el momento.';
 
 	/**
+	 * What is recalled when an incident is sent, unless the deployment says it its own way.
+	 */
+	public const INCIDENT_REMINDER = 'Recuerde que debe hacer también el trámite correspondiente en el sistema de gestión del servicio de perfeccionamiento.';
+
+	/**
 	 * Nonce action for a post (0 when new).
 	 *
 	 * @param string $type Post type.
@@ -249,13 +254,13 @@ final class Editor {
 		}
 
 		// Enviar una incidencia no tiene vuelta atrás y cambia la acción en el
-		// momento: se avisa y se pide confirmar. Ahí mismo se recuerda lo que
-		// hay que hacer fuera de aquí, si el despliegue lo dice. Con JavaScript,
+		// momento: se avisa y se pide confirmar. Ahí mismo, en su párrafo, se
+		// recuerda el trámite que hay que hacer fuera de aquí. Con JavaScript,
 		// en el aviso; sin él, escrito sobre la ficha.
-		$warning = PostTypes::INCIDENT === $type && ! $post ? trim( self::INCIDENT_WARNING . ' ' . self::incident_reminder() ) : '';
+		$warning = PostTypes::INCIDENT === $type && ! $post ? trim( self::INCIDENT_WARNING . "\n\n" . self::incident_reminder() ) : '';
 		$confirm = '' !== $warning ? ' data-fmc-confirm="¿Enviar la incidencia?" data-fmc-confirm-icon="warning" data-fmc-confirm-text="' . esc_attr( $warning ) . '" data-fmc-confirm-button="Enviar la incidencia"' : '';
 		$body   .= '<form method="post" enctype="multipart/form-data" action="' . esc_url( home_url( '/' ) ) . '" class="fmc-form"' . $confirm . '>';
-		$body   .= '' !== $warning ? '<noscript><div class="alert alert-warning" role="note">' . esc_html( $warning ) . '</div></noscript>' : '';
+		$body   .= '' !== $warning ? '<noscript><div class="alert alert-warning" role="note">' . nl2br( esc_html( $warning ) ) . '</div></noscript>' : '';
 		$body   .= wp_nonce_field( self::nonce_action( $type, $id ), '_fmc_nonce', true, false );
 		$body   .= Screen::framed() ? '<input type="hidden" name="' . esc_attr( Screen::ARG_FRAME ) . '" value="1">' : '';
 		$body   .= '<input type="hidden" name="fmc_save" value="1"><input type="hidden" name="fmc_type" value="' . esc_attr( $type ) . '"><input type="hidden" name="fmc_id" value="' . esc_attr( (string) $id ) . '">';
@@ -340,14 +345,16 @@ final class Editor {
 	 *
 	 * La incidencia deja constancia aquí, pero el cambio se tramita además por
 	 * el cauce de cada casa: su sistema de gestión, su parte de cancelación.
-	 * Qué hay que recordar lo dice el despliegue con el filtro
-	 * `fmc_incident_reminder`; de serie no se recuerda nada (ADR-0002), y el
-	 * aviso de que no tiene vuelta atrás sale igual (`INCIDENT_WARNING`).
+	 * De serie se recuerda ese trámite sin nombrar la herramienta de nadie
+	 * (`INCIDENT_REMINDER`); el despliegue lo dice con sus palabras —el nombre
+	 * de su plataforma, su impreso— con el filtro `fmc_incident_reminder`, o lo
+	 * quita devolviendo una cadena vacía (ADR-0002). El aviso de que no tiene
+	 * vuelta atrás sale igual (`INCIDENT_WARNING`).
 	 *
 	 * @return string Plain text.
 	 */
 	public static function incident_reminder(): string {
-		return trim( wp_strip_all_tags( (string) apply_filters( 'fmc_incident_reminder', '' ) ) );
+		return trim( wp_strip_all_tags( (string) apply_filters( 'fmc_incident_reminder', self::INCIDENT_REMINDER ) ) );
 	}
 
 	/**

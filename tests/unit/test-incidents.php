@@ -435,25 +435,36 @@ class Test_Incidents extends WP_UnitTestCase {
 
 	/**
 	 * Enviar una incidencia no tiene vuelta atrás: siempre se avisa y se pide
-	 * confirmar. Ahí mismo se recuerda lo que hay que hacer fuera de aquí, si
-	 * el despliegue lo dice; sin guion, va escrito en la ficha.
+	 * confirmar. Ahí mismo, en su párrafo, se recuerda el trámite que hay que
+	 * hacer fuera de aquí; el despliegue lo dice con sus palabras, o lo quita.
+	 * Sin guion, va escrito en la ficha.
 	 */
-	public function test_sending_an_incident_warns_and_reminds_what_the_deployment_says() {
+	public function test_sending_an_incident_warns_and_reminds_the_procedure_outside() {
 		$this->as_role( 'fmc_adviser' );
 		$action          = $this->action( get_current_user_id() );
 		$_GET['fmc_new'] = PostTypes::INCIDENT;
 		$new             = static fn(): string => Editor::render( PostTypes::INCIDENT, null, array( '_parent' => $action ), array() )['body'];
+		$asked           = static fn( string $text ): string => 'class="fmc-form" data-fmc-confirm="¿Enviar la incidencia?" data-fmc-confirm-icon="warning" data-fmc-confirm-text="' . $text . '" data-fmc-confirm-button="Enviar la incidencia">';
 
-		$this->assertSame( '', Editor::incident_reminder(), 'de serie no se recuerda nada' );
+		// De serie se recuerda el trámite sin nombrar la herramienta de nadie.
+		$this->assertSame( Editor::INCIDENT_REMINDER, Editor::incident_reminder() );
+		$this->assertStringContainsString( 'servicio de perfeccionamiento', Editor::INCIDENT_REMINDER );
 		$body = $new();
-		$this->assertStringContainsString( 'class="fmc-form" data-fmc-confirm="¿Enviar la incidencia?" data-fmc-confirm-icon="warning" data-fmc-confirm-text="' . Editor::INCIDENT_WARNING . '" data-fmc-confirm-button="Enviar la incidencia">', $body, 'pero el aviso sale igual' );
-		$this->assertStringContainsString( '<noscript><div class="alert alert-warning" role="note">' . Editor::INCIDENT_WARNING . '</div></noscript>', $body );
+		$this->assertStringContainsString( $asked( Editor::INCIDENT_WARNING . "\n\n" . Editor::INCIDENT_REMINDER ), $body );
+		$this->assertStringContainsString( '<noscript><div class="alert alert-warning" role="note">' . Editor::INCIDENT_WARNING . "<br />\n<br />\n" . Editor::INCIDENT_REMINDER . '</div></noscript>', $body );
 
+		// El despliegue lo dice con sus palabras.
 		add_filter( 'fmc_incident_reminder', static fn(): string => 'Tramítelo también en <b>el otro sistema</b>.' );
 		$this->assertSame( 'Tramítelo también en el otro sistema.', Editor::incident_reminder() );
 		$body = $new();
-		$this->assertStringContainsString( 'class="fmc-form" data-fmc-confirm="¿Enviar la incidencia?" data-fmc-confirm-icon="warning" data-fmc-confirm-text="' . Editor::INCIDENT_WARNING . ' Tramítelo también en el otro sistema." data-fmc-confirm-button="Enviar la incidencia">', $body );
-		$this->assertStringContainsString( '<noscript><div class="alert alert-warning" role="note">' . Editor::INCIDENT_WARNING . ' Tramítelo también en el otro sistema.</div></noscript>', $body );
+		$this->assertStringContainsString( $asked( Editor::INCIDENT_WARNING . "\n\nTramítelo también en el otro sistema." ), $body );
+		$this->assertStringNotContainsString( Editor::INCIDENT_REMINDER, $body );
+
+		// O lo quita: el aviso de que no tiene vuelta atrás sale igual.
+		remove_all_filters( 'fmc_incident_reminder' );
+		add_filter( 'fmc_incident_reminder', '__return_empty_string' );
+		$this->assertStringContainsString( $asked( Editor::INCIDENT_WARNING ), $new() );
+		remove_all_filters( 'fmc_incident_reminder' );
 
 		// Una incidencia ya enviada no se vuelve a enviar: no hay nada que avisar.
 		$sent = $this->incident( $action, 'cancel' )['id'];

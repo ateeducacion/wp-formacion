@@ -7911,6 +7911,11 @@ final class Editor {
 
 
 
+	public const INCIDENT_REMINDER = 'Recuerde que debe hacer también el trámite correspondiente en el sistema de gestión del servicio de perfeccionamiento.';
+
+
+
+
 
 
 
@@ -8109,10 +8114,10 @@ final class Editor {
 
 
 
-		$warning = PostTypes::INCIDENT === $type && ! $post ? trim( self::INCIDENT_WARNING . ' ' . self::incident_reminder() ) : '';
+		$warning = PostTypes::INCIDENT === $type && ! $post ? trim( self::INCIDENT_WARNING . "\n\n" . self::incident_reminder() ) : '';
 		$confirm = '' !== $warning ? ' data-fmc-confirm="¿Enviar la incidencia?" data-fmc-confirm-icon="warning" data-fmc-confirm-text="' . esc_attr( $warning ) . '" data-fmc-confirm-button="Enviar la incidencia"' : '';
 		$body   .= '<form method="post" enctype="multipart/form-data" action="' . esc_url( home_url( '/' ) ) . '" class="fmc-form"' . $confirm . '>';
-		$body   .= '' !== $warning ? '<noscript><div class="alert alert-warning" role="note">' . esc_html( $warning ) . '</div></noscript>' : '';
+		$body   .= '' !== $warning ? '<noscript><div class="alert alert-warning" role="note">' . nl2br( esc_html( $warning ) ) . '</div></noscript>' : '';
 		$body   .= wp_nonce_field( self::nonce_action( $type, $id ), '_fmc_nonce', true, false );
 		$body   .= Screen::framed() ? '<input type="hidden" name="' . esc_attr( Screen::ARG_FRAME ) . '" value="1">' : '';
 		$body   .= '<input type="hidden" name="fmc_save" value="1"><input type="hidden" name="fmc_type" value="' . esc_attr( $type ) . '"><input type="hidden" name="fmc_id" value="' . esc_attr( (string) $id ) . '">';
@@ -8203,8 +8208,10 @@ final class Editor {
 
 
 
+
+
 	public static function incident_reminder(): string {
-		return trim( wp_strip_all_tags( (string) apply_filters( 'fmc_incident_reminder', '' ) ) );
+		return trim( wp_strip_all_tags( (string) apply_filters( 'fmc_incident_reminder', self::INCIDENT_REMINDER ) ) );
 	}
 
 
@@ -11619,6 +11626,9 @@ final class App {
 .fmc .btn-outline-primary { --bs-btn-color: var(--fmc-brand); --bs-btn-border-color: var(--fmc-brand); --bs-btn-hover-bg: var(--fmc-brand); --bs-btn-hover-border-color: var(--fmc-brand); --bs-btn-active-bg: var(--fmc-brand); }
 .fmc .card { border-color: var(--fmc-line); border-radius: var(--fmc-r); box-shadow: var(--fmc-e1); }
 .fmc .form-control, .fmc .form-select { border-color: #d3d8de; }
+/* La lupa de «Buscar» es parte de su caja: recta como ella y con su mismo
+   borde, no la píldora de los demás botones. */
+.fmc .input-group > .btn { border-radius: 0 var(--bs-border-radius) var(--bs-border-radius) 0; --bs-btn-color: var(--fmc-text-2); --bs-btn-bg: #fff; --bs-btn-border-color: #d3d8de; --bs-btn-hover-color: var(--fmc-text); --bs-btn-hover-bg: var(--fmc-soft); --bs-btn-hover-border-color: #d3d8de; --bs-btn-active-color: var(--fmc-text); --bs-btn-active-bg: var(--fmc-soft); --bs-btn-active-border-color: #d3d8de; }
 
 @media (max-width: 640px) {
 	/* Envuelto, el grupo de enlaces ocupa su propia línea: sin empujarlo a la derecha. */
@@ -11753,6 +11763,8 @@ body.has-panel { overflow: hidden; }
    página; y los avisos de SweetAlert2, por encima del panel. */
 .fmc-panel-backdrop { z-index: 100000; }
 .fmc .swal2-container { z-index: 100002; }
+/* El aviso puede traer dos párrafos: lo que pasa y lo que hay que recordar. */
+.fmc .swal2-html-container { white-space: pre-line; }
 /* Y los tooltips de las observaciones, que también salen dentro del panel. */
 .fmc .tooltip { --bs-tooltip-zindex: 100003; z-index: 100003; }
 .fmc-panel .offcanvas-header { background: #fff; }
