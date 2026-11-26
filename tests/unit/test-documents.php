@@ -168,26 +168,26 @@ class Test_Documents extends WP_UnitTestCase {
 
 		$this->assertSame( '', Documents::check( 'design', $odt ) );
 		$this->assertSame( '', Documents::check( 'support', $pdf ) );
-		$this->assertSame( '«diseno.pdf» no es de un formato admitido aquí. Se admite DOC, DOCX u ODT.', Documents::check( 'design', $pdf ), 'del diseño, el editable' );
-		$this->assertSame( '«diseno.odt» no es de un formato admitido aquí. Se admite PDF.', Documents::check( 'support', $odt ), 'los recursos, en PDF' );
+		$this->assertSame( '«diseno.pdf» no tiene un formato admitido. Se admite DOC, DOCX u ODT.', Documents::check( 'design', $pdf ), 'del diseño, el editable' );
+		$this->assertSame( '«diseno.odt» no tiene un formato admitido. Se admite PDF.', Documents::check( 'support', $odt ), 'los recursos, en PDF' );
 		$this->assertSame( 'JPG, JPEG, PNG o GIF', Documents::formats( Documents::kinds()['image']['mimes'] ) );
-		$this->assertSame( 'Clase de documento desconocida.', Documents::check( 'poster', $odt ) );
-		$this->assertSame( 'No se pudo subir «diseno.odt».', Documents::check( 'design', array( 'error' => UPLOAD_ERR_PARTIAL ) + $odt ) );
+		$this->assertSame( 'Tipo de documento desconocido.', Documents::check( 'poster', $odt ) );
+		$this->assertSame( 'No se ha podido subir «diseno.odt».', Documents::check( 'design', array( 'error' => UPLOAD_ERR_PARTIAL ) + $odt ) );
 
 		$big = $this->png( 'grande.png' );
 		$this->assertSame( '', Documents::check( 'image', $big ) );
 		$big['size'] = 3 * MB_IN_BYTES + 1;
-		$this->assertSame( '«grande.png» pasa de 3 MB.', Documents::check( 'image', $big ) );
+		$this->assertSame( '«grande.png» supera el máximo de 3 MB.', Documents::check( 'image', $big ) );
 	}
 
 	/**
 	 * Cuenta el contenido, no la extensión: un texto con .pdf no es un PDF, y una imagen no es un diseño.
 	 */
 	public function test_check_looks_at_the_real_file_type() {
-		$this->assertStringContainsString( 'no es de un formato admitido', Documents::check( 'support', $this->upload( 'falso.pdf', 'esto es texto' ) ) );
-		$this->assertStringContainsString( 'no es de un formato admitido', Documents::check( 'design', $this->upload( 'falso.odt', 'esto es texto' ) ) );
-		$this->assertStringContainsString( 'no es de un formato admitido', Documents::check( 'design', $this->png( 'foto.png' ) ) );
-		$this->assertStringContainsString( 'no es de un formato admitido', Documents::check( 'image', $this->upload( 'diseno.png', self::PDF ) ) );
+		$this->assertStringContainsString( 'no tiene un formato admitido', Documents::check( 'support', $this->upload( 'falso.pdf', 'esto es texto' ) ) );
+		$this->assertStringContainsString( 'no tiene un formato admitido', Documents::check( 'design', $this->upload( 'falso.odt', 'esto es texto' ) ) );
+		$this->assertStringContainsString( 'no tiene un formato admitido', Documents::check( 'design', $this->png( 'foto.png' ) ) );
+		$this->assertStringContainsString( 'no tiene un formato admitido', Documents::check( 'image', $this->upload( 'diseno.png', self::PDF ) ) );
 	}
 
 	/**
@@ -590,6 +590,19 @@ class Test_Documents extends WP_UnitTestCase {
 
 		wp_set_current_user( self::factory()->user->create( array( 'role' => 'fmc_adviser' ) ) );
 		$this->assertSame( 404, Documents::answer( $image, $etag )['status'], 'sin permiso no hay 304' );
+
+		// La imagen de un curso del catálogo sale en su tarjeta, para cualquiera:
+		// es pública y el navegador la guarda un rato.
+		wp_publish_post( $id );
+		update_post_meta( $id, \Fmc\Meta\DesignMetaKeys::IN_CATALOGUE, '1' );
+		wp_set_current_user( 0 );
+		$public = Documents::answer( $image );
+		$this->assertSame( 200, $public['status'] );
+		$this->assertContains( 'Cache-Control: public, max-age=3600', $public['headers'] );
+		$this->assertContains( 'ETag: ' . $etag, $public['headers'] );
+		// Fuera del catálogo vuelve a ser de quien lee el diseño.
+		delete_post_meta( $id, \Fmc\Meta\DesignMetaKeys::IN_CATALOGUE );
+		$this->assertArrayHasKey( 'redirect', Documents::answer( $image ) );
 
 		// El resto de documentos no se guarda en el navegador.
 		wp_set_current_user( (int) get_post_field( 'post_author', $id ) );

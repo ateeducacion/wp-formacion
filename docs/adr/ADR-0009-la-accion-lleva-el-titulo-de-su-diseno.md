@@ -145,3 +145,16 @@ hasta ahora.
 
 - Si algún día hace falta la sobrescritura de la opción 2, cabe sin deshacer
   esta: es una capacidad más y una excepción en `Editor.php`.
+
+## Adenda — 2026-11-26: el subtítulo deja de enseñarse
+
+El subtítulo se dejó como un añadido bajo el título. En la tercera revisión se
+vio que seguía siendo la puerta para que una acción pareciera otro curso, y que
+dos ediciones del mismo diseño ya se distinguen por su expediente.
+
+- El subtítulo **sale de la ficha, de la cabecera, del listado, del calendario,
+  del CSV y del buscador**, también del de «Ha impartido».
+- **Lo guardado se conserva**: `fmc_subtitle` sigue registrada, y no se puede
+  escribir por el formulario.
+- Debajo del título van ahora los dos expedientes de la acción
+  ([ADR-0030](ADR-0030-el-expediente-interno-lo-pone-el-aplicativo-y-la-accion-se-completa.md)).

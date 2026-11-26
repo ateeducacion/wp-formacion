@@ -183,7 +183,8 @@ class Test_Editor_Render extends WP_UnitTestCase {
 	}
 
 	/**
-	 * La coordinación, en un diseño nuevo: borrador, revisión o finalizado.
+	 * La coordinación, en un diseño nuevo: borrador o finalizado. No hay
+	 * «mandar a revisión» (adenda de ADR-0004).
 	 */
 	public function test_a_new_design_for_a_curator() {
 		$this->as_role( 'fmc_curator' );
@@ -194,9 +195,8 @@ class Test_Editor_Render extends WP_UnitTestCase {
 		$this->assertSame( 'Nuevo diseño de acción formativa', $screen['title'] );
 		$this->assertSame(
 			array(
-				'Guardar borrador'   => 'draft',
-				'Mandar a revisión'  => 'pending',
-				'Dar por finalizado' => 'publish',
+				'Guardar borrador'       => 'draft',
+				'Marcar como finalizado' => 'publish',
 			),
 			$this->buttons( $screen['body'] )
 		);
@@ -219,21 +219,22 @@ class Test_Editor_Render extends WP_UnitTestCase {
 		$done    = $this->post( PostTypes::DESIGN, $adviser );
 		$this->as_role( 'fmc_curator' );
 
+		// Uno que se quedó «en revisión» se trata como un borrador.
 		$this->assertSame(
 			array(
-				'Guardar borrador'   => 'draft',
-				'Mandar a revisión'  => 'pending',
-				'Dar por finalizado' => 'publish',
+				'Guardar borrador'       => 'draft',
+				'Marcar como finalizado' => 'publish',
 			),
 			$this->buttons( $this->screen_of( $pending )['body'] )
 		);
+		$this->assertStringContainsString( 'Borrador', $this->screen_of( $pending )['badges'] );
 
 		$screen = $this->screen_of( $done );
 		$this->assertSame(
 			array(
-				'Guardar'             => 'publish',
-				'Devolver a borrador' => 'draft',
-				'Pasar a histórico'   => PostTypes::ARCHIVED,
+				'Guardar'           => 'publish',
+				'Volver a borrador' => 'draft',
+				'Pasar a histórico' => PostTypes::ARCHIVED,
 			),
 			$this->buttons( $screen['body'] )
 		);
@@ -274,7 +275,7 @@ class Test_Editor_Render extends WP_UnitTestCase {
 		$this->assertTrue( $this->disabled( $screen['body'], D::TYPE ) );
 		$this->assertTrue( $this->disabled( $screen['body'], D::IN_CATALOGUE ) );
 		$this->assertSame( array(), $this->buttons( $screen['body'] ) );
-		$this->assertStringContainsString( 'Solo lectura', $screen['body'] );
+		$this->assertStringContainsString( 'Esta ficha es de solo lectura.', $screen['body'] );
 		$this->assertSame( 0, $this->find( $screen['body'], '//input[@type="file"]' )->length );
 		$this->assertStringContainsString( 'Agendar una acción', $screen['actions'], 'sí puede impartirlo' );
 
@@ -293,7 +294,9 @@ class Test_Editor_Render extends WP_UnitTestCase {
 		$this->assertTrue( $this->disabled( $body, A::FILE_NUMBER ) );
 		$this->assertSame( 0, $this->find( $body, '//*[@name="f[' . A::SITUATION . ']"]' )->length, 'la situación no se teclea' );
 		$this->assertSame( 0, $this->find( $body, '//*[@name="f[' . A::PROCESS . ']"]' )->length, 'ni el proceso' );
-		$this->assertFalse( $this->disabled( $body, A::SUBTITLE ) );
+		$this->assertFalse( $this->disabled( $body, A::VIDEOCONFERENCE ) );
+		$this->assertSame( 0, $this->find( $body, '//*[@name="f[' . A::SUBTITLE . ']"]' )->length, 'ni el subtítulo' );
+		$this->assertTrue( $this->disabled( $body, A::INTERNAL_REF ), 'el expediente interno lo pone el aplicativo' );
 		$this->assertStringContainsString( 'Lo rellena el servicio de perfeccionamiento.', $body );
 		$this->assertStringContainsString( '¿No está en la lista?', $body, 'puede crear ponentes' );
 		$this->assertSame(
@@ -303,19 +306,20 @@ class Test_Editor_Render extends WP_UnitTestCase {
 			),
 			$this->buttons( $body )
 		);
-		$this->assertStringContainsString( 'Una vez entregada ya no podrá cambiarla', $body );
+		$this->assertStringContainsString( 'Una vez entregada no podrá cambiarla', $body );
 
 		// Entregada, la asesoría ya no la cambia, pero abre incidencias sobre ella (ADR-0020).
 		wp_publish_post( $action );
 		$screen = $this->screen_of( $action );
-		$this->assertTrue( $this->disabled( $screen['body'], A::SUBTITLE ) );
+		$this->assertTrue( $this->disabled( $screen['body'], A::VIDEOCONFERENCE ) );
 		$this->assertSame( array(), $this->buttons( $screen['body'] ) );
 		$this->assertStringContainsString( 'Abrir una incidencia', $screen['body'] );
 
 		$this->as_role( 'fmc_training_service' );
 		$body = $this->screen_of( $action )['body'];
 		$this->assertFalse( $this->disabled( $body, A::FILE_NUMBER ) );
-		$this->assertTrue( $this->disabled( $body, A::SUBTITLE ) );
+		$this->assertTrue( $this->disabled( $body, A::VIDEOCONFERENCE ) );
+		$this->assertTrue( $this->disabled( $body, A::INTERNAL_REF ) );
 		$this->assertStringContainsString( 'Sin sesiones.', $body, 'las sesiones, de solo lectura' );
 		$this->assertStringNotContainsString( 'data-fmc-session-add', $body );
 		$this->assertStringNotContainsString( 'Lo rellena el servicio de perfeccionamiento.', $body );
@@ -379,22 +383,26 @@ class Test_Editor_Render extends WP_UnitTestCase {
 				'post_status' => 'publish',
 			)
 		);
+		// Una de antes, que estaba resuelta, y una de ahora, que dice qué pide.
 		update_post_meta( $approved, I::RESOLUTION, 'approved' );
 		update_post_meta( $approved, I::REASON, 'Cambio de ponente por enfermedad' );
-		self::factory()->post->create(
+		$cancel = self::factory()->post->create(
 			array(
 				'post_type'   => PostTypes::INCIDENT,
 				'post_parent' => $action,
 				'post_status' => 'publish',
 			)
 		);
+		update_post_meta( $cancel, I::REQUEST, 'cancel' );
 
 		$items = $this->find( $this->screen_of( $action )['body'], '//section//li' );
 		$this->assertSame( 2, $items->length );
 		$text = $items->item( 0 )->textContent . $items->item( 1 )->textContent;
 		$this->assertStringContainsString( 'Cambio de ponente por enfermedad', $text );
-		$this->assertStringContainsString( 'Aprobada', $text );
-		$this->assertStringContainsString( 'Pendiente', $text );
+		$this->assertStringContainsString( 'Cancelación', $text, 'dice qué se pidió' );
+		// Nadie las resuelve: ni pendientes ni aprobadas (ADR-0029).
+		$this->assertStringNotContainsString( 'Aprobada', $text );
+		$this->assertStringNotContainsString( 'Pendiente', $text );
 
 		$this->as_role( 'fmc_training_service' );
 		$this->assertStringNotContainsString( 'Abrir una incidencia', $this->screen_of( $action )['body'] );
@@ -566,7 +574,7 @@ class Test_Editor_Render extends WP_UnitTestCase {
 			wp_delete_user( $user->ID );
 		}
 
-		$this->assertStringContainsString( 'Aún no hay ninguna asesoría con cuenta en el aplicativo', Editor::screen( 0, PostTypes::ACTION )['body'] );
+		$this->assertStringContainsString( 'Todavía no hay ninguna asesoría con cuenta', Editor::screen( 0, PostTypes::ACTION )['body'] );
 
 		// La coordinación ya no es asesoría (ADR-0024): el aviso sigue saliendo
 		// hasta que haya alguna cuenta de asesoría.
@@ -649,8 +657,14 @@ class Test_Editor_Render extends WP_UnitTestCase {
 		$this->assertStringContainsString( 'Robótica de otoño', $body );
 		$this->assertSame( (string) $action, $this->find( $body, '//input[@name="fmc_parent"]' )->item( 0 )->getAttribute( 'value' ) );
 		$this->assertSame( array( 'Enviar la incidencia' => 'publish' ), $this->buttons( $body ) );
-		$this->assertTrue( $this->disabled( $body, I::RESOLUTION ), 'la resolución es del servicio' );
-		$this->assertSame( 3, $this->find( $body, '//input[@type="radio"][@name="f[fmc_resolution]"]' )->length );
+		// Qué se pide, las fechas nuevas y un solo cuadro: la justificación.
+		$this->assertSame( 4, $this->find( $body, '//input[@type="radio"][@name="f[fmc_request]"]' )->length );
+		$this->assertSame( 1, $this->find( $body, '//textarea' )->length );
+		$this->assertSame( 'f[' . I::REASON . ']', $this->find( $body, '//textarea' )->item( 0 )->getAttribute( 'name' ) );
+		foreach ( array( I::RESOLUTION, I::RESOLUTION_NOTES, I::PROPOSAL, I::HAS_COST ) as $gone ) {
+			$this->assertSame( 0, $this->find( $body, '//*[@name="f[' . $gone . ']"]' )->length, $gone );
+		}
+		$this->assertStringNotContainsString( 'Resolución', $body );
 	}
 
 	/**
@@ -717,7 +731,7 @@ class Test_Editor_Render extends WP_UnitTestCase {
 		// «Reemplazar», y la zona para añadir no sale hasta que se quite.
 		$this->assertSame( 0, $this->find( $body, '//input[@name="fmc_doc[image][]"]' )->length );
 		$this->assertSame( 0, $this->find( $body, '//input[@name="fmc_doc[design][]"]' )->length );
-		$this->assertStringContainsString( 'uno solo, la versión vigente', $body );
+		$this->assertStringContainsString( 'Uno solo, la versión vigente', $body );
 		$this->assertStringContainsString( 'Sistema anterior', $body );
 		$this->assertStringContainsString( '>apoyo curso.zip</a>', $body );
 		// Cada documento es una ficha: su tipo, su nombre, «Reemplazar» y el aspa,
@@ -769,7 +783,7 @@ class Test_Editor_Render extends WP_UnitTestCase {
 		$this->assertSame( 0, $this->find( $body, '//label[contains(@class, "fmc-drop")]' )->length );
 		$this->assertSame( 0, $this->find( $body, '//*[@data-fmc-doc-alert]' )->length );
 		$this->assertSame( 3, substr_count( $body, 'Ninguno.' ), 'escaleta, presentaciones y otros, vacíos' );
-		$this->assertStringNotContainsString( 'uno solo, la versión vigente', $body, 'lo que se hace al subir no lo lee quien no sube' );
+		$this->assertStringNotContainsString( 'Uno solo, la versión vigente', $body, 'lo que se hace al subir no lo lee quien no sube' );
 	}
 
 	/**
@@ -870,14 +884,14 @@ class Test_Editor_Render extends WP_UnitTestCase {
 		foreach ( $this->find( $body, '//select[@name="f[' . A::SPEAKERS . '][]"]/option' ) as $option ) {
 			$options[] = $option->textContent; // phpcs:ignore WordPress.NamingConventions.ValidVariableName.UsedPropertyNotSnakeCase -- DOM.
 		}
-		$this->assertSame( array( '★ Zoe', 'Ana · Norte · 1 acción(es)', 'Bea · No disponible' ), $options );
+		$this->assertSame( array( '★ Zoe', 'Ana · Norte · 1 acción', 'Bea · No disponible' ), $options );
 
 		// Lo que lee fmc-app.js: el diseño del que depende la estrella, para
 		// qué diseños se recomienda a cada cual, quién no está y sus observaciones.
 		$this->assertCount( 1, $this->find( $body, '//select[@data-fmc-speakers="f[' . A::DESIGN_ID . ']"]' ) );
 		$this->assertCount( 1, $this->find( $body, '//option[@value="' . $zoe . '"][@data-fmc-for="' . $design . '"]' ) );
 		$this->assertCount( 1, $this->find( $body, '//option[@value="' . $bea . '"][@data-fmc-off="1"][@data-fmc-note="De baja hasta junio"]' ) );
-		$this->assertCount( 1, $this->find( $body, '//option[@value="' . $ana . '"][@data-fmc-name="Ana"][@data-fmc-zone="Norte"][@data-fmc-given="1 acción(es)"]' ) );
+		$this->assertCount( 1, $this->find( $body, '//option[@value="' . $ana . '"][@data-fmc-name="Ana"][@data-fmc-zone="Norte"][@data-fmc-given="1 acción"]' ) );
 		$this->assertCount( 0, $this->find( $body, '//option[@value="' . $ana . '"][@data-fmc-off or @data-fmc-note or @data-fmc-for]' ) );
 	}
 

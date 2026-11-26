@@ -44,6 +44,7 @@ return array(
 	'PublicFront/Editor.php',
 	'PublicFront/Screen.php',
 	'PublicFront/Catalogue.php',
+	'PublicFront/CatalogueFeed.php',
 	'PublicFront/Help.php',
 	'App.php',
 );

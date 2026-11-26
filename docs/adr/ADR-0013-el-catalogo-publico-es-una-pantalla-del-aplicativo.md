@@ -143,3 +143,10 @@ finalizado y en el catálogo. Lo demás —escaleta, presentaciones, recursos,
 otros documentos e imagen— sigue dentro. Cómo se guarda y quién sirve cada
 fichero lo decide
 [ADR-0025](ADR-0025-los-documentos-del-diseno-se-sirven-por-el-aplicativo.md).
+
+## Adenda — 2026-11-26: la tarjeta lleva la imagen, y el catálogo también se da como datos
+
+- La tarjeta de cada curso lleva su imagen representativa.
+- La consulta de la pantalla es `Catalogue::query()`, la misma que usan los
+  datos que piden otras webs para enseñar el catálogo en sus páginas
+  ([ADR-0028](ADR-0028-el-catalogo-se-ofrece-como-datos-a-las-webs-que-lo-ensenan.md)).

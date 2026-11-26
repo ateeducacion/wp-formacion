@@ -164,7 +164,8 @@ class Test_Editor extends WP_UnitTestCase {
 			)
 		);
 
-		$this->assertSame( 'pending', Editor::next_status( PostTypes::DESIGN, get_post( $design ), 'publish' ) );
+		// Lo que quedó «en revisión» es un borrador: el estado salió del ciclo.
+		$this->assertSame( 'draft', Editor::next_status( PostTypes::DESIGN, get_post( $design ), 'publish' ) );
 
 		$this->as_role( 'fmc_curator' );
 		$this->assertSame( 'publish', Editor::next_status( PostTypes::DESIGN, get_post( $design ), 'publish' ) );
@@ -192,9 +193,10 @@ class Test_Editor extends WP_UnitTestCase {
 	}
 
 	/**
-	 * Sobre la suya sí, cuelga de ella y nace pendiente aunque mande «aprobada».
+	 * Sobre la suya sí, y cuelga de ella. No lleva resolución, aunque la mande
+	 * a mano: nadie la aprueba (ADR-0029).
 	 */
-	public function test_an_incident_hangs_from_its_action_and_starts_pending() {
+	public function test_an_incident_hangs_from_its_action_and_has_no_resolution() {
 		$adviser = $this->as_role( 'fmc_adviser' );
 		$action  = $this->action( $adviser );
 
@@ -213,7 +215,8 @@ class Test_Editor extends WP_UnitTestCase {
 
 		$this->assertSame( 'created', $result['outcome'] );
 		$this->assertSame( $action, (int) get_post_field( 'post_parent', $result['id'] ) );
-		$this->assertSame( 'pending', get_post_meta( $result['id'], IncidentMetaKeys::RESOLUTION, true ) );
+		$this->assertSame( '', get_post_meta( $result['id'], IncidentMetaKeys::RESOLUTION, true ) );
+		$this->assertSame( '', get_post_meta( $result['id'], IncidentMetaKeys::PROPOSAL, true ), 'ni lo que ya no se pide' );
 		$this->assertSame( 'Acción', get_the_title( $result['id'] ), 'la incidencia se llama como su acción' );
 	}
 

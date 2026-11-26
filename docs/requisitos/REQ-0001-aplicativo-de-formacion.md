@@ -407,3 +407,34 @@ por etapa.
   ponente no es de la organización, pero hay ponentes externos que no lo
   tienen. No se decidió.
 - **Siguiente sesión**, con el servicio de perfeccionamiento y dos asesorías.
+
+## 11. Tercera revisión con la coordinación (2026-11-26)
+
+Sobre el sitio de pruebas, con los datos migrados y a punto de sustituir al
+sistema anterior. El criterio de la sesión fue quitar lo que está «por si
+acaso»: lo que no se usa estorba a quien llega nuevo.
+
+| Lo que se vio | Lo que se hace | Dónde |
+|---|---|---|
+| Para reservar un código había que escribir una descripción inventada | Un borrador solo pide el título | ADR-0004, adenda |
+| «Mandar a revisión» hace lo mismo que el borrador | Sale del ciclo | ADR-0004, adenda |
+| Para saber por dónde va la numeración hay que ordenar a mano | El listado sale por código, del último al primero | ADR-0004, adenda |
+| El subtítulo sigue sirviendo para que una acción parezca otro curso | Deja de enseñarse; lo guardado se conserva | ADR-0009, adenda |
+| La asesoría no tiene qué número darle al servicio | El expediente interno lo pone el aplicativo | ADR-0030 |
+| Una acción con su expediente sigue diciendo «Entregada» | Estado «Completada», calculado | ADR-0030 |
+| El servicio trabaja con listas y busca por los dos expedientes | Su planificación se abre en lista, con los dos delante | ADR-0030 |
+| Nadie aprueba las incidencias; se tramitan fuera | La incidencia deja constancia: sin resolución, con un solo cuadro | ADR-0029 |
+| Con un cambio de fechas, la acción sigue en su día viejo | La incidencia mueve la acción al enviarla | ADR-0029 |
+| Las canceladas se cuelan en el recuento de lo impartido | Tachadas, y fuera del CSV | ADR-0029 |
+| La línea estratégica se escribe a mano | De una lista que da el despliegue | ADR-0031 |
+| Con el centro de formación o sin coste se puede poner programa | El programa solo sale con quien carga a programas | ADR-0018, adenda |
+| El profesorado ve el catálogo dentro de otras webs, con su imagen | El catálogo se ofrece como datos, y las tarjetas llevan imagen | ADR-0028 |
+| Al cambiar de vista se pierde el filtro | Los enlaces del calendario llevan todos los filtros | — |
+
+Quedan contestadas las preguntas abiertas sobre la línea estratégica y sobre
+cuánto detalle pide una incidencia. Sigue abierto si, con quien asume el
+servicio, puede haber acciones sin programa: hoy no las hay.
+
+No se toca, a propósito: el número de filtros de la búsqueda avanzada —se dijo
+que son demasiados, pero no cuáles sobran— y la hora de fin de una sesión, que
+no se puede calcular porque las sesiones de un curso no duran lo mismo.

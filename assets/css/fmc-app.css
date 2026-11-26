@@ -39,10 +39,6 @@
 .fmc-top { background: #fff; border-bottom: 1px solid var(--fmc-line); }
 .fmc-top-in { display: flex; align-items: center; gap: 14px; min-height: 72px; flex-wrap: wrap; padding-top: 10px; padding-bottom: 10px; }
 .fmc-brand { color: var(--fmc-brand); font-weight: 700; font-size: 18px; letter-spacing: -.02em; text-decoration: none; }
-.fmc-bell { margin-left: auto; position: relative; display: grid; place-items: center; width: 40px; height: 40px; border-radius: 50%; color: var(--fmc-text-2); font-size: 19px; text-decoration: none; }
-.fmc-bell:hover { background: var(--fmc-sup-2); color: var(--fmc-brand); }
-.fmc-bell-n { position: absolute; top: 1px; right: 0; min-width: 18px; padding: 0 4px; border-radius: 9px; background: var(--bs-danger, #c7291f); color: #fff; font-size: 11px; font-weight: 700; line-height: 18px; }
-.fmc-bell + .fmc-yo { margin-left: 0; }
 .fmc-yo { margin-left: auto; position: relative; }
 .fmc-yo > summary { list-style: none; display: flex; align-items: center; gap: 10px; cursor: pointer; border-radius: 12px; padding: 4px 6px; }
 .fmc-yo > summary::-webkit-details-marker { display: none; }
@@ -69,7 +65,7 @@
 .fmc-head.is-bare { padding: 14px 0 0; }
 .fmc-h1 { font-size: 27px; font-weight: 700; letter-spacing: -.02em; margin: 0 0 4px; }
 .fmc-h1 .badge { font-size: .75rem; vertical-align: middle; margin-left: .35rem; }
-.fmc-sub { margin: 0; color: var(--fmc-text-2); font-size: 14.5px; }
+.fmc-sub { margin: 0; color: var(--fmc-text-2); font-size: 14.5px; white-space: pre-line; }
 
 /* La casilla que acompaña a otro campo en su fila: a la altura del campo, no
    pegada a la etiqueta. La línea en blanco que lleva encima la baja hasta la
@@ -114,6 +110,10 @@
 a.fmc-counter:hover, .fmc-counter.is-active { border-color: var(--fmc-brand); box-shadow: inset 0 0 0 1px var(--fmc-brand); }
 
 .fmc-filters { border-radius: var(--fmc-r); }
+/* Los filtros se aplican al cambiarlos: mientras llega la página, se atenúan. */
+.fmc-filters[aria-busy="true"] { opacity: .6; transition: opacity .15s; }
+/* Los accesos de la asesoría —las mías, las de mi centro—, a la altura de los campos. */
+.fmc-filters .fmc-mine { margin-bottom: .2rem; }
 .fmc-table { border-radius: var(--fmc-r); overflow: hidden; }
 .fmc-table th { font-size: .78rem; text-transform: uppercase; letter-spacing: .05em; color: var(--fmc-text-2); background: var(--fmc-sup-2); white-space: nowrap; }
 .fmc-table td { font-size: .9rem; }
@@ -135,6 +135,9 @@ a.fmc-counter:hover, .fmc-counter.is-active { border-color: var(--fmc-brand); bo
 .fmc-sit-cancelled { --sit: #dc3545; }
 .fmc-sit-none { --sit: #ced4da; }
 .fmc-chip[class*="fmc-sit-"] { border-color: var(--sit); }
+a.fmc-chip { color: inherit; text-decoration: none; }
+a.fmc-chip:hover, a.fmc-chip:focus-visible { background: var(--fmc-soft); }
+a.fmc-chip.is-active { font-weight: 700; box-shadow: 0 0 0 2px var(--fmc-text); }
 
 /* Calendario */
 .fmc-cal { border-radius: var(--fmc-r); overflow: hidden; }
@@ -197,6 +200,9 @@ dialog.fmc-tool::backdrop { background: rgba(16, 24, 40, .55); }
 /* Catálogo público: tarjetas de curso y los datos de la ficha */
 .fmc-courses { display: grid; grid-template-columns: repeat(auto-fill, minmax(18rem, 1fr)); gap: 1rem; }
 .fmc-course { border-radius: var(--fmc-r); box-shadow: var(--fmc-e1); }
+.fmc-course { overflow: hidden; }
+.fmc-course-img { display: block; aspect-ratio: 16 / 10; background: var(--fmc-soft); }
+.fmc-course-img img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .fmc-course h2 a { text-decoration: none; }
 .fmc-course h2 a:hover { text-decoration: underline; }
 .fmc-about { display: grid; grid-template-columns: max-content 1fr; gap: .25rem 1rem; }
@@ -261,6 +267,7 @@ body.has-panel { overflow: hidden; }
 .fmc-file:focus-visible + .fmc-doc-replace, .fmc-doc-link:focus-visible { outline: 2px solid var(--fmc-brand); outline-offset: 2px; border-radius: 4px; }
 .fmc-doc-pending { flex-basis: 100%; margin: .25rem 0 0; padding: .35rem .6rem; border-radius: 8px; background: var(--fmc-brand-cont); color: var(--fmc-brand); font-size: .8125rem; overflow-wrap: anywhere; }
 .fmc-doc-pending[hidden] { display: none; }
+.fmc-doc-get { flex: 0 0 auto; display: inline-flex; align-items: center; gap: .35rem; white-space: nowrap; }
 .fmc-doc-x { flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; width: 2.25rem; height: 2.25rem; margin: 0; border-radius: 50%; color: var(--fmc-text-2); background: transparent; border: 0; cursor: pointer; transition: background-color .15s, color .15s; }
 .fmc-docs .fmc-doc-x .fmc-icon { width: 1.25rem; height: 1.25rem; }
 .fmc-doc-x:hover { background: var(--fmc-bad-cont); color: var(--fmc-bad); }
@@ -342,9 +349,8 @@ body.has-panel { overflow: hidden; }
 }
 
 /* Incidencias de una acción: ámbar si alguna espera, verde si están resueltas */
-.fmc-inc { font-weight: 600; }
-.fmc-inc.is-pending { background: var(--fmc-wait-cont); color: var(--fmc-wait); }
-.fmc-inc.is-done { background: var(--fmc-ok-cont); color: var(--fmc-ok); }
+.fmc-inc { font-weight: 600; background: var(--fmc-wait-cont); color: var(--fmc-wait); }
+.fmc-col-title a.is-cancelled { text-decoration: line-through; }
 .fmc-ev .fmc-inc { display: inline-block; margin-top: .15rem; font-size: .65rem; }
 
 /* Resumen del perfil de competencia digital */

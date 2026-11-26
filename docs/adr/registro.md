@@ -77,3 +77,7 @@ adenda del 2026-10-28).
 | [ADR-0025](ADR-0025-los-documentos-del-diseno-se-sirven-por-el-aplicativo.md) | Los documentos del diseño se guardan cerrados y se sirven por el aplicativo; la ficha técnica del catálogo, a cualquiera | Propuesta |
 | [ADR-0026](ADR-0026-la-ayuda-es-una-pestana-con-capturas-en-su-propio-snippet.md) | La ayuda es una pestaña con guías y capturas, en su propio snippet, y las capturas las saca un guion | Propuesta |
 | [ADR-0027](ADR-0027-las-sesiones-de-la-accion-son-una-lista-en-una-meta.md) | Las sesiones de una acción son una lista de día y horas en una meta, y el calendario pinta cada una | Propuesta |
+| [ADR-0028](ADR-0028-el-catalogo-se-ofrece-como-datos-a-las-webs-que-lo-ensenan.md) | El catálogo se ofrece como datos a las webs que lo enseñan en sus páginas | Propuesta |
+| [ADR-0029](ADR-0029-la-incidencia-deja-constancia-y-nadie-la-resuelve.md) | La incidencia deja constancia de un cambio, y nadie la resuelve | Propuesta |
+| [ADR-0030](ADR-0030-el-expediente-interno-lo-pone-el-aplicativo-y-la-accion-se-completa.md) | El expediente interno lo pone el aplicativo, y la acción queda completada con el del servicio | Propuesta |
+| [ADR-0031](ADR-0031-la-linea-estrategica-se-elige-de-una-lista-del-despliegue.md) | La línea estratégica se elige de una lista que da el despliegue | Propuesta |

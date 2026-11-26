@@ -47,6 +47,11 @@ final class Editor {
 	public const ARCHIVED_META = '_fmc_replaced_archived';
 
 	/**
+	 * What is said before an incident is sent: it cannot be taken back (ADR-0029).
+	 */
+	public const INCIDENT_WARNING = 'Una vez enviada no se puede modificar. Si es una cancelación o un cambio de fechas, se aplica a la acción en el momento.';
+
+	/**
 	 * Nonce action for a post (0 when new).
 	 *
 	 * @param string $type Post type.
@@ -243,10 +248,17 @@ final class Editor {
 			$body .= self::action_summary( $post );
 		}
 
-		$body .= '<form method="post" enctype="multipart/form-data" action="' . esc_url( home_url( '/' ) ) . '" class="fmc-form">';
-		$body .= wp_nonce_field( self::nonce_action( $type, $id ), '_fmc_nonce', true, false );
-		$body .= Screen::framed() ? '<input type="hidden" name="' . esc_attr( Screen::ARG_FRAME ) . '" value="1">' : '';
-		$body .= '<input type="hidden" name="fmc_save" value="1"><input type="hidden" name="fmc_type" value="' . esc_attr( $type ) . '"><input type="hidden" name="fmc_id" value="' . esc_attr( (string) $id ) . '">';
+		// Enviar una incidencia no tiene vuelta atrás y cambia la acción en el
+		// momento: se avisa y se pide confirmar. Ahí mismo se recuerda lo que
+		// hay que hacer fuera de aquí, si el despliegue lo dice. Con JavaScript,
+		// en el aviso; sin él, escrito sobre la ficha.
+		$warning = PostTypes::INCIDENT === $type && ! $post ? trim( self::INCIDENT_WARNING . ' ' . self::incident_reminder() ) : '';
+		$confirm = '' !== $warning ? ' data-fmc-confirm="¿Enviar la incidencia?" data-fmc-confirm-icon="warning" data-fmc-confirm-text="' . esc_attr( $warning ) . '" data-fmc-confirm-button="Enviar la incidencia"' : '';
+		$body   .= '<form method="post" enctype="multipart/form-data" action="' . esc_url( home_url( '/' ) ) . '" class="fmc-form"' . $confirm . '>';
+		$body   .= '' !== $warning ? '<noscript><div class="alert alert-warning" role="note">' . esc_html( $warning ) . '</div></noscript>' : '';
+		$body   .= wp_nonce_field( self::nonce_action( $type, $id ), '_fmc_nonce', true, false );
+		$body   .= Screen::framed() ? '<input type="hidden" name="' . esc_attr( Screen::ARG_FRAME ) . '" value="1">' : '';
+		$body   .= '<input type="hidden" name="fmc_save" value="1"><input type="hidden" name="fmc_type" value="' . esc_attr( $type ) . '"><input type="hidden" name="fmc_id" value="' . esc_attr( (string) $id ) . '">';
 		if ( ! $post && $parent ) {
 			$body .= '<input type="hidden" name="fmc_parent" value="' . esc_attr( (string) $parent ) . '">';
 		}
@@ -279,9 +291,9 @@ final class Editor {
 		// asesoría puede dar de baja la ficha de otra (ADR-0011).
 		$leave = PostTypes::SPEAKER === $type && $post && Screen::can_delete( $post );
 		if ( $writable || $leave ) {
-			$body .= '<div class="fmc-savebar d-flex flex-wrap align-items-center gap-2">' . ( $writable ? self::buttons( $type, $post ) : '<span class="text-secondary">Solo lectura: no tiene nada que cambiar aquí.</span>' ) . ( $leave ? Screen::trash_button( $post ) : '' ) . '</div>';
+			$body .= '<div class="fmc-savebar d-flex flex-wrap align-items-center gap-2">' . ( $writable ? self::buttons( $type, $post ) : '<span class="text-secondary">Esta ficha es de solo lectura.</span>' ) . ( $leave ? Screen::trash_button( $post ) : '' ) . '</div>';
 		} else {
-			$body .= '<p class="text-secondary">Solo lectura: no tiene nada que cambiar aquí.</p>';
+			$body .= '<p class="text-secondary">Esta ficha es de solo lectura.</p>';
 		}
 		$body .= '</form>';
 
@@ -297,8 +309,9 @@ final class Editor {
 			'tab'      => $tab,
 			'back'     => '<a class="small" href="' . esc_url( Screen::url( array( Screen::ARG_TAB => $tab ) ) ) . '">← ' . esc_html( Screen::TITLES[ $tab ] ?? $object->labels->name ) . '</a>',
 			'title'    => $post ? Lists::title( $post ) : $object->labels->new_item,
-			// El subtítulo de la acción se añade al título, debajo (ADR-0009).
-			'subtitle' => $post && PostTypes::ACTION === $type ? (string) get_post_meta( $post->ID, A::SUBTITLE, true ) : '',
+			// Debajo del título, los dos expedientes: es por lo que se la
+			// conoce. El subtítulo ya no se enseña (adenda de ADR-0009).
+			'subtitle' => $post && PostTypes::ACTION === $type ? A::file_numbers( $post->ID ) : '',
 			'badges'   => $badges,
 			'actions'  => self::header_actions( $type, $post ),
 			'body'     => $body,
@@ -317,9 +330,24 @@ final class Editor {
 	public static function privacy_notice(): string {
 		$text = (string) apply_filters(
 			'fmc_privacy_notice',
-			'<strong>Datos personales.</strong> Registre solo a quien imparte o va a impartir formación, y solo los datos que se piden aquí. Quien los registra se asegura de que la persona sabe que constan en este aplicativo para gestionar la formación. Si pide que se borren, dé de baja su ficha indicando el motivo.'
+			'<strong>Datos personales.</strong> Registre solo a quien imparte o va a impartir formación, y solo los datos que se piden aquí. Asegúrese de que la persona sabe que sus datos constan en este aplicativo para gestionar la formación. Si pide que se borren, dé de baja su ficha e indique el motivo.'
 		);
 		return '' !== $text ? '<div class="alert alert-info fmc-privacy" role="note">' . wp_kses_post( $text ) . '</div>' : '';
+	}
+
+	/**
+	 * What whoever sends an incident is reminded of, if the deployment says anything.
+	 *
+	 * La incidencia deja constancia aquí, pero el cambio se tramita además por
+	 * el cauce de cada casa: su sistema de gestión, su parte de cancelación.
+	 * Qué hay que recordar lo dice el despliegue con el filtro
+	 * `fmc_incident_reminder`; de serie no se recuerda nada (ADR-0002), y el
+	 * aviso de que no tiene vuelta atrás sale igual (`INCIDENT_WARNING`).
+	 *
+	 * @return string Plain text.
+	 */
+	public static function incident_reminder(): string {
+		return trim( wp_strip_all_tags( (string) apply_filters( 'fmc_incident_reminder', '' ) ) );
 	}
 
 	/**
@@ -382,7 +410,7 @@ final class Editor {
 			}
 			// Solo lo que está en el catálogo tiene ficha pública.
 			if ( Catalogue::is_listed( $post ) ) {
-				$out .= '<a class="btn btn-outline-primary btn-sm" href="' . esc_url( Catalogue::url( $post->ID ) ) . '" target="_blank" rel="noopener">Ver en el catálogo</a> ';
+				$out .= '<a class="btn btn-outline-primary btn-sm" href="' . esc_url( Catalogue::public_url( $post->ID ) ) . '" target="_blank" rel="noopener">Ver en el catálogo</a> ';
 			}
 		}
 		// El ponente se da de baja abajo, con su motivo.
@@ -395,6 +423,7 @@ final class Editor {
 	/**
 	 * Save buttons: the design ones move it through its cycle (ADR-0004,
 	 * ADR-0016). Solo la coordinación finaliza, pasa a histórico y lo recupera.
+	 * No hay «mandar a revisión»: hacía lo mismo que el borrador.
 	 *
 	 * @param string        $type Post type.
 	 * @param \WP_Post|null $post Post.
@@ -410,7 +439,7 @@ final class Editor {
 		if ( PostTypes::ACTION === $type && ( ! $post || 'publish' !== $post->post_status ) && current_user_can( 'publish_fmc_actions' ) ) {
 			$owner = ! current_user_can( 'edit_others_fmc_actions' );
 			return $button( 'draft', 'Guardar borrador', 'btn-outline-primary' ) . $button( 'publish', 'Entregar', 'btn-primary' )
-				. ( $owner ? '<span class="form-text m-0">Una vez entregada ya no podrá cambiarla: los cambios se piden con una incidencia.</span>' : '' );
+				. ( $owner ? '<span class="form-text m-0">Una vez entregada no podrá cambiarla. Los cambios se comunican con una incidencia.</span>' : '' );
 		}
 		if ( PostTypes::DESIGN !== $type ) {
 			return $button( '', 'Guardar', 'btn-primary' );
@@ -419,7 +448,6 @@ final class Editor {
 		$out    = '';
 		if ( ! in_array( $status, array( 'publish', PostTypes::ARCHIVED ), true ) ) {
 			$out .= $button( 'draft', 'Guardar borrador', 'btn-outline-primary' );
-			$out .= $button( 'pending', 'Mandar a revisión', 'pending' === $status ? 'btn-outline-warning' : 'btn-warning' );
 		}
 		if ( ! current_user_can( 'publish_fmc_designs' ) ) {
 			return $out;
@@ -428,8 +456,8 @@ final class Editor {
 			return $out . $button( PostTypes::ARCHIVED, 'Guardar', 'btn-primary' ) . $button( 'publish', 'Recuperar del histórico', 'btn-outline-success' );
 		}
 		return $out . ( 'publish' === $status
-			? $button( 'publish', 'Guardar', 'btn-primary' ) . $button( 'draft', 'Devolver a borrador', 'btn-outline-secondary' ) . $button( PostTypes::ARCHIVED, 'Pasar a histórico', 'btn-outline-dark' )
-			: $button( 'publish', 'Dar por finalizado', 'btn-success' ) );
+			? $button( 'publish', 'Guardar', 'btn-primary' ) . $button( 'draft', 'Volver a borrador', 'btn-outline-secondary' ) . $button( PostTypes::ARCHIVED, 'Pasar a histórico', 'btn-outline-dark' )
+			: $button( 'publish', 'Marcar como finalizado', 'btn-success' ) );
 	}
 
 	/**
@@ -458,7 +486,7 @@ final class Editor {
 		// anterior: se abre en otra pestaña y luego se elige aquí.
 		// Sin cuentas de asesoría, la lista sale vacía: que se sepa por qué.
 		if ( $can && 'adviser' === $f['w'] && array() === Advisers::choices() ) {
-			$help .= '<div class="form-text">Aún no hay ninguna asesoría con cuenta en el aplicativo: la administración las da de alta en «Usuarios», con el rol «Asesoría de formación».</div>';
+			$help .= '<div class="form-text">Todavía no hay ninguna asesoría con cuenta. La administración las da de alta en «Usuarios», con el perfil «Asesoría de formación».</div>';
 		}
 		if ( 'centre' === $f['w'] ) {
 			$help .= self::centre_help( (int) ( $f['post'] ?? 0 ), is_string( $value ) ? $value : '', $can, (int) ( $f['scope'] ?? 0 ) );
@@ -474,7 +502,7 @@ final class Editor {
 						Screen::ARG_FRAME => '',
 					)
 				)
-			) . '" target="_blank" rel="noopener">¿No está en la lista? Añadirlo en otra pestaña</a> y volver a abrir esta ficha.</div>';
+			) . '" target="_blank" rel="noopener">¿No está en la lista? Añádalo en otra pestaña</a> y vuelva a abrir esta ficha.</div>';
 		}
 
 		switch ( $f['w'] ) {
@@ -510,6 +538,11 @@ final class Editor {
 			case 'centre':
 				$choices = self::choices( $f, $key );
 				$current = is_array( $value ) ? (string) ( $value[0] ?? '' ) : (string) $value;
+				// Lo guardado que ya no está en la lista del despliegue se sigue
+				// viendo, marcado: quitarlo es decisión de quien edita, no de la lista.
+				if ( ! empty( $f['closed'] ) && '' !== $current && ! isset( $choices[ $current ] ) && (string) ( $f['stored'] ?? '' ) === $current ) {
+					$choices[ $current ] = $current . ' — ya no se usa';
+				}
 				// El diseño guardado de una acción antigua se conserva aunque ya no
 				// se ofrezca; uno que llegue por la dirección o el formulario, no. Su
 				// título no descubre nada: la acción se llama como él (ADR-0009).
@@ -706,7 +739,7 @@ final class Editor {
 		$total = $can ? self::post_max() : 0;
 		$out   = '<div class="col-12 fmc-docs"' . ( $total ? ' data-fmc-post-max="' . esc_attr( (string) $total ) . '"' : '' ) . '><p class="visually-hidden" aria-live="polite" data-fmc-doc-status></p>';
 		if ( $total ) {
-			$out .= '<p class="fmc-doc-total form-text mt-0">En cada guardado se pueden subir, entre todos los ficheros, hasta ' . esc_html( (string) size_format( $total ) ) . '.</p>';
+			$out .= '<p class="fmc-doc-total form-text mt-0">Cada vez que guarde puede subir, entre todos los ficheros, hasta ' . esc_html( (string) size_format( $total ) ) . '.</p>';
 		}
 		if ( $can ) {
 			$out .= '<p class="alert alert-danger fmc-doc-alert" role="alert" tabindex="-1" data-fmc-doc-alert hidden></p>';
@@ -774,7 +807,7 @@ final class Editor {
 	}
 
 	/**
-	 * One stored document, as a file card: open it, replace it or mark it for removal.
+	 * One stored document, as a file card: download it, replace it or mark it for removal.
 	 *
 	 * The `fmc_remove[]` checkbox comes after the card, so the tab order follows
 	 * what is seen (name, "Replace", "×"), and before the "will be removed" bar;
@@ -804,6 +837,9 @@ final class Editor {
 			$out .= '<p class="fmc-doc-pending" data-fmc-picked="' . esc_attr( $rid ) . '" hidden><span>Se reemplazará al guardar por: <strong data-fmc-picked-name></strong></span> <button type="button" class="fmc-doc-link" data-fmc-file-clear="' . esc_attr( $rid ) . '">Cancelar</button></p>';
 		}
 		$out .= '</div>';
+		// Descargar, a la vista y con su nombre: quien solo consulta el diseño
+		// viene a esto, y un nombre de fichero no dice que se pueda pulsar.
+		$out .= '<a class="btn btn-sm btn-outline-primary fmc-doc-get" href="' . esc_url( $url ) . '">' . self::icon( 'download' ) . 'Descargar<span class="visually-hidden">: ' . esc_html( $name ) . '</span></a>';
 		if ( $can ) {
 			$out .= '<label class="fmc-doc-x" for="' . esc_attr( $xid ) . '" title="Quitar">' . self::icon( 'x' ) . '<span class="visually-hidden">Quitar: ' . esc_html( $name ) . '</span></label>';
 		}
@@ -870,9 +906,10 @@ final class Editor {
 	 */
 	private static function icon( string $name ): string {
 		$paths = array(
-			'x'       => '<path d="M6 6l12 12M18 6L6 18"/>',
-			'replace' => '<path d="M4 9h13l-3-3M20 15H7l3 3"/>',
-			'upload'  => '<path d="M12 16V4M7 9l5-5 5 5M5 20h14"/>',
+			'x'        => '<path d="M6 6l12 12M18 6L6 18"/>',
+			'replace'  => '<path d="M4 9h13l-3-3M20 15H7l3 3"/>',
+			'upload'   => '<path d="M12 16V4M7 9l5-5 5 5M5 20h14"/>',
+			'download' => '<path d="M12 4v12M7 11l5 5 5-5M5 20h14"/>',
 		);
 		return '<svg class="fmc-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">' . $paths[ $name ] . '</svg>';
 	}
@@ -1080,7 +1117,7 @@ final class Editor {
 			// mientras la copia local del catálogo no lo traiga.
 			$where = CentreCatalogue::knows_cep() ? (string) $centre['name'] : (string) ( $centre['island'] ?? '' );
 			if ( '' !== $where ) {
-				$help .= '<div class="form-text">Solo los centros de ' . esc_html( $where ) . ', que es el ámbito elegido arriba. Cambie el ámbito para ver los de otro.</div>';
+				$help .= '<div class="form-text">Solo salen los centros de ' . esc_html( $where ) . ', el ámbito elegido arriba. Para ver los de otro, cambie el ámbito.</div>';
 			}
 		}
 		$legacy = '' === $code && $action ? (string) get_post_meta( $action, A::VENUE_CENTRE, true ) : '';
@@ -1088,7 +1125,7 @@ final class Editor {
 			$help .= '<div class="form-text">Escrito a mano en el sistema anterior: «' . esc_html( $legacy ) . '».' . ( $can ? ' Elija el centro de la lista para sustituirlo.' : '' ) . '</div>';
 		}
 		if ( $can && 0 === CentreCatalogue::active_count() ) {
-			$help .= '<div class="form-text">El catálogo de centros está vacío: la administración lo actualiza en «Ajustes → Centros educativos».</div>';
+			$help .= '<div class="form-text">El catálogo de centros está vacío. La administración lo actualiza en «Ajustes → Centros educativos».</div>';
 		}
 		return $help;
 	}
@@ -1119,7 +1156,7 @@ final class Editor {
 	private static function design_label( \WP_Post $p ): string {
 		$code  = (string) get_post_meta( $p->ID, D::CODE, true );
 		$kind  = D::TYPES[ (string) get_post_meta( $p->ID, D::TYPE, true ) ] ?? '';
-		$notes = array_filter( array( $kind, 'publish' !== $p->post_status ? Lists::DESIGN_STATUSES[ $p->post_status ][0] ?? '' : '' ) );
+		$notes = array_filter( array( $kind, 'publish' !== $p->post_status ? Lists::DESIGN_STATUSES[ PostTypes::design_status( $p->post_status ) ][0] ?? '' : '' ) );
 		return ( '' !== $code ? $code . ' · ' : '' ) . get_the_title( $p ) . ( $notes ? ' (' . implode( ', ', $notes ) . ')' : '' );
 	}
 
@@ -1167,7 +1204,7 @@ final class Editor {
 			if ( get_post_meta( $p->ID, S::UNAVAILABLE, true ) ) {
 				$off[ $p->ID ] = true;
 			}
-			$details       = array_filter( array( Lists::terms( $p->ID, Taxonomies::ZONE ), $given ? sprintf( '%d acción(es)', $given ) : '', isset( $off[ $p->ID ] ) ? 'No disponible' : '' ) );
+			$details       = array_filter( array( Lists::terms( $p->ID, Taxonomies::ZONE ), $given ? Screen::counted( $given, 'acción', 'acciones' ) : '', isset( $off[ $p->ID ] ) ? 'No disponible' : '' ) );
 			$out[ $p->ID ] = ( isset( $recommended[ $p->ID ] ) ? '★ ' : '' ) . get_the_title( $p ) . ( $details ? ' · ' . implode( ' · ', $details ) : '' );
 		}
 		// Los recomendados, primero; los que no están disponibles, al final.
@@ -1202,7 +1239,7 @@ final class Editor {
 			'name'  => get_the_title( $speaker ),
 			'zone'  => Lists::terms( $speaker, Taxonomies::ZONE ),
 			'role'  => S::PROFESSIONS[ (string) get_post_meta( $speaker, S::PROFESSION, true ) ] ?? '',
-			'given' => $given ? sprintf( '%d acción(es)', $given ) : '',
+			'given' => $given ? Screen::counted( $given, 'acción', 'acciones' ) : '',
 			'for'   => implode( ',', $map[ $speaker ] ?? array() ),
 			'off'   => get_post_meta( $speaker, S::UNAVAILABLE, true ) ? '1' : '',
 			'note'  => trim( (string) get_post_meta( $speaker, S::NOTES, true ) ),
@@ -1244,7 +1281,7 @@ final class Editor {
 	public static function digcomp( string $url ): string {
 		$summary = DigComp::summary( $url );
 		if ( array() === $summary ) {
-			return '<div class="form-text text-warning">La dirección no trae ninguna competencia que se pueda leer.</div>';
+			return '<div class="form-text text-warning">En esa dirección no se ha encontrado ninguna competencia.</div>';
 		}
 		// La tabla que da elidd al generar: por áreas, el nivel más alto marcado
 		// en cada competencia. Al pasar el ratón, todos sus niveles.
@@ -1263,7 +1300,7 @@ final class Editor {
 		}
 		return '<div class="fmc-digcomp card card-body mt-2"><div class="d-flex align-items-center mb-2"><strong class="me-auto">Resumen del perfil</strong><a class="btn btn-sm btn-outline-primary" href="' . esc_url( $url ) . '" target="_blank" rel="noopener">Abrir en elidd</a></div>'
 			. '<div class="table-responsive"><table class="fmc-digcomp-table"><thead><tr>' . $areas . '</tr><tr>' . $codes . '</tr></thead><tbody><tr>' . $cells . '</tr></tbody></table></div>'
-			. '<div class="form-text">El nivel más alto marcado en cada competencia; al pasar el ratón, todos, con sus indicadores.</div></div>';
+			. '<div class="form-text">Se muestra el nivel más alto marcado en cada competencia. Pase el ratón por encima para ver todos, con sus indicadores.</div></div>';
 	}
 
 	/**
@@ -1278,6 +1315,8 @@ final class Editor {
 		$replicas = max( 1, (int) $m( A::REPLICAS ) );
 		// Las cifras de matrícula y certificación las lleva el servicio de perfeccionamiento (ADR-0010).
 		$items = array(
+			// Borrador, entregada o, con el expediente del servicio, completada.
+			'Estado'        => A::DELIVERY[ A::delivery( $post ) ] ?? '',
 			'Curso escolar' => \Fmc\Domain\SchoolYear::of( (string) get_post_meta( $post->ID, A::START, true ) ),
 			// Del diseño, como las horas: aquí se ven sin abrirlo.
 			'Modalidad'     => D::MODALITIES[ (string) get_post_meta( $post->ID, A::MODALITY, true ) ] ?? '',
@@ -1326,8 +1365,8 @@ final class Editor {
 		}
 		$out .= '<ul class="list-group list-group-flush">';
 		foreach ( $list as $incident ) {
-			$res  = (string) get_post_meta( $incident->ID, I::RESOLUTION, true );
-			$out .= '<li class="list-group-item d-flex gap-2"><a href="' . esc_url( Screen::url( array( Screen::ARG_EDIT => $incident->ID ) ) ) . '">' . esc_html( get_the_date( 'd/m/Y', $incident ) ) . '</a><span class="text-truncate">' . esc_html( wp_trim_words( (string) get_post_meta( $incident->ID, I::REASON, true ), 14 ) ) . '</span><span class="ms-auto badge text-bg-light">' . esc_html( I::RESOLUTIONS[ $res ] ?? 'Pendiente' ) . '</span></li>';
+			$kind = I::KINDS[ (string) get_post_meta( $incident->ID, I::REQUEST, true ) ] ?? '';
+			$out .= '<li class="list-group-item d-flex gap-2"><a href="' . esc_url( Screen::url( array( Screen::ARG_EDIT => $incident->ID ) ) ) . '">' . esc_html( get_the_date( 'd/m/Y', $incident ) ) . '</a><span class="text-truncate">' . esc_html( wp_trim_words( (string) get_post_meta( $incident->ID, I::REASON, true ), 14 ) ) . '</span>' . ( '' !== $kind ? '<span class="ms-auto badge text-bg-light">' . esc_html( $kind ) . '</span>' : '' ) . '</li>';
 		}
 		return $out . '</ul></div></section>';
 	}
@@ -1360,7 +1399,7 @@ final class Editor {
 		}
 		if ( 'invalid' === $result['outcome'] ) {
 			if ( $files ) {
-				$result['errors']['_files'] = 'Los documentos elegidos no se han subido: vuelva a elegirlos cuando corrija lo anterior.';
+				$result['errors']['_files'] = 'Los documentos elegidos no se han subido. Vuelva a elegirlos cuando corrija lo anterior.';
 			}
 			// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- document() escapa.
 			echo Screen::document( self::render( $type, $id ? get_post( $id ) : null, $result['values'], $result['errors'] ) );
@@ -1422,7 +1461,10 @@ final class Editor {
 		$was_venue     = $post ? (string) get_post_meta( $post->ID, A::VENUE_CODE, true ) : '';
 		// Lo que pasa a histórico no se completa: ni obligatorios ni título único.
 		$archiving = PostTypes::DESIGN === $type && PostTypes::ARCHIVED === self::next_status( $type, $post, $status );
-		$sessions  = array();
+		// Un diseño en borrador solo necesita el título: se da de alta para
+		// reservar su código, y lo demás se pide al darlo por finalizado.
+		$drafting = PostTypes::DESIGN === $type && 'draft' === self::next_status( $type, $post, $status );
+		$sessions = array();
 		foreach ( $fields as $key => $f ) {
 			if ( in_array( $f['w'], array( 'docs', 'legacy' ), true ) || ! self::can_write( $type, $key, $id ) ) {
 				continue;
@@ -1462,6 +1504,13 @@ final class Editor {
 		foreach ( $values as $key => $value ) {
 			$f = $fields[ $key ];
 			if ( ! self::shown( $f, $read ) ) {
+				// El programa de una acción ya guardada a la que no se le cambia
+				// quién la asume se deja como está: lo migrado lo trae aunque la
+				// pagara el centro, y editar otra cosa no puede borrarlo.
+				if ( $post && 'tax:' . Taxonomies::PROGRAMME === $key && (string) self::value( $post, A::FUNDED_BY ) === (string) $read( A::FUNDED_BY ) ) {
+					unset( $values[ $key ] );
+					continue;
+				}
 				// Oculto por la regla: no cuenta y se guarda vacío.
 				$values[ $key ] = is_array( $value ) ? array() : '';
 				continue;
@@ -1472,7 +1521,7 @@ final class Editor {
 			$empty = '' === $value || array() === $value;
 			// Un número obligatorio sin mínimo propio, como las horas, no vale cero.
 			$missing = $empty || ( 'number' === $f['w'] && ! isset( $f['min'] ) && (float) $value <= 0 );
-			if ( ! empty( $f['req'] ) && $missing && ! $archiving && ! ( 'post_title' === $key && PostTypes::ACTION === $type ) ) {
+			if ( ! empty( $f['req'] ) && $missing && ! $archiving && ! ( $drafting && 'post_title' !== $key ) && ! ( 'post_title' === $key && PostTypes::ACTION === $type ) ) {
 				$errors[ $key ] = 'Falta rellenar «' . $f['label'] . '».';
 				continue;
 			}
@@ -1493,6 +1542,15 @@ final class Editor {
 			$outside = Sessions::outside( $values[ A::SESSIONS ], (string) $read( A::START ), (string) $read( A::END ) );
 			if ( '' !== $outside ) {
 				$errors[ A::SESSIONS ] = $outside;
+			}
+		}
+
+		// Las fechas nuevas de una incidencia: la de fin, con la de inicio y no antes que ella.
+		if ( PostTypes::INCIDENT === $type && '' !== (string) ( $values[ I::NEW_END ] ?? '' ) ) {
+			if ( '' === (string) ( $values[ I::NEW_START ] ?? '' ) ) {
+				$errors += array( I::NEW_START => 'Falta rellenar «' . $fields[ I::NEW_START ]['label'] . '».' );
+			} elseif ( (string) $values[ I::NEW_END ] < (string) $values[ I::NEW_START ] ) {
+				$errors += array( I::NEW_END => '«' . $fields[ I::NEW_END ]['label'] . '» no puede ser anterior a la de inicio.' );
 			}
 		}
 
@@ -1538,6 +1596,11 @@ final class Editor {
 		if ( PostTypes::ACTION === $type && ! empty( $values[ A::DESIGN_ID ] ) && ( ! $post || '' === trim( $post->post_title ) || (int) get_post_meta( $post->ID, A::DESIGN_ID, true ) !== (int) $values[ A::DESIGN_ID ] ) ) {
 			$postarr['post_title'] = get_the_title( (int) $values[ A::DESIGN_ID ] );
 		}
+		// El expediente interno de la acción, también: al crearla, y a la que
+		// llegó sin él, la primera vez que se guarda.
+		if ( PostTypes::ACTION === $type && ( ! $post || '' === (string) get_post_meta( $post->ID, A::INTERNAL_REF, true ) ) ) {
+			$values[ A::INTERNAL_REF ] = A::internal_ref( get_current_user_id() );
+		}
 		// El código del diseño lo pone el aplicativo, la primera vez que se guarda.
 		if ( PostTypes::DESIGN === $type && ( ! $post || '' === (string) get_post_meta( $post->ID, D::CODE, true ) ) ) {
 			$values[ D::CODE ] = self::next_code();
@@ -1582,15 +1645,9 @@ final class Editor {
 			}
 			update_post_meta( $id, $key, $value );
 		}
-		if ( ! $post && PostTypes::INCIDENT === $type && ! isset( $values[ I::RESOLUTION ] ) ) {
-			update_post_meta( $id, I::RESOLUTION, 'pending' );
-		}
-		// Pedir aplazarla o cancelarla la deja así al enviar la incidencia; una
-		// aplazada vuelve a ir por sus fechas cuando se le ponen las nuevas (ADR-0020).
-		if ( ! $post && PostTypes::INCIDENT === $type && isset( I::SITUATION_OF[ (string) ( $values[ I::REQUEST ] ?? '' ) ] ) ) {
-			update_post_meta( $parent_id, A::SITUATION, I::SITUATION_OF[ (string) $values[ I::REQUEST ] ] );
-		}
+		// La incidencia hace sobre la acción lo que pide, al enviarla, y avisa (ADR-0029).
 		if ( ! $post && PostTypes::INCIDENT === $type ) {
+			self::incident_effect( $id, $parent_id );
 			self::notify_incident( $id );
 		}
 		if ( PostTypes::ACTION === $type && 'postponed' === $was_situation && (string) get_post_meta( $id, A::START, true ) !== $was_start ) {
@@ -1618,6 +1675,66 @@ final class Editor {
 			'errors'   => array(),
 			'problems' => $problems,
 		);
+	}
+
+	/**
+	 * What a new incident does to its action (ADR-0029).
+	 *
+	 * Nadie la aprueba, así que lo hace al enviarla:
+	 *
+	 * - una cancelación deja la acción cancelada;
+	 * - un cambio de fechas con la fecha nueva la pasa a esas fechas, y sus
+	 *   sesiones se mueven los mismos días —las que no caben se quitan—; la
+	 *   incidencia se queda con las fechas que tenía, que es lo que deja
+	 *   constancia;
+	 * - sin fecha nueva, la acción queda aplazada hasta que se le pongan;
+	 * - un cambio de ponente, u otro, solo queda apuntado.
+	 *
+	 * Una acción cancelada no vuelve a la vida por cambiarle las fechas.
+	 *
+	 * @param int $incident Incident just created.
+	 * @param int $action   Its action.
+	 * @return void
+	 */
+	private static function incident_effect( int $incident, int $action ): void {
+		$m       = static fn( int $id, string $key ): string => (string) get_post_meta( $id, $key, true );
+		$request = $m( $incident, I::REQUEST );
+		$start   = $m( $incident, I::NEW_START );
+		// Lo que deja en la situación: cancelada, o aplazada si aún no hay fecha.
+		$left = array(
+			'cancel'   => 'cancelled',
+			'postpone' => '' === $start ? 'postponed' : '',
+		)[ $request ] ?? '';
+		if ( '' !== $left ) {
+			update_post_meta( $action, A::SITUATION, $left );
+		}
+		if ( 'postpone' !== $request || '' === $start ) {
+			return;
+		}
+		$was   = array(
+			I::OLD_START => $m( $action, A::START ),
+			I::OLD_END   => $m( $action, A::END ),
+		);
+		$moved = Sessions::moved( Sessions::clean( get_post_meta( $action, A::SESSIONS, true ) ), $was[ I::OLD_START ], $was[ I::OLD_END ], $start, $m( $incident, I::NEW_END ) );
+		// La incidencia se queda con las fechas que tenía la acción.
+		foreach ( array_filter( $was, 'strlen' ) as $key => $value ) {
+			update_post_meta( $incident, $key, $value );
+		}
+		// Vacío es «sin dato»: se quita, como al guardar la ficha.
+		foreach ( array(
+			A::START    => $start,
+			A::END      => $moved['end'],
+			A::SESSIONS => $moved['sessions'],
+		) as $key => $value ) {
+			if ( '' === $value || array() === $value ) {
+				delete_post_meta( $action, $key );
+				continue;
+			}
+			update_post_meta( $action, $key, $value );
+		}
+		if ( 'postponed' === $m( $action, A::SITUATION ) ) {
+			delete_post_meta( $action, A::SITUATION );
+		}
 	}
 
 	/**
@@ -1728,7 +1845,7 @@ final class Editor {
 		$covered = array_values( array_intersect( is_array( $terms ) ? array_map( 'intval', $terms ) : array(), Taxonomies::active_programmes() ) );
 		if ( array() === $covered ) {
 			$names = A::funders();
-			return array( A::FUNDED_BY => sprintf( 'El diseño no está en ningún programa activo, así que no la puede asumir «%1$s»: la asume «%2$s».', $names[ A::PROGRAMME_FUNDER ], $names[ A::FALLBACK_FUNDER ] ) );
+			return array( A::FUNDED_BY => sprintf( 'El diseño no está en ningún programa activo, así que no la puede asumir «%1$s». La asume «%2$s».', $names[ A::PROGRAMME_FUNDER ], $names[ A::FALLBACK_FUNDER ] ) );
 		}
 		$values[ 'tax:' . Taxonomies::PROGRAMME ] = array_map( 'strval', $covered );
 		return array();
@@ -1849,6 +1966,10 @@ final class Editor {
 		foreach ( $values as $key => $value ) {
 			$w     = $fields[ $key ]['w'];
 			$error = self::check_account( $w, $value, $post, (string) $key );
+			// De una lista que da el despliegue: o uno de ella, o el que ya estaba.
+			if ( '' === $error && ! empty( $fields[ $key ]['closed'] ) && '' !== $value && ! isset( $fields[ $key ]['choices'][ (string) $value ] ) && (string) self::value( $post, (string) $key ) !== (string) $value ) {
+				$error = 'En «' . $fields[ $key ]['label'] . '» hay que elegir un valor de la lista.';
+			}
 			if ( '' === $error && in_array( $w, array( 'design', 'designs', 'speakers' ), true ) ) {
 				$error = self::check_refs( $fields[ $key ], (string) $key, $values, $post );
 			}
@@ -1911,7 +2032,7 @@ final class Editor {
 			return $active ? 'publish' === $p->post_status : 'trash' !== $p->post_status && current_user_can( 'read_post', $id );
 		};
 		if ( 'design' === $w ) {
-			return $ok( absint( $value ) ) ? '' : 'El diseño elegido no está finalizado: solo se agenda una acción con un diseño finalizado.';
+			return $ok( absint( $value ) ) ? '' : 'El diseño elegido no está finalizado. Solo se pueden agendar acciones de diseños finalizados.';
 		}
 		$values[ $key ] = array_values( array_filter( (array) $value, static fn( $v ) => $ok( absint( $v ) ) ) );
 		return '';
@@ -1961,12 +2082,14 @@ final class Editor {
 	public static function next_status( string $type, ?\WP_Post $post, string $requested ): string {
 		$current = $post ? $post->post_status : '';
 		if ( PostTypes::DESIGN === $type ) {
+			// Lo que se quedó «en revisión» es un borrador: el estado salió del ciclo.
+			$current = PostTypes::design_status( $current );
 			// Finalizar, pasar a histórico y sacar de él, solo la coordinación.
 			$moves = in_array( $requested, array( 'publish', PostTypes::ARCHIVED ), true ) || ( PostTypes::ARCHIVED === $current && '' !== $requested );
 			if ( $moves && ! current_user_can( 'publish_fmc_designs' ) ) {
 				return '' !== $current ? $current : 'draft';
 			}
-			return in_array( $requested, array( 'draft', 'pending', 'publish', PostTypes::ARCHIVED ), true ) ? $requested : ( '' !== $current ? $current : 'draft' );
+			return in_array( $requested, array( 'draft', 'publish', PostTypes::ARCHIVED ), true ) ? $requested : ( '' !== $current ? $current : 'draft' );
 		}
 		if ( PostTypes::ACTION === $type ) {
 			// Entregar pide poder publicar; volver a borrador lo entregado, editar lo ajeno.
@@ -2002,25 +2125,24 @@ final class Editor {
 			return false;
 		}
 		$m     = static fn( string $key ): string => (string) get_post_meta( $incident, $key, true );
+		$kind  = I::KINDS[ $m( I::REQUEST ) ] ?? '';
 		$lines = array(
 			'Acción: ' . get_the_title( $action ),
-			'Expediente: ' . (string) get_post_meta( $action, A::FILE_NUMBER, true ),
-			'Qué se pide: ' . ( I::REQUESTS[ $m( I::REQUEST ) ] ?? '' ),
-			'Nuevas fechas: ' . trim( Lists::dates( $m( I::NEW_START ), $m( I::NEW_END ) ) ),
+			'Expediente interno: ' . (string) get_post_meta( $action, A::INTERNAL_REF, true ),
+			'Expediente de perfeccionamiento: ' . (string) get_post_meta( $action, A::FILE_NUMBER, true ),
+			'Tipo: ' . $kind,
+			'Fechas que tenía: ' . trim( Lists::dates( $m( I::OLD_START ), $m( I::OLD_END ) ) ),
+			'Fechas nuevas: ' . trim( Lists::dates( $m( I::NEW_START ), $m( I::NEW_END ) ) ),
 			'Abierta por: ' . get_the_author_meta( 'display_name', (int) get_post_field( 'post_author', $incident ) ),
 			'',
-			'Motivos:',
+			'Justificación:',
 			$m( I::REASON ),
-			'',
-			'Cambios que se proponen:',
-			$m( I::PROPOSAL ),
-			'',
-			'Coste: ' . ( $m( I::HAS_COST ) ? 'con coste' : 'sin coste' ),
 			'',
 			Screen::url( array( Screen::ARG_EDIT => $incident ) ),
 		);
 		$lines = array_filter( $lines, static fn( $line ) => ! preg_match( '/: $/', (string) $line ) );
-		return (bool) wp_mail( $to, 'Incidencia: ' . wp_strip_all_tags( get_the_title( $action ) ), implode( "\n", $lines ) );
+		// El asunto dice ya de qué va: una cancelación no se lee igual que un cambio de ponente.
+		return (bool) wp_mail( $to, 'Incidencia' . ( '' !== $kind ? ' (' . mb_strtolower( $kind ) . ')' : '' ) . ': ' . wp_strip_all_tags( get_the_title( $action ) ), implode( "\n", $lines ) );
 	}
 
 	/**

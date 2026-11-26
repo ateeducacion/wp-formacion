@@ -30,7 +30,9 @@ use Fmc\PostType\PostTypes;
  * `max`, `unique` (no se repite en otro del mismo tipo) y `show` (el campo solo
  * cuenta si otro tiene uno de esos valores; si no, se oculta y se guarda vacío).
  * Un campo con `req` y `show` es obligatorio solo cuando se ve. `active`, en
- * una lista de diseños, ofrece solo los finalizados (ADR-0016).
+ * una lista de diseños, ofrece solo los finalizados (ADR-0016). `closed`, en
+ * una lista que da el despliegue, no admite un valor de fuera de ella, salvo el
+ * que ya estaba guardado.
  */
 final class Fields {
 
@@ -96,10 +98,13 @@ final class Fields {
 				),
 			),
 			PostTypes::ACTION   => array(
-				A::FILE_NUMBER   => array( 'unique' => true ),
-				A::TRAINING_FILE => array( 'show' => array( A::TRAINING_PLANS => array( 'plan', 'seminar' ) ) ),
-				A::NOTES         => $rich,
-				A::SPEAKERS      => array( 'add' => PostTypes::SPEAKER ),
+				A::FILE_NUMBER      => array( 'unique' => true ),
+				A::TRAINING_FILE    => array( 'show' => array( A::TRAINING_PLANS => array( 'plan', 'seminar' ) ) ),
+				// El programa solo cuenta si la asume quien puede cargarla a uno:
+				// si la paga el centro de formación o no tiene coste, no lo hay.
+				'tax:fmc_programme' => array( 'show' => array( A::FUNDED_BY => A::PROGRAMME_FUNDERS ) ),
+				A::NOTES            => $rich,
+				A::SPEAKERS         => array( 'add' => PostTypes::SPEAKER ),
 			),
 			PostTypes::SPEAKER  => array(
 				S::ID_NUMBER   => array( 'unique' => true ),
@@ -108,10 +113,9 @@ final class Fields {
 				S::RECOMMENDED => array( 'active' => true ),
 			),
 			PostTypes::INCIDENT => array(
-				I::RESOLUTION_NOTES => array( 'show' => array( I::RESOLUTION => array( 'approved', 'denied' ) ) ),
-				// Las fechas nuevas, solo al pedir aplazarla.
-				I::NEW_START        => array( 'show' => array( I::REQUEST => array( 'postpone' ) ) ),
-				I::NEW_END          => array( 'show' => array( I::REQUEST => array( 'postpone' ) ) ),
+				// Las fechas nuevas, solo al cambiar las fechas.
+				I::NEW_START => array( 'show' => array( I::REQUEST => array( 'postpone' ) ) ),
+				I::NEW_END   => array( 'show' => array( I::REQUEST => array( 'postpone' ) ) ),
 			),
 		);
 	}
@@ -138,21 +142,21 @@ final class Fields {
 	private static function design(): array {
 		return array(
 			array(
-				'title'  => 'Identidad',
-				'help'   => 'Cómo se llama el diseño y de qué tipo es. El código lo asigna el aplicativo y no cambia.',
+				'title'  => 'Datos generales',
+				'help'   => 'El código se asigna solo y no cambia. Para guardar un borrador basta con el título; el resto se pide al marcarlo como finalizado.',
 				'fields' => array(
 					'post_title'    => array(
 						'label' => 'Título',
 						'w'     => 'text',
 						'req'   => true,
-						'help'  => 'Tal y como sale en el catálogo. Empiece por «Curso:» o «APU:» si así se viene haciendo.',
+						'help'  => 'Tal como se verá en el catálogo. Empiece por «Curso:» o «APU:» si es lo habitual.',
 					),
 					D::CODE         => array(
 						'label' => 'Código',
 						'w'     => 'text',
 						'auto'  => true,
 						'col'   => 4,
-						'help'  => 'El siguiente libre; se asigna al guardar por primera vez.',
+						'help'  => 'Se asigna solo la primera vez que se guarda.',
 					),
 					D::TYPE         => array(
 						'label'   => 'Tipo de formación',
@@ -179,21 +183,20 @@ final class Fields {
 						'col'   => 4,
 					),
 					D::IN_CATALOGUE => array(
-						'label' => 'Sale en el catálogo público',
+						'label' => 'Visible en el catálogo público',
 						'w'     => 'checkbox',
 						'col'   => 4,
-						'help'  => 'Solo sale si, además, está finalizado. Lo que ya no se imparte no se quita de aquí: se pasa a histórico.',
 					),
 				),
 			),
 			array(
 				'title'  => 'Clasificación',
-				'help'   => 'Con qué se busca y se agrupa el diseño.',
+				'help'   => 'Sirve para buscar y agrupar los diseños.',
 				'fields' => array(
 					'tax:fmc_programme' => array(
 						'label' => 'Programas',
 						'w'     => 'terms',
-						'help'  => sprintf( 'Los programas o proyectos que cubren este diseño. Puede ser más de uno. Solo se ofrecen los vigentes; el que dejó de estarlo se queda en los diseños que ya lo tenían. Mientras un programa esté activo, las acciones de este diseño que asuma «%s» se le imputan.', A::funders()[ A::PROGRAMME_FUNDER ] ),
+						'help'  => sprintf( 'Programas o proyectos a los que pertenece este diseño; puede ser más de uno. Solo se pueden elegir los vigentes, pero un diseño conserva los que ya tenía. Mientras un programa esté activo, las acciones de este diseño que asuma «%s» se imputan a ese programa.', A::funders()[ A::PROGRAMME_FUNDER ] ),
 					),
 					'tax:fmc_topic'     => array(
 						'label' => 'Temática',
@@ -204,20 +207,20 @@ final class Fields {
 						'label' => 'Sustituye a',
 						'w'     => 'designs',
 						'col'   => 6,
-						'help'  => 'Al dar este por finalizado, los que sustituye pasan a histórico y sus ponentes recomendados pasan a este diseño.',
+						'help'  => 'Al marcar este diseño como finalizado, los que sustituye pasan a histórico y sus ponentes recomendados pasan a este.',
 					),
 					// Las áreas antiguas ya no se rellenan: manda el perfil del marco
 					// de referencia, y de él sale el resumen (ver Editor).
 					D::DIGCOMP_URL      => array(
 						'label' => 'Perfil de competencia digital',
 						'w'     => 'url',
-						'help'  => 'Pulse «Elegir los indicadores en elidd», márquelos y pulse «Guardar»; o pegue aquí la dirección que da elidd al compartir. Al guardar la ficha se ve la tabla.',
+						'help'  => 'Pulse «Elegir los indicadores en elidd», márquelos y pulse «Guardar». También puede pegar aquí la dirección que da elidd al compartir. La tabla se ve al guardar la ficha.',
 					),
 				),
 			),
 			array(
 				'title'  => 'Contenido del diseño',
-				'help'   => 'Descripción, destinatarios, objetivos y contenidos se publican en la ficha del catálogo; lo demás es de trabajo.',
+				'help'   => 'La descripción, los destinatarios, los objetivos y los contenidos se publican en el catálogo. El resto es de uso interno.',
 				'fields' => array(
 					'post_content' => array(
 						'label' => 'Descripción',
@@ -260,7 +263,7 @@ final class Fields {
 			),
 			array(
 				'title'  => 'Documentos',
-				'help'   => 'El diseño, la escaleta y las presentaciones, en editable; los recursos, en PDF, para conservar la versión. Cada documento se puede cambiar por otro o quitar; los cambios se guardan con el diseño.',
+				'help'   => 'El diseño, la escaleta y las presentaciones se suben en formato editable; los recursos, en PDF. Cada documento se puede reemplazar o quitar, y los cambios se aplican al guardar.',
 				'fields' => array(
 					'docs' => array(
 						'label' => 'Documentos',
@@ -278,30 +281,37 @@ final class Fields {
 	 */
 	private static function action(): array {
 		$funders = A::funders();
-		return array(
+		$lines   = A::strategic_lines();
+		$paying  = implode( '» o «', array_intersect_key( $funders, array_flip( A::PROGRAMME_FUNDERS ) ) );
+		$out     = array(
 			array(
 				'title'  => 'La acción',
-				'help'   => 'De qué diseño sale y quién la gestiona. El título, la modalidad y las horas son siempre los del diseño.',
+				'help'   => 'El título, la modalidad y las horas son siempre los del diseño.',
 				'fields' => array(
-					// El expediente, primero: es el campo que más se teclea y el
-					// que más se busca, y el único que rellena el servicio de
-					// perfeccionamiento.
+					// Los dos expedientes, primero y juntos: son lo que más se
+					// busca. El interno lo pone el aplicativo y es el que la
+					// asesoría da al servicio de perfeccionamiento; el otro lo
+					// rellena el servicio cuando da de alta la acción en su sistema.
+					A::INTERNAL_REF    => array(
+						'label' => 'Expediente interno',
+						'w'     => 'text',
+						'auto'  => true,
+						'col'   => 6,
+						'help'  => 'Se genera solo la primera vez que se guarda la acción y no cambia. Es el que se da al servicio de perfeccionamiento para que la localice.',
+					),
 					A::FILE_NUMBER     => array(
-						'label' => 'Expediente',
+						'label' => 'Expediente de perfeccionamiento',
 						'w'     => 'text',
 						'col'   => 6,
-						'help'  => 'El del sistema de gestión del servicio de perfeccionamiento, cuando lo haya creado allí. Es por el que busca el listado.',
+						'help'  => 'El número que le da el servicio de perfeccionamiento en su sistema de gestión. Al rellenarlo, la acción pasa a «Completada».',
 					),
+					// El subtítulo ya no se pide ni se enseña: servía para que una
+					// acción pareciera otro curso. Lo guardado se conserva.
 					A::DESIGN_ID       => array(
 						'label' => 'Diseño',
 						'w'     => 'design',
 						'req'   => true,
-						'help'  => 'Solo los diseños finalizados. La acción lleva el título del diseño, y no se cambia.',
-					),
-					A::SUBTITLE        => array(
-						'label' => 'Subtítulo',
-						'w'     => 'text',
-						'help'  => 'Un añadido que sale debajo del título, por ejemplo la edición o el lugar. No sustituye al título.',
+						'help'  => 'Solo se pueden elegir diseños finalizados. La acción toma el título del diseño.',
 					),
 					// La asesoría va antes que el ámbito porque lo decide: al
 					// elegirla se pone el ámbito de su centro de referencia
@@ -334,14 +344,14 @@ final class Fields {
 					A::SPEAKERS        => array(
 						'label' => 'Ponentes',
 						'w'     => 'speakers',
-						'help'  => 'Escriba para buscar y añadir; la «×» de cada uno lo quita. Al lado de cada nombre, su isla y las acciones que ha impartido; «★» si se le recomienda para el diseño elegido, en gris si no está disponible, y un bocadillo si tiene observaciones.',
+						'help'  => 'Escriba para buscar y añadir; la «×» quita a cada uno. Junto al nombre se ven su isla y las acciones que ha impartido. La «★» indica que está recomendado para el diseño elegido; el gris, que no está disponible; el bocadillo, que tiene observaciones.',
 					),
 				),
 			),
 			array(
 				'title'  => 'Financiación',
 				// Quién paga se elige; el programa, si paga quien cobra a programas, sale del diseño (ADR-0018).
-				'help'   => sprintf( 'Quién la paga y con cargo a qué programa. Si la asume «%1$s», el programa se pone solo al guardar: el programa activo que cubre el diseño. Si el diseño no está en ninguno, la asume «%2$s».', $funders[ A::PROGRAMME_FUNDER ], $funders[ A::FALLBACK_FUNDER ] ),
+				'help'   => sprintf( 'Indique quién la paga. El programa solo se pide si la asume «%3$s». Con «%1$s» se asigna solo al guardar: el programa activo del diseño. Si el diseño no está en ningún programa activo, la asume «%2$s».', $funders[ A::PROGRAMME_FUNDER ], $funders[ A::FALLBACK_FUNDER ], $paying ),
 				'fields' => array(
 					A::FUNDED_BY        => array(
 						'label'   => 'Asumida por',
@@ -353,12 +363,17 @@ final class Fields {
 						'label' => 'Con cargo al programa',
 						'w'     => 'terms',
 						'col'   => 6,
-						'help'  => sprintf( 'Solo los programas vigentes. Con «%s», lo pone el aplicativo.', $funders[ A::PROGRAMME_FUNDER ] ),
+						'help'  => sprintf( 'Solo se pueden elegir programas vigentes. Con «%s» se asigna solo.', $funders[ A::PROGRAMME_FUNDER ] ),
 					),
+					// De una lista, y no escrita a mano: cada cual la escribía a su
+					// manera. La lista la da el despliegue; lo guardado que ya no
+					// está en ella se conserva y se dice.
 					A::STRATEGIC_LINE   => array(
-						'label' => 'Línea estratégica',
-						'w'     => 'text',
-						'col'   => 6,
+						'label'   => 'Línea estratégica',
+						'w'       => 'select',
+						'choices' => $lines,
+						'closed'  => true,
+						'col'     => 6,
 					),
 					// Una acción está en un plan de formación, en un seminario o
 					// en ninguno: no en dos a la vez. Y su expediente, el del
@@ -372,7 +387,7 @@ final class Fields {
 						'label' => 'Expediente del plan o del seminario',
 						'w'     => 'text',
 						'col'   => 6,
-						'help'  => 'El número de expediente del plan de formación del centro o del seminario en el que se incluye esta acción, para poder asociarla. No es el expediente de la acción, que lo pone el servicio de perfeccionamiento.',
+						'help'  => 'Número de expediente del plan de formación del centro o del seminario en el que se incluye esta acción. Déjelo en blanco si todavía no lo tiene.',
 					),
 				),
 			),
@@ -382,7 +397,7 @@ final class Fields {
 			// modalidad y las horas son del diseño, que las copia al guardar.
 			array(
 				'title'  => 'Fechas y horas',
-				'help'   => 'De la fecha de inicio sale el curso escolar. Los plazos de matrícula, el enlace y las listas se llevan en el sistema de gestión del servicio de perfeccionamiento.',
+				'help'   => 'El curso escolar se calcula a partir de la fecha de inicio. La matrícula (plazos, enlace y listas) se lleva en el sistema de gestión del servicio de perfeccionamiento.',
 				// Los plazos de matrícula y las listas no se piden aquí: los lleva el sistema
 				// del servicio. Sus claves siguen registradas para lo migrado (issue #35, adenda de la ADR-0005).
 				'fields' => array(
@@ -403,12 +418,12 @@ final class Fields {
 					A::SESSIONS => array(
 						'label' => 'Sesiones',
 						'w'     => 'sessions',
-						'help'  => 'El día y el horario de cada sesión, dentro de las fechas de inicio y de fin. El calendario pinta cada una en su día.',
+						'help'  => 'Día y horario de cada sesión, dentro de las fechas de inicio y de fin. Cada sesión aparece en su día en el calendario.',
 					),
 					A::SCHEDULE => array(
-						'label' => 'Días y horas (escrito antes de las sesiones)',
+						'label' => 'Días y horas (texto anterior)',
 						'w'     => 'legacy',
-						'help'  => 'Lo que se escribió a mano antes de que hubiera sesiones. Se conserva tal cual; no se puede cambiar.',
+						'help'  => 'Lo que se escribió a mano cuando aún no había sesiones. Se conserva tal cual y no se puede cambiar.',
 					),
 				),
 			),
@@ -419,21 +434,20 @@ final class Fields {
 			array(
 				'title'  => 'Observaciones',
 				// La situación no se teclea, ni el proceso: la acción se guarda o se entrega (ADR-0020).
-				'help'   => 'La situación la pone el aplicativo: impartiéndose en sus fechas y realizada cuando pasan; una incidencia la aplaza o la cancela.',
+				'help'   => 'La situación se calcula sola: «Impartiéndose» durante sus fechas y «Realizada» cuando pasan. Una incidencia puede aplazarla o cancelarla.',
 				'fields' => array(
-					A::NOTES        => array(
+					A::NOTES => array(
 						'label' => 'Observaciones',
 						'w'     => 'textarea',
-					),
-					A::INTERNAL_REF => array(
-						'label' => 'Referencia interna',
-						'w'     => 'text',
-						'col'   => 6,
-						'help'  => 'La del sistema anterior; solo para buscar.',
 					),
 				),
 			),
 		);
+		// Sin líneas que elegir, el campo no sale: no hay nada que poner en él.
+		if ( array() === $lines ) {
+			unset( $out[1]['fields'][ A::STRATEGIC_LINE ] );
+		}
+		return $out;
 	}
 
 	/**
@@ -445,7 +459,7 @@ final class Fields {
 		return array(
 			array(
 				'title'  => 'Datos personales',
-				'help'   => 'Los ve quien gestiona acciones formativas; cada asesoría edita las fichas que ha dado de alta.',
+				'help'   => 'Los ve quien gestiona acciones formativas. Cada asesoría puede editar las fichas que ha dado de alta.',
 				'fields' => array(
 					S::FIRST_NAME  => array(
 						'label' => 'Nombre',
@@ -509,17 +523,17 @@ final class Fields {
 					S::UNAVAILABLE => array(
 						'label' => 'No disponible',
 						'w'     => 'checkbox',
-						'help'  => 'Se puede seguir eligiendo para una acción, pero sale en gris y avisado. Diga el porqué en las observaciones.',
+						'help'  => 'Se puede seguir eligiendo para una acción, pero aparece en gris y con un aviso. Explique el motivo en las observaciones.',
 					),
 					S::RECOMMENDED => array(
 						'label' => 'Recomendado para los diseños',
 						'w'     => 'designs',
-						'help'  => 'Escriba para buscar y añadir; la «×» de cada uno lo quita. Solo se ofrecen los diseños finalizados: ni borradores ni históricos.',
+						'help'  => 'Escriba para buscar y añadir; la «×» quita cada uno. Solo se pueden elegir diseños finalizados.',
 					),
 					S::NOTES       => array(
 						'label' => 'Observaciones',
 						'w'     => 'textarea',
-						'help'  => 'Salen en un bocadillo junto al nombre, en el listado y al elegir ponentes para una acción.',
+						'help'  => 'Se ven en un bocadillo junto al nombre, en el listado y al elegir ponentes para una acción.',
 					),
 				),
 			),
@@ -535,54 +549,31 @@ final class Fields {
 		return array(
 			array(
 				'title'  => 'La incidencia',
-				'help'   => 'Una vez enviada ya no se puede cambiar: si hay que corregirla, se abre otra. Si pide aplazar o cancelar la acción, la acción queda aplazada o cancelada al enviarla.',
+				// La incidencia deja constancia; nadie la aprueba (ADR-0029).
+				'help'   => 'La incidencia deja constancia de un cambio en la acción y no necesita aprobación. Una vez enviada no se puede modificar; si hay que corregirla, abra otra. Al enviarla, una cancelación deja la acción cancelada y un cambio de fechas la pasa a las fechas nuevas.',
 				'fields' => array(
 					I::REQUEST   => array(
-						'label'   => 'Qué se pide',
+						'label'   => 'Tipo de incidencia',
 						'w'       => 'radio',
-						'choices' => I::REQUESTS,
+						'choices' => I::KINDS,
 						'req'     => true,
 					),
 					I::NEW_START => array(
 						'label' => 'Nueva fecha de inicio',
 						'w'     => 'date',
 						'col'   => 6,
-						'help'  => 'Si ya se sabe.',
+						'help'  => 'Si todavía no se sabe, déjela en blanco y la acción quedará aplazada. Si la indica, las sesiones se desplazan los mismos días; las que no quepan en las fechas nuevas se quitan.',
 					),
 					I::NEW_END   => array(
 						'label' => 'Nueva fecha de fin',
 						'w'     => 'date',
 						'col'   => 6,
+						'help'  => 'Si la deja en blanco, la acción conserva su duración.',
 					),
 					I::REASON    => array(
-						'label' => 'Motivos',
+						'label' => 'Justificación',
 						'w'     => 'textarea',
 						'req'   => true,
-					),
-					I::PROPOSAL  => array(
-						'label' => 'Cambios que se proponen',
-						'w'     => 'textarea',
-						'req'   => true,
-					),
-					I::HAS_COST  => array(
-						'label' => 'El cambio conlleva coste',
-						'w'     => 'checkbox',
-						'help'  => 'Con coste es, por ejemplo, duplicar el curso; sin coste, cambiar ponente, fechas o número de plazas.',
-					),
-				),
-			),
-			array(
-				'title'  => 'Resolución',
-				'help'   => 'La resuelve el servicio de perfeccionamiento.',
-				'fields' => array(
-					I::RESOLUTION       => array(
-						'label'   => 'Resolución',
-						'w'       => 'radio',
-						'choices' => I::RESOLUTIONS,
-					),
-					I::RESOLUTION_NOTES => array(
-						'label' => 'Observaciones a la resolución',
-						'w'     => 'textarea',
 					),
 				),
 			),

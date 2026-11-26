@@ -274,6 +274,32 @@ final class PostTypes {
 	}
 
 	/**
+	 * The status of a design as the app shows it: one left in review is a draft.
+	 *
+	 * «En revisión» salió del ciclo (adenda de ADR-0004); lo que se quedó ahí
+	 * se lee como borrador, sin migrar nada.
+	 *
+	 * @param string $status Post status.
+	 * @return string
+	 */
+	public static function design_status( string $status ): string {
+		return 'pending' === $status ? 'draft' : $status;
+	}
+
+	/**
+	 * Whether the current user works as the training service does: reads the
+	 * actions and writes their file number, and nothing else.
+	 *
+	 * La administración también puede escribir el expediente, pero gestiona
+	 * las acciones: lo que distingue al servicio es que no las edita.
+	 *
+	 * @return bool
+	 */
+	public static function is_training_service(): bool {
+		return current_user_can( self::CAP_SERVICE_FIELDS ) && ! current_user_can( 'edit_others_fmc_actions' );
+	}
+
+	/**
 	 * Capabilities each role holds on each type.
 	 *
 	 * Las primitivas de WordPress por tipo, sin el sufijo: `edit` es

@@ -46,18 +46,41 @@ final class Lists {
 
 	/**
 	 * Label and colour of each design status.
+	 *
+	 * El diseño está en borrador, finalizado o en el histórico. «En revisión»
+	 * salió del ciclo: hacía lo mismo que el borrador (adenda de ADR-0004).
 	 */
 	public const DESIGN_STATUSES = array(
 		'draft'             => array( 'Borrador', 'secondary' ),
-		'pending'           => array( 'En revisión', 'warning' ),
 		'publish'           => array( 'Finalizado', 'success' ),
 		PostTypes::ARCHIVED => array( 'Histórico', 'dark' ),
 	);
 
 	/**
 	 * Design statuses the list shows unless the archive is asked for.
+	 *
+	 * `pending` sigue aquí para leer: un diseño que se quedó en revisión antes
+	 * de que el estado saliera del ciclo es un borrador ({@see PostTypes::design_status()}).
 	 */
 	public const DESIGN_CURRENT = array( 'draft', 'pending', 'publish' );
+
+	/**
+	 * Statuses that count as a draft design.
+	 */
+	public const DESIGN_DRAFTS = array( 'draft', 'pending' );
+
+	/**
+	 * Headings of the columns that go before the title, when the list has them.
+	 *
+	 * El código del diseño, que es por lo que se ordena; y los dos expedientes
+	 * de la acción, que solo están en la lista del servicio de perfeccionamiento.
+	 */
+	private const LEADING = array( 'Código', 'Expediente interno', 'Expediente de perfeccionamiento' );
+
+	/**
+	 * The button of a search box: it sends the whole filter card.
+	 */
+	public const SEARCH_BUTTON = '<button class="btn btn-outline-dark" type="submit" title="Buscar" aria-label="Buscar"><i class="bi bi-search" aria-hidden="true"></i></button>';
 
 	/**
 	 * The add button of each list. Una acción se agenda: el diseño ya existe.
@@ -85,7 +108,8 @@ final class Lists {
 
 	/**
 	 * `fmc_order_meta` query arg, `array( meta key, 'asc'|'desc' )`: by that
-	 * meta, with the posts that lack it last either way.
+	 * meta, with the posts that lack it last either way. A third item, true,
+	 * sorts it as a code: by its number and not as text.
 	 *
 	 * Ordenar con `meta_key` deja fuera lo que no tiene la meta, y con una
 	 * cláusula «no existe» WordPress ordena por otra unión cualquiera. Una
@@ -97,13 +121,16 @@ final class Lists {
 	 */
 	public static function order_by_meta( $clauses, $query ) {
 		$order = $query instanceof \WP_Query ? $query->get( 'fmc_order_meta' ) : null;
-		if ( ! is_array( $order ) || 2 !== count( $order ) ) {
+		if ( ! is_array( $order ) || count( $order ) < 2 ) {
 			return $clauses;
 		}
 		global $wpdb;
-		$dir                = 'asc' === $order[1] ? 'ASC' : 'DESC';
+		$dir = 'asc' === $order[1] ? 'ASC' : 'DESC';
+		// Un código es una letra y un número: como texto, «A99» iría después de
+		// «A247». Primero los más cortos, y entre iguales, como texto.
+		$length             = ! empty( $order[2] ) ? "LENGTH( fmc_sort.meta_value ) $dir, " : '';
 		$clauses['join']   .= $wpdb->prepare( " LEFT JOIN $wpdb->postmeta AS fmc_sort ON ( fmc_sort.post_id = $wpdb->posts.ID AND fmc_sort.meta_key = %s )", (string) $order[0] );
-		$clauses['orderby'] = "( fmc_sort.meta_value IS NULL OR fmc_sort.meta_value = '' ) ASC, fmc_sort.meta_value $dir, $wpdb->posts.ID $dir";
+		$clauses['orderby'] = "( fmc_sort.meta_value IS NULL OR fmc_sort.meta_value = '' ) ASC, $length fmc_sort.meta_value $dir, $wpdb->posts.ID $dir";
 		return $clauses;
 	}
 
@@ -133,7 +160,7 @@ final class Lists {
 	/**
 	 * Sort keys that start descending: the newest, or the most, first.
 	 */
-	private const DESCENDING = array( 'start', 'date', 'actions', 'hours' );
+	private const DESCENDING = array( 'start', 'date', 'actions', 'hours', 'code' );
 
 	/**
 	 * Comparisons the situation condition compares meta with.
@@ -149,7 +176,9 @@ final class Lists {
 	private static function sort_of( string $type ): array {
 		$own  = array(
 			PostTypes::ACTION   => 'start',
-			PostTypes::DESIGN   => 'title',
+			// Por el código, del último al primero: lo que se busca es el último
+			// que se dio de alta, para saber por dónde va la numeración.
+			PostTypes::DESIGN   => 'code',
 			PostTypes::SPEAKER  => self::speaker_filtered() ? 'actions' : 'name',
 			PostTypes::INCIDENT => 'date',
 		);
@@ -180,7 +209,7 @@ final class Lists {
 			'code'  => D::CODE,
 		);
 		if ( isset( $metas[ $key ] ) ) {
-			$args['fmc_order_meta'] = array( $metas[ $key ], $dir );
+			$args['fmc_order_meta'] = array( $metas[ $key ], $dir, 'code' === $key );
 		} elseif ( 'title' === $key || 'date' === $key ) {
 			$args['orderby'] = $key;
 			$args['order']   = strtoupper( $dir );
@@ -200,7 +229,7 @@ final class Lists {
 		if ( ! $query instanceof \WP_Query ) {
 			return $where;
 		}
-		return $where . self::visible_sql( $query ) . self::text_sql( $query ) . self::situation_sql( $query );
+		return $where . self::visible_sql( $query ) . self::text_sql( $query ) . self::situation_sql( $query ) . self::delivery_sql( $query );
 	}
 
 	/**
@@ -246,8 +275,8 @@ final class Lists {
 	 * `fmc_text` query arg: the words in the title or in some meta keys.
 	 *
 	 * La búsqueda de WordPress solo mira el título y el texto; en las acciones
-	 * hay que encontrar también por el expediente y por el subtítulo, que es lo
-	 * que se teclea a diario (`fmc_text_keys`).
+	 * hay que encontrar también por sus expedientes, que es lo que se teclea a
+	 * diario (`fmc_text_keys`).
 	 *
 	 * @param \WP_Query $query Query.
 	 * @return string
@@ -265,19 +294,23 @@ final class Lists {
 	}
 
 	/**
-	 * Incidents per action: how many and how many still pending.
+	 * Incidents per action: how many, and what the latest one asked for.
 	 *
-	 * @return array<int, array{total:int, pending:int}> action => counts.
+	 * Se leen todas, de la más antigua a la más reciente, y se cuentan aquí:
+	 * son pocas, y así la consulta es la misma en cualquier base de datos.
+	 *
+	 * @return array<int, array{total:int, last:string}> action => count and a key of `IncidentMetaKeys::KINDS`, or ''.
 	 */
 	private static function incidents(): array {
 		global $wpdb;
-		// phpcs:ignore WordPress.DB.DirectDatabaseQuery -- un recuento agrupado; no hay API.
-		$rows = $wpdb->get_results( $wpdb->prepare( "SELECT p.post_parent AS action, COUNT(*) AS total, SUM( COALESCE( r.meta_value, 'pending' ) = 'pending' ) AS pending FROM $wpdb->posts p LEFT JOIN $wpdb->postmeta r ON ( r.post_id = p.ID AND r.meta_key = %s ) WHERE p.post_type = %s AND p.post_status = 'publish' AND p.post_parent > 0 GROUP BY p.post_parent", I::RESOLUTION, PostTypes::INCIDENT ), ARRAY_A );
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery -- una lectura de todas las incidencias con lo que piden; no hay API.
+		$rows = $wpdb->get_results( $wpdb->prepare( "SELECT p.post_parent AS action, r.meta_value AS request FROM $wpdb->posts p LEFT JOIN $wpdb->postmeta r ON ( r.post_id = p.ID AND r.meta_key = %s ) WHERE p.post_type = %s AND p.post_status = 'publish' AND p.post_parent > 0 ORDER BY p.post_date ASC, p.ID ASC", I::REQUEST, PostTypes::INCIDENT ), ARRAY_A );
 		$out  = array();
 		foreach ( (array) $rows as $r ) {
-			$out[ (int) $r['action'] ] = array(
-				'total'   => (int) $r['total'],
-				'pending' => (int) $r['pending'],
+			$action         = (int) $r['action'];
+			$out[ $action ] = array(
+				'total' => ( $out[ $action ]['total'] ?? 0 ) + 1,
+				'last'  => isset( I::KINDS[ (string) $r['request'] ] ) ? (string) $r['request'] : '',
 			);
 		}
 		return $out;
@@ -301,17 +334,7 @@ final class Lists {
 			// desplegable, y es lo que se manda cuando se elige.
 			return $set ? $value : SchoolYear::of( gmdate( 'Y-m-d' ) );
 		}
-		if ( 'fmc_resolution' !== $key ) {
-			return $value;
-		}
-		// La lista de incidencias se abre por las pendientes, que son las que
-		// hay que resolver; cualquier otra cosa —el desplegable en «Todas», el
-		// contador del total— es «sin filtrar», y como las URL no llevan
-		// parámetros vacíos, eso se dice con `all`.
-		if ( ! $set ) {
-			return 'pending';
-		}
-		return isset( I::RESOLUTIONS[ $value ] ) ? $value : 'all';
+		return $value;
 	}
 
 	/**
@@ -360,9 +383,13 @@ final class Lists {
 				$term( 'fmc_scope', self::arg( 'fmc_scope' ) );
 				$term( 'fmc_programme', self::arg( 'fmc_programme' ) );
 				$meta( A::MODALITY, self::arg( 'fmc_modality' ) );
-				// Borrador o entregada (ADR-0020).
+				// Borrador, entregada o completada: las dos últimas son la misma
+				// entrada, sin el expediente del servicio o con él (ADR-0020).
 				if ( isset( A::DELIVERY[ self::arg( 'fmc_status' ) ] ) ) {
-					$args['post_status'] = self::arg( 'fmc_status' );
+					$args['post_status'] = 'draft' === self::arg( 'fmc_status' ) ? 'draft' : 'publish';
+					if ( 'draft' !== self::arg( 'fmc_status' ) ) {
+						$args['fmc_delivery'] = self::arg( 'fmc_status' );
+					}
 				}
 				// Por la asesoría responsable, o por las de un tipo (ADR-0019).
 				$meta( A::ADVISER, absint( self::arg( 'fmc_adviser' ) ) ? (string) absint( self::arg( 'fmc_adviser' ) ) : '' );
@@ -442,18 +469,22 @@ final class Lists {
 				// El histórico no se mezcla con lo que está en uso: tiene su contador.
 				$args['post_status'] = self::DESIGN_CURRENT;
 				if ( $with_state && isset( self::DESIGN_STATUSES[ self::arg( 'fmc_status' ) ] ) ) {
-					$args['post_status'] = self::arg( 'fmc_status' );
+					$args['post_status'] = 'draft' === self::arg( 'fmc_status' ) ? self::DESIGN_DRAFTS : self::arg( 'fmc_status' );
 				}
 				break;
 			case PostTypes::SPEAKER:
 				$args = self::speaker_args( $args, $with_state );
 				break;
 			case PostTypes::INCIDENT:
-				if ( $with_state && isset( I::RESOLUTIONS[ self::arg( 'fmc_resolution' ) ] ) ) {
-					$args['meta_query'][] = I::resolution_clause( self::arg( 'fmc_resolution' ) );
+				// Por lo que piden: no hay nada que resolver en ellas (ADR-0029).
+				if ( $with_state && isset( I::KINDS[ self::arg( 'fmc_request' ) ] ) ) {
+					$args['meta_query'][] = array(
+						'key'   => I::REQUEST,
+						'value' => self::arg( 'fmc_request' ),
+					);
 				}
 				// Cada asesoría ve las incidencias de sus acciones y las que ha
-				// abierto, y nada más (ADR-0022). Quien las resuelve, todas.
+				// abierto, y nada más (ADR-0022). El servicio y la coordinación, todas.
 				if ( ! current_user_can( 'read_private_fmc_incidents' ) && ! current_user_can( 'edit_others_fmc_incidents' ) ) {
 					unset( $args['fmc_visible'] );
 					$args['fmc_own_incidents'] = true;
@@ -515,6 +546,32 @@ final class Lists {
 		return ' AND ' . implode( ' AND ', $open )
 			. ' AND ' . $exists( A::START, '<=', $today, true )
 			. ' AND ( ' . $ends[0] . ' OR ( NOT ' . $exists( A::END ) . ' AND ' . $ends[1] . ' ) )';
+	}
+
+	/**
+	 * `fmc_delivery` query arg: delivered actions that still wait for the file
+	 * number of the training service (`publish`), or that have it (`completed`).
+	 * And `fmc_not_cancelled`: without the cancelled ones.
+	 *
+	 * Una subconsulta, como en la situación: una unión dentro de un `OR`
+	 * multiplicaría las filas por todas las metas de la acción.
+	 *
+	 * @param \WP_Query $query Query.
+	 * @return string
+	 */
+	private static function delivery_sql( \WP_Query $query ): string {
+		global $wpdb;
+		$sql = '';
+		// `fmc_not_cancelled`: sin las canceladas, que no se han impartido.
+		if ( $query->get( 'fmc_not_cancelled' ) ) {
+			$sql .= $wpdb->prepare( " AND NOT EXISTS ( SELECT 1 FROM $wpdb->postmeta fmc_c WHERE fmc_c.post_id = $wpdb->posts.ID AND fmc_c.meta_key = %s AND fmc_c.meta_value = 'cancelled' )", A::SITUATION );
+		}
+		$state = (string) $query->get( 'fmc_delivery' );
+		if ( 'publish' !== $state && 'completed' !== $state ) {
+			return $sql;
+		}
+		$has = $wpdb->prepare( "EXISTS ( SELECT 1 FROM $wpdb->postmeta fmc_f WHERE fmc_f.post_id = $wpdb->posts.ID AND fmc_f.meta_key = %s AND TRIM( fmc_f.meta_value ) <> '' )", A::FILE_NUMBER );
+		return $sql . ' AND ' . ( 'completed' === $state ? '' : 'NOT ' ) . $has;
 	}
 
 	/**
@@ -588,9 +645,9 @@ final class Lists {
 	 * @return array<string, mixed>
 	 */
 	private static function action_search( array $args ): array {
-		// Se busca también por el expediente y el subtítulo, no solo por el título.
+		// Se busca también por los dos expedientes, no solo por el título.
 		$args['fmc_text']      = $args['s'];
-		$args['fmc_text_keys'] = array( A::FILE_NUMBER, A::INTERNAL_REF, A::SUBTITLE );
+		$args['fmc_text_keys'] = array( A::FILE_NUMBER, A::INTERNAL_REF );
 		$args['s']             = '';
 		// «Empieza por»: el prefijo del expediente dice con qué fondos se paga.
 		if ( '' !== self::arg( 'fmc_file' ) ) {
@@ -601,7 +658,9 @@ final class Lists {
 			);
 		}
 		if ( '' !== self::arg( 'fmc_incident' ) ) {
-			$with             = array_filter( self::incidents(), static fn( $c ) => 'pending' !== self::arg( 'fmc_incident' ) || $c['pending'] > 0 );
+			// Con alguna incidencia, o con que la última sea de una clase.
+			$kind             = self::arg( 'fmc_incident' );
+			$with             = array_filter( self::incidents(), static fn( $c ) => ! isset( I::KINDS[ $kind ] ) || $c['last'] === $kind );
 			$args['post__in'] = $with ? array_keys( $with ) : array( 0 );
 		}
 		return $args;
@@ -728,9 +787,8 @@ final class Lists {
 				// Sin el histórico, que va en su contador.
 				'label' => PostTypes::DESIGN === $type && self::writes_designs() ? 'Vigentes' : 'En total',
 				'n'     => self::total( $base ),
-				// En incidencias, el total es un filtro más: saca el «Pendiente» de serie.
-				'arg'   => PostTypes::INCIDENT === $type ? 'fmc_resolution' : '',
-				'value' => PostTypes::INCIDENT === $type ? 'all' : '',
+				'arg'   => '',
+				'value' => '',
 			),
 		);
 		$by   = array();
@@ -739,10 +797,23 @@ final class Lists {
 				foreach ( A::SITUATIONS as $key => $label ) {
 					$by[] = array( $label, 'fmc_situation', $key, array( 'fmc_in_situation' => $key ) );
 				}
+				// Lo que le queda por hacer a quien pone el expediente: las
+				// entregadas que aún no lo tienen.
+				if ( current_user_can( PostTypes::CAP_SERVICE_FIELDS ) ) {
+					$by[] = array(
+						'Sin expediente',
+						'fmc_status',
+						'publish',
+						array(
+							'post_status'  => 'publish',
+							'fmc_delivery' => 'publish',
+						),
+					);
+				}
 				break;
 			case PostTypes::DESIGN:
 				foreach ( self::writes_designs() ? self::DESIGN_STATUSES : array() as $key => $status ) {
-					$by[] = array( $status[0], 'fmc_status', $key, array( 'post_status' => $key ) );
+					$by[] = array( $status[0], 'fmc_status', $key, array( 'post_status' => 'draft' === $key ? self::DESIGN_DRAFTS : $key ) );
 				}
 				break;
 			case PostTypes::SPEAKER:
@@ -751,18 +822,23 @@ final class Lists {
 				}
 				break;
 			case PostTypes::INCIDENT:
-				foreach ( I::RESOLUTIONS as $key => $label ) {
+				foreach ( I::KINDS as $key => $label ) {
 					$by[] = array(
 						$label,
-						'fmc_resolution',
+						'fmc_request',
 						$key,
 						array(
 							'meta_query' => array_merge( // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_query -- contadores del listado.
 								$base['meta_query'],
-								array( I::resolution_clause( $key ) )
+								array(
+									array(
+										'key'   => I::REQUEST,
+										'value' => $key,
+									),
+								)
 							),
 						),
-					); // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_query
+					);
 				}
 				break;
 		}
@@ -810,7 +886,7 @@ final class Lists {
 			) . '">Exportar CSV</a>';
 		}
 		if ( PostTypes::DESIGN === $type ) {
-			$actions .= ' <a class="btn btn-outline-secondary" href="' . esc_url( Catalogue::url() ) . '" target="_blank" rel="noopener">Ver el catálogo público</a>';
+			$actions .= ' <a class="btn btn-outline-secondary" href="' . esc_url( Catalogue::public_url() ) . '" target="_blank" rel="noopener">Ver el catálogo público</a>';
 		}
 		// La lista es una vista más de las acciones, junto al calendario.
 		if ( PostTypes::ACTION === $type ) {
@@ -832,7 +908,7 @@ final class Lists {
 			// De qué va cada listado ya lo dice su pestaña: solo lleva línea
 			// debajo la que dice algo que no se ve, como que los diseños se
 			// consultan finalizados y de solo lectura (ADR-0017).
-			'subtitle' => PostTypes::DESIGN === $type && ! self::writes_designs() ? self::SUBTITLE_DESIGN_READER . ( current_user_can( 'edit_fmc_actions' ) ? ' Desde la ficha se agenda una acción.' : '' ) : '',
+			'subtitle' => PostTypes::DESIGN === $type && ! self::writes_designs() ? self::SUBTITLE_DESIGN_READER . ( current_user_can( 'edit_fmc_actions' ) ? ' Desde la ficha puede agendar una acción.' : '' ) : '',
 			'actions'  => $actions,
 			'body'     => $body,
 		);
@@ -848,10 +924,10 @@ final class Lists {
 	 */
 	private static function found_html( string $tab, int $found, string $type = PostTypes::SPEAKER ): string {
 		if ( PostTypes::DESIGN === $type ) {
-			return '<p class="fmc-found">' . esc_html( sprintf( '%s diseño(s) finalizado(s)', number_format_i18n( $found ) ) ) . '</p>';
+			return '<p class="fmc-found">' . esc_html( Screen::counted( $found, 'diseño finalizado', 'diseños finalizados' ) ) . '</p>';
 		}
 		$trash = self::speaker_trash();
-		$out   = '<p class="fmc-found">' . esc_html( sprintf( $trash ? '%s en la papelera' : '%s ponente(s)', number_format_i18n( $found ) ) );
+		$out   = '<p class="fmc-found">' . esc_html( $trash ? sprintf( '%s en la papelera', number_format_i18n( $found ) ) : Screen::counted( $found, 'ponente', 'ponentes' ) );
 		if ( current_user_can( 'read_private_fmc_speakers' ) ) {
 			$args = array_merge( self::current_filters(), array( Screen::ARG_TAB => $tab ) );
 			// La papelera se abre con los filtros puestos, y se vuelve con ellos.
@@ -872,8 +948,8 @@ final class Lists {
 		$out = '<div class="fmc-counters mb-3">';
 		foreach ( $counters as $c ) {
 			$args   = array_merge( self::current_filters(), array( Screen::ARG_TAB => $tab ) );
-			$active = '' !== $c['arg'] ? self::arg( (string) $c['arg'] ) === $c['value'] : '' === self::arg( 'fmc_situation' ) . self::arg( 'fmc_status' ) . self::arg( 'fmc_resolution' );
-			unset( $args['fmc_situation'], $args['fmc_status'], $args['fmc_resolution'], $args['fmc_page'] );
+			$active = '' !== $c['arg'] ? self::arg( (string) $c['arg'] ) === $c['value'] : '' === self::arg( 'fmc_situation' ) . self::arg( 'fmc_status' ) . self::arg( 'fmc_request' );
+			unset( $args['fmc_situation'], $args['fmc_status'], $args['fmc_request'], $args['fmc_page'] );
 			if ( '' !== $c['arg'] ) {
 				$args[ (string) $c['arg'] ] = $c['value'];
 			}
@@ -887,14 +963,13 @@ final class Lists {
 	 *
 	 * @return array<string, string>
 	 */
-	private static function current_filters(): array {
+	public static function current_filters(): array {
 		$out = array();
-		foreach ( array( 'fmc_s', 'fmc_scope', 'fmc_programme', 'fmc_topic', 'fmc_modality', 'fmc_process', 'fmc_situation', 'fmc_year', 'fmc_type', 'fmc_status', 'fmc_zone', 'fmc_available', 'fmc_resolution', 'fmc_month', 'fmc_speaker', 'fmc_from', 'fmc_to', 'fmc_catalogue', 'fmc_recommended', 'fmc_file', 'fmc_incident', 'fmc_given', 'fmc_sort', 'fmc_dir', 'fmc_view', 'fmc_adviser', 'fmc_adviser_kind' ) as $key ) {
+		foreach ( array( 'fmc_s', 'fmc_scope', 'fmc_programme', 'fmc_topic', 'fmc_modality', 'fmc_process', 'fmc_situation', 'fmc_year', 'fmc_type', 'fmc_status', 'fmc_zone', 'fmc_available', 'fmc_request', 'fmc_month', 'fmc_speaker', 'fmc_from', 'fmc_to', 'fmc_catalogue', 'fmc_recommended', 'fmc_file', 'fmc_incident', 'fmc_given', 'fmc_sort', 'fmc_dir', 'fmc_view', 'fmc_adviser', 'fmc_adviser_kind' ) as $key ) {
 			// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- filtros de lectura.
-			if ( in_array( $key, array( 'fmc_resolution', 'fmc_year' ), true ) && ! isset( $_GET[ $key ] ) ) {
-				// Lo que vale de serie —el «Pendiente» de las incidencias, el
-				// curso en marcha— no se arrastra a los enlaces: lo vuelve a
-				// poner `arg()` en la pantalla que lo use.
+			if ( 'fmc_year' === $key && ! isset( $_GET[ $key ] ) ) {
+				// Lo que vale de serie —el curso en marcha— no se arrastra a los
+				// enlaces: lo vuelve a poner `arg()` en la pantalla que lo use.
 				continue;
 			}
 			if ( '' !== self::arg( $key ) ) {
@@ -913,15 +988,17 @@ final class Lists {
 	 */
 	public static function filters_html( string $tab, string $type ): string {
 		$placeholders = array(
-			PostTypes::ACTION  => 'Título, subtítulo o expediente…',
+			PostTypes::ACTION  => 'Título o expediente…',
 			PostTypes::SPEAKER => 'Nombre…',
 		);
 		$quick        = array();
 		$fields       = array();
+		$mine         = '';
 		switch ( $type ) {
 			case PostTypes::ACTION:
-				// A la vista, lo que se usa a diario; lo demás, en «Búsqueda
-				// avanzada», donde las etiquetas largas caben enteras.
+				$mine = self::mine_html( $tab );
+				// A la vista, lo que se usa a diario; lo demás, en «Más
+				// filtros», donde las etiquetas largas caben enteras.
 				$quick[]  = self::select( 'fmc_situation', 'Situación', A::SITUATIONS, 'Todas' );
 				$quick[]  = self::select( 'fmc_year', 'Curso escolar', self::school_years(), 'Todos' );
 				$fields[] = self::select( 'fmc_adviser_kind', 'Tipo de asesoría', Advisers::KINDS, 'Todos' );
@@ -933,15 +1010,7 @@ final class Lists {
 				$fields[] = self::select( 'fmc_status', 'Estado', A::DELIVERY, 'Todos' );
 				$fields[] = self::select( 'fmc_speaker', 'Ponente', self::post_choices( PostTypes::SPEAKER ), 'Todos', true );
 				$fields[] = self::select( 'fmc_adviser', 'Asesoría', Advisers::choices(), 'Todas', true );
-				$fields[] = self::select(
-					'fmc_incident',
-					'Incidencias',
-					array(
-						'pending' => 'Con alguna pendiente',
-						'any'     => 'Con alguna',
-					),
-					'Todas'
-				);
+				$fields[] = self::select( 'fmc_incident', 'Incidencias', array( 'any' => 'Con alguna' ) + I::KINDS, 'Todas' );
 				$fields[] = self::date_field( 'fmc_from', 'Empieza desde' );
 				$fields[] = self::date_field( 'fmc_to', 'hasta' );
 				break;
@@ -985,7 +1054,7 @@ final class Lists {
 				);
 				break;
 			case PostTypes::INCIDENT:
-				$quick[] = self::select( 'fmc_resolution', 'Resolución', I::RESOLUTIONS, 'Todas' );
+				$quick[] = self::select( 'fmc_request', 'Tipo', I::KINDS, 'Todos' );
 				break;
 		}
 
@@ -1009,31 +1078,62 @@ final class Lists {
 		foreach ( $fields as $field ) {
 			$set += preg_match( '/name="(fmc_[a-z_]+)"/', $field, $m ) && '' !== self::arg( $m[1] ) ? 1 : 0;
 		}
-		$out .= '<div class="row g-2 align-items-end">' . self::search_field( $placeholders[ $type ] ?? 'Título…' ) . implode( '', $quick );
-		$out .= '<div class="col-auto"><button class="btn btn-outline-dark" type="submit">Filtrar</button>';
+		// Sin botón «Filtrar»: cada desplegable y cada fecha filtran al
+		// cambiarlos (`fmc-app.js`), y lo que se escribe, con Intro o con la
+		// lupa de «Buscar», que es además el botón de quien no tiene JavaScript.
+		$out .= '<div class="row g-2 align-items-end"><div class="col-12 col-md-3"><label class="form-label small fw-semibold" for="fmc_s">Buscar</label><div class="input-group"><input class="form-control" id="fmc_s" name="fmc_s" type="search" value="' . esc_attr( self::arg( 'fmc_s' ) ) . '" placeholder="' . esc_attr( $placeholders[ $type ] ?? 'Título…' ) . '">' . self::SEARCH_BUTTON . '</div></div>' . implode( '', $quick );
+		$out .= '<div class="col-auto">' . $mine;
 		if ( array() !== $fields ) {
 			// El plegado es el de Bootstrap: sin guion propio, y sin JavaScript
 			// se ve la tarjeta entera, que es lo de antes.
-			$out .= ' <button class="btn btn-link" type="button" data-bs-toggle="collapse" data-bs-target="#fmc-advanced" aria-expanded="' . ( $set ? 'true' : 'false' ) . '" aria-controls="fmc-advanced">Búsqueda avanzada' . ( $set ? ' <span class="badge text-bg-secondary">' . (int) $set . '</span>' : '' ) . '</button>';
+			$out .= ' <button class="btn btn-link" type="button" data-bs-toggle="collapse" data-bs-target="#fmc-advanced" aria-expanded="' . ( $set ? 'true' : 'false' ) . '" aria-controls="fmc-advanced">Más filtros' . ( $set ? ' <span class="badge text-bg-secondary">' . (int) $set . '</span>' : '' ) . '</button>';
 		}
 		$out .= ' <a class="btn btn-link" href="' . esc_url( Screen::url( $reset ) ) . '">Quitar filtros</a></div></div>';
 		if ( array() !== $fields ) {
-			// La misma X de siempre para cerrar el panel: el botón de «Búsqueda
-			// avanzada» también lo pliega, pero ahí arriba no se ve que es un
+			// La misma X de siempre para cerrar el panel: el botón de «Más
+			// filtros» también lo pliega, pero ahí arriba no se ve que es un
 			// interruptor.
-			$out .= '<div class="collapse' . ( $set ? ' show' : '' ) . '" id="fmc-advanced"><div class="position-relative"><button class="btn-close position-absolute top-0 end-0 mt-1" type="button" data-bs-toggle="collapse" data-bs-target="#fmc-advanced" aria-controls="fmc-advanced" aria-label="Cerrar la búsqueda avanzada" title="Cerrar la búsqueda avanzada"></button><div class="row g-2 align-items-end mt-1 pe-4">' . implode( '', $fields ) . '</div></div></div>';
+			$out .= '<div class="collapse' . ( $set ? ' show' : '' ) . '" id="fmc-advanced"><div class="position-relative"><button class="btn-close position-absolute top-0 end-0 mt-1" type="button" data-bs-toggle="collapse" data-bs-target="#fmc-advanced" aria-controls="fmc-advanced" aria-label="Cerrar los filtros" title="Cerrar los filtros"></button><div class="row g-2 align-items-end mt-1 pe-4">' . implode( '', $fields ) . '</div></div></div>';
 		}
 		return $out . '</form>';
 	}
 
 	/**
-	 * The search box.
+	 * The shortcuts of an adviser in the planning: their own actions, and their centre's.
 	 *
-	 * @param string $placeholder What to type.
+	 * Son dos filtros que ya están en «Más filtros» —la asesoría y el
+	 * ámbito—, puestos a un clic para quien más los usa: cada cual, los suyos.
+	 * Pulsado otra vez, se quita. El centro es el de referencia de la cuenta
+	 * (ADR-0022); quien no tiene, no ve ese acceso.
+	 *
+	 * @param string $tab Tab.
 	 * @return string
 	 */
-	private static function search_field( string $placeholder ): string {
-		return '<div class="col-12 col-md-3"><label class="form-label small fw-semibold" for="fmc_s">Buscar</label><input class="form-control" id="fmc_s" name="fmc_s" type="search" value="' . esc_attr( self::arg( 'fmc_s' ) ) . '" placeholder="' . esc_attr( $placeholder ) . '"></div>';
+	private static function mine_html( string $tab ): string {
+		$user = get_current_user_id();
+		// El filtro de ámbito lleva el slug del término, no su identificador.
+		$scope = get_term( Advisers::scope( $user ), Taxonomies::SCOPE );
+		$scope = $scope instanceof \WP_Term ? $scope->slug : '';
+		$out   = '';
+		foreach ( array(
+			'fmc_adviser' => array( array_intersect( Advisers::ROLES, (array) wp_get_current_user()->roles ) ? (string) $user : '', 'Las mías', 'Las acciones de las que soy la asesoría responsable' ),
+			'fmc_scope'   => array( $scope, 'Las de mi centro', 'Las acciones que gestiona mi centro de referencia' ),
+		) as $arg => $own ) {
+			if ( '' === $own[0] ) {
+				continue;
+			}
+			$on   = self::arg( $arg ) === $own[0];
+			$args = array_merge(
+				self::current_filters(),
+				array(
+					Screen::ARG_TAB => $tab,
+					'fmc_day'       => self::arg( 'fmc_day' ),
+					$arg            => $on ? '' : $own[0],
+				)
+			);
+			$out .= '<a class="btn btn-sm fmc-mine ' . ( $on ? 'btn-dark' : 'btn-outline-dark' ) . '" href="' . esc_url( Screen::url( $args ) ) . '" title="' . esc_attr( $own[2] ) . '"' . ( $on ? ' aria-current="true"' : '' ) . '>' . esc_html( $own[1] ) . '</a> ';
+		}
+		return $out;
 	}
 
 	/**
@@ -1152,37 +1252,43 @@ final class Lists {
 	 */
 	public static function table_html( string $type, array $posts ): string {
 		if ( array() === $posts ) {
-			return '<div class="card card-body text-secondary">No hay nada que mostrar con estos filtros.</div>';
+			return '<div class="card card-body text-secondary">No hay resultados con estos filtros.</div>';
 		}
 		$columns = self::columns( $type );
+		// Las columnas que van antes del título: el código del diseño, que es
+		// por lo que se ordena y lo primero que se busca con la vista.
+		$leading = array_intersect_key( $columns, array_flip( self::LEADING ) );
+		$columns = array_diff_key( $columns, $leading );
+		$cell    = static function ( $value ): string {
+			// Una celda con `html` viene ya escapada: lleva enlaces o un menú.
+			if ( is_array( $value ) ) {
+				return '<td>' . $value['html'] . '</td>';
+			}
+			$lines = array_map( 'esc_html', explode( "\n", (string) $value ) );
+			$first = (string) array_shift( $lines );
+			$lines = array_filter( $lines, 'strlen' );
+			return '<td>' . $first . ( $lines ? '<div class="small text-secondary">' . implode( '</div><div class="small text-secondary">', $lines ) . '</div>' : '' ) . '</td>';
+		};
 		$out     = '<div class="card fmc-table"><div class="table-responsive"><table class="table table-hover align-middle mb-0"><thead><tr>';
-		foreach ( array_merge( array( get_post_type_object( $type )->labels->singular_name ), array_keys( $columns ) ) as $h ) {
+		foreach ( array_merge( array_keys( $leading ), array( get_post_type_object( $type )->labels->singular_name ), array_keys( $columns ) ) as $h ) {
 			$out .= self::th( $type, $h );
 		}
 		$out .= '<th scope="col" class="text-end"><span class="visually-hidden">Acciones</span></th></tr></thead><tbody>';
 		foreach ( $posts as $post ) {
+			$cells = static fn( array $some ): string => implode( '', array_map( static fn( callable $read ): string => $cell( $read( $post ) ), $some ) );
 			$thumb = PostTypes::DESIGN === $type && has_post_thumbnail( $post ) ? get_the_post_thumbnail( $post, array( 48, 48 ), array( 'class' => 'fmc-thumb' ) ) : '';
+			// Una acción cancelada sale tachada: sigue ahí, pero no se imparte.
+			$gone = str_repeat( ' is-cancelled', (int) ( 'cancelled' === A::situation( $post->ID ) ) );
 			// En la papelera no hay ficha que abrir: se recupera desde el escritorio.
-			$name = 'trash' === $post->post_status ? '<span class="fw-semibold">' . esc_html( self::title( $post ) ) . '</span>' : '<a class="fw-semibold fmc-abre-panel" href="' . esc_url( Screen::url( array( Screen::ARG_EDIT => $post->ID ) ) ) . '">' . esc_html( self::title( $post ) ) . '</a>';
-			$file = PostTypes::ACTION === $type ? (string) get_post_meta( $post->ID, A::FILE_NUMBER, true ) : '';
-			// El expediente va debajo del título: una columna menos, y el ámbito cabe.
-			$link = $thumb . $name . self::badge( $post ) . self::subtitle( $post ) . ( '' !== $file ? '<div class="small text-secondary">' . esc_html( $file ) . '</div>' : '' );
-			$out .= '<tr><td class="fmc-col-title">' . $link . '</td>';
-			foreach ( $columns as $cell ) {
-				$value = $cell( $post );
-				// Una celda con `html` viene ya escapada: lleva enlaces o un menú.
-				if ( is_array( $value ) ) {
-					$out .= '<td>' . $value['html'] . '</td>';
-					continue;
-				}
-				$lines = explode( "\n", (string) $value );
-				$out  .= '<td>' . esc_html( array_shift( $lines ) );
-				foreach ( array_filter( $lines, 'strlen' ) as $line ) {
-					$out .= '<div class="small text-secondary">' . esc_html( $line ) . '</div>';
-				}
-				$out .= '</td>';
-			}
-			$out .= '<td class="text-end text-nowrap">' . self::row_buttons( $post ) . '</td></tr>';
+			$name = 'trash' === $post->post_status ? '<span class="fw-semibold">' . esc_html( self::title( $post ) ) . '</span>' : '<a class="fw-semibold fmc-abre-panel' . $gone . '" href="' . esc_url( Screen::url( array( Screen::ARG_EDIT => $post->ID ) ) ) . '">' . esc_html( self::title( $post ) ) . '</a>';
+			// Los expedientes de la acción van debajo del título, cada uno en su
+			// línea: una columna menos, y el ámbito cabe. Quien los tiene en sus
+			// propias columnas no los repite; y lo que no es una acción no tiene
+			// ninguno.
+			$file = str_repeat( nl2br( esc_html( A::file_numbers( $post->ID, true ) ) ), (int) ! $leading );
+			// Solo si hay algo que poner: una línea vacía se queda en nada.
+			$link = $thumb . $name . self::badge( $post ) . preg_replace( '/^(.+)$/s', '<div class="small text-secondary">$1</div>', $file );
+			$out .= '<tr>' . $cells( $leading ) . '<td class="fmc-col-title">' . $link . '</td>' . $cells( $columns ) . '<td class="text-end text-nowrap">' . self::row_buttons( $post ) . '</td></tr>';
 		}
 		return $out . '</tbody></table></div></div>';
 	}
@@ -1230,7 +1336,10 @@ final class Lists {
 		}
 		$args                   = self::query_args( $type );
 		$args['posts_per_page'] = 5000; // phpcs:ignore WordPress.WP.PostsPerPage.posts_per_page_posts_per_page -- una exportación entera.
-		$args['no_found_rows']  = true;
+		// Una cancelada no se ha impartido: no sale en la hoja con la que se
+		// cuenta lo hecho, salvo que se pida verlas filtrando por «Cancelada».
+		$args['fmc_not_cancelled'] = 'cancelled' !== self::arg( 'fmc_situation' );
+		$args['no_found_rows']     = true;
 		// Desde el calendario, lo que se ve en él: las acciones con sesión en el
 		// periodo, no las que empiezan en él (ADR-0027). Las fechas ya las mira
 		// el calendario, con los demás filtros.
@@ -1261,7 +1370,7 @@ final class Lists {
 		fwrite( $out, "\xEF\xBB\xBF" ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fwrite -- BOM para las hojas de cálculo.
 		fputcsv( $out, $head, ';' );
 		foreach ( get_posts( $args + array( 'suppress_filters' => false ) ) as $post ) {
-			$state = PostTypes::ACTION === $type ? ( A::DELIVERY[ $post->post_status ] ?? $post->post_status ) : ( get_post_status_object( $post->post_status )->label ?? $post->post_status );
+			$state = PostTypes::ACTION === $type ? ( A::DELIVERY[ A::delivery( $post ) ] ?? $post->post_status ) : ( get_post_status_object( $post->post_status )->label ?? $post->post_status );
 			$row   = array_merge( array( $post->ID, $state ), $titled ? array( get_the_title( $post ) ) : array() );
 			foreach ( $fields as $key => $f ) {
 				$row[] = self::plain( $post, $key, $f );
@@ -1336,7 +1445,10 @@ final class Lists {
 		$m = static fn( \WP_Post $p, string $key ): string => (string) get_post_meta( $p->ID, $key, true );
 		switch ( $type ) {
 			case PostTypes::ACTION:
-				return array(
+				return ( PostTypes::is_training_service() ? array(
+					'Expediente interno'              => static fn( $p ) => $m( $p, A::INTERNAL_REF ),
+					'Expediente de perfeccionamiento' => static fn( $p ) => '' !== $m( $p, A::FILE_NUMBER ) ? $m( $p, A::FILE_NUMBER ) : '—',
+				) : array() ) + array(
 					'Ámbito y centro' => static fn( $p ) => self::terms( $p->ID, 'fmc_scope' ) . "\n" . $m( $p, A::VENUE_CENTRE ),
 					'Ponentes'        => static fn( $p ) => implode( "\n", array_map( 'get_the_title', array_filter( array_map( 'intval', (array) get_post_meta( $p->ID, A::SPEAKERS, true ) ) ) ) ),
 					'Tipo y horas'    => static fn( $p ) => ( D::TYPES[ (string) get_post_meta( (int) $m( $p, A::DESIGN_ID ), D::TYPE, true ) ] ?? '' ) . "\n" . trim( ( D::MODALITIES[ $m( $p, A::MODALITY ) ] ?? '' ) . ' · ' . self::hours( $m( $p, A::HOURS_ONSITE ), $m( $p, A::HOURS_ONLINE ) ), ' ·' ),
@@ -1345,7 +1457,7 @@ final class Lists {
 						$sessions = Sessions::summary( Sessions::clean( get_post_meta( $p->ID, A::SESSIONS, true ) ) );
 						return self::dates( $m( $p, A::START ), $m( $p, A::END ) ) . "\n" . ( '' !== $sessions ? $sessions : wp_trim_words( $m( $p, A::SCHEDULE ), 12 ) );
 					},
-					'Estado'          => static fn( $p ) => ( A::DELIVERY[ $p->post_status ] ?? '' ) . "\n" . SchoolYear::of( $m( $p, A::START ) ),
+					'Estado'          => static fn( $p ) => ( A::DELIVERY[ A::delivery( $p ) ] ?? '' ) . "\n" . SchoolYear::of( $m( $p, A::START ) ),
 				);
 			case PostTypes::DESIGN:
 				return array(
@@ -1371,11 +1483,14 @@ final class Lists {
 				);
 			default:
 				return array(
-					'Expediente' => static fn( $p ) => ( $p->post_parent ? (string) get_post_meta( $p->post_parent, A::FILE_NUMBER, true ) . "\n" . self::terms( $p->post_parent, 'fmc_scope' ) : '' ),
-					'Creada'     => static fn( $p ) => get_the_date( 'd/m/Y', $p ) . "\n" . get_the_author_meta( 'display_name', (int) $p->post_author ),
-					'Motivos'    => static fn( $p ) => wp_trim_words( $m( $p, I::REASON ), 18 ),
-					'Coste'      => static fn( $p ) => $m( $p, I::HAS_COST ) ? 'Con coste' : 'Sin coste',
-					'Resolución' => static fn( $p ) => ( I::RESOLUTIONS[ $m( $p, I::RESOLUTION ) ] ?? 'Pendiente' ) . "\n" . wp_trim_words( $m( $p, I::RESOLUTION_NOTES ), 10 ),
+					// Lo que se pidió y, si movió la acción, de qué fechas a cuáles.
+					'Tipo'          => static function ( $p ) use ( $m ) {
+						$moved = '' !== $m( $p, I::NEW_START ) ? trim( self::dates( $m( $p, I::OLD_START ), $m( $p, I::OLD_END ) ) . ' → ' . self::dates( $m( $p, I::NEW_START ), $m( $p, I::NEW_END ) ), ' →' ) : '';
+						return ( I::KINDS[ $m( $p, I::REQUEST ) ] ?? '—' ) . "\n" . $moved;
+					},
+					'Expediente'    => static fn( $p ) => ( $p->post_parent ? implode( "\n", array_filter( array( (string) get_post_meta( $p->post_parent, A::FILE_NUMBER, true ), (string) get_post_meta( $p->post_parent, A::INTERNAL_REF, true ), self::terms( $p->post_parent, 'fmc_scope' ) ), 'strlen' ) ) : '' ),
+					'Creada'        => static fn( $p ) => get_the_date( 'd/m/Y', $p ) . "\n" . get_the_author_meta( 'display_name', (int) $p->post_author ),
+					'Justificación' => static fn( $p ) => wp_trim_words( $m( $p, I::REASON ), 24 ),
 				);
 		}
 	}
@@ -1396,7 +1511,8 @@ final class Lists {
 			if ( ! $post instanceof \WP_Post || PostTypes::DESIGN !== $post->post_type || ! current_user_can( 'read_post', $id ) ) {
 				continue;
 			}
-			$out[] = get_the_title( $post ) . ( 'publish' !== $post->post_status && isset( self::DESIGN_STATUSES[ $post->post_status ] ) ? ' (' . self::DESIGN_STATUSES[ $post->post_status ][0] . ')' : '' );
+			$status = PostTypes::design_status( $post->post_status );
+			$out[]  = get_the_title( $post ) . ( 'publish' !== $status && isset( self::DESIGN_STATUSES[ $status ] ) ? ' (' . self::DESIGN_STATUSES[ $status ][0] . ')' : '' );
 		}
 		return $out;
 	}
@@ -1404,7 +1520,7 @@ final class Lists {
 	/**
 	 * What a speaker has given, with the actions themselves in a menu.
 	 *
-	 * Al pulsar «N acción(es)» se abre un menú con las más recientes de las que
+	 * Al pulsar «N acciones» se abre un menú con las más recientes de las que
 	 * cuentan con los filtros puestos, cada una a su ficha, y el enlace al
 	 * listado de acciones con todas las suyas. Es un menú de
 	 * Bootstrap con posición fija, para que la tabla no lo recorte; sin
@@ -1424,15 +1540,13 @@ final class Lists {
 		);
 		$rows  = Speakers::given( $speaker, self::arg( 'fmc_given' ), self::arg( 'fmc_file' ), self::arg( 'fmc_from' ) );
 		$shown = array_slice( $rows, 0, self::GIVEN_MENU );
-		$out   = '<div class="dropdown fmc-given"><a class="dropdown-toggle fmc-given-toggle" href="' . esc_url( $all ) . '" role="button" data-bs-toggle="dropdown" data-bs-popper-config="' . esc_attr( '{"strategy":"fixed"}' ) . '" aria-expanded="false">' . esc_html( sprintf( '%d acción(es)', $totals['actions'] ) ) . '</a>';
+		$out   = '<div class="dropdown fmc-given"><a class="dropdown-toggle fmc-given-toggle" href="' . esc_url( $all ) . '" role="button" data-bs-toggle="dropdown" data-bs-popper-config="' . esc_attr( '{"strategy":"fixed"}' ) . '" aria-expanded="false">' . esc_html( Screen::counted( (int) $totals['actions'], 'acción', 'acciones' ) ) . '</a>';
 		$out  .= '<div class="small text-secondary">' . esc_html( ( $totals['hours'] + 0 ) . ' h' ) . '</div>';
 		$out  .= '<div class="dropdown-menu fmc-given-menu"><div class="dropdown-header">' . esc_html( count( $rows ) > count( $shown ) ? sprintf( 'Las %1$d más recientes de %2$d', count( $shown ), count( $rows ) ) : 'Acciones que ha impartido' ) . '</div>';
 		foreach ( $shown as $row ) {
-			// Las acciones antiguas llevan el subtítulo dentro del título (ADR-0009): no se repite.
-			$sub  = '' !== $row['subtitle'] && false === mb_stripos( $row['title'], $row['subtitle'] ) ? '<span class="d-block small text-secondary">' . esc_html( $row['subtitle'] ) . '</span>' : '';
-			$out .= '<a class="dropdown-item fmc-abre-panel" title="' . esc_attr( $row['title'] ) . '" href="' . esc_url( Screen::url( array( Screen::ARG_EDIT => $row['id'] ) ) ) . '"><span class="fmc-given-date">' . esc_html( self::dates( $row['start'], '' ) ) . '</span> ' . esc_html( '' !== $row['title'] ? $row['title'] : '(sin título)' ) . $sub . '</a>';
+			$out .= '<a class="dropdown-item fmc-abre-panel" title="' . esc_attr( $row['title'] ) . '" href="' . esc_url( Screen::url( array( Screen::ARG_EDIT => $row['id'] ) ) ) . '"><span class="fmc-given-date">' . esc_html( self::dates( $row['start'], '' ) ) . '</span> ' . esc_html( '' !== $row['title'] ? $row['title'] : '(sin título)' ) . '</a>';
 		}
-		$out .= '<div class="dropdown-divider"></div><a class="dropdown-item" href="' . esc_url( $all ) . '">Todas sus acciones, en el listado</a></div></div>';
+		$out .= '<div class="dropdown-divider"></div><a class="dropdown-item" href="' . esc_url( $all ) . '">Ver todas sus acciones en el listado</a></div></div>';
 		return $out;
 	}
 
@@ -1496,8 +1610,8 @@ final class Lists {
 			return ( 'draft' === $post->post_status ? ' <span class="badge rounded-pill text-bg-light border">Borrador</span>' : '' )
 				. ( isset( A::SITUATIONS[ $s ] ) ? ' <span class="badge rounded-pill text-bg-' . esc_attr( self::SITUATION_COLOURS[ $s ] ) . '">' . esc_html( A::SITUATIONS[ $s ] ) . '</span>' : '' ) . self::incident_badge( $post->ID );
 		}
-		if ( PostTypes::DESIGN === $post->post_type && isset( self::DESIGN_STATUSES[ $post->post_status ] ) ) {
-			list( $label, $colour ) = self::DESIGN_STATUSES[ $post->post_status ];
+		if ( PostTypes::DESIGN === $post->post_type && isset( self::DESIGN_STATUSES[ PostTypes::design_status( $post->post_status ) ] ) ) {
+			list( $label, $colour ) = self::DESIGN_STATUSES[ PostTypes::design_status( $post->post_status ) ];
 			return ' <span class="badge rounded-pill text-bg-' . esc_attr( $colour ) . '">' . esc_html( $label ) . '</span>';
 		}
 		if ( PostTypes::SPEAKER === $post->post_type ) {
@@ -1525,10 +1639,11 @@ final class Lists {
 	}
 
 	/**
-	 * Whether an action has incidents, and whether any is still pending.
+	 * Whether an action has incidents, and what the latest one asked for.
 	 *
-	 * De un vistazo, como se pidió: en ámbar las que esperan resolución, en
-	 * verde cuando ya están todas resueltas.
+	 * De un vistazo: «Incidencia: cambio de ponente». Nadie las resuelve, así
+	 * que no hay pendientes ni resueltas (ADR-0029); la cancelación y el
+	 * aplazamiento ya se leen en la situación de la acción.
 	 *
 	 * @param int $action Action ID.
 	 * @return string
@@ -1541,20 +1656,8 @@ final class Lists {
 		if ( ! $c ) {
 			return '';
 		}
-		return $c['pending'] > 0
-			? ' <span class="badge rounded-pill fmc-inc is-pending">' . esc_html( sprintf( 'Incidencia pendiente (%d)', $c['pending'] ) ) . '</span>'
-			: ' <span class="badge rounded-pill fmc-inc is-done">Incidencias resueltas</span>';
-	}
-
-	/**
-	 * The subtitle of an action, under its title (ADR-0009).
-	 *
-	 * @param \WP_Post $post Post.
-	 * @return string
-	 */
-	public static function subtitle( \WP_Post $post ): string {
-		$sub = PostTypes::ACTION === $post->post_type ? (string) get_post_meta( $post->ID, A::SUBTITLE, true ) : '';
-		return '' !== $sub ? '<div class="small text-secondary">' . esc_html( $sub ) . '</div>' : '';
+		$kind = '' !== $c['last'] ? ': ' . mb_strtolower( I::KINDS[ $c['last'] ] ) : '';
+		return ' <span class="badge rounded-pill fmc-inc">' . esc_html( $c['total'] > 1 ? sprintf( 'Incidencias (%d)', $c['total'] ) : 'Incidencia' . $kind ) . '</span>';
 	}
 
 	/**

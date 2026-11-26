@@ -110,7 +110,7 @@ class Test_Lists extends WP_UnitTestCase {
 	 * @return string[]
 	 */
 	private function rows( string $type ): array {
-		preg_match_all( '/<a class="fw-semibold fmc-abre-panel" href="[^"]*">(.*?)<\/a>/', Lists::screen( 'tab', $type )['body'], $m );
+		preg_match_all( '/<a class="fw-semibold fmc-abre-panel(?: is-cancelled)?" href="[^"]*">(.*?)<\/a>/', Lists::screen( 'tab', $type )['body'], $m );
 		return $m[1];
 	}
 
@@ -329,8 +329,8 @@ class Test_Lists extends WP_UnitTestCase {
 		$this->assertSame( array( 'Ajeno publicado' ), $this->rows( PostTypes::DESIGN ) );
 		$screen = Lists::screen( 'designs', PostTypes::DESIGN );
 		$this->assertSame( array(), $this->counters( $screen['body'] ), 'sin estados que contar' );
-		$this->assertStringContainsString( '<p class="fmc-found">1 diseño(s) finalizado(s)</p>', $screen['body'] );
-		$this->assertSame( Lists::SUBTITLE_DESIGN_READER . ' Desde la ficha se agenda una acción.', $screen['subtitle'] );
+		$this->assertStringContainsString( '<p class="fmc-found">1 diseño finalizado</p>', $screen['body'] );
+		$this->assertSame( Lists::SUBTITLE_DESIGN_READER . ' Desde la ficha puede agendar una acción.', $screen['subtitle'] );
 		$this->assertStringNotContainsString( 'name="fmc_status"', $screen['body'] );
 		$this->assertStringNotContainsString( 'fmc_new=', $screen['actions'], 'no da de alta diseños' );
 		// Pedir otro estado no le enseña nada más.
@@ -339,6 +339,7 @@ class Test_Lists extends WP_UnitTestCase {
 		unset( $_GET['fmc_status'] );
 
 		$this->as_role( 'fmc_curator' );
+		$_GET['fmc_sort'] = 'title';
 		$this->assertSame( array( 'Ajeno en borrador', 'Ajeno publicado', 'Mío en revisión' ), $this->rows( PostTypes::DESIGN ) );
 	}
 
@@ -348,28 +349,32 @@ class Test_Lists extends WP_UnitTestCase {
 	public function test_designs_show_their_status_and_filter_by_it() {
 		$this->as_role( 'fmc_curator' );
 		$this->post( PostTypes::DESIGN, 'A', array(), array( 'post_status' => 'draft' ) );
+		// «En revisión» salió del ciclo: lo que se quedó ahí es un borrador más.
 		$this->post( PostTypes::DESIGN, 'B', array(), array( 'post_status' => 'pending' ) );
 		$this->post( PostTypes::DESIGN, 'C' );
 		$this->post( PostTypes::DESIGN, 'D', array(), array( 'post_status' => PostTypes::ARCHIVED ) );
+		$_GET['fmc_sort'] = 'title';
 
 		$body = Lists::screen( 'designs', PostTypes::DESIGN )['body'];
 		$this->assertStringContainsString( 'A</a> <span class="badge rounded-pill text-bg-secondary">Borrador</span>', $body );
-		$this->assertStringContainsString( 'B</a> <span class="badge rounded-pill text-bg-warning">En revisión</span>', $body );
+		$this->assertStringContainsString( 'B</a> <span class="badge rounded-pill text-bg-secondary">Borrador</span>', $body );
 		$this->assertStringContainsString( 'C</a> <span class="badge rounded-pill text-bg-success">Finalizado</span>', $body );
+		$this->assertStringNotContainsString( 'En revisión', $body );
 		$this->assertSame(
 			array(
-				'Vigentes'    => 3,
-				'Borrador'    => 1,
-				'En revisión' => 1,
-				'Finalizado'  => 1,
-				'Histórico'   => 1,
+				'Vigentes'   => 3,
+				'Borrador'   => 2,
+				'Finalizado' => 1,
+				'Histórico'  => 1,
 			),
 			$this->counters( $body )
 		);
 		$this->assertStringNotContainsString( '>D</a>', $body, 'el histórico, solo en su contador' );
 
+		$_GET['fmc_status'] = 'draft';
+		$this->assertSame( array( 'A', 'B' ), $this->rows( PostTypes::DESIGN ) );
 		$_GET['fmc_status'] = 'pending';
-		$this->assertSame( array( 'B' ), $this->rows( PostTypes::DESIGN ) );
+		$this->assertSame( array( 'A', 'B', 'C' ), $this->rows( PostTypes::DESIGN ), 'ya no es un estado por el que filtrar' );
 		$_GET['fmc_status'] = PostTypes::ARCHIVED;
 		$this->assertSame( array( 'D' ), $this->rows( PostTypes::DESIGN ) );
 		$this->assertStringContainsString( 'D</a> <span class="badge rounded-pill text-bg-dark">Histórico</span>', Lists::screen( 'designs', PostTypes::DESIGN )['body'] );
@@ -477,13 +482,78 @@ class Test_Lists extends WP_UnitTestCase {
 
 		$body = Lists::screen( 'actions', PostTypes::ACTION )['body'];
 
-		// El expediente, debajo del título; y su situación, que sale de las fechas (ADR-0020).
-		$this->assertStringContainsString( '>Acción</a> <span class="badge rounded-pill text-bg-success">Realizada</span><div class="small text-secondary">EXP-42</div></td>', $body );
+		// Los expedientes, debajo del título; y su situación, que sale de las fechas (ADR-0020).
+		$this->assertStringContainsString( '>Acción</a> <span class="badge rounded-pill text-bg-success">Realizada</span><div class="small text-secondary">Perfeccionamiento: EXP-42</div></td>', $body );
+		update_post_meta( $id, A::INTERNAL_REF, 'AF3-10/03/2026-08:00:00' );
+		// Cada uno en su línea: el interno es largo y, juntos, no caben.
+		$this->assertStringContainsString( "<div class=\"small text-secondary\">Interno: AF3-10/03/2026-08:00:00<br />\nPerfeccionamiento: EXP-42</div></td>", Lists::screen( 'actions', PostTypes::ACTION )['body'] );
+		// Con las siglas de la casa, si el despliegue las ha puesto de prefijo.
+		add_filter( 'fmc_internal_ref_prefix', static fn(): string => 'XYZ' );
+		$this->assertStringContainsString( '<div class="small text-secondary">XYZ: AF3-10/03/2026-08:00:00<br />', Lists::screen( 'actions', PostTypes::ACTION )['body'] );
+		$this->assertSame( "Expediente interno: AF3-10/03/2026-08:00:00\nExpediente de perfeccionamiento: EXP-42", A::file_numbers( $id ), 'en la ficha, con su nombre entero' );
+		remove_all_filters( 'fmc_internal_ref_prefix' );
 		$this->assertStringContainsString( '<td>Ámbito norte<div class="small text-secondary">Centro de formación Norte</div></td>', $body );
 		$this->assertStringContainsString( '<td>Ponente Uno</td>', $body );
 		$this->assertStringContainsString( '<td>Teleformación<div class="small text-secondary">En línea · 20 h</div></td>', $body );
 		$this->assertStringContainsString( '<td>10/03/2026 – 24/03/2026<div class="small text-secondary">Martes y jueves por la tarde</div></td>', $body );
-		$this->assertStringContainsString( '<td>Entregada<div class="small text-secondary">2025-2026</div></td>', $body );
+		// Con el expediente del servicio, la entregada está completada.
+		$this->assertStringContainsString( '<td>Completada<div class="small text-secondary">2025-2026</div></td>', $body );
+		delete_post_meta( $id, A::FILE_NUMBER );
+		$this->assertStringContainsString( '<td>Entregada<div class="small text-secondary">2025-2026</div></td>', Lists::screen( 'actions', PostTypes::ACTION )['body'] );
+	}
+
+	/**
+	 * Entregada es la que espera el expediente del servicio de
+	 * perfeccionamiento; con él, está completada. El estado filtra por las
+	 * tres, y quien pone el expediente tiene su contador de pendientes.
+	 */
+	public function test_a_delivered_action_is_completed_with_its_file_number() {
+		$this->as_role( 'fmc_curator' );
+		$this->post( PostTypes::ACTION, 'Borrador', array( A::START => '2026-03-01' ), array( 'post_status' => 'draft' ) );
+		$waiting = $this->post( PostTypes::ACTION, 'Sin expediente', array( A::START => '2026-03-02' ) );
+		$blank   = $this->post(
+			PostTypes::ACTION,
+			'Con el expediente en blanco',
+			array(
+				A::START       => '2026-03-03',
+				A::FILE_NUMBER => ' ',
+			)
+		);
+		$done    = $this->post(
+			PostTypes::ACTION,
+			'Con expediente',
+			array(
+				A::START       => '2026-03-04',
+				A::FILE_NUMBER => 'EXP-7',
+			)
+		);
+		$_GET    = array( 'fmc_year' => 'all' );
+
+		$this->assertSame( 'publish', A::delivery( get_post( $waiting ) ) );
+		$this->assertSame( 'publish', A::delivery( get_post( $blank ) ) );
+		$this->assertSame( 'completed', A::delivery( get_post( $done ) ) );
+		$this->assertSame( array( 'draft', 'publish', 'completed' ), array_keys( A::DELIVERY ) );
+
+		$_GET['fmc_status'] = 'publish';
+		$this->assertSame( array( 'Con el expediente en blanco', 'Sin expediente' ), $this->rows( PostTypes::ACTION ) );
+		$_GET['fmc_status'] = 'completed';
+		$this->assertSame( array( 'Con expediente' ), $this->rows( PostTypes::ACTION ) );
+		$_GET['fmc_status'] = 'draft';
+		$this->assertSame( array( 'Borrador' ), $this->rows( PostTypes::ACTION ) );
+		unset( $_GET['fmc_status'] );
+
+		// La coordinación no pone el expediente: no tiene ese contador.
+		$this->assertArrayNotHasKey( 'Sin expediente', $this->counters( Lists::screen( 'actions', PostTypes::ACTION )['body'] ) );
+
+		// El servicio, sí; y su lista empieza por los dos expedientes.
+		$this->as_role( 'fmc_training_service' );
+		update_post_meta( $done, A::INTERNAL_REF, 'AF5-04/03/2026-09:00:00' );
+		$body = Lists::screen( 'actions', PostTypes::ACTION )['body'];
+		$this->assertSame( 2, $this->counters( $body )['Sin expediente'] );
+		$this->assertMatchesRegularExpression( '#<thead><tr><th scope="col">Expediente interno</th><th scope="col">Expediente de perfeccionamiento</th><th scope="col"[^>]*><a[^>]*>Acción formativa#', $body );
+		$this->assertStringContainsString( '<tr><td>AF5-04/03/2026-09:00:00</td><td>EXP-7</td><td class="fmc-col-title">', $body );
+		$this->assertStringContainsString( '<td></td><td>—</td><td class="fmc-col-title">', $body, 'la que espera el suyo' );
+		$this->assertStringNotContainsString( 'Perfeccionamiento: EXP-7', $body, 'no se repiten debajo del título' );
 	}
 
 	/**
@@ -624,6 +694,29 @@ class Test_Lists extends WP_UnitTestCase {
 	}
 
 	/**
+	 * Los filtros se aplican al cambiarlos, así que no hay botón «Filtrar»: la
+	 * lupa de «Buscar» envía lo escrito y es el botón de quien no tiene guion.
+	 */
+	public function test_the_filter_card_has_no_button_but_the_search_one() {
+		$this->as_role( 'fmc_curator' );
+
+		foreach ( array(
+			'actions'   => PostTypes::ACTION,
+			'designs'   => PostTypes::DESIGN,
+			'speakers'  => PostTypes::SPEAKER,
+			'incidents' => PostTypes::INCIDENT,
+		) as $tab => $type ) {
+			$card = Lists::filters_html( $tab, $type );
+			$this->assertSame( 1, substr_count( $card, 'type="submit"' ), $tab );
+			$this->assertStringContainsString( '<div class="input-group"><input class="form-control" id="fmc_s" name="fmc_s" type="search"', $card, $tab );
+			$this->assertStringContainsString( '<button class="btn btn-outline-dark" type="submit" title="Buscar" aria-label="Buscar"><i class="bi bi-search" aria-hidden="true"></i></button></div>', $card, $tab );
+			$this->assertStringNotContainsString( 'Filtrar', $card, $tab );
+		}
+		$this->assertStringContainsString( 'aria-controls="fmc-advanced">Más filtros</button>', Lists::filters_html( 'actions', PostTypes::ACTION ) );
+		$this->assertStringNotContainsString( 'fmc-mine', Lists::filters_html( 'actions', PostTypes::ACTION ), 'los accesos «las mías» son de la asesoría' );
+	}
+
+	/**
 	 * Sin diseños de ese tipo, el filtro por tipo no deja ninguna acción.
 	 */
 	public function test_a_design_type_without_designs_leaves_no_actions() {
@@ -632,7 +725,7 @@ class Test_Lists extends WP_UnitTestCase {
 		$_GET['fmc_type'] = 'self_paced';
 
 		$this->assertSame( array(), $this->rows( PostTypes::ACTION ) );
-		$this->assertStringContainsString( 'No hay nada que mostrar con estos filtros.', Lists::screen( 'actions', PostTypes::ACTION )['body'] );
+		$this->assertStringContainsString( 'No hay resultados con estos filtros.', Lists::screen( 'actions', PostTypes::ACTION )['body'] );
 	}
 
 	/**
@@ -674,17 +767,27 @@ class Test_Lists extends WP_UnitTestCase {
 	}
 
 	/**
-	 * Las incidencias: las más nuevas arriba, con el expediente de su acción y su resolución.
+	 * Las incidencias: las más nuevas arriba, con lo que piden, los expedientes
+	 * de su acción y la justificación. Nadie las resuelve (ADR-0029).
 	 */
-	public function test_incidents_show_their_action_and_filter_by_resolution() {
+	public function test_incidents_show_their_action_and_filter_by_what_they_ask() {
 		$this->as_role( 'fmc_curator' );
-		$action = $this->post( PostTypes::ACTION, 'Acción', array( A::FILE_NUMBER => 'EXP-9' ) );
+		$action = $this->post(
+			PostTypes::ACTION,
+			'Acción',
+			array(
+				A::FILE_NUMBER  => 'EXP-9',
+				A::INTERNAL_REF => 'AF2-01/01/2026-09:00:00',
+			)
+		);
 		$this->term( 'fmc_scope', 'Sur', array( $action ) );
 		$this->post(
 			PostTypes::INCIDENT,
 			'',
 			array(
-				I::REASON   => 'Cambio de fechas',
+				I::REASON   => 'El ponente está de baja',
+				I::REQUEST  => 'speaker',
+				// Lo que traían las de antes se conserva, pero ya no se enseña.
 				I::HAS_COST => true,
 			),
 			array(
@@ -695,28 +798,36 @@ class Test_Lists extends WP_UnitTestCase {
 		$this->post(
 			PostTypes::INCIDENT,
 			'Nueva',
-			array( I::RESOLUTION => 'approved' ),
+			array(
+				I::RESOLUTION => 'approved',
+				I::REQUEST    => 'cancel',
+			),
 			array( 'post_date' => '2026-02-01 10:00:00' )
 		);
 
-		// Sin filtro en la URL, la lista se abre por lo que hay que resolver.
 		$screen = Lists::screen( 'incidents', PostTypes::INCIDENT );
 
-		$this->assertSame( array( '(sin título)' ), $this->rows( PostTypes::INCIDENT ) );
-		$this->assertStringContainsString( '<td>EXP-9<div class="small text-secondary">Sur</div></td>', $screen['body'] );
-		$this->assertStringContainsString( '<td>Cambio de fechas</td><td>Con coste</td><td>Pendiente</td>', $screen['body'] );
-		$this->assertSame( 1, $this->counters( $screen['body'] )['Aprobada'], 'los contadores no se filtran' );
+		$this->assertSame( array( 'Nueva', '(sin título)' ), $this->rows( PostTypes::INCIDENT ), 'todas, sin filtro de serie' );
+		$this->assertStringContainsString( '<td>Cambio de ponente</td><td>EXP-9<div class="small text-secondary">AF2-01/01/2026-09:00:00</div><div class="small text-secondary">Sur</div></td>', $screen['body'] );
+		$this->assertStringContainsString( '<td>El ponente está de baja</td>', $screen['body'] );
+		$this->assertStringNotContainsString( 'Con coste', $screen['body'] );
+		$this->assertStringNotContainsString( 'Aprobada', $screen['body'] );
+		$this->assertSame(
+			array(
+				'En total'          => 2,
+				'Cambio de fechas'  => 0,
+				'Cambio de ponente' => 1,
+				'Cancelación'       => 1,
+				'Otro cambio'       => 0,
+			),
+			$this->counters( $screen['body'] )
+		);
 		// La incidencia se abre desde su acción: aquí no hay botón de añadir.
 		$this->assertStringNotContainsString( 'Añadir', $screen['actions'] );
 
-		// El contador del total las trae todas.
-		$_GET['fmc_resolution'] = 'all';
-		$screen                 = Lists::screen( 'incidents', PostTypes::INCIDENT );
-		$this->assertSame( array( 'Nueva', '(sin título)' ), $this->rows( PostTypes::INCIDENT ) );
-		$this->assertStringContainsString( '<td>Sin coste</td><td>Aprobada</td>', $screen['body'] );
-
-		$_GET['fmc_resolution'] = 'approved';
+		$_GET['fmc_request'] = 'cancel';
 		$this->assertSame( array( 'Nueva' ), $this->rows( PostTypes::INCIDENT ) );
+		$this->assertSame( 1, $this->counters( Lists::screen( 'incidents', PostTypes::INCIDENT )['body'] )['Cambio de ponente'], 'los contadores no se filtran' );
 	}
 
 	/**
@@ -838,6 +949,19 @@ class Test_Lists extends WP_UnitTestCase {
 			'fmc_dir'  => 'desc',
 		);
 		$this->assertSame( array( 'Segundo', 'Primero', 'Sin código' ), $this->rows( PostTypes::DESIGN ) );
+		// De serie, por el código y del último al primero; y por su número, no
+		// como texto: «A1000» va delante de «A999».
+		$this->post( PostTypes::DESIGN, 'Mil', array( D::CODE => 'A1000' ) );
+		$this->post( PostTypes::DESIGN, 'Novecientos', array( D::CODE => 'A999' ) );
+		$_GET = array();
+		$this->assertSame( array( 'Mil', 'Novecientos', 'Segundo', 'Primero', 'Sin código' ), $this->rows( PostTypes::DESIGN ) );
+		$_GET = array(
+			'fmc_sort' => 'code',
+			'fmc_dir'  => 'asc',
+		);
+		$this->assertSame( array( 'Primero', 'Segundo', 'Novecientos', 'Mil', 'Sin código' ), $this->rows( PostTypes::DESIGN ) );
+		$head = Lists::screen( 'designs', PostTypes::DESIGN )['body'];
+		$this->assertLessThan( strpos( $head, 'Diseño de acción formativa <i' ), strpos( $head, 'Código <i' ), 'el código, la primera columna' );
 
 		wp_set_object_terms( $this->post( PostTypes::SPEAKER, 'Ana' ), 'Norte', Taxonomies::ZONE );
 		wp_set_object_terms( $this->post( PostTypes::SPEAKER, 'Bea' ), 'Sur', Taxonomies::ZONE );
@@ -949,7 +1073,8 @@ class Test_Lists extends WP_UnitTestCase {
 		$this->assertSame( "\xEF\xBB\xBF", substr( $raw, 0, 3 ) );
 		$head = $rows[0];
 		// El título no está en la ficha de la acción —es el del diseño—, pero la hoja lo lleva.
-		$this->assertSame( array( 'ID', 'Estado de la ficha', 'Título', 'Expediente', 'Diseño', 'Subtítulo' ), array_slice( $head, 0, 6 ) );
+		$this->assertSame( array( 'ID', 'Estado de la ficha', 'Título', 'Expediente interno', 'Expediente de perfeccionamiento', 'Diseño' ), array_slice( $head, 0, 6 ) );
+		$this->assertNotContains( 'Subtítulo', $head, 'el subtítulo no se exporta: se conserva, pero no se enseña' );
 		$this->assertSame( array( 'Tipo de formación', 'Curso escolar', 'Horas totales', 'Situación' ), array_slice( $head, -4 ) );
 		$this->assertNotContains( 'Matriculados', $head, 'las cifras de cierre ya no son de aquí (ADR-0010)' );
 		$this->assertCount( 2, $rows, 'Solo la acción filtrada' );
@@ -963,7 +1088,41 @@ class Test_Lists extends WP_UnitTestCase {
 		// (4 + 6) horas por dos ediciones.
 		$this->assertSame( '20', $row['Horas totales'] );
 		$this->assertSame( 'Hecha', $row['Título'] );
-		$this->assertSame( 'Edición de otoño', $row['Subtítulo'] );
+		$this->assertStringNotContainsString( 'Edición de otoño', $raw );
+	}
+
+	/**
+	 * Una cancelada no se ha impartido: no sale en la hoja con la que se
+	 * cuenta lo hecho. Para verlas se filtra por «Cancelada».
+	 */
+	public function test_the_csv_leaves_out_the_cancelled_actions() {
+		$this->as_role( 'fmc_curator' );
+		$this->post( PostTypes::ACTION, 'Hecha', array( A::START => '2025-10-01' ) );
+		$this->post(
+			PostTypes::ACTION,
+			'Anulada',
+			array(
+				A::START     => '2025-10-02',
+				A::SITUATION => 'cancelled',
+			)
+		);
+		$this->post(
+			PostTypes::ACTION,
+			'Aplazada',
+			array(
+				A::START     => '2025-10-03',
+				A::SITUATION => 'postponed',
+			)
+		);
+		$_GET['fmc_year'] = 'all';
+
+		list( , $rows ) = $this->csv( PostTypes::ACTION );
+		$titles         = array_column( array_slice( $rows, 1 ), 2 );
+		$this->assertEqualsCanonicalizing( array( 'Hecha', 'Aplazada' ), $titles );
+
+		$_GET['fmc_situation'] = 'cancelled';
+		list( , $rows )        = $this->csv( PostTypes::ACTION );
+		$this->assertSame( array( 'Anulada' ), array_column( array_slice( $rows, 1 ), 2 ) );
 	}
 
 	/**
@@ -1007,7 +1166,7 @@ class Test_Lists extends WP_UnitTestCase {
 		$this->assertSame( 'Área', $plain( A::FUNDED_BY ) );
 		$this->assertSame( 'Programa dos, Programa uno', $plain( 'tax:fmc_programme' ) );
 		$this->assertSame( 'No', $plain( A::VIDEOCONFERENCE ) );
-		$this->assertSame( '', $plain( A::SUBTITLE ) );
+		$this->assertArrayNotHasKey( A::SUBTITLE, $fields, 'el subtítulo ya no está en la ficha' );
 
 		delete_post_meta( $action, A::ADVISER );
 		$this->assertSame( '', $plain( A::ADVISER ) );
@@ -1048,39 +1207,83 @@ class Test_Lists extends WP_UnitTestCase {
 	}
 
 	/**
-	 * Buscar encuentra por el título, el subtítulo y el expediente.
+	 * Buscar encuentra por el título y por los dos expedientes. El subtítulo
+	 * ya no se enseña, así que tampoco se busca por él (adenda de ADR-0009).
 	 */
-	public function test_the_search_also_looks_at_the_file_number_and_subtitle() {
+	public function test_the_search_also_looks_at_the_file_numbers() {
 		$this->as_role( 'fmc_curator' );
 		$this->post( PostTypes::ACTION, 'Robótica', array( A::FILE_NUMBER => 'D.06-0042' ) );
-		$this->post( PostTypes::ACTION, 'Ajedrez', array( A::SUBTITLE => 'Edición de verano' ) );
+		$this->post(
+			PostTypes::ACTION,
+			'Ajedrez',
+			array(
+				A::SUBTITLE     => 'Edición de verano',
+				A::INTERNAL_REF => 'AF7-01/10/2026-09:30:00',
+			)
+		);
 
 		$_GET['fmc_s'] = '0042';
 		$this->assertSame( array( 'Robótica' ), $this->rows( PostTypes::ACTION ) );
-		$_GET['fmc_s'] = 'verano';
+		$_GET['fmc_s'] = 'AF7-01/10';
 		$this->assertSame( array( 'Ajedrez' ), $this->rows( PostTypes::ACTION ) );
+		$_GET['fmc_s'] = 'verano';
+		$this->assertSame( array(), $this->rows( PostTypes::ACTION ) );
 		$_GET['fmc_s'] = 'ajedrez';
 		$this->assertSame( array( 'Ajedrez' ), $this->rows( PostTypes::ACTION ) );
+		$this->assertStringNotContainsString( 'Edición de verano', Lists::screen( 'actions', PostTypes::ACTION )['body'] );
 	}
 
 	/**
-	 * Las acciones con incidencias se marcan, y se filtran por si alguna espera.
+	 * Las acciones con incidencias se marcan con lo que pidió la última, y se
+	 * filtran por tenerlas o por su clase. Una cancelada sale tachada.
 	 */
 	public function test_actions_with_incidents_are_marked_and_filtered() {
 		$this->as_role( 'fmc_curator' );
-		$waiting = $this->post( PostTypes::ACTION, 'Espera' );
-		$solved  = $this->post( PostTypes::ACTION, 'Resuelta' );
+		$speaker = $this->post( PostTypes::ACTION, 'Cambia de ponente' );
+		$several = $this->post( PostTypes::ACTION, 'Varias' );
+		$old     = $this->post( PostTypes::ACTION, 'De antes' );
+		$gone    = $this->post( PostTypes::ACTION, 'Anulada', array( A::SITUATION => 'cancelled' ) );
 		$this->post( PostTypes::ACTION, 'Sin nada' );
-		$this->post( PostTypes::INCIDENT, 'i1', array( I::RESOLUTION => 'pending' ), array( 'post_parent' => $waiting ) );
-		$this->post( PostTypes::INCIDENT, 'i2', array( I::RESOLUTION => 'approved' ), array( 'post_parent' => $solved ) );
+		$this->post( PostTypes::INCIDENT, 'i1', array( I::REQUEST => 'speaker' ), array( 'post_parent' => $speaker ) );
+		$this->post(
+			PostTypes::INCIDENT,
+			'i2',
+			array( I::REQUEST => 'speaker' ),
+			array(
+				'post_parent' => $several,
+				'post_date'   => '2026-01-01 10:00:00',
+			)
+		);
+		$this->post(
+			PostTypes::INCIDENT,
+			'i3',
+			array( I::REQUEST => 'postpone' ),
+			array(
+				'post_parent' => $several,
+				'post_date'   => '2026-02-01 10:00:00',
+			)
+		);
+		// Una migrada: tiene resolución, pero no dice qué pedía.
+		$this->post( PostTypes::INCIDENT, 'i4', array( I::RESOLUTION => 'approved' ), array( 'post_parent' => $old ) );
+		$this->post( PostTypes::INCIDENT, 'i5', array( I::REQUEST => 'cancel' ), array( 'post_parent' => $gone ) );
 
-		$this->assertStringContainsString( 'Incidencia pendiente (1)', Lists::badge( get_post( $waiting ) ) );
-		$this->assertStringContainsString( 'Incidencias resueltas', Lists::badge( get_post( $solved ) ) );
+		$this->assertStringContainsString( '<span class="badge rounded-pill fmc-inc">Incidencia: cambio de ponente</span>', Lists::badge( get_post( $speaker ) ) );
+		$this->assertStringContainsString( '>Incidencias (2)</span>', Lists::badge( get_post( $several ) ) );
+		$this->assertStringContainsString( '>Incidencia</span>', Lists::badge( get_post( $old ) ) );
+		$this->assertStringNotContainsString( 'pendiente', Lists::badge( get_post( $speaker ) ) . Lists::badge( get_post( $old ) ) );
+		$this->assertSame( '', preg_replace( '/<span class="badge[^>]*text-bg[^>]*>[^<]*<\/span>/', '', trim( Lists::badge( get_post( $this->post( PostTypes::ACTION, 'Otra' ) ) ) ) ) );
 
-		$_GET['fmc_incident'] = 'pending';
-		$this->assertSame( array( 'Espera' ), $this->rows( PostTypes::ACTION ) );
 		$_GET['fmc_incident'] = 'any';
-		$this->assertEqualsCanonicalizing( array( 'Espera', 'Resuelta' ), $this->rows( PostTypes::ACTION ) );
+		$this->assertEqualsCanonicalizing( array( 'Cambia de ponente', 'Varias', 'De antes', 'Anulada' ), $this->rows( PostTypes::ACTION ) );
+		$_GET['fmc_incident'] = 'postpone';
+		$this->assertSame( array( 'Varias' ), $this->rows( PostTypes::ACTION ), 'por lo que pidió la última' );
+		$_GET['fmc_incident'] = 'speaker';
+		$this->assertSame( array( 'Cambia de ponente' ), $this->rows( PostTypes::ACTION ) );
+		unset( $_GET['fmc_incident'] );
+
+		$body = Lists::screen( 'actions', PostTypes::ACTION )['body'];
+		$this->assertMatchesRegularExpression( '#<a class="fw-semibold fmc-abre-panel is-cancelled" href="[^"]*">Anulada</a>#', $body );
+		$this->assertSame( 1, substr_count( $body, 'is-cancelled' ) );
 	}
 
 	/**
@@ -1124,10 +1327,10 @@ class Test_Lists extends WP_UnitTestCase {
 		$_GET['fmc_given'] = 'ROBOTICA';
 		$this->assertSame( array( 'Luis', 'Ana' ), $this->rows( PostTypes::SPEAKER ), 'quien más ha dado, primero; sin acentos ni mayúsculas' );
 		$body = Lists::screen( 'speakers', PostTypes::SPEAKER )['body'];
-		$this->assertStringContainsString( '" aria-expanded="false">2 acción(es)</a><div class="small text-secondary">30 h</div>', $body );
+		$this->assertStringContainsString( '" aria-expanded="false">2 acciones</a><div class="small text-secondary">30 h</div>', $body );
 		// Al pulsar, sus acciones, la más reciente primero, cada una a su ficha; la cancelada no cuenta.
 		$given = $this->menu( $body, $luis );
-		$this->assertSame( array( '01/10/2026 Robótica educativa', '01/10/2025 Robótica avanzada', 'Todas sus acciones, en el listado' ), array_keys( $given ) );
+		$this->assertSame( array( '01/10/2026 Robótica educativa', '01/10/2025 Robótica avanzada', 'Ver todas sus acciones en el listado' ), array_keys( $given ) );
 		$this->assertSame( Screen::url( array( Screen::ARG_EDIT => $first ) ), $given['01/10/2026 Robótica educativa'] );
 		$this->assertSame( Screen::url( array( Screen::ARG_EDIT => $second ) ), $given['01/10/2025 Robótica avanzada'] );
 		$this->assertSame(
@@ -1138,9 +1341,9 @@ class Test_Lists extends WP_UnitTestCase {
 					'fmc_speaker'   => $luis,
 				)
 			),
-			$given['Todas sus acciones, en el listado']
+			$given['Ver todas sus acciones en el listado']
 		);
-		$this->assertSame( array( '01/10/2026 Robótica educativa', 'Todas sus acciones, en el listado' ), array_keys( $this->menu( $body, $ana ) ) );
+		$this->assertSame( array( '01/10/2026 Robótica educativa', 'Ver todas sus acciones en el listado' ), array_keys( $this->menu( $body, $ana ) ) );
 
 		$_GET['fmc_file'] = 'XX4';
 		$this->assertSame( array( 'Ana', 'Luis' ), $this->rows( PostTypes::SPEAKER ) );
@@ -1258,7 +1461,7 @@ class Test_Lists extends WP_UnitTestCase {
 		$body = Lists::screen( 'speakers', PostTypes::SPEAKER )['body'];
 		// Sin tarjetas: el total, en una línea, con la puerta de la papelera.
 		$this->assertStringNotContainsString( 'fmc-counter', $body );
-		$this->assertMatchesRegularExpression( '/<p class="fmc-found">1 ponente\(s\) · <a href="[^"]*fmc_status=trash[^"]*">Ver la papelera<\/a><\/p>/', $body );
+		$this->assertMatchesRegularExpression( '/<p class="fmc-found">1 ponente · <a href="[^"]*fmc_status=trash[^"]*">Ver la papelera<\/a><\/p>/', $body );
 		$_GET['fmc_status'] = 'trash';
 		$body               = Lists::screen( 'speakers', PostTypes::SPEAKER )['body'];
 		$this->assertStringContainsString( '1 en la papelera · ', $body );

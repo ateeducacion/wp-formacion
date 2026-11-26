@@ -78,6 +78,95 @@ final class Catalogue {
 	}
 
 	/**
+	 * Where people are sent to see the catalogue, or one course in it.
+	 *
+	 * El catálogo puede enseñarse en otra web, que pinta los datos de
+	 * {@see CatalogueFeed}: entonces «Ver en el catálogo» tiene que llevar
+	 * allí, que es donde lo ve el profesorado. Esa dirección la da el
+	 * despliegue con el filtro `fmc_catalogue_url`, que recibe la del catálogo
+	 * propio y el diseño (0 para la lista). Sin filtro, es la propia.
+	 *
+	 * @param int $design Design ID; 0 for the list.
+	 * @return string
+	 */
+	public static function public_url( int $design = 0 ): string {
+		$own = self::url( $design );
+		$url = esc_url_raw( (string) apply_filters( 'fmc_catalogue_url', $own, $design ) );
+		return '' !== $url ? $url : $own;
+	}
+
+	/**
+	 * The courses of the catalogue that match some filters.
+	 *
+	 * La única regla de qué sale: finalizado y puesto en el catálogo. La usan
+	 * la pantalla y los datos que piden otras webs, para que no puedan decir
+	 * cosas distintas.
+	 *
+	 * @param array<string, mixed> $filters `s`, `type`, `modality`, `topic` and `programme` (slugs, one or several),
+	 *                                      `order` (`title` or `recent`), `page` and `per_page`.
+	 * @return \WP_Query
+	 */
+	public static function query( array $filters ): \WP_Query {
+		$recent = 'recent' === ( $filters['order'] ?? '' );
+		$args   = array(
+			'post_type'      => PostTypes::DESIGN,
+			'post_status'    => 'publish',
+			'posts_per_page' => min( 100, max( 1, (int) ( $filters['per_page'] ?? self::PER_PAGE ) ) ),
+			'paged'          => max( 1, (int) ( $filters['page'] ?? 1 ) ),
+			'orderby'        => $recent ? 'date' : 'title',
+			'order'          => $recent ? 'DESC' : 'ASC',
+			// Por el título o por el código: `Lists::where()`.
+			'fmc_text'       => (string) ( $filters['s'] ?? '' ),
+			'fmc_text_keys'  => array( D::CODE ),
+			// phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_query -- solo lo que está en el catálogo.
+			'meta_query'     => array(
+				array(
+					'key'   => D::IN_CATALOGUE,
+					'value' => '1',
+				),
+			),
+		);
+		foreach ( array(
+			'type'     => array( D::TYPE, D::TYPES ),
+			'modality' => array( D::MODALITY, D::MODALITIES ),
+		) as $filter => list( $key, $choices ) ) {
+			$value = (string) ( $filters[ $filter ] ?? '' );
+			if ( isset( $choices[ $value ] ) ) {
+				$args['meta_query'][] = array(
+					'key'   => $key,
+					'value' => $value,
+				);
+			}
+		}
+		foreach ( array(
+			'topic'     => 'fmc_topic',
+			'programme' => 'fmc_programme',
+		) as $filter => $taxonomy ) {
+			$slugs = array_values( array_filter( array_map( 'sanitize_title', (array) ( $filters[ $filter ] ?? array() ) ), 'strlen' ) );
+			if ( $slugs ) {
+				// phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_tax_query -- filtro por temática o por programa.
+				$args['tax_query'][] = array(
+					'taxonomy' => $taxonomy,
+					'field'    => 'slug',
+					'terms'    => $slugs,
+				);
+			}
+		}
+		return new \WP_Query( $args );
+	}
+
+	/**
+	 * URL of the image of a course, or nothing when it has none.
+	 *
+	 * @param int $design Design ID.
+	 * @return string
+	 */
+	public static function image( int $design ): string {
+		$images = Documents::of( $design )['image'];
+		return $images ? Documents::url( $images[0]->ID ) : '';
+	}
+
+	/**
 	 * Whether the request is for the catalogue.
 	 *
 	 * @return bool
@@ -116,48 +205,17 @@ final class Catalogue {
 	 */
 	private static function list_screen(): array {
 		$page = max( 1, (int) Lists::arg( 'fmc_page' ) );
-		$args = array(
-			'post_type'      => PostTypes::DESIGN,
-			'post_status'    => 'publish',
-			'posts_per_page' => self::PER_PAGE,
-			'paged'          => $page,
-			'orderby'        => 'title',
-			'order'          => 'ASC',
-			// Por el título o por el código: `Lists::where()`.
-			'fmc_text'       => Lists::arg( 'fmc_s' ),
-			'fmc_text_keys'  => array( D::CODE ),
-			// phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_query -- solo lo que está en el catálogo.
-			'meta_query'     => array(
-				array(
-					'key'   => D::IN_CATALOGUE,
-					'value' => '1',
-				),
-			),
+		$q    = self::query(
+			array(
+				's'        => Lists::arg( 'fmc_s' ),
+				'type'     => Lists::arg( 'fmc_type' ),
+				'modality' => Lists::arg( 'fmc_modality' ),
+				'topic'    => Lists::arg( 'fmc_topic' ),
+				'page'     => $page,
+			)
 		);
-		foreach ( array(
-			'fmc_type'     => array( D::TYPE, D::TYPES ),
-			'fmc_modality' => array( D::MODALITY, D::MODALITIES ),
-		) as $arg => list( $key, $choices ) ) {
-			if ( isset( $choices[ Lists::arg( $arg ) ] ) ) {
-				$args['meta_query'][] = array(
-					'key'   => $key,
-					'value' => Lists::arg( $arg ),
-				);
-			}
-		}
-		if ( '' !== Lists::arg( 'fmc_topic' ) ) {
-			// phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_tax_query -- filtro por temática.
-			$args['tax_query'] = array(
-				array(
-					'taxonomy' => 'fmc_topic',
-					'field'    => 'slug',
-					'terms'    => Lists::arg( 'fmc_topic' ),
-				),
-			);
-		}
-		$q = new \WP_Query( $args );
 
-		$body = self::filters_html() . '<p class="fmc-found">' . esc_html( sprintf( '%s curso(s)', number_format_i18n( (int) $q->found_posts ) ) ) . '</p>';
+		$body = self::filters_html() . '<p class="fmc-found">' . esc_html( Screen::counted( (int) $q->found_posts, 'curso', 'cursos' ) ) . '</p>';
 		if ( ! $q->posts ) {
 			$body .= '<div class="card card-body text-secondary">No hay cursos con estos filtros.</div>';
 		}
@@ -169,7 +227,7 @@ final class Catalogue {
 
 		return array(
 			'title'    => 'Catálogo de formación',
-			'subtitle' => 'Los cursos que se ofrecen. Abra uno para ver de qué trata, a quién va dirigido y qué competencias trabaja.',
+			'subtitle' => 'Abra un curso para ver de qué trata, a quién va dirigido y qué competencias trabaja.',
 			'body'     => $body,
 		);
 	}
@@ -181,11 +239,11 @@ final class Catalogue {
 	 */
 	private static function filters_html(): string {
 		$out  = '<form class="card card-body mb-3 fmc-filters" method="get" action="' . esc_url( home_url( '/' ) ) . '"><input type="hidden" name="' . esc_attr( self::ARG_LIST ) . '" value="1"><div class="row g-2 align-items-end">';
-		$out .= '<div class="col-12 col-md-4"><label class="form-label small fw-semibold" for="fmc_s">Buscar</label><input class="form-control" id="fmc_s" name="fmc_s" type="search" value="' . esc_attr( Lists::arg( 'fmc_s' ) ) . '" placeholder="Título o código…"></div>';
+		$out .= '<div class="col-12 col-md-4"><label class="form-label small fw-semibold" for="fmc_s">Buscar</label><div class="input-group"><input class="form-control" id="fmc_s" name="fmc_s" type="search" value="' . esc_attr( Lists::arg( 'fmc_s' ) ) . '" placeholder="Título o código…">' . Lists::SEARCH_BUTTON . '</div></div>';
 		$out .= Lists::select( 'fmc_type', 'Tipo', D::TYPES, 'Todos' );
 		$out .= Lists::select( 'fmc_modality', 'Modalidad', D::MODALITIES, 'Todas' );
 		$out .= Lists::select( 'fmc_topic', 'Temática', Lists::term_choices( 'fmc_topic' ), 'Todas' );
-		$out .= '<div class="col-auto"><button class="btn btn-outline-dark" type="submit">Filtrar</button> <a class="btn btn-link" href="' . esc_url( self::url() ) . '">Quitar filtros</a></div>';
+		$out .= '<div class="col-auto"><a class="btn btn-link" href="' . esc_url( self::url() ) . '">Quitar filtros</a></div>';
 		return $out . '</div></form>';
 	}
 
@@ -219,9 +277,12 @@ final class Catalogue {
 	 */
 	private static function card( \WP_Post $post ): string {
 		$topics = wp_get_post_terms( $post->ID, 'fmc_topic', array( 'fields' => 'names' ) );
-		$out    = '<article class="card fmc-course"><div class="card-body"><h2 class="h6 mb-1"><a href="' . esc_url( self::url( $post->ID ) ) . '">' . esc_html( get_the_title( $post ) ) . '</a></h2>';
-		$out   .= '<p class="small text-secondary mb-2">' . esc_html( self::facts( $post ) ) . '</p>';
-		$out   .= '<p class="small mb-2">' . esc_html( wp_trim_words( wp_strip_all_tags( $post->post_content ), 30 ) ) . '</p>';
+		$image  = self::image( $post->ID );
+		// La imagen es un adorno de la tarjeta: el enlace que se lee es el título.
+		$out  = '<article class="card fmc-course">' . ( '' !== $image ? '<a class="fmc-course-img" href="' . esc_url( self::url( $post->ID ) ) . '" tabindex="-1" aria-hidden="true"><img src="' . esc_url( $image ) . '" alt="" loading="lazy"></a>' : '' );
+		$out .= '<div class="card-body"><h2 class="h6 mb-1"><a href="' . esc_url( self::url( $post->ID ) ) . '">' . esc_html( get_the_title( $post ) ) . '</a></h2>';
+		$out .= '<p class="small text-secondary mb-2">' . esc_html( self::facts( $post ) ) . '</p>';
+		$out .= '<p class="small mb-2">' . esc_html( wp_trim_words( wp_strip_all_tags( $post->post_content ), 30 ) ) . '</p>';
 		foreach ( is_array( $topics ) ? $topics : array() as $name ) {
 			$out .= '<span class="fmc-chip">' . esc_html( (string) $name ) . '</span>';
 		}
@@ -290,7 +351,7 @@ final class Catalogue {
 			return array(
 				'back'  => $back,
 				'title' => 'Este curso no está en el catálogo',
-				'body'  => '<div class="card card-body">Puede que ya no se ofrezca, o que la dirección no sea correcta. <a href="' . esc_url( self::url() ) . '">Vea los cursos que hay</a>.</div>',
+				'body'  => '<div class="card card-body">Puede que ya no se ofrezca o que la dirección no sea correcta. <a href="' . esc_url( self::url() ) . '">Ver todos los cursos</a>.</div>',
 			);
 		}
 

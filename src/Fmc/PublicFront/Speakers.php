@@ -29,7 +29,7 @@ final class Speakers {
 	 * ponente serían cientos de consultas por pantalla. Se recuerda mientras
 	 * no cambie ninguna entrada ni ninguna meta (`last_changed` de `posts`).
 	 *
-	 * @return list<array{id:int, title:string, subtitle:string, text:string, file:string, start:string, hours:float, speakers:int[]}>
+	 * @return list<array{id:int, title:string, text:string, file:string, start:string, hours:float, speakers:int[]}>
 	 */
 	private static function actions(): array {
 		static $cache = array();
@@ -40,7 +40,6 @@ final class Speakers {
 		global $wpdb;
 		$keys = array(
 			'speakers'  => A::SPEAKERS,
-			'subtitle'  => A::SUBTITLE,
 			'file'      => A::FILE_NUMBER,
 			'start'     => A::START,
 			'onsite'    => A::HOURS_ONSITE,
@@ -65,8 +64,7 @@ final class Speakers {
 			$rows[] = array(
 				'id'       => (int) $r['id'],
 				'title'    => (string) $r['title'],
-				'subtitle' => (string) $r['subtitle'],
-				'text'     => self::fold( $r['title'] . ' ' . $r['subtitle'] ),
+				'text'     => self::fold( (string) $r['title'] ),
 				'file'     => (string) $r['file'],
 				'start'    => (string) $r['start'],
 				'hours'    => ( (float) $r['onsite'] + (float) $r['online'] ) * max( 1, (int) $r['replicas'] ),
@@ -90,7 +88,7 @@ final class Speakers {
 	/**
 	 * Actions and hours of each speaker, among the actions that match.
 	 *
-	 * @param string $given Words of the action title or subtitle; all must appear.
+	 * @param string $given Words of the action title; all must appear.
 	 * @param string $file  Start of the file number.
 	 * @param string $from  Y-m-d: actions starting that day or later.
 	 * @return array<int, array{actions:int, hours:float}> speaker => totals.
@@ -112,20 +110,19 @@ final class Speakers {
 	 * Son las que cuenta {@see stats()}, para enseñarlas una a una.
 	 *
 	 * @param int    $speaker Speaker ID.
-	 * @param string $given   Words of the action title or subtitle; all must appear.
+	 * @param string $given   Words of the action title; all must appear.
 	 * @param string $file    Start of the file number.
 	 * @param string $from    Y-m-d: actions starting that day or later.
-	 * @return list<array{id:int, title:string, subtitle:string, start:string}>
+	 * @return list<array{id:int, title:string, start:string}>
 	 */
 	public static function given( int $speaker, string $given = '', string $file = '', string $from = '' ): array {
 		$out = array();
 		foreach ( self::matching( $given, $file, $from ) as $row ) {
 			if ( in_array( $speaker, $row['speakers'], true ) ) {
 				$out[] = array(
-					'id'       => $row['id'],
-					'title'    => $row['title'],
-					'subtitle' => $row['subtitle'],
-					'start'    => $row['start'],
+					'id'    => $row['id'],
+					'title' => $row['title'],
+					'start' => $row['start'],
 				);
 			}
 		}
@@ -142,10 +139,10 @@ final class Speakers {
 	/**
 	 * The given actions that match the words, the file prefix and the date.
 	 *
-	 * @param string $given Words of the action title or subtitle; all must appear.
+	 * @param string $given Words of the action title; all must appear.
 	 * @param string $file  Start of the file number.
 	 * @param string $from  Y-m-d: actions starting that day or later.
-	 * @return list<array{id:int, title:string, subtitle:string, text:string, file:string, start:string, hours:float, speakers:int[]}>
+	 * @return list<array{id:int, title:string, text:string, file:string, start:string, hours:float, speakers:int[]}>
 	 */
 	private static function matching( string $given, string $file, string $from ): array {
 		// Una vez por filtro y petición: el listado lo pide para cada fila.

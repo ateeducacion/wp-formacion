@@ -191,7 +191,7 @@ class Test_Editor_Save extends WP_UnitTestCase {
 	}
 
 	/**
-	 * Lo obligatorio que falta se dice campo a campo, y no se guarda nada.
+	 * Lo obligatorio que falta se dice campo a campo al finalizar, y no se guarda nada.
 	 */
 	public function test_required_fields_are_reported_and_nothing_is_stored() {
 		$this->as_role( 'fmc_curator' );
@@ -205,7 +205,7 @@ class Test_Editor_Save extends WP_UnitTestCase {
 					D::TYPE      => '',
 				)
 			),
-			'draft',
+			'publish',
 			0
 		);
 
@@ -216,6 +216,33 @@ class Test_Editor_Save extends WP_UnitTestCase {
 		$this->assertSame( 0, $result['values']['_parent'] );
 		$this->assertSame( '10', $result['values'][ D::HOURS_ONSITE ], 'lo tecleado vuelve para no perderlo' );
 		$this->assertSame( 0, $this->count_of( PostTypes::DESIGN ) );
+	}
+
+	/**
+	 * Un diseño se da de alta solo con el título, para reservar su código; lo
+	 * demás se le pide al darlo por finalizado.
+	 */
+	public function test_a_draft_design_only_needs_its_title() {
+		$this->as_role( 'fmc_curator' );
+
+		$draft = Editor::apply( PostTypes::DESIGN, 0, array( 'post_title' => 'Solo el nombre' ), 'draft', 0 );
+		$this->assertSame( 'created', $draft['outcome'] );
+		$this->assertSame( 'draft', get_post_status( $draft['id'] ) );
+		$this->assertMatchesRegularExpression( '/^[A-Z]\d{3}$/', (string) get_post_meta( $draft['id'], D::CODE, true ), 'el código queda reservado' );
+
+		// Sin título, ni en borrador.
+		$this->assertSame( 'Falta rellenar «Título».', Editor::apply( PostTypes::DESIGN, 0, array( 'post_title' => '' ), 'draft', 0 )['errors']['post_title'] );
+
+		// Para finalizarlo sí hace falta lo demás, y no cambia de estado.
+		$final = Editor::apply( PostTypes::DESIGN, $draft['id'], array( 'post_title' => 'Solo el nombre' ), 'publish', 0 );
+		$this->assertSame( 'invalid', $final['outcome'] );
+		$this->assertSame( 'Falta rellenar «Tipo de formación».', $final['errors'][ D::TYPE ] );
+		$this->assertSame( 'Falta rellenar «Descripción».', $final['errors']['post_content'] );
+		$this->assertSame( 'draft', get_post_status( $draft['id'] ) );
+
+		// Un límite se sigue comprobando en el borrador: es un dato mal escrito, no uno que falta.
+		$wrong = Editor::apply( PostTypes::DESIGN, $draft['id'], $this->design_fields( array( D::HOURS_ONSITE => '201' ) ), 'draft', 0 );
+		$this->assertArrayHasKey( D::HOURS_ONSITE, $wrong['errors'] );
 	}
 
 	/**
@@ -322,6 +349,79 @@ class Test_Editor_Save extends WP_UnitTestCase {
 	}
 
 	/**
+	 * El expediente interno lo pone el aplicativo al crear la acción, con el
+	 * prefijo del despliegue; no se teclea ni cambia después.
+	 */
+	public function test_the_internal_file_number_is_set_once_by_the_app() {
+		$me = $this->as_role( 'fmc_adviser' );
+
+		$new = Editor::apply( PostTypes::ACTION, 0, $this->action_fields( array( A::INTERNAL_REF => 'A MANO' ) ), 'draft', 0 );
+		$ref = (string) get_post_meta( $new['id'], A::INTERNAL_REF, true );
+		$this->assertMatchesRegularExpression( '#^AF' . $me . '-\d{2}/\d{2}/\d{4}-\d{2}:\d{2}:\d{2}$#', $ref );
+
+		Editor::apply( PostTypes::ACTION, $new['id'], $this->action_fields( array( A::INTERNAL_REF => 'OTRA' ) ), 'publish', 0 );
+		$this->assertSame( $ref, get_post_meta( $new['id'], A::INTERNAL_REF, true ), 'al entregarla sigue siendo el mismo' );
+		$screen = Editor::render( PostTypes::ACTION, get_post( $new['id'] ), array(), array() );
+		$this->assertSame( 'Expediente interno: ' . $ref, $screen['subtitle'], 'debajo del título, sus expedientes' );
+
+		// El prefijo es del despliegue, y solo letras y números.
+		$prefix = static fn() => 'X-y 9';
+		add_filter( 'fmc_internal_ref_prefix', $prefix );
+		$other  = Editor::apply( PostTypes::ACTION, 0, $this->action_fields(), 'draft', 0 );
+		remove_filter( 'fmc_internal_ref_prefix', $prefix );
+		$this->assertStringStartsWith( 'Xy9' . $me . '-', (string) get_post_meta( $other['id'], A::INTERNAL_REF, true ) );
+
+		// La que llegó sin él lo recibe la primera vez que se guarda.
+		$old = $this->post( PostTypes::ACTION, $me, 'draft' );
+		$this->assertSame( '', get_post_meta( $old, A::INTERNAL_REF, true ) );
+		Editor::apply( PostTypes::ACTION, $old, $this->action_fields(), 'draft', 0 );
+		$this->assertStringStartsWith( 'AF' . $me . '-', (string) get_post_meta( $old, A::INTERNAL_REF, true ) );
+
+		// Y la que lo trae del sistema anterior lo conserva.
+		$migrated = $this->post( PostTypes::ACTION, $me, 'draft' );
+		update_post_meta( $migrated, A::INTERNAL_REF, 'ZZ12-01/02/2020-10:00:00' );
+		Editor::apply( PostTypes::ACTION, $migrated, $this->action_fields(), 'draft', 0 );
+		$this->assertSame( 'ZZ12-01/02/2020-10:00:00', get_post_meta( $migrated, A::INTERNAL_REF, true ) );
+	}
+
+	/**
+	 * La línea estratégica se elige de la lista que da el despliegue; sin
+	 * lista, el campo no sale. Lo guardado que ya no está en ella se conserva.
+	 */
+	public function test_the_strategic_line_is_one_of_the_deployment_list() {
+		$this->as_role( 'fmc_curator' );
+		$this->assertArrayNotHasKey( A::STRATEGIC_LINE, \Fmc\PublicFront\Fields::all( PostTypes::ACTION ) );
+
+		$lines = static fn() => array( 'Línea uno', 'Línea dos', '', 7 );
+		add_filter( 'fmc_strategic_lines', $lines );
+		$field = \Fmc\PublicFront\Fields::all( PostTypes::ACTION )[ A::STRATEGIC_LINE ];
+		$this->assertSame( 'select', $field['w'] );
+		$this->assertSame(
+			array(
+				'Línea uno' => 'Línea uno',
+				'Línea dos' => 'Línea dos',
+			),
+			$field['choices']
+		);
+
+		$ok = Editor::apply( PostTypes::ACTION, 0, $this->action_fields( array( A::STRATEGIC_LINE => 'Línea dos' ) ), 'draft', 0 );
+		$this->assertSame( 'Línea dos', get_post_meta( $ok['id'], A::STRATEGIC_LINE, true ) );
+
+		$bad = Editor::apply( PostTypes::ACTION, 0, $this->action_fields( array( A::STRATEGIC_LINE => 'Inventada' ) ), 'draft', 0 );
+		$this->assertSame( 'invalid', $bad['outcome'] );
+		$this->assertSame( 'En «Línea estratégica» hay que elegir un valor de la lista.', $bad['errors'][ A::STRATEGIC_LINE ] );
+
+		// Una de antes, que ya no está en la lista: se ve, marcada, y se conserva al guardar.
+		update_post_meta( $ok['id'], A::STRATEGIC_LINE, 'La de antes' );
+		$body = Editor::render( PostTypes::ACTION, get_post( $ok['id'] ), array(), array() )['body'];
+		$this->assertMatchesRegularExpression( '#<option value="La de antes"\s+selected=\'selected\'[^>]*>La de antes — ya no se usa</option>#', $body );
+		$kept = Editor::apply( PostTypes::ACTION, $ok['id'], $this->action_fields( array( A::STRATEGIC_LINE => 'La de antes' ) ), 'draft', 0 );
+		$this->assertSame( 'saved', $kept['outcome'] );
+		$this->assertSame( 'La de antes', get_post_meta( $ok['id'], A::STRATEGIC_LINE, true ) );
+		remove_filter( 'fmc_strategic_lines', $lines );
+	}
+
+	/**
 	 * Dos acciones no comparten expediente.
 	 */
 	public function test_file_numbers_are_unique() {
@@ -335,7 +435,7 @@ class Test_Editor_Save extends WP_UnitTestCase {
 
 		$result = Editor::apply( PostTypes::ACTION, $second, array( A::FILE_NUMBER => 'EXP-9' ), '', 0 );
 		$this->assertSame( 'invalid', $result['outcome'] );
-		$this->assertSame( 'Ya hay otro con ese valor en «Expediente».', $result['errors'][ A::FILE_NUMBER ] );
+		$this->assertSame( 'Ya hay otro con ese valor en «Expediente de perfeccionamiento».', $result['errors'][ A::FILE_NUMBER ] );
 		$this->assertSame( '', get_post_meta( $second, A::FILE_NUMBER, true ) );
 		$this->assertTrue( Editor::taken( PostTypes::ACTION, A::FILE_NUMBER, 'EXP-9', 0 ) );
 		$this->assertFalse( Editor::taken( PostTypes::ACTION, A::FILE_NUMBER, 'EXP-10', 0 ) );
@@ -409,9 +509,12 @@ class Test_Editor_Save extends WP_UnitTestCase {
 				'post_title' => 'Título de antes',
 			)
 		);
+		// El subtítulo ya no es un campo: lo que tenía se conserva, y no se
+		// puede cambiar por el formulario (adenda de ADR-0009).
+		update_post_meta( $own['id'], A::SUBTITLE, 'El de antes' );
 		Editor::apply( PostTypes::ACTION, $own['id'], array( A::SUBTITLE => 'Edición de otoño' ) + $fields, '', 0 );
 		$this->assertSame( 'Título de antes', get_the_title( $own['id'] ) );
-		$this->assertSame( 'Edición de otoño', get_post_meta( $own['id'], A::SUBTITLE, true ) );
+		$this->assertSame( 'El de antes', get_post_meta( $own['id'], A::SUBTITLE, true ) );
 
 		// Con otro diseño, el título de ese diseño.
 		$other = self::factory()->post->create(
@@ -469,7 +572,7 @@ class Test_Editor_Save extends WP_UnitTestCase {
 	public function test_the_hours_of_each_part_are_required() {
 		$this->as_role( 'fmc_curator' );
 
-		$blended = Editor::apply( PostTypes::DESIGN, 0, $this->design_fields( array( D::HOURS_ONLINE => '' ) ), 'draft', 0 );
+		$blended = Editor::apply( PostTypes::DESIGN, 0, $this->design_fields( array( D::HOURS_ONLINE => '' ) ), 'publish', 0 );
 		$this->assertSame( 'invalid', $blended['outcome'] );
 		$this->assertSame( array( D::HOURS_ONLINE => 'Falta rellenar «Horas en línea».' ), $blended['errors'] );
 
@@ -483,7 +586,7 @@ class Test_Editor_Save extends WP_UnitTestCase {
 					D::HOURS_ONLINE => '',
 				)
 			),
-			'draft',
+			'publish',
 			0
 		);
 		$this->assertSame( array( D::HOURS_ONLINE ), array_keys( $online['errors'] ), 'en línea no pide las presenciales' );
@@ -497,7 +600,7 @@ class Test_Editor_Save extends WP_UnitTestCase {
 					D::HOURS_ONLINE => '',
 				)
 			),
-			'draft',
+			'publish',
 			0
 		);
 		$this->assertSame( 'created', $onsite['outcome'] );
@@ -539,9 +642,10 @@ class Test_Editor_Save extends WP_UnitTestCase {
 	}
 
 	/**
-	 * El servicio de perfeccionamiento resuelve la incidencia, pero no reescribe lo que se pidió.
+	 * El servicio de perfeccionamiento no resuelve la incidencia ni reescribe
+	 * lo que se pidió: en ella no tiene nada que cambiar (ADR-0029).
 	 */
-	public function test_the_training_service_resolves_an_incident() {
+	public function test_the_training_service_changes_nothing_in_an_incident() {
 		$adviser  = self::factory()->user->create( array( 'role' => 'fmc_adviser' ) );
 		$incident = $this->post( PostTypes::INCIDENT, $adviser );
 		update_post_meta( $incident, I::REASON, 'Motivo original' );
@@ -559,23 +663,10 @@ class Test_Editor_Save extends WP_UnitTestCase {
 			0
 		);
 
-		$this->assertSame( 'saved', $result['outcome'] );
-		$this->assertSame( 'approved', get_post_meta( $incident, I::RESOLUTION, true ) );
-		$this->assertSame( 'Adelante', get_post_meta( $incident, I::RESOLUTION_NOTES, true ) );
-		$this->assertSame( 'Motivo original', get_post_meta( $incident, I::REASON, true ) );
-
-		// Vuelta a pendiente: las observaciones de la resolución ya no cuentan.
-		Editor::apply(
-			PostTypes::INCIDENT,
-			$incident,
-			array(
-				I::RESOLUTION       => 'pending',
-				I::RESOLUTION_NOTES => 'Adelante',
-			),
-			'',
-			0
-		);
+		$this->assertSame( 'denied', $result['outcome'] );
+		$this->assertSame( '', get_post_meta( $incident, I::RESOLUTION, true ) );
 		$this->assertSame( '', get_post_meta( $incident, I::RESOLUTION_NOTES, true ) );
+		$this->assertSame( 'Motivo original', get_post_meta( $incident, I::REASON, true ) );
 	}
 
 	/**
@@ -656,7 +747,7 @@ class Test_Editor_Save extends WP_UnitTestCase {
 
 		$this->assertSame( 'created', $result['outcome'] );
 		$this->assertCount( 1, $result['problems'] );
-		$this->assertStringContainsString( '«falso.pdf» no es de un formato admitido', $result['problems'][0] );
+		$this->assertStringContainsString( '«falso.pdf» no tiene un formato admitido', $result['problems'][0] );
 		$this->assertSame( array(), Documents::of( $result['id'] )['design'] );
 	}
 
@@ -878,7 +969,7 @@ class Test_Editor_Save extends WP_UnitTestCase {
 	public function test_zero_hours_count_as_missing() {
 		$this->as_role( 'fmc_curator' );
 
-		$result = Editor::apply( PostTypes::DESIGN, 0, $this->design_fields( array( D::HOURS_ONSITE => '0' ) ), 'draft', 0 );
+		$result = Editor::apply( PostTypes::DESIGN, 0, $this->design_fields( array( D::HOURS_ONSITE => '0' ) ), 'publish', 0 );
 
 		$this->assertSame( array( D::HOURS_ONSITE => 'Falta rellenar «Horas presenciales».' ), $result['errors'] );
 	}
@@ -962,7 +1053,7 @@ class Test_Editor_Save extends WP_UnitTestCase {
 			0
 		);
 		$this->assertSame( 'invalid', $half['outcome'] );
-		$this->assertSame( 'Cada sesión necesita el día y las horas de inicio y de fin.', $half['errors'][ A::SESSIONS ] );
+		$this->assertSame( 'Cada sesión necesita el día, la hora de inicio y la de fin.', $half['errors'][ A::SESSIONS ] );
 		$this->assertSame( '16:00', $half['values'][ A::SESSIONS ][0]['from'], 'lo escrito vuelve a la ficha' );
 
 		$early = Editor::apply(

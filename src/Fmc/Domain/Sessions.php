@@ -48,7 +48,7 @@ final class Sessions {
 				continue;
 			}
 			if ( '' === $day || '' === $from || '' === $to ) {
-				$error = $error ? $error : 'Cada sesión necesita el día y las horas de inicio y de fin.';
+				$error = $error ? $error : 'Cada sesión necesita el día, la hora de inicio y la de fin.';
 				continue;
 			}
 			if ( $to <= $from ) {
@@ -196,5 +196,71 @@ final class Sessions {
 	 */
 	private static function date_label( string $day ): string {
 		return substr( $day, 8, 2 ) . '/' . substr( $day, 5, 2 ) . '/' . substr( $day, 0, 4 );
+	}
+
+	/**
+	 * Days from one date to another; negative when the second is earlier.
+	 *
+	 * @param string $from Y-m-d.
+	 * @param string $to   Y-m-d.
+	 * @return int 0 when either is not a date.
+	 */
+	public static function days_between( string $from, string $to ): int {
+		$a = \DateTimeImmutable::createFromFormat( '!Y-m-d', $from );
+		$b = \DateTimeImmutable::createFromFormat( '!Y-m-d', $to );
+		if ( false === $a || false === $b ) {
+			return 0;
+		}
+		$diff = $a->diff( $b );
+		return (int) $diff->days * ( $diff->invert ? -1 : 1 );
+	}
+
+	/**
+	 * The same sessions, some days later or earlier.
+	 *
+	 * Cuando una acción cambia de fechas, sus sesiones se van con ella: mismas
+	 * horas, mismo reparto, tantos días después.
+	 *
+	 * @param list<array{day:string, from:string, to:string}> $sessions Sessions.
+	 * @param int                                             $days     Days to move them; negative, earlier.
+	 * @return list<array{day:string, from:string, to:string}>
+	 */
+	public static function shift( array $sessions, int $days ): array {
+		$out = array();
+		foreach ( $sessions as $session ) {
+			$day = \DateTimeImmutable::createFromFormat( '!Y-m-d', (string) ( $session['day'] ?? '' ) );
+			if ( false === $day ) {
+				continue;
+			}
+			$session['day'] = $day->modify( ( $days < 0 ? '-' : '+' ) . abs( $days ) . ' days' )->format( 'Y-m-d' );
+			$out[]          = $session;
+		}
+		return $out;
+	}
+
+	/**
+	 * Where an action lands when its start date changes: its end and its sessions.
+	 *
+	 * Sin fecha de fin nueva, dura lo que duraba. Las sesiones se mueven los
+	 * mismos días que el inicio; si alguna no cabe en las fechas nuevas, no
+	 * queda ninguna: una sesión no puede estar fuera de las fechas de su acción.
+	 *
+	 * @param list<array{day:string, from:string, to:string}> $sessions  Sessions it had.
+	 * @param string                                          $was_start Start it had, Y-m-d or ''.
+	 * @param string                                          $was_end   End it had, Y-m-d or ''.
+	 * @param string                                          $start     New start, Y-m-d.
+	 * @param string                                          $end       New end, Y-m-d or ''.
+	 * @return array{end:string, sessions:list<array{day:string, from:string, to:string}>}
+	 */
+	public static function moved( array $sessions, string $was_start, string $was_end, string $start, string $end ): array {
+		$days = self::days_between( $was_start, $start );
+		if ( '' === $end && '' !== $was_start ) {
+			$end = self::shift( array( array( 'day' => $was_end ) ), $days )[0]['day'] ?? '';
+		}
+		$sessions = self::shift( $sessions, $days );
+		return array(
+			'end'      => $end,
+			'sessions' => '' === self::outside( $sessions, $start, $end ) ? $sessions : array(),
+		);
 	}
 }

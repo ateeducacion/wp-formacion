@@ -6,7 +6,7 @@
  * Priority: 15
  *
  * @package Fmc
- * @version 0.1.4
+ * @version 0.2.0
  */
 
 // phpcs:disable
@@ -394,10 +394,119 @@ final class ActionMetaKeys {
 
 
 
+
+
+
+
+
 	public const DELIVERY = array(
-		'draft'   => 'Borrador',
-		'publish' => 'Entregada',
+		'draft'     => 'Borrador',
+		'publish'   => 'Entregada',
+		'completed' => 'Completada',
 	);
+
+
+
+
+	public const INTERNAL_REF_PREFIX = 'AF';
+
+
+
+
+
+
+
+	public static function delivery( \WP_Post $action ): string {
+		if ( 'publish' !== $action->post_status ) {
+			return $action->post_status;
+		}
+		return '' !== trim( (string) get_post_meta( $action->ID, self::FILE_NUMBER, true ) ) ? 'completed' : 'publish';
+	}
+
+
+
+
+
+
+
+
+
+	public static function file_numbers( int $action, bool $short = false ): string {
+		$lines = array();
+		foreach ( array(
+			self::INTERNAL_REF => $short ? self::internal_ref_label() : 'Expediente interno',
+			self::FILE_NUMBER  => $short ? 'Perfeccionamiento' : 'Expediente de perfeccionamiento',
+		) as $key => $label ) {
+			$value = trim( (string) get_post_meta( $action, $key, true ) );
+			if ( '' !== $value ) {
+				$lines[] = $label . ': ' . $value;
+			}
+		}
+		return implode( "\n", $lines );
+	}
+
+
+
+
+
+
+	public static function internal_ref_prefix(): string {
+		return (string) preg_replace( '/[^A-Za-z0-9]/', '', (string) apply_filters( 'fmc_internal_ref_prefix', self::INTERNAL_REF_PREFIX ) );
+	}
+
+
+
+
+
+
+
+
+
+
+	public static function internal_ref_label(): string {
+		$prefix = self::internal_ref_prefix();
+		return in_array( $prefix, array( '', self::INTERNAL_REF_PREFIX ), true ) ? 'Interno' : $prefix;
+	}
+
+
+
+
+
+
+
+
+
+
+
+
+	public static function internal_ref( int $user ): string {
+		return self::internal_ref_prefix() . $user . '-' . current_time( 'd/m/Y' ) . '-' . current_time( 'H:i:s' );
+	}
+
+
+
+
+
+
+
+
+
+
+	public static function strategic_lines(): array {
+		$out = array();
+		foreach ( (array) apply_filters( 'fmc_strategic_lines', array() ) as $line ) {
+			$line = is_string( $line ) ? sanitize_text_field( $line ) : '';
+			if ( '' !== $line ) {
+				$out[ $line ] = $line;
+			}
+		}
+		return $out;
+	}
+
+
+
+
+	public const PROGRAMME_FUNDERS = array( 'area', 'service' );
 
 
 
@@ -581,6 +690,10 @@ namespace Fmc\Meta;
 
 
 
+
+
+
+
 if ( ! class_exists( 'Fmc\Meta\IncidentMetaKeys', false ) ) {
 final class IncidentMetaKeys {
 
@@ -596,19 +709,22 @@ final class IncidentMetaKeys {
 
 
 
-	public const REQUESTS = array(
-		'change'   => 'Un cambio en la acción',
-		'postpone' => 'Aplazarla',
-		'cancel'   => 'Cancelarla',
+	public const OLD_START = 'fmc_old_start';
+	public const OLD_END   = 'fmc_old_end';
+
+
+
+
+
+
+
+	public const KINDS = array(
+		'postpone' => 'Cambio de fechas',
+		'speaker'  => 'Cambio de ponente',
+		'cancel'   => 'Cancelación',
+		'change'   => 'Otro cambio',
 	);
 
-
-
-
-	public const SITUATION_OF = array(
-		'postpone' => 'postponed',
-		'cancel'   => 'cancelled',
-	);
 
 
 
@@ -618,36 +734,6 @@ final class IncidentMetaKeys {
 		'approved' => 'Aprobada',
 		'denied'   => 'Denegada',
 	);
-
-
-
-
-
-
-
-
-
-
-
-	public static function resolution_clause( string $resolution ): array {
-		if ( 'pending' !== $resolution ) {
-			return array(
-				'key'   => self::RESOLUTION,
-				'value' => $resolution,
-			);
-		}
-		return array(
-			'relation' => 'OR',
-			array(
-				'key'   => self::RESOLUTION,
-				'value' => 'pending',
-			),
-			array(
-				'key'     => self::RESOLUTION,
-				'compare' => 'NOT EXISTS',
-			),
-		);
-	}
 
 
 
@@ -664,6 +750,8 @@ final class IncidentMetaKeys {
 			self::REQUEST          => MetaTypes::STRING,
 			self::NEW_START        => MetaTypes::DATE,
 			self::NEW_END          => MetaTypes::DATE,
+			self::OLD_START        => MetaTypes::DATE,
+			self::OLD_END          => MetaTypes::DATE,
 		);
 	}
 }
@@ -737,7 +825,7 @@ final class MetaRegistration {
 			),
 			PostTypes::INCIDENT => array(
 				IncidentMetaKeys::RESOLUTION => IncidentMetaKeys::RESOLUTIONS,
-				IncidentMetaKeys::REQUEST    => IncidentMetaKeys::REQUESTS,
+				IncidentMetaKeys::REQUEST    => IncidentMetaKeys::KINDS,
 			),
 		);
 	}
@@ -977,7 +1065,7 @@ final class Sessions {
 				continue;
 			}
 			if ( '' === $day || '' === $from || '' === $to ) {
-				$error = $error ? $error : 'Cada sesión necesita el día y las horas de inicio y de fin.';
+				$error = $error ? $error : 'Cada sesión necesita el día, la hora de inicio y la de fin.';
 				continue;
 			}
 			if ( $to <= $from ) {
@@ -1125,6 +1213,72 @@ final class Sessions {
 
 	private static function date_label( string $day ): string {
 		return substr( $day, 8, 2 ) . '/' . substr( $day, 5, 2 ) . '/' . substr( $day, 0, 4 );
+	}
+
+
+
+
+
+
+
+
+	public static function days_between( string $from, string $to ): int {
+		$a = \DateTimeImmutable::createFromFormat( '!Y-m-d', $from );
+		$b = \DateTimeImmutable::createFromFormat( '!Y-m-d', $to );
+		if ( false === $a || false === $b ) {
+			return 0;
+		}
+		$diff = $a->diff( $b );
+		return (int) $diff->days * ( $diff->invert ? -1 : 1 );
+	}
+
+
+
+
+
+
+
+
+
+
+
+	public static function shift( array $sessions, int $days ): array {
+		$out = array();
+		foreach ( $sessions as $session ) {
+			$day = \DateTimeImmutable::createFromFormat( '!Y-m-d', (string) ( $session['day'] ?? '' ) );
+			if ( false === $day ) {
+				continue;
+			}
+			$session['day'] = $day->modify( ( $days < 0 ? '-' : '+' ) . abs( $days ) . ' days' )->format( 'Y-m-d' );
+			$out[]          = $session;
+		}
+		return $out;
+	}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+	public static function moved( array $sessions, string $was_start, string $was_end, string $start, string $end ): array {
+		$days = self::days_between( $was_start, $start );
+		if ( '' === $end && '' !== $was_start ) {
+			$end = self::shift( array( array( 'day' => $was_end ) ), $days )[0]['day'] ?? '';
+		}
+		$sessions = self::shift( $sessions, $days );
+		return array(
+			'end'      => $end,
+			'sessions' => '' === self::outside( $sessions, $start, $end ) ? $sessions : array(),
+		);
 	}
 }
 }
@@ -1496,6 +1650,32 @@ final class PostTypes {
 		}
 		$terms = get_the_terms( $action, Taxonomies::SCOPE );
 		return is_array( $terms ) && in_array( $scope, array_map( 'intval', wp_list_pluck( $terms, 'term_id' ) ), true );
+	}
+
+
+
+
+
+
+
+
+
+
+	public static function design_status( string $status ): string {
+		return 'pending' === $status ? 'draft' : $status;
+	}
+
+
+
+
+
+
+
+
+
+
+	public static function is_training_service(): bool {
+		return current_user_can( self::CAP_SERVICE_FIELDS ) && ! current_user_can( 'edit_others_fmc_actions' );
 	}
 
 
@@ -3515,6 +3695,8 @@ use Fmc\PostType\PostTypes;
 
 
 
+
+
 if ( ! class_exists( 'Fmc\PublicFront\Fields', false ) ) {
 final class Fields {
 
@@ -3580,10 +3762,13 @@ final class Fields {
 				),
 			),
 			PostTypes::ACTION   => array(
-				A::FILE_NUMBER   => array( 'unique' => true ),
-				A::TRAINING_FILE => array( 'show' => array( A::TRAINING_PLANS => array( 'plan', 'seminar' ) ) ),
-				A::NOTES         => $rich,
-				A::SPEAKERS      => array( 'add' => PostTypes::SPEAKER ),
+				A::FILE_NUMBER      => array( 'unique' => true ),
+				A::TRAINING_FILE    => array( 'show' => array( A::TRAINING_PLANS => array( 'plan', 'seminar' ) ) ),
+
+
+				'tax:fmc_programme' => array( 'show' => array( A::FUNDED_BY => A::PROGRAMME_FUNDERS ) ),
+				A::NOTES            => $rich,
+				A::SPEAKERS         => array( 'add' => PostTypes::SPEAKER ),
 			),
 			PostTypes::SPEAKER  => array(
 				S::ID_NUMBER   => array( 'unique' => true ),
@@ -3592,10 +3777,9 @@ final class Fields {
 				S::RECOMMENDED => array( 'active' => true ),
 			),
 			PostTypes::INCIDENT => array(
-				I::RESOLUTION_NOTES => array( 'show' => array( I::RESOLUTION => array( 'approved', 'denied' ) ) ),
 
-				I::NEW_START        => array( 'show' => array( I::REQUEST => array( 'postpone' ) ) ),
-				I::NEW_END          => array( 'show' => array( I::REQUEST => array( 'postpone' ) ) ),
+				I::NEW_START => array( 'show' => array( I::REQUEST => array( 'postpone' ) ) ),
+				I::NEW_END   => array( 'show' => array( I::REQUEST => array( 'postpone' ) ) ),
 			),
 		);
 	}
@@ -3622,21 +3806,21 @@ final class Fields {
 	private static function design(): array {
 		return array(
 			array(
-				'title'  => 'Identidad',
-				'help'   => 'Cómo se llama el diseño y de qué tipo es. El código lo asigna el aplicativo y no cambia.',
+				'title'  => 'Datos generales',
+				'help'   => 'El código se asigna solo y no cambia. Para guardar un borrador basta con el título; el resto se pide al marcarlo como finalizado.',
 				'fields' => array(
 					'post_title'    => array(
 						'label' => 'Título',
 						'w'     => 'text',
 						'req'   => true,
-						'help'  => 'Tal y como sale en el catálogo. Empiece por «Curso:» o «APU:» si así se viene haciendo.',
+						'help'  => 'Tal como se verá en el catálogo. Empiece por «Curso:» o «APU:» si es lo habitual.',
 					),
 					D::CODE         => array(
 						'label' => 'Código',
 						'w'     => 'text',
 						'auto'  => true,
 						'col'   => 4,
-						'help'  => 'El siguiente libre; se asigna al guardar por primera vez.',
+						'help'  => 'Se asigna solo la primera vez que se guarda.',
 					),
 					D::TYPE         => array(
 						'label'   => 'Tipo de formación',
@@ -3663,21 +3847,20 @@ final class Fields {
 						'col'   => 4,
 					),
 					D::IN_CATALOGUE => array(
-						'label' => 'Sale en el catálogo público',
+						'label' => 'Visible en el catálogo público',
 						'w'     => 'checkbox',
 						'col'   => 4,
-						'help'  => 'Solo sale si, además, está finalizado. Lo que ya no se imparte no se quita de aquí: se pasa a histórico.',
 					),
 				),
 			),
 			array(
 				'title'  => 'Clasificación',
-				'help'   => 'Con qué se busca y se agrupa el diseño.',
+				'help'   => 'Sirve para buscar y agrupar los diseños.',
 				'fields' => array(
 					'tax:fmc_programme' => array(
 						'label' => 'Programas',
 						'w'     => 'terms',
-						'help'  => sprintf( 'Los programas o proyectos que cubren este diseño. Puede ser más de uno. Solo se ofrecen los vigentes; el que dejó de estarlo se queda en los diseños que ya lo tenían. Mientras un programa esté activo, las acciones de este diseño que asuma «%s» se le imputan.', A::funders()[ A::PROGRAMME_FUNDER ] ),
+						'help'  => sprintf( 'Programas o proyectos a los que pertenece este diseño; puede ser más de uno. Solo se pueden elegir los vigentes, pero un diseño conserva los que ya tenía. Mientras un programa esté activo, las acciones de este diseño que asuma «%s» se imputan a ese programa.', A::funders()[ A::PROGRAMME_FUNDER ] ),
 					),
 					'tax:fmc_topic'     => array(
 						'label' => 'Temática',
@@ -3688,20 +3871,20 @@ final class Fields {
 						'label' => 'Sustituye a',
 						'w'     => 'designs',
 						'col'   => 6,
-						'help'  => 'Al dar este por finalizado, los que sustituye pasan a histórico y sus ponentes recomendados pasan a este diseño.',
+						'help'  => 'Al marcar este diseño como finalizado, los que sustituye pasan a histórico y sus ponentes recomendados pasan a este.',
 					),
 
 
 					D::DIGCOMP_URL      => array(
 						'label' => 'Perfil de competencia digital',
 						'w'     => 'url',
-						'help'  => 'Pulse «Elegir los indicadores en elidd», márquelos y pulse «Guardar»; o pegue aquí la dirección que da elidd al compartir. Al guardar la ficha se ve la tabla.',
+						'help'  => 'Pulse «Elegir los indicadores en elidd», márquelos y pulse «Guardar». También puede pegar aquí la dirección que da elidd al compartir. La tabla se ve al guardar la ficha.',
 					),
 				),
 			),
 			array(
 				'title'  => 'Contenido del diseño',
-				'help'   => 'Descripción, destinatarios, objetivos y contenidos se publican en la ficha del catálogo; lo demás es de trabajo.',
+				'help'   => 'La descripción, los destinatarios, los objetivos y los contenidos se publican en el catálogo. El resto es de uso interno.',
 				'fields' => array(
 					'post_content' => array(
 						'label' => 'Descripción',
@@ -3744,7 +3927,7 @@ final class Fields {
 			),
 			array(
 				'title'  => 'Documentos',
-				'help'   => 'El diseño, la escaleta y las presentaciones, en editable; los recursos, en PDF, para conservar la versión. Cada documento se puede cambiar por otro o quitar; los cambios se guardan con el diseño.',
+				'help'   => 'El diseño, la escaleta y las presentaciones se suben en formato editable; los recursos, en PDF. Cada documento se puede reemplazar o quitar, y los cambios se aplican al guardar.',
 				'fields' => array(
 					'docs' => array(
 						'label' => 'Documentos',
@@ -3762,30 +3945,37 @@ final class Fields {
 
 	private static function action(): array {
 		$funders = A::funders();
-		return array(
+		$lines   = A::strategic_lines();
+		$paying  = implode( '» o «', array_intersect_key( $funders, array_flip( A::PROGRAMME_FUNDERS ) ) );
+		$out     = array(
 			array(
 				'title'  => 'La acción',
-				'help'   => 'De qué diseño sale y quién la gestiona. El título, la modalidad y las horas son siempre los del diseño.',
+				'help'   => 'El título, la modalidad y las horas son siempre los del diseño.',
 				'fields' => array(
 
 
 
+
+					A::INTERNAL_REF    => array(
+						'label' => 'Expediente interno',
+						'w'     => 'text',
+						'auto'  => true,
+						'col'   => 6,
+						'help'  => 'Se genera solo la primera vez que se guarda la acción y no cambia. Es el que se da al servicio de perfeccionamiento para que la localice.',
+					),
 					A::FILE_NUMBER     => array(
-						'label' => 'Expediente',
+						'label' => 'Expediente de perfeccionamiento',
 						'w'     => 'text',
 						'col'   => 6,
-						'help'  => 'El del sistema de gestión del servicio de perfeccionamiento, cuando lo haya creado allí. Es por el que busca el listado.',
+						'help'  => 'El número que le da el servicio de perfeccionamiento en su sistema de gestión. Al rellenarlo, la acción pasa a «Completada».',
 					),
+
+
 					A::DESIGN_ID       => array(
 						'label' => 'Diseño',
 						'w'     => 'design',
 						'req'   => true,
-						'help'  => 'Solo los diseños finalizados. La acción lleva el título del diseño, y no se cambia.',
-					),
-					A::SUBTITLE        => array(
-						'label' => 'Subtítulo',
-						'w'     => 'text',
-						'help'  => 'Un añadido que sale debajo del título, por ejemplo la edición o el lugar. No sustituye al título.',
+						'help'  => 'Solo se pueden elegir diseños finalizados. La acción toma el título del diseño.',
 					),
 
 
@@ -3818,14 +4008,14 @@ final class Fields {
 					A::SPEAKERS        => array(
 						'label' => 'Ponentes',
 						'w'     => 'speakers',
-						'help'  => 'Escriba para buscar y añadir; la «×» de cada uno lo quita. Al lado de cada nombre, su isla y las acciones que ha impartido; «★» si se le recomienda para el diseño elegido, en gris si no está disponible, y un bocadillo si tiene observaciones.',
+						'help'  => 'Escriba para buscar y añadir; la «×» quita a cada uno. Junto al nombre se ven su isla y las acciones que ha impartido. La «★» indica que está recomendado para el diseño elegido; el gris, que no está disponible; el bocadillo, que tiene observaciones.',
 					),
 				),
 			),
 			array(
 				'title'  => 'Financiación',
 
-				'help'   => sprintf( 'Quién la paga y con cargo a qué programa. Si la asume «%1$s», el programa se pone solo al guardar: el programa activo que cubre el diseño. Si el diseño no está en ninguno, la asume «%2$s».', $funders[ A::PROGRAMME_FUNDER ], $funders[ A::FALLBACK_FUNDER ] ),
+				'help'   => sprintf( 'Indique quién la paga. El programa solo se pide si la asume «%3$s». Con «%1$s» se asigna solo al guardar: el programa activo del diseño. Si el diseño no está en ningún programa activo, la asume «%2$s».', $funders[ A::PROGRAMME_FUNDER ], $funders[ A::FALLBACK_FUNDER ], $paying ),
 				'fields' => array(
 					A::FUNDED_BY        => array(
 						'label'   => 'Asumida por',
@@ -3837,12 +4027,17 @@ final class Fields {
 						'label' => 'Con cargo al programa',
 						'w'     => 'terms',
 						'col'   => 6,
-						'help'  => sprintf( 'Solo los programas vigentes. Con «%s», lo pone el aplicativo.', $funders[ A::PROGRAMME_FUNDER ] ),
+						'help'  => sprintf( 'Solo se pueden elegir programas vigentes. Con «%s» se asigna solo.', $funders[ A::PROGRAMME_FUNDER ] ),
 					),
+
+
+
 					A::STRATEGIC_LINE   => array(
-						'label' => 'Línea estratégica',
-						'w'     => 'text',
-						'col'   => 6,
+						'label'   => 'Línea estratégica',
+						'w'       => 'select',
+						'choices' => $lines,
+						'closed'  => true,
+						'col'     => 6,
 					),
 
 
@@ -3856,7 +4051,7 @@ final class Fields {
 						'label' => 'Expediente del plan o del seminario',
 						'w'     => 'text',
 						'col'   => 6,
-						'help'  => 'El número de expediente del plan de formación del centro o del seminario en el que se incluye esta acción, para poder asociarla. No es el expediente de la acción, que lo pone el servicio de perfeccionamiento.',
+						'help'  => 'Número de expediente del plan de formación del centro o del seminario en el que se incluye esta acción. Déjelo en blanco si todavía no lo tiene.',
 					),
 				),
 			),
@@ -3866,7 +4061,7 @@ final class Fields {
 
 			array(
 				'title'  => 'Fechas y horas',
-				'help'   => 'De la fecha de inicio sale el curso escolar. Los plazos de matrícula, el enlace y las listas se llevan en el sistema de gestión del servicio de perfeccionamiento.',
+				'help'   => 'El curso escolar se calcula a partir de la fecha de inicio. La matrícula (plazos, enlace y listas) se lleva en el sistema de gestión del servicio de perfeccionamiento.',
 
 
 				'fields' => array(
@@ -3887,12 +4082,12 @@ final class Fields {
 					A::SESSIONS => array(
 						'label' => 'Sesiones',
 						'w'     => 'sessions',
-						'help'  => 'El día y el horario de cada sesión, dentro de las fechas de inicio y de fin. El calendario pinta cada una en su día.',
+						'help'  => 'Día y horario de cada sesión, dentro de las fechas de inicio y de fin. Cada sesión aparece en su día en el calendario.',
 					),
 					A::SCHEDULE => array(
-						'label' => 'Días y horas (escrito antes de las sesiones)',
+						'label' => 'Días y horas (texto anterior)',
 						'w'     => 'legacy',
-						'help'  => 'Lo que se escribió a mano antes de que hubiera sesiones. Se conserva tal cual; no se puede cambiar.',
+						'help'  => 'Lo que se escribió a mano cuando aún no había sesiones. Se conserva tal cual y no se puede cambiar.',
 					),
 				),
 			),
@@ -3903,21 +4098,20 @@ final class Fields {
 			array(
 				'title'  => 'Observaciones',
 
-				'help'   => 'La situación la pone el aplicativo: impartiéndose en sus fechas y realizada cuando pasan; una incidencia la aplaza o la cancela.',
+				'help'   => 'La situación se calcula sola: «Impartiéndose» durante sus fechas y «Realizada» cuando pasan. Una incidencia puede aplazarla o cancelarla.',
 				'fields' => array(
-					A::NOTES        => array(
+					A::NOTES => array(
 						'label' => 'Observaciones',
 						'w'     => 'textarea',
-					),
-					A::INTERNAL_REF => array(
-						'label' => 'Referencia interna',
-						'w'     => 'text',
-						'col'   => 6,
-						'help'  => 'La del sistema anterior; solo para buscar.',
 					),
 				),
 			),
 		);
+
+		if ( array() === $lines ) {
+			unset( $out[1]['fields'][ A::STRATEGIC_LINE ] );
+		}
+		return $out;
 	}
 
 
@@ -3929,7 +4123,7 @@ final class Fields {
 		return array(
 			array(
 				'title'  => 'Datos personales',
-				'help'   => 'Los ve quien gestiona acciones formativas; cada asesoría edita las fichas que ha dado de alta.',
+				'help'   => 'Los ve quien gestiona acciones formativas. Cada asesoría puede editar las fichas que ha dado de alta.',
 				'fields' => array(
 					S::FIRST_NAME  => array(
 						'label' => 'Nombre',
@@ -3993,17 +4187,17 @@ final class Fields {
 					S::UNAVAILABLE => array(
 						'label' => 'No disponible',
 						'w'     => 'checkbox',
-						'help'  => 'Se puede seguir eligiendo para una acción, pero sale en gris y avisado. Diga el porqué en las observaciones.',
+						'help'  => 'Se puede seguir eligiendo para una acción, pero aparece en gris y con un aviso. Explique el motivo en las observaciones.',
 					),
 					S::RECOMMENDED => array(
 						'label' => 'Recomendado para los diseños',
 						'w'     => 'designs',
-						'help'  => 'Escriba para buscar y añadir; la «×» de cada uno lo quita. Solo se ofrecen los diseños finalizados: ni borradores ni históricos.',
+						'help'  => 'Escriba para buscar y añadir; la «×» quita cada uno. Solo se pueden elegir diseños finalizados.',
 					),
 					S::NOTES       => array(
 						'label' => 'Observaciones',
 						'w'     => 'textarea',
-						'help'  => 'Salen en un bocadillo junto al nombre, en el listado y al elegir ponentes para una acción.',
+						'help'  => 'Se ven en un bocadillo junto al nombre, en el listado y al elegir ponentes para una acción.',
 					),
 				),
 			),
@@ -4019,54 +4213,31 @@ final class Fields {
 		return array(
 			array(
 				'title'  => 'La incidencia',
-				'help'   => 'Una vez enviada ya no se puede cambiar: si hay que corregirla, se abre otra. Si pide aplazar o cancelar la acción, la acción queda aplazada o cancelada al enviarla.',
+
+				'help'   => 'La incidencia deja constancia de un cambio en la acción y no necesita aprobación. Una vez enviada no se puede modificar; si hay que corregirla, abra otra. Al enviarla, una cancelación deja la acción cancelada y un cambio de fechas la pasa a las fechas nuevas.',
 				'fields' => array(
 					I::REQUEST   => array(
-						'label'   => 'Qué se pide',
+						'label'   => 'Tipo de incidencia',
 						'w'       => 'radio',
-						'choices' => I::REQUESTS,
+						'choices' => I::KINDS,
 						'req'     => true,
 					),
 					I::NEW_START => array(
 						'label' => 'Nueva fecha de inicio',
 						'w'     => 'date',
 						'col'   => 6,
-						'help'  => 'Si ya se sabe.',
+						'help'  => 'Si todavía no se sabe, déjela en blanco y la acción quedará aplazada. Si la indica, las sesiones se desplazan los mismos días; las que no quepan en las fechas nuevas se quitan.',
 					),
 					I::NEW_END   => array(
 						'label' => 'Nueva fecha de fin',
 						'w'     => 'date',
 						'col'   => 6,
+						'help'  => 'Si la deja en blanco, la acción conserva su duración.',
 					),
 					I::REASON    => array(
-						'label' => 'Motivos',
+						'label' => 'Justificación',
 						'w'     => 'textarea',
 						'req'   => true,
-					),
-					I::PROPOSAL  => array(
-						'label' => 'Cambios que se proponen',
-						'w'     => 'textarea',
-						'req'   => true,
-					),
-					I::HAS_COST  => array(
-						'label' => 'El cambio conlleva coste',
-						'w'     => 'checkbox',
-						'help'  => 'Con coste es, por ejemplo, duplicar el curso; sin coste, cambiar ponente, fechas o número de plazas.',
-					),
-				),
-			),
-			array(
-				'title'  => 'Resolución',
-				'help'   => 'La resuelve el servicio de perfeccionamiento.',
-				'fields' => array(
-					I::RESOLUTION       => array(
-						'label'   => 'Resolución',
-						'w'       => 'radio',
-						'choices' => I::RESOLUTIONS,
-					),
-					I::RESOLUTION_NOTES => array(
-						'label' => 'Observaciones a la resolución',
-						'w'     => 'textarea',
 					),
 				),
 			),
@@ -4391,6 +4562,15 @@ final class Documents {
 
 
 
+	public const SHOWN_KINDS = array( 'image' );
+
+
+
+
+
+
+
+
 
 	public const REVALIDATED_KINDS = array( 'image' );
 
@@ -4460,7 +4640,7 @@ final class Documents {
 		return array(
 			'image'    => array(
 				'label'    => 'Imagen representativa',
-				'help'     => 'JPG, PNG o GIF, de hasta 3 MB. Sale en el catálogo.',
+				'help'     => 'JPG, PNG o GIF de hasta 3 MB. Se ve en el catálogo.',
 				'mimes'    => array(
 					'jpg|jpeg' => 'image/jpeg',
 					'png'      => 'image/png',
@@ -4474,21 +4654,21 @@ final class Documents {
 
 			'design'   => array(
 				'label'    => 'Diseño del curso',
-				'help'     => 'El editable: DOC, DOCX u ODT. Es el fichero maestro: uno solo, la versión vigente. Sale en el catálogo.',
+				'help'     => 'En formato editable: DOC, DOCX u ODT. Uno solo, la versión vigente. Se puede descargar desde el catálogo.',
 				'mimes'    => $texts,
 				'multiple' => false,
 				'max_mb'   => 20,
 			),
 			'sessions' => array(
 				'label'    => 'Escaleta de las sesiones',
-				'help'     => 'El editable: DOC, DOCX u ODT.',
+				'help'     => 'En formato editable: DOC, DOCX u ODT.',
 				'mimes'    => $texts,
 				'multiple' => true,
 				'max_mb'   => 20,
 			),
 			'slides'   => array(
 				'label'    => 'Presentaciones',
-				'help'     => 'Las editables: PPT, PPTX u ODP.',
+				'help'     => 'En formato editable: PPT, PPTX u ODP.',
 				'mimes'    => $slides,
 				'multiple' => true,
 				'max_mb'   => 50,
@@ -4557,17 +4737,17 @@ final class Documents {
 	public static function check( string $kind, array $file ): string {
 		$def = self::kinds()[ $kind ] ?? null;
 		if ( ! $def ) {
-			return 'Clase de documento desconocida.';
+			return 'Tipo de documento desconocido.';
 		}
 		if ( ! empty( $file['error'] ) ) {
-			return 'No se pudo subir «' . $file['name'] . '».';
+			return 'No se ha podido subir «' . $file['name'] . '».';
 		}
 		if ( (int) $file['size'] > $def['max_mb'] * MB_IN_BYTES ) {
-			return '«' . $file['name'] . '» pasa de ' . $def['max_mb'] . ' MB.';
+			return '«' . $file['name'] . '» supera el máximo de ' . $def['max_mb'] . ' MB.';
 		}
 		$type = wp_check_filetype_and_ext( (string) $file['tmp_name'], (string) $file['name'], $def['mimes'] );
 		if ( empty( $type['type'] ) || ! in_array( $type['type'], $def['mimes'], true ) ) {
-			return '«' . $file['name'] . '» no es de un formato admitido aquí. Se admite ' . self::formats( $def['mimes'] ) . '.';
+			return '«' . $file['name'] . '» no tiene un formato admitido. Se admite ' . self::formats( $def['mimes'] ) . '.';
 		}
 		return '';
 	}
@@ -4749,7 +4929,7 @@ final class Documents {
 		if ( 'attachment' !== get_post_type( $attachment_id ) || ! isset( self::kinds()[ $kind ] ) || ! $design instanceof \WP_Post || PostTypes::DESIGN !== $design->post_type ) {
 			return 'denied';
 		}
-		if ( in_array( $kind, self::PUBLIC_KINDS, true ) && Catalogue::is_listed( $design ) ) {
+		if ( in_array( $kind, array_merge( self::PUBLIC_KINDS, self::SHOWN_KINDS ), true ) && Catalogue::is_listed( $design ) ) {
 			return 'public';
 		}
 		if ( ! is_user_logged_in() ) {
@@ -4796,6 +4976,12 @@ final class Documents {
 	private static function cache_headers( int $attachment_id, string $etag ): array {
 		if ( '' === $etag || ! self::revalidated( $attachment_id ) ) {
 			return array( 'Cache-Control: private, no-store' );
+		}
+
+
+
+		if ( 'public' === self::verdict( $attachment_id ) ) {
+			return array( 'Cache-Control: public, max-age=' . HOUR_IN_SECONDS, 'ETag: ' . $etag );
 		}
 		return array( 'Cache-Control: private, no-cache', 'ETag: ' . $etag );
 	}
@@ -4852,7 +5038,7 @@ final class Documents {
 		return array(
 			'status'  => 'denied' === $verdict ? 404 : 503,
 			'headers' => array_merge( $nocache, array( 'Content-Type: text/plain; charset=utf-8', 'X-Content-Type-Options: nosniff' ) ),
-			'body'    => 'denied' === $verdict ? 'Este documento no existe, o no puede verlo.' : 'No se ha podido leer el documento. Pruebe otra vez dentro de un momento.',
+			'body'    => 'denied' === $verdict ? 'Este documento no existe o no tiene permiso para verlo.' : 'No se ha podido leer el documento. Inténtelo de nuevo dentro de un momento.',
 		);
 	}
 
@@ -4960,7 +5146,6 @@ final class Speakers {
 		global $wpdb;
 		$keys = array(
 			'speakers'  => A::SPEAKERS,
-			'subtitle'  => A::SUBTITLE,
 			'file'      => A::FILE_NUMBER,
 			'start'     => A::START,
 			'onsite'    => A::HOURS_ONSITE,
@@ -4985,8 +5170,7 @@ final class Speakers {
 			$rows[] = array(
 				'id'       => (int) $r['id'],
 				'title'    => (string) $r['title'],
-				'subtitle' => (string) $r['subtitle'],
-				'text'     => self::fold( $r['title'] . ' ' . $r['subtitle'] ),
+				'text'     => self::fold( (string) $r['title'] ),
 				'file'     => (string) $r['file'],
 				'start'    => (string) $r['start'],
 				'hours'    => ( (float) $r['onsite'] + (float) $r['online'] ) * max( 1, (int) $r['replicas'] ),
@@ -5042,10 +5226,9 @@ final class Speakers {
 		foreach ( self::matching( $given, $file, $from ) as $row ) {
 			if ( in_array( $speaker, $row['speakers'], true ) ) {
 				$out[] = array(
-					'id'       => $row['id'],
-					'title'    => $row['title'],
-					'subtitle' => $row['subtitle'],
-					'start'    => $row['start'],
+					'id'    => $row['id'],
+					'title' => $row['title'],
+					'start' => $row['start'],
 				);
 			}
 		}
@@ -5303,9 +5486,11 @@ final class Lists {
 
 
 
+
+
+
 	public const DESIGN_STATUSES = array(
 		'draft'             => array( 'Borrador', 'secondary' ),
-		'pending'           => array( 'En revisión', 'warning' ),
 		'publish'           => array( 'Finalizado', 'success' ),
 		PostTypes::ARCHIVED => array( 'Histórico', 'dark' ),
 	);
@@ -5313,7 +5498,28 @@ final class Lists {
 
 
 
+
+
+
 	public const DESIGN_CURRENT = array( 'draft', 'pending', 'publish' );
+
+
+
+
+	public const DESIGN_DRAFTS = array( 'draft', 'pending' );
+
+
+
+
+
+
+
+	private const LEADING = array( 'Código', 'Expediente interno', 'Expediente de perfeccionamiento' );
+
+
+
+
+	public const SEARCH_BUTTON = '<button class="btn btn-outline-dark" type="submit" title="Buscar" aria-label="Buscar"><i class="bi bi-search" aria-hidden="true"></i></button>';
 
 
 
@@ -5351,15 +5557,19 @@ final class Lists {
 
 
 
+
 	public static function order_by_meta( $clauses, $query ) {
 		$order = $query instanceof \WP_Query ? $query->get( 'fmc_order_meta' ) : null;
-		if ( ! is_array( $order ) || 2 !== count( $order ) ) {
+		if ( ! is_array( $order ) || count( $order ) < 2 ) {
 			return $clauses;
 		}
 		global $wpdb;
-		$dir                = 'asc' === $order[1] ? 'ASC' : 'DESC';
+		$dir = 'asc' === $order[1] ? 'ASC' : 'DESC';
+
+
+		$length             = ! empty( $order[2] ) ? "LENGTH( fmc_sort.meta_value ) $dir, " : '';
 		$clauses['join']   .= $wpdb->prepare( " LEFT JOIN $wpdb->postmeta AS fmc_sort ON ( fmc_sort.post_id = $wpdb->posts.ID AND fmc_sort.meta_key = %s )", (string) $order[0] );
-		$clauses['orderby'] = "( fmc_sort.meta_value IS NULL OR fmc_sort.meta_value = '' ) ASC, fmc_sort.meta_value $dir, $wpdb->posts.ID $dir";
+		$clauses['orderby'] = "( fmc_sort.meta_value IS NULL OR fmc_sort.meta_value = '' ) ASC, $length fmc_sort.meta_value $dir, $wpdb->posts.ID $dir";
 		return $clauses;
 	}
 
@@ -5389,7 +5599,7 @@ final class Lists {
 
 
 
-	private const DESCENDING = array( 'start', 'date', 'actions', 'hours' );
+	private const DESCENDING = array( 'start', 'date', 'actions', 'hours', 'code' );
 
 
 
@@ -5405,7 +5615,9 @@ final class Lists {
 	private static function sort_of( string $type ): array {
 		$own  = array(
 			PostTypes::ACTION   => 'start',
-			PostTypes::DESIGN   => 'title',
+
+
+			PostTypes::DESIGN   => 'code',
 			PostTypes::SPEAKER  => self::speaker_filtered() ? 'actions' : 'name',
 			PostTypes::INCIDENT => 'date',
 		);
@@ -5436,7 +5648,7 @@ final class Lists {
 			'code'  => D::CODE,
 		);
 		if ( isset( $metas[ $key ] ) ) {
-			$args['fmc_order_meta'] = array( $metas[ $key ], $dir );
+			$args['fmc_order_meta'] = array( $metas[ $key ], $dir, 'code' === $key );
 		} elseif ( 'title' === $key || 'date' === $key ) {
 			$args['orderby'] = $key;
 			$args['order']   = strtoupper( $dir );
@@ -5456,7 +5668,7 @@ final class Lists {
 		if ( ! $query instanceof \WP_Query ) {
 			return $where;
 		}
-		return $where . self::visible_sql( $query ) . self::text_sql( $query ) . self::situation_sql( $query );
+		return $where . self::visible_sql( $query ) . self::text_sql( $query ) . self::situation_sql( $query ) . self::delivery_sql( $query );
 	}
 
 
@@ -5525,15 +5737,19 @@ final class Lists {
 
 
 
+
+
+
 	private static function incidents(): array {
 		global $wpdb;
 
-		$rows = $wpdb->get_results( $wpdb->prepare( "SELECT p.post_parent AS action, COUNT(*) AS total, SUM( COALESCE( r.meta_value, 'pending' ) = 'pending' ) AS pending FROM $wpdb->posts p LEFT JOIN $wpdb->postmeta r ON ( r.post_id = p.ID AND r.meta_key = %s ) WHERE p.post_type = %s AND p.post_status = 'publish' AND p.post_parent > 0 GROUP BY p.post_parent", I::RESOLUTION, PostTypes::INCIDENT ), ARRAY_A );
+		$rows = $wpdb->get_results( $wpdb->prepare( "SELECT p.post_parent AS action, r.meta_value AS request FROM $wpdb->posts p LEFT JOIN $wpdb->postmeta r ON ( r.post_id = p.ID AND r.meta_key = %s ) WHERE p.post_type = %s AND p.post_status = 'publish' AND p.post_parent > 0 ORDER BY p.post_date ASC, p.ID ASC", I::REQUEST, PostTypes::INCIDENT ), ARRAY_A );
 		$out  = array();
 		foreach ( (array) $rows as $r ) {
-			$out[ (int) $r['action'] ] = array(
-				'total'   => (int) $r['total'],
-				'pending' => (int) $r['pending'],
+			$action         = (int) $r['action'];
+			$out[ $action ] = array(
+				'total' => ( $out[ $action ]['total'] ?? 0 ) + 1,
+				'last'  => isset( I::KINDS[ (string) $r['request'] ] ) ? (string) $r['request'] : '',
 			);
 		}
 		return $out;
@@ -5557,17 +5773,7 @@ final class Lists {
 
 			return $set ? $value : SchoolYear::of( gmdate( 'Y-m-d' ) );
 		}
-		if ( 'fmc_resolution' !== $key ) {
-			return $value;
-		}
-
-
-
-
-		if ( ! $set ) {
-			return 'pending';
-		}
-		return isset( I::RESOLUTIONS[ $value ] ) ? $value : 'all';
+		return $value;
 	}
 
 
@@ -5617,8 +5823,12 @@ final class Lists {
 				$term( 'fmc_programme', self::arg( 'fmc_programme' ) );
 				$meta( A::MODALITY, self::arg( 'fmc_modality' ) );
 
+
 				if ( isset( A::DELIVERY[ self::arg( 'fmc_status' ) ] ) ) {
-					$args['post_status'] = self::arg( 'fmc_status' );
+					$args['post_status'] = 'draft' === self::arg( 'fmc_status' ) ? 'draft' : 'publish';
+					if ( 'draft' !== self::arg( 'fmc_status' ) ) {
+						$args['fmc_delivery'] = self::arg( 'fmc_status' );
+					}
 				}
 
 				$meta( A::ADVISER, absint( self::arg( 'fmc_adviser' ) ) ? (string) absint( self::arg( 'fmc_adviser' ) ) : '' );
@@ -5698,15 +5908,19 @@ final class Lists {
 
 				$args['post_status'] = self::DESIGN_CURRENT;
 				if ( $with_state && isset( self::DESIGN_STATUSES[ self::arg( 'fmc_status' ) ] ) ) {
-					$args['post_status'] = self::arg( 'fmc_status' );
+					$args['post_status'] = 'draft' === self::arg( 'fmc_status' ) ? self::DESIGN_DRAFTS : self::arg( 'fmc_status' );
 				}
 				break;
 			case PostTypes::SPEAKER:
 				$args = self::speaker_args( $args, $with_state );
 				break;
 			case PostTypes::INCIDENT:
-				if ( $with_state && isset( I::RESOLUTIONS[ self::arg( 'fmc_resolution' ) ] ) ) {
-					$args['meta_query'][] = I::resolution_clause( self::arg( 'fmc_resolution' ) );
+
+				if ( $with_state && isset( I::KINDS[ self::arg( 'fmc_request' ) ] ) ) {
+					$args['meta_query'][] = array(
+						'key'   => I::REQUEST,
+						'value' => self::arg( 'fmc_request' ),
+					);
 				}
 
 
@@ -5771,6 +5985,32 @@ final class Lists {
 		return ' AND ' . implode( ' AND ', $open )
 			. ' AND ' . $exists( A::START, '<=', $today, true )
 			. ' AND ( ' . $ends[0] . ' OR ( NOT ' . $exists( A::END ) . ' AND ' . $ends[1] . ' ) )';
+	}
+
+
+
+
+
+
+
+
+
+
+
+
+	private static function delivery_sql( \WP_Query $query ): string {
+		global $wpdb;
+		$sql = '';
+
+		if ( $query->get( 'fmc_not_cancelled' ) ) {
+			$sql .= $wpdb->prepare( " AND NOT EXISTS ( SELECT 1 FROM $wpdb->postmeta fmc_c WHERE fmc_c.post_id = $wpdb->posts.ID AND fmc_c.meta_key = %s AND fmc_c.meta_value = 'cancelled' )", A::SITUATION );
+		}
+		$state = (string) $query->get( 'fmc_delivery' );
+		if ( 'publish' !== $state && 'completed' !== $state ) {
+			return $sql;
+		}
+		$has = $wpdb->prepare( "EXISTS ( SELECT 1 FROM $wpdb->postmeta fmc_f WHERE fmc_f.post_id = $wpdb->posts.ID AND fmc_f.meta_key = %s AND TRIM( fmc_f.meta_value ) <> '' )", A::FILE_NUMBER );
+		return $sql . ' AND ' . ( 'completed' === $state ? '' : 'NOT ' ) . $has;
 	}
 
 
@@ -5846,7 +6086,7 @@ final class Lists {
 	private static function action_search( array $args ): array {
 
 		$args['fmc_text']      = $args['s'];
-		$args['fmc_text_keys'] = array( A::FILE_NUMBER, A::INTERNAL_REF, A::SUBTITLE );
+		$args['fmc_text_keys'] = array( A::FILE_NUMBER, A::INTERNAL_REF );
 		$args['s']             = '';
 
 		if ( '' !== self::arg( 'fmc_file' ) ) {
@@ -5857,7 +6097,9 @@ final class Lists {
 			);
 		}
 		if ( '' !== self::arg( 'fmc_incident' ) ) {
-			$with             = array_filter( self::incidents(), static fn( $c ) => 'pending' !== self::arg( 'fmc_incident' ) || $c['pending'] > 0 );
+
+			$kind             = self::arg( 'fmc_incident' );
+			$with             = array_filter( self::incidents(), static fn( $c ) => ! isset( I::KINDS[ $kind ] ) || $c['last'] === $kind );
 			$args['post__in'] = $with ? array_keys( $with ) : array( 0 );
 		}
 		return $args;
@@ -5984,9 +6226,8 @@ final class Lists {
 
 				'label' => PostTypes::DESIGN === $type && self::writes_designs() ? 'Vigentes' : 'En total',
 				'n'     => self::total( $base ),
-
-				'arg'   => PostTypes::INCIDENT === $type ? 'fmc_resolution' : '',
-				'value' => PostTypes::INCIDENT === $type ? 'all' : '',
+				'arg'   => '',
+				'value' => '',
 			),
 		);
 		$by   = array();
@@ -5995,10 +6236,23 @@ final class Lists {
 				foreach ( A::SITUATIONS as $key => $label ) {
 					$by[] = array( $label, 'fmc_situation', $key, array( 'fmc_in_situation' => $key ) );
 				}
+
+
+				if ( current_user_can( PostTypes::CAP_SERVICE_FIELDS ) ) {
+					$by[] = array(
+						'Sin expediente',
+						'fmc_status',
+						'publish',
+						array(
+							'post_status'  => 'publish',
+							'fmc_delivery' => 'publish',
+						),
+					);
+				}
 				break;
 			case PostTypes::DESIGN:
 				foreach ( self::writes_designs() ? self::DESIGN_STATUSES : array() as $key => $status ) {
-					$by[] = array( $status[0], 'fmc_status', $key, array( 'post_status' => $key ) );
+					$by[] = array( $status[0], 'fmc_status', $key, array( 'post_status' => 'draft' === $key ? self::DESIGN_DRAFTS : $key ) );
 				}
 				break;
 			case PostTypes::SPEAKER:
@@ -6007,18 +6261,23 @@ final class Lists {
 				}
 				break;
 			case PostTypes::INCIDENT:
-				foreach ( I::RESOLUTIONS as $key => $label ) {
+				foreach ( I::KINDS as $key => $label ) {
 					$by[] = array(
 						$label,
-						'fmc_resolution',
+						'fmc_request',
 						$key,
 						array(
 							'meta_query' => array_merge( 
 								$base['meta_query'],
-								array( I::resolution_clause( $key ) )
+								array(
+									array(
+										'key'   => I::REQUEST,
+										'value' => $key,
+									),
+								)
 							),
 						),
-					); 
+					);
 				}
 				break;
 		}
@@ -6066,7 +6325,7 @@ final class Lists {
 			) . '">Exportar CSV</a>';
 		}
 		if ( PostTypes::DESIGN === $type ) {
-			$actions .= ' <a class="btn btn-outline-secondary" href="' . esc_url( Catalogue::url() ) . '" target="_blank" rel="noopener">Ver el catálogo público</a>';
+			$actions .= ' <a class="btn btn-outline-secondary" href="' . esc_url( Catalogue::public_url() ) . '" target="_blank" rel="noopener">Ver el catálogo público</a>';
 		}
 
 		if ( PostTypes::ACTION === $type ) {
@@ -6088,7 +6347,7 @@ final class Lists {
 
 
 
-			'subtitle' => PostTypes::DESIGN === $type && ! self::writes_designs() ? self::SUBTITLE_DESIGN_READER . ( current_user_can( 'edit_fmc_actions' ) ? ' Desde la ficha se agenda una acción.' : '' ) : '',
+			'subtitle' => PostTypes::DESIGN === $type && ! self::writes_designs() ? self::SUBTITLE_DESIGN_READER . ( current_user_can( 'edit_fmc_actions' ) ? ' Desde la ficha puede agendar una acción.' : '' ) : '',
 			'actions'  => $actions,
 			'body'     => $body,
 		);
@@ -6104,10 +6363,10 @@ final class Lists {
 
 	private static function found_html( string $tab, int $found, string $type = PostTypes::SPEAKER ): string {
 		if ( PostTypes::DESIGN === $type ) {
-			return '<p class="fmc-found">' . esc_html( sprintf( '%s diseño(s) finalizado(s)', number_format_i18n( $found ) ) ) . '</p>';
+			return '<p class="fmc-found">' . esc_html( Screen::counted( $found, 'diseño finalizado', 'diseños finalizados' ) ) . '</p>';
 		}
 		$trash = self::speaker_trash();
-		$out   = '<p class="fmc-found">' . esc_html( sprintf( $trash ? '%s en la papelera' : '%s ponente(s)', number_format_i18n( $found ) ) );
+		$out   = '<p class="fmc-found">' . esc_html( $trash ? sprintf( '%s en la papelera', number_format_i18n( $found ) ) : Screen::counted( $found, 'ponente', 'ponentes' ) );
 		if ( current_user_can( 'read_private_fmc_speakers' ) ) {
 			$args = array_merge( self::current_filters(), array( Screen::ARG_TAB => $tab ) );
 
@@ -6128,8 +6387,8 @@ final class Lists {
 		$out = '<div class="fmc-counters mb-3">';
 		foreach ( $counters as $c ) {
 			$args   = array_merge( self::current_filters(), array( Screen::ARG_TAB => $tab ) );
-			$active = '' !== $c['arg'] ? self::arg( (string) $c['arg'] ) === $c['value'] : '' === self::arg( 'fmc_situation' ) . self::arg( 'fmc_status' ) . self::arg( 'fmc_resolution' );
-			unset( $args['fmc_situation'], $args['fmc_status'], $args['fmc_resolution'], $args['fmc_page'] );
+			$active = '' !== $c['arg'] ? self::arg( (string) $c['arg'] ) === $c['value'] : '' === self::arg( 'fmc_situation' ) . self::arg( 'fmc_status' ) . self::arg( 'fmc_request' );
+			unset( $args['fmc_situation'], $args['fmc_status'], $args['fmc_request'], $args['fmc_page'] );
 			if ( '' !== $c['arg'] ) {
 				$args[ (string) $c['arg'] ] = $c['value'];
 			}
@@ -6143,12 +6402,11 @@ final class Lists {
 
 
 
-	private static function current_filters(): array {
+	public static function current_filters(): array {
 		$out = array();
-		foreach ( array( 'fmc_s', 'fmc_scope', 'fmc_programme', 'fmc_topic', 'fmc_modality', 'fmc_process', 'fmc_situation', 'fmc_year', 'fmc_type', 'fmc_status', 'fmc_zone', 'fmc_available', 'fmc_resolution', 'fmc_month', 'fmc_speaker', 'fmc_from', 'fmc_to', 'fmc_catalogue', 'fmc_recommended', 'fmc_file', 'fmc_incident', 'fmc_given', 'fmc_sort', 'fmc_dir', 'fmc_view', 'fmc_adviser', 'fmc_adviser_kind' ) as $key ) {
+		foreach ( array( 'fmc_s', 'fmc_scope', 'fmc_programme', 'fmc_topic', 'fmc_modality', 'fmc_process', 'fmc_situation', 'fmc_year', 'fmc_type', 'fmc_status', 'fmc_zone', 'fmc_available', 'fmc_request', 'fmc_month', 'fmc_speaker', 'fmc_from', 'fmc_to', 'fmc_catalogue', 'fmc_recommended', 'fmc_file', 'fmc_incident', 'fmc_given', 'fmc_sort', 'fmc_dir', 'fmc_view', 'fmc_adviser', 'fmc_adviser_kind' ) as $key ) {
 
-			if ( in_array( $key, array( 'fmc_resolution', 'fmc_year' ), true ) && ! isset( $_GET[ $key ] ) ) {
-
+			if ( 'fmc_year' === $key && ! isset( $_GET[ $key ] ) ) {
 
 
 				continue;
@@ -6169,13 +6427,15 @@ final class Lists {
 
 	public static function filters_html( string $tab, string $type ): string {
 		$placeholders = array(
-			PostTypes::ACTION  => 'Título, subtítulo o expediente…',
+			PostTypes::ACTION  => 'Título o expediente…',
 			PostTypes::SPEAKER => 'Nombre…',
 		);
 		$quick        = array();
 		$fields       = array();
+		$mine         = '';
 		switch ( $type ) {
 			case PostTypes::ACTION:
+				$mine = self::mine_html( $tab );
 
 
 				$quick[]  = self::select( 'fmc_situation', 'Situación', A::SITUATIONS, 'Todas' );
@@ -6189,15 +6449,7 @@ final class Lists {
 				$fields[] = self::select( 'fmc_status', 'Estado', A::DELIVERY, 'Todos' );
 				$fields[] = self::select( 'fmc_speaker', 'Ponente', self::post_choices( PostTypes::SPEAKER ), 'Todos', true );
 				$fields[] = self::select( 'fmc_adviser', 'Asesoría', Advisers::choices(), 'Todas', true );
-				$fields[] = self::select(
-					'fmc_incident',
-					'Incidencias',
-					array(
-						'pending' => 'Con alguna pendiente',
-						'any'     => 'Con alguna',
-					),
-					'Todas'
-				);
+				$fields[] = self::select( 'fmc_incident', 'Incidencias', array( 'any' => 'Con alguna' ) + I::KINDS, 'Todas' );
 				$fields[] = self::date_field( 'fmc_from', 'Empieza desde' );
 				$fields[] = self::date_field( 'fmc_to', 'hasta' );
 				break;
@@ -6241,7 +6493,7 @@ final class Lists {
 				);
 				break;
 			case PostTypes::INCIDENT:
-				$quick[] = self::select( 'fmc_resolution', 'Resolución', I::RESOLUTIONS, 'Todas' );
+				$quick[] = self::select( 'fmc_request', 'Tipo', I::KINDS, 'Todos' );
 				break;
 		}
 
@@ -6265,19 +6517,22 @@ final class Lists {
 		foreach ( $fields as $field ) {
 			$set += preg_match( '/name="(fmc_[a-z_]+)"/', $field, $m ) && '' !== self::arg( $m[1] ) ? 1 : 0;
 		}
-		$out .= '<div class="row g-2 align-items-end">' . self::search_field( $placeholders[ $type ] ?? 'Título…' ) . implode( '', $quick );
-		$out .= '<div class="col-auto"><button class="btn btn-outline-dark" type="submit">Filtrar</button>';
+
+
+
+		$out .= '<div class="row g-2 align-items-end"><div class="col-12 col-md-3"><label class="form-label small fw-semibold" for="fmc_s">Buscar</label><div class="input-group"><input class="form-control" id="fmc_s" name="fmc_s" type="search" value="' . esc_attr( self::arg( 'fmc_s' ) ) . '" placeholder="' . esc_attr( $placeholders[ $type ] ?? 'Título…' ) . '">' . self::SEARCH_BUTTON . '</div></div>' . implode( '', $quick );
+		$out .= '<div class="col-auto">' . $mine;
 		if ( array() !== $fields ) {
 
 
-			$out .= ' <button class="btn btn-link" type="button" data-bs-toggle="collapse" data-bs-target="#fmc-advanced" aria-expanded="' . ( $set ? 'true' : 'false' ) . '" aria-controls="fmc-advanced">Búsqueda avanzada' . ( $set ? ' <span class="badge text-bg-secondary">' . (int) $set . '</span>' : '' ) . '</button>';
+			$out .= ' <button class="btn btn-link" type="button" data-bs-toggle="collapse" data-bs-target="#fmc-advanced" aria-expanded="' . ( $set ? 'true' : 'false' ) . '" aria-controls="fmc-advanced">Más filtros' . ( $set ? ' <span class="badge text-bg-secondary">' . (int) $set . '</span>' : '' ) . '</button>';
 		}
 		$out .= ' <a class="btn btn-link" href="' . esc_url( Screen::url( $reset ) ) . '">Quitar filtros</a></div></div>';
 		if ( array() !== $fields ) {
 
 
 
-			$out .= '<div class="collapse' . ( $set ? ' show' : '' ) . '" id="fmc-advanced"><div class="position-relative"><button class="btn-close position-absolute top-0 end-0 mt-1" type="button" data-bs-toggle="collapse" data-bs-target="#fmc-advanced" aria-controls="fmc-advanced" aria-label="Cerrar la búsqueda avanzada" title="Cerrar la búsqueda avanzada"></button><div class="row g-2 align-items-end mt-1 pe-4">' . implode( '', $fields ) . '</div></div></div>';
+			$out .= '<div class="collapse' . ( $set ? ' show' : '' ) . '" id="fmc-advanced"><div class="position-relative"><button class="btn-close position-absolute top-0 end-0 mt-1" type="button" data-bs-toggle="collapse" data-bs-target="#fmc-advanced" aria-controls="fmc-advanced" aria-label="Cerrar los filtros" title="Cerrar los filtros"></button><div class="row g-2 align-items-end mt-1 pe-4">' . implode( '', $fields ) . '</div></div></div>';
 		}
 		return $out . '</form>';
 	}
@@ -6288,8 +6543,36 @@ final class Lists {
 
 
 
-	private static function search_field( string $placeholder ): string {
-		return '<div class="col-12 col-md-3"><label class="form-label small fw-semibold" for="fmc_s">Buscar</label><input class="form-control" id="fmc_s" name="fmc_s" type="search" value="' . esc_attr( self::arg( 'fmc_s' ) ) . '" placeholder="' . esc_attr( $placeholder ) . '"></div>';
+
+
+
+
+
+	private static function mine_html( string $tab ): string {
+		$user = get_current_user_id();
+
+		$scope = get_term( Advisers::scope( $user ), Taxonomies::SCOPE );
+		$scope = $scope instanceof \WP_Term ? $scope->slug : '';
+		$out   = '';
+		foreach ( array(
+			'fmc_adviser' => array( array_intersect( Advisers::ROLES, (array) wp_get_current_user()->roles ) ? (string) $user : '', 'Las mías', 'Las acciones de las que soy la asesoría responsable' ),
+			'fmc_scope'   => array( $scope, 'Las de mi centro', 'Las acciones que gestiona mi centro de referencia' ),
+		) as $arg => $own ) {
+			if ( '' === $own[0] ) {
+				continue;
+			}
+			$on   = self::arg( $arg ) === $own[0];
+			$args = array_merge(
+				self::current_filters(),
+				array(
+					Screen::ARG_TAB => $tab,
+					'fmc_day'       => self::arg( 'fmc_day' ),
+					$arg            => $on ? '' : $own[0],
+				)
+			);
+			$out .= '<a class="btn btn-sm fmc-mine ' . ( $on ? 'btn-dark' : 'btn-outline-dark' ) . '" href="' . esc_url( Screen::url( $args ) ) . '" title="' . esc_attr( $own[2] ) . '"' . ( $on ? ' aria-current="true"' : '' ) . '>' . esc_html( $own[1] ) . '</a> ';
+		}
+		return $out;
 	}
 
 
@@ -6408,37 +6691,43 @@ final class Lists {
 
 	public static function table_html( string $type, array $posts ): string {
 		if ( array() === $posts ) {
-			return '<div class="card card-body text-secondary">No hay nada que mostrar con estos filtros.</div>';
+			return '<div class="card card-body text-secondary">No hay resultados con estos filtros.</div>';
 		}
 		$columns = self::columns( $type );
+
+
+		$leading = array_intersect_key( $columns, array_flip( self::LEADING ) );
+		$columns = array_diff_key( $columns, $leading );
+		$cell    = static function ( $value ): string {
+
+			if ( is_array( $value ) ) {
+				return '<td>' . $value['html'] . '</td>';
+			}
+			$lines = array_map( 'esc_html', explode( "\n", (string) $value ) );
+			$first = (string) array_shift( $lines );
+			$lines = array_filter( $lines, 'strlen' );
+			return '<td>' . $first . ( $lines ? '<div class="small text-secondary">' . implode( '</div><div class="small text-secondary">', $lines ) . '</div>' : '' ) . '</td>';
+		};
 		$out     = '<div class="card fmc-table"><div class="table-responsive"><table class="table table-hover align-middle mb-0"><thead><tr>';
-		foreach ( array_merge( array( get_post_type_object( $type )->labels->singular_name ), array_keys( $columns ) ) as $h ) {
+		foreach ( array_merge( array_keys( $leading ), array( get_post_type_object( $type )->labels->singular_name ), array_keys( $columns ) ) as $h ) {
 			$out .= self::th( $type, $h );
 		}
 		$out .= '<th scope="col" class="text-end"><span class="visually-hidden">Acciones</span></th></tr></thead><tbody>';
 		foreach ( $posts as $post ) {
+			$cells = static fn( array $some ): string => implode( '', array_map( static fn( callable $read ): string => $cell( $read( $post ) ), $some ) );
 			$thumb = PostTypes::DESIGN === $type && has_post_thumbnail( $post ) ? get_the_post_thumbnail( $post, array( 48, 48 ), array( 'class' => 'fmc-thumb' ) ) : '';
 
-			$name = 'trash' === $post->post_status ? '<span class="fw-semibold">' . esc_html( self::title( $post ) ) . '</span>' : '<a class="fw-semibold fmc-abre-panel" href="' . esc_url( Screen::url( array( Screen::ARG_EDIT => $post->ID ) ) ) . '">' . esc_html( self::title( $post ) ) . '</a>';
-			$file = PostTypes::ACTION === $type ? (string) get_post_meta( $post->ID, A::FILE_NUMBER, true ) : '';
+			$gone = str_repeat( ' is-cancelled', (int) ( 'cancelled' === A::situation( $post->ID ) ) );
 
-			$link = $thumb . $name . self::badge( $post ) . self::subtitle( $post ) . ( '' !== $file ? '<div class="small text-secondary">' . esc_html( $file ) . '</div>' : '' );
-			$out .= '<tr><td class="fmc-col-title">' . $link . '</td>';
-			foreach ( $columns as $cell ) {
-				$value = $cell( $post );
+			$name = 'trash' === $post->post_status ? '<span class="fw-semibold">' . esc_html( self::title( $post ) ) . '</span>' : '<a class="fw-semibold fmc-abre-panel' . $gone . '" href="' . esc_url( Screen::url( array( Screen::ARG_EDIT => $post->ID ) ) ) . '">' . esc_html( self::title( $post ) ) . '</a>';
 
-				if ( is_array( $value ) ) {
-					$out .= '<td>' . $value['html'] . '</td>';
-					continue;
-				}
-				$lines = explode( "\n", (string) $value );
-				$out  .= '<td>' . esc_html( array_shift( $lines ) );
-				foreach ( array_filter( $lines, 'strlen' ) as $line ) {
-					$out .= '<div class="small text-secondary">' . esc_html( $line ) . '</div>';
-				}
-				$out .= '</td>';
-			}
-			$out .= '<td class="text-end text-nowrap">' . self::row_buttons( $post ) . '</td></tr>';
+
+
+
+			$file = str_repeat( nl2br( esc_html( A::file_numbers( $post->ID, true ) ) ), (int) ! $leading );
+
+			$link = $thumb . $name . self::badge( $post ) . preg_replace( '/^(.+)$/s', '<div class="small text-secondary">$1</div>', $file );
+			$out .= '<tr>' . $cells( $leading ) . '<td class="fmc-col-title">' . $link . '</td>' . $cells( $columns ) . '<td class="text-end text-nowrap">' . self::row_buttons( $post ) . '</td></tr>';
 		}
 		return $out . '</tbody></table></div></div>';
 	}
@@ -6486,7 +6775,10 @@ final class Lists {
 		}
 		$args                   = self::query_args( $type );
 		$args['posts_per_page'] = 5000; 
-		$args['no_found_rows']  = true;
+
+
+		$args['fmc_not_cancelled'] = 'cancelled' !== self::arg( 'fmc_situation' );
+		$args['no_found_rows']     = true;
 
 
 
@@ -6517,7 +6809,7 @@ final class Lists {
 		fwrite( $out, "\xEF\xBB\xBF" ); 
 		fputcsv( $out, $head, ';' );
 		foreach ( get_posts( $args + array( 'suppress_filters' => false ) ) as $post ) {
-			$state = PostTypes::ACTION === $type ? ( A::DELIVERY[ $post->post_status ] ?? $post->post_status ) : ( get_post_status_object( $post->post_status )->label ?? $post->post_status );
+			$state = PostTypes::ACTION === $type ? ( A::DELIVERY[ A::delivery( $post ) ] ?? $post->post_status ) : ( get_post_status_object( $post->post_status )->label ?? $post->post_status );
 			$row   = array_merge( array( $post->ID, $state ), $titled ? array( get_the_title( $post ) ) : array() );
 			foreach ( $fields as $key => $f ) {
 				$row[] = self::plain( $post, $key, $f );
@@ -6592,7 +6884,10 @@ final class Lists {
 		$m = static fn( \WP_Post $p, string $key ): string => (string) get_post_meta( $p->ID, $key, true );
 		switch ( $type ) {
 			case PostTypes::ACTION:
-				return array(
+				return ( PostTypes::is_training_service() ? array(
+					'Expediente interno'              => static fn( $p ) => $m( $p, A::INTERNAL_REF ),
+					'Expediente de perfeccionamiento' => static fn( $p ) => '' !== $m( $p, A::FILE_NUMBER ) ? $m( $p, A::FILE_NUMBER ) : '—',
+				) : array() ) + array(
 					'Ámbito y centro' => static fn( $p ) => self::terms( $p->ID, 'fmc_scope' ) . "\n" . $m( $p, A::VENUE_CENTRE ),
 					'Ponentes'        => static fn( $p ) => implode( "\n", array_map( 'get_the_title', array_filter( array_map( 'intval', (array) get_post_meta( $p->ID, A::SPEAKERS, true ) ) ) ) ),
 					'Tipo y horas'    => static fn( $p ) => ( D::TYPES[ (string) get_post_meta( (int) $m( $p, A::DESIGN_ID ), D::TYPE, true ) ] ?? '' ) . "\n" . trim( ( D::MODALITIES[ $m( $p, A::MODALITY ) ] ?? '' ) . ' · ' . self::hours( $m( $p, A::HOURS_ONSITE ), $m( $p, A::HOURS_ONLINE ) ), ' ·' ),
@@ -6601,7 +6896,7 @@ final class Lists {
 						$sessions = Sessions::summary( Sessions::clean( get_post_meta( $p->ID, A::SESSIONS, true ) ) );
 						return self::dates( $m( $p, A::START ), $m( $p, A::END ) ) . "\n" . ( '' !== $sessions ? $sessions : wp_trim_words( $m( $p, A::SCHEDULE ), 12 ) );
 					},
-					'Estado'          => static fn( $p ) => ( A::DELIVERY[ $p->post_status ] ?? '' ) . "\n" . SchoolYear::of( $m( $p, A::START ) ),
+					'Estado'          => static fn( $p ) => ( A::DELIVERY[ A::delivery( $p ) ] ?? '' ) . "\n" . SchoolYear::of( $m( $p, A::START ) ),
 				);
 			case PostTypes::DESIGN:
 				return array(
@@ -6627,11 +6922,14 @@ final class Lists {
 				);
 			default:
 				return array(
-					'Expediente' => static fn( $p ) => ( $p->post_parent ? (string) get_post_meta( $p->post_parent, A::FILE_NUMBER, true ) . "\n" . self::terms( $p->post_parent, 'fmc_scope' ) : '' ),
-					'Creada'     => static fn( $p ) => get_the_date( 'd/m/Y', $p ) . "\n" . get_the_author_meta( 'display_name', (int) $p->post_author ),
-					'Motivos'    => static fn( $p ) => wp_trim_words( $m( $p, I::REASON ), 18 ),
-					'Coste'      => static fn( $p ) => $m( $p, I::HAS_COST ) ? 'Con coste' : 'Sin coste',
-					'Resolución' => static fn( $p ) => ( I::RESOLUTIONS[ $m( $p, I::RESOLUTION ) ] ?? 'Pendiente' ) . "\n" . wp_trim_words( $m( $p, I::RESOLUTION_NOTES ), 10 ),
+
+					'Tipo'          => static function ( $p ) use ( $m ) {
+						$moved = '' !== $m( $p, I::NEW_START ) ? trim( self::dates( $m( $p, I::OLD_START ), $m( $p, I::OLD_END ) ) . ' → ' . self::dates( $m( $p, I::NEW_START ), $m( $p, I::NEW_END ) ), ' →' ) : '';
+						return ( I::KINDS[ $m( $p, I::REQUEST ) ] ?? '—' ) . "\n" . $moved;
+					},
+					'Expediente'    => static fn( $p ) => ( $p->post_parent ? implode( "\n", array_filter( array( (string) get_post_meta( $p->post_parent, A::FILE_NUMBER, true ), (string) get_post_meta( $p->post_parent, A::INTERNAL_REF, true ), self::terms( $p->post_parent, 'fmc_scope' ) ), 'strlen' ) ) : '' ),
+					'Creada'        => static fn( $p ) => get_the_date( 'd/m/Y', $p ) . "\n" . get_the_author_meta( 'display_name', (int) $p->post_author ),
+					'Justificación' => static fn( $p ) => wp_trim_words( $m( $p, I::REASON ), 24 ),
 				);
 		}
 	}
@@ -6652,7 +6950,8 @@ final class Lists {
 			if ( ! $post instanceof \WP_Post || PostTypes::DESIGN !== $post->post_type || ! current_user_can( 'read_post', $id ) ) {
 				continue;
 			}
-			$out[] = get_the_title( $post ) . ( 'publish' !== $post->post_status && isset( self::DESIGN_STATUSES[ $post->post_status ] ) ? ' (' . self::DESIGN_STATUSES[ $post->post_status ][0] . ')' : '' );
+			$status = PostTypes::design_status( $post->post_status );
+			$out[]  = get_the_title( $post ) . ( 'publish' !== $status && isset( self::DESIGN_STATUSES[ $status ] ) ? ' (' . self::DESIGN_STATUSES[ $status ][0] . ')' : '' );
 		}
 		return $out;
 	}
@@ -6680,15 +6979,13 @@ final class Lists {
 		);
 		$rows  = Speakers::given( $speaker, self::arg( 'fmc_given' ), self::arg( 'fmc_file' ), self::arg( 'fmc_from' ) );
 		$shown = array_slice( $rows, 0, self::GIVEN_MENU );
-		$out   = '<div class="dropdown fmc-given"><a class="dropdown-toggle fmc-given-toggle" href="' . esc_url( $all ) . '" role="button" data-bs-toggle="dropdown" data-bs-popper-config="' . esc_attr( '{"strategy":"fixed"}' ) . '" aria-expanded="false">' . esc_html( sprintf( '%d acción(es)', $totals['actions'] ) ) . '</a>';
+		$out   = '<div class="dropdown fmc-given"><a class="dropdown-toggle fmc-given-toggle" href="' . esc_url( $all ) . '" role="button" data-bs-toggle="dropdown" data-bs-popper-config="' . esc_attr( '{"strategy":"fixed"}' ) . '" aria-expanded="false">' . esc_html( Screen::counted( (int) $totals['actions'], 'acción', 'acciones' ) ) . '</a>';
 		$out  .= '<div class="small text-secondary">' . esc_html( ( $totals['hours'] + 0 ) . ' h' ) . '</div>';
 		$out  .= '<div class="dropdown-menu fmc-given-menu"><div class="dropdown-header">' . esc_html( count( $rows ) > count( $shown ) ? sprintf( 'Las %1$d más recientes de %2$d', count( $shown ), count( $rows ) ) : 'Acciones que ha impartido' ) . '</div>';
 		foreach ( $shown as $row ) {
-
-			$sub  = '' !== $row['subtitle'] && false === mb_stripos( $row['title'], $row['subtitle'] ) ? '<span class="d-block small text-secondary">' . esc_html( $row['subtitle'] ) . '</span>' : '';
-			$out .= '<a class="dropdown-item fmc-abre-panel" title="' . esc_attr( $row['title'] ) . '" href="' . esc_url( Screen::url( array( Screen::ARG_EDIT => $row['id'] ) ) ) . '"><span class="fmc-given-date">' . esc_html( self::dates( $row['start'], '' ) ) . '</span> ' . esc_html( '' !== $row['title'] ? $row['title'] : '(sin título)' ) . $sub . '</a>';
+			$out .= '<a class="dropdown-item fmc-abre-panel" title="' . esc_attr( $row['title'] ) . '" href="' . esc_url( Screen::url( array( Screen::ARG_EDIT => $row['id'] ) ) ) . '"><span class="fmc-given-date">' . esc_html( self::dates( $row['start'], '' ) ) . '</span> ' . esc_html( '' !== $row['title'] ? $row['title'] : '(sin título)' ) . '</a>';
 		}
-		$out .= '<div class="dropdown-divider"></div><a class="dropdown-item" href="' . esc_url( $all ) . '">Todas sus acciones, en el listado</a></div></div>';
+		$out .= '<div class="dropdown-divider"></div><a class="dropdown-item" href="' . esc_url( $all ) . '">Ver todas sus acciones en el listado</a></div></div>';
 		return $out;
 	}
 
@@ -6752,8 +7049,8 @@ final class Lists {
 			return ( 'draft' === $post->post_status ? ' <span class="badge rounded-pill text-bg-light border">Borrador</span>' : '' )
 				. ( isset( A::SITUATIONS[ $s ] ) ? ' <span class="badge rounded-pill text-bg-' . esc_attr( self::SITUATION_COLOURS[ $s ] ) . '">' . esc_html( A::SITUATIONS[ $s ] ) . '</span>' : '' ) . self::incident_badge( $post->ID );
 		}
-		if ( PostTypes::DESIGN === $post->post_type && isset( self::DESIGN_STATUSES[ $post->post_status ] ) ) {
-			list( $label, $colour ) = self::DESIGN_STATUSES[ $post->post_status ];
+		if ( PostTypes::DESIGN === $post->post_type && isset( self::DESIGN_STATUSES[ PostTypes::design_status( $post->post_status ) ] ) ) {
+			list( $label, $colour ) = self::DESIGN_STATUSES[ PostTypes::design_status( $post->post_status ) ];
 			return ' <span class="badge rounded-pill text-bg-' . esc_attr( $colour ) . '">' . esc_html( $label ) . '</span>';
 		}
 		if ( PostTypes::SPEAKER === $post->post_type ) {
@@ -6789,6 +7086,7 @@ final class Lists {
 
 
 
+
 	public static function incident_badge( int $action ): string {
 		static $cache = array();
 		$changed      = wp_cache_get_last_changed( 'posts' );
@@ -6797,20 +7095,8 @@ final class Lists {
 		if ( ! $c ) {
 			return '';
 		}
-		return $c['pending'] > 0
-			? ' <span class="badge rounded-pill fmc-inc is-pending">' . esc_html( sprintf( 'Incidencia pendiente (%d)', $c['pending'] ) ) . '</span>'
-			: ' <span class="badge rounded-pill fmc-inc is-done">Incidencias resueltas</span>';
-	}
-
-
-
-
-
-
-
-	public static function subtitle( \WP_Post $post ): string {
-		$sub = PostTypes::ACTION === $post->post_type ? (string) get_post_meta( $post->ID, A::SUBTITLE, true ) : '';
-		return '' !== $sub ? '<div class="small text-secondary">' . esc_html( $sub ) . '</div>' : '';
+		$kind = '' !== $c['last'] ? ': ' . mb_strtolower( I::KINDS[ $c['last'] ] ) : '';
+		return ' <span class="badge rounded-pill fmc-inc">' . esc_html( $c['total'] > 1 ? sprintf( 'Incidencias (%d)', $c['total'] ) : 'Incidencia' . $kind ) . '</span>';
 	}
 
 
@@ -6998,7 +7284,17 @@ final class Calendar {
 
 	public static function view(): string {
 		$view = Lists::arg( 'fmc_view' );
-		return isset( self::VIEWS[ $view ] ) ? $view : 'month';
+		return isset( self::VIEWS[ $view ] ) ? $view : self::default_view();
+	}
+
+
+
+
+
+
+
+	public static function default_view(): string {
+		return PostTypes::is_training_service() ? 'list' : 'month';
 	}
 
 
@@ -7242,12 +7538,13 @@ final class Calendar {
 
 
 
-	private static function nav_link( array $args, string $text, string $css = 'btn btn-outline-secondary', array $attr = array() ): string {
+
+	private static function nav_link( array $args, string $text, string $css = 'btn btn-outline-secondary', array $attr = array(), bool $year = false ): string {
 		$more = '';
 		foreach ( $attr as $name => $value ) {
 			$more .= ' ' . $name . '="' . esc_attr( $value ) . '"';
 		}
-		return '<a class="' . esc_attr( $css ) . '" href="' . esc_url( Screen::url( array_merge( self::filters(), array( Screen::ARG_TAB => 'actions' ), $args ) ) ) . '"' . $more . '>' . esc_html( $text ) . '</a>';
+		return '<a class="' . esc_attr( $css ) . '" href="' . esc_url( Screen::url( array_merge( self::filters( $year ), array( Screen::ARG_TAB => 'actions' ), $args ) ) ) . '"' . $more . '>' . esc_html( $text ) . '</a>';
 	}
 
 
@@ -7260,7 +7557,8 @@ final class Calendar {
 		$out = '<nav class="fmc-views" aria-label="Vista">';
 		foreach ( self::VIEWS as $view => $label ) {
 			$anchor = 'week' === $view || 'day' === $view ? array( 'fmc_day' => self::day() ) : array( 'fmc_month' => substr( self::month(), 0, 7 ) );
-			$out   .= self::nav_link( array( 'fmc_view' => 'month' === $view ? '' : $view ) + $anchor, $label, 'fmc-view', $view === $current ? array( 'aria-current' => 'true' ) : array() );
+
+			$out .= self::nav_link( array( 'fmc_view' => self::default_view() === $view ? '' : $view ) + $anchor, $label, 'fmc-view', $view === $current ? array( 'aria-current' => 'true' ) : array(), true );
 		}
 		return $out . '</nav>';
 	}
@@ -7293,7 +7591,7 @@ final class Calendar {
 		$by_day = self::by_day( $first );
 		return array(
 			'title' => ucfirst( self::MONTHS[ (int) gmdate( 'n', $ts ) ] ) . ' de ' . gmdate( 'Y', $ts ),
-			'count' => sprintf( '%d acción(es) este mes.', self::distinct( $by_day ) ),
+			'count' => Screen::counted( self::distinct( $by_day ), 'acción', 'acciones' ) . ' este mes.',
 			'prev'  => array( 'fmc_month' => gmdate( 'Y-m', (int) strtotime( '-1 month', $ts ) ) ),
 			'next'  => array( 'fmc_month' => gmdate( 'Y-m', (int) strtotime( '+1 month', $ts ) ) ),
 			'today' => array( 'fmc_month' => substr( self::today(), 0, 7 ) ),
@@ -7422,7 +7720,8 @@ final class Calendar {
 		$label = (int) substr( $from, 8 ) . ' de ' . self::MONTHS[ (int) gmdate( 'n', (int) strtotime( $from ) ) ] . ' de ' . gmdate( 'Y', (int) strtotime( $from ) );
 		return array(
 			'title' => 'week' === $view ? 'Semana del ' . $label : self::WEEKDAYS[ (int) gmdate( 'N', $ts ) - 1 ] . ' ' . $label,
-			'count' => sprintf( '%1$d acción(es) %2$s; %3$d siguen en curso.', self::distinct( $by ), 'week' === $view ? 'esta semana' : 'este día', count( $running ) ),
+
+			'count' => Screen::counted( self::distinct( $by ), 'acción', 'acciones' ) . ( 'week' === $view ? ' esta semana.' : ' este día.' ) . str_repeat( ' Además, ' . Screen::counted( count( $running ), 'sigue', 'siguen' ) . ' en curso.', (int) (bool) $running ),
 			'prev'  => array(
 				'fmc_view' => $view,
 				'fmc_day'  => gmdate( 'Y-m-d', (int) strtotime( '-' . $step, $ts ) ),
@@ -7446,12 +7745,18 @@ final class Calendar {
 
 
 
-	private static function filters(): array {
-		$out = array();
-		foreach ( array( 'fmc_s', 'fmc_scope', 'fmc_programme', 'fmc_modality', 'fmc_process', 'fmc_situation', 'fmc_file', 'fmc_incident', 'fmc_type', 'fmc_speaker' ) as $key ) {
-			if ( '' !== Lists::arg( $key ) ) {
-				$out[ $key ] = Lists::arg( $key );
-			}
+
+
+
+
+
+
+
+	private static function filters( bool $year = false ): array {
+		$out = Lists::current_filters();
+		unset( $out['fmc_month'], $out['fmc_view'] );
+		if ( ! $year ) {
+			unset( $out['fmc_year'] );
 		}
 		return $out;
 	}
@@ -7462,9 +7767,28 @@ final class Calendar {
 
 
 	private static function legend(): string {
-		$out = '<div class="fmc-legend mb-3"><strong class="small me-2">Leyenda:</strong>';
+
+
+		$here = array_filter(
+			array(
+				'fmc_view'  => Lists::arg( 'fmc_view' ),
+				'fmc_month' => Lists::arg( 'fmc_month' ),
+				'fmc_day'   => Lists::arg( 'fmc_day' ),
+			),
+			'strlen'
+		);
+		$chip = static function ( string $arg, string $value, string $css, string $html ) use ( $here ): string {
+
+			list( $state, $more, $next ) = array(
+				array( '', ' title="Ver solo estas"', $value ),
+				array( ' is-active', ' aria-current="true" title="Quitar este filtro"', '' ),
+			)[ (int) ( Lists::arg( $arg ) === $value ) ];
+			$args                        = array_merge( self::filters( true ), array( Screen::ARG_TAB => 'actions' ), $here, array( $arg => $next ) );
+			return '<a class="fmc-chip ' . esc_attr( $css ) . $state . '" href="' . esc_url( Screen::url( $args ) ) . '"' . $more . '>' . $html . '</a>';
+		};
+		$out  = '<div class="fmc-legend mb-3"><strong class="small me-2">Leyenda:</strong>';
 		foreach ( A::SITUATIONS as $key => $label ) {
-			$out .= '<span class="fmc-chip fmc-sit-' . esc_attr( $key ) . '">' . esc_html( $label ) . '</span>';
+			$out .= $chip( 'fmc_situation', $key, 'fmc-sit-' . $key, esc_html( $label ) );
 		}
 		foreach ( A::funders() as $key => $label ) {
 			if ( 'none' === $key ) {
@@ -7472,7 +7796,8 @@ final class Calendar {
 			}
 			$out .= '<span class="fmc-chip"><i class="fmc-dot" style="background:' . esc_attr( self::FUNDER_COLOURS[ $key ] ) . '"></i>Asume: ' . esc_html( mb_strtolower( $label ) ) . '</span>';
 		}
-		$out .= '<span class="fmc-chip"><span class="fmc-ribbon">×2</span> Desdoble</span><span class="fmc-chip"><span class="fmc-ribbon is-warn">!</span> Incompleta</span>';
+		$out .= '<span class="fmc-chip"><span class="fmc-ribbon">×2</span> Desdoble</span>';
+		$out .= $chip( 'fmc_status', 'publish', '', '<span class="fmc-ribbon is-warn">!</span> Sin expediente' );
 		return $out . '</div>';
 	}
 
@@ -7484,19 +7809,22 @@ final class Calendar {
 
 
 	public static function card( \WP_Post $post, string $day = '' ): string {
-		$m          = static fn( string $key ): string => (string) get_post_meta( $post->ID, $key, true );
-		$situation  = A::situation( $post->ID );
-		$funded     = $m( A::FUNDED_BY );
-		$replicas   = (int) $m( A::REPLICAS );
-		$incomplete = ! $m( A::DESIGN_ID ) || ! $m( A::PLACES ) || ! $m( A::MODALITY );
+		$m         = static fn( string $key ): string => (string) get_post_meta( $post->ID, $key, true );
+		$situation = A::situation( $post->ID );
+		$funded    = $m( A::FUNDED_BY );
+		$replicas  = (int) $m( A::REPLICAS );
+
+
+
+		$waiting = 'publish' === A::delivery( $post );
 
 		$dot = isset( self::FUNDER_COLOURS[ $funded ] ) && 'none' !== $funded ? '<i class="fmc-dot" style="background:' . esc_attr( self::FUNDER_COLOURS[ $funded ] ) . '" title="' . esc_attr( 'Asume: ' . A::funders()[ $funded ] ) . '"></i>' : '';
 		$out = '<a class="fmc-ev fmc-abre-panel fmc-sit-' . esc_attr( '' !== $situation ? $situation : 'none' ) . ( 'draft' === $post->post_status ? ' is-draft' : '' ) . '" href="' . esc_url( Screen::url( array( Screen::ARG_EDIT => $post->ID ) ) ) . '" title="' . esc_attr( get_the_title( $post ) ) . '">';
 		if ( $replicas > 1 ) {
 			$out .= '<span class="fmc-ribbon">×' . esc_html( (string) $replicas ) . '</span>';
 		}
-		if ( $incomplete ) {
-			$out .= '<span class="fmc-ribbon is-warn" title="Datos incompletos">!</span>';
+		if ( $waiting ) {
+			$out .= '<span class="fmc-ribbon is-warn" title="Sin expediente de perfeccionamiento">!</span>';
 		}
 		$out  .= '<span class="fmc-ev-title">' . esc_html( get_the_title( $post ) ) . '</span>';
 		$today = '' !== $day ? Sessions::by_day( Sessions::clean( get_post_meta( $post->ID, A::SESSIONS, true ) ) )[ $day ] ?? array() : array();
@@ -7507,11 +7835,10 @@ final class Calendar {
 		if ( 'draft' === $post->post_status ) {
 			$out .= '<span class="fmc-ev-meta">Borrador, sin entregar</span>';
 		}
-		$sub = $m( A::SUBTITLE );
-		if ( '' !== $sub ) {
-			$out .= '<span class="fmc-ev-meta">' . esc_html( $sub ) . '</span>';
+
+		foreach ( array_filter( array( $m( A::INTERNAL_REF ), $m( A::FILE_NUMBER ), Lists::terms( $post->ID, 'fmc_scope' ) ), 'strlen' ) as $line ) {
+			$out .= '<span class="fmc-ev-meta">' . esc_html( $line ) . '</span>';
 		}
-		$out  .= '<span class="fmc-ev-meta">' . esc_html( trim( $m( A::FILE_NUMBER ) . ' · ' . Lists::terms( $post->ID, 'fmc_scope' ), ' ·' ) ) . '</span>';
 		$venue = $m( A::VENUE_CENTRE );
 		if ( '' !== $venue && false === strpos( $venue, Lists::terms( $post->ID, 'fmc_scope' ) ) ) {
 			$out .= '<span class="fmc-ev-meta">En: ' . esc_html( $venue ) . '</span>';
@@ -7575,6 +7902,11 @@ final class Editor {
 
 
 	public const ARCHIVED_META = '_fmc_replaced_archived';
+
+
+
+
+	public const INCIDENT_WARNING = 'Una vez enviada no se puede modificar. Si es una cancelación o un cambio de fechas, se aplica a la acción en el momento.';
 
 
 
@@ -7773,10 +8105,17 @@ final class Editor {
 			$body .= self::action_summary( $post );
 		}
 
-		$body .= '<form method="post" enctype="multipart/form-data" action="' . esc_url( home_url( '/' ) ) . '" class="fmc-form">';
-		$body .= wp_nonce_field( self::nonce_action( $type, $id ), '_fmc_nonce', true, false );
-		$body .= Screen::framed() ? '<input type="hidden" name="' . esc_attr( Screen::ARG_FRAME ) . '" value="1">' : '';
-		$body .= '<input type="hidden" name="fmc_save" value="1"><input type="hidden" name="fmc_type" value="' . esc_attr( $type ) . '"><input type="hidden" name="fmc_id" value="' . esc_attr( (string) $id ) . '">';
+
+
+
+
+		$warning = PostTypes::INCIDENT === $type && ! $post ? trim( self::INCIDENT_WARNING . ' ' . self::incident_reminder() ) : '';
+		$confirm = '' !== $warning ? ' data-fmc-confirm="¿Enviar la incidencia?" data-fmc-confirm-icon="warning" data-fmc-confirm-text="' . esc_attr( $warning ) . '" data-fmc-confirm-button="Enviar la incidencia"' : '';
+		$body   .= '<form method="post" enctype="multipart/form-data" action="' . esc_url( home_url( '/' ) ) . '" class="fmc-form"' . $confirm . '>';
+		$body   .= '' !== $warning ? '<noscript><div class="alert alert-warning" role="note">' . esc_html( $warning ) . '</div></noscript>' : '';
+		$body   .= wp_nonce_field( self::nonce_action( $type, $id ), '_fmc_nonce', true, false );
+		$body   .= Screen::framed() ? '<input type="hidden" name="' . esc_attr( Screen::ARG_FRAME ) . '" value="1">' : '';
+		$body   .= '<input type="hidden" name="fmc_save" value="1"><input type="hidden" name="fmc_type" value="' . esc_attr( $type ) . '"><input type="hidden" name="fmc_id" value="' . esc_attr( (string) $id ) . '">';
 		if ( ! $post && $parent ) {
 			$body .= '<input type="hidden" name="fmc_parent" value="' . esc_attr( (string) $parent ) . '">';
 		}
@@ -7809,9 +8148,9 @@ final class Editor {
 
 		$leave = PostTypes::SPEAKER === $type && $post && Screen::can_delete( $post );
 		if ( $writable || $leave ) {
-			$body .= '<div class="fmc-savebar d-flex flex-wrap align-items-center gap-2">' . ( $writable ? self::buttons( $type, $post ) : '<span class="text-secondary">Solo lectura: no tiene nada que cambiar aquí.</span>' ) . ( $leave ? Screen::trash_button( $post ) : '' ) . '</div>';
+			$body .= '<div class="fmc-savebar d-flex flex-wrap align-items-center gap-2">' . ( $writable ? self::buttons( $type, $post ) : '<span class="text-secondary">Esta ficha es de solo lectura.</span>' ) . ( $leave ? Screen::trash_button( $post ) : '' ) . '</div>';
 		} else {
-			$body .= '<p class="text-secondary">Solo lectura: no tiene nada que cambiar aquí.</p>';
+			$body .= '<p class="text-secondary">Esta ficha es de solo lectura.</p>';
 		}
 		$body .= '</form>';
 
@@ -7828,7 +8167,8 @@ final class Editor {
 			'back'     => '<a class="small" href="' . esc_url( Screen::url( array( Screen::ARG_TAB => $tab ) ) ) . '">← ' . esc_html( Screen::TITLES[ $tab ] ?? $object->labels->name ) . '</a>',
 			'title'    => $post ? Lists::title( $post ) : $object->labels->new_item,
 
-			'subtitle' => $post && PostTypes::ACTION === $type ? (string) get_post_meta( $post->ID, A::SUBTITLE, true ) : '',
+
+			'subtitle' => $post && PostTypes::ACTION === $type ? A::file_numbers( $post->ID ) : '',
 			'badges'   => $badges,
 			'actions'  => self::header_actions( $type, $post ),
 			'body'     => $body,
@@ -7847,9 +8187,24 @@ final class Editor {
 	public static function privacy_notice(): string {
 		$text = (string) apply_filters(
 			'fmc_privacy_notice',
-			'<strong>Datos personales.</strong> Registre solo a quien imparte o va a impartir formación, y solo los datos que se piden aquí. Quien los registra se asegura de que la persona sabe que constan en este aplicativo para gestionar la formación. Si pide que se borren, dé de baja su ficha indicando el motivo.'
+			'<strong>Datos personales.</strong> Registre solo a quien imparte o va a impartir formación, y solo los datos que se piden aquí. Asegúrese de que la persona sabe que sus datos constan en este aplicativo para gestionar la formación. Si pide que se borren, dé de baja su ficha e indique el motivo.'
 		);
 		return '' !== $text ? '<div class="alert alert-info fmc-privacy" role="note">' . wp_kses_post( $text ) . '</div>' : '';
+	}
+
+
+
+
+
+
+
+
+
+
+
+
+	public static function incident_reminder(): string {
+		return trim( wp_strip_all_tags( (string) apply_filters( 'fmc_incident_reminder', '' ) ) );
 	}
 
 
@@ -7912,7 +8267,7 @@ final class Editor {
 			}
 
 			if ( Catalogue::is_listed( $post ) ) {
-				$out .= '<a class="btn btn-outline-primary btn-sm" href="' . esc_url( Catalogue::url( $post->ID ) ) . '" target="_blank" rel="noopener">Ver en el catálogo</a> ';
+				$out .= '<a class="btn btn-outline-primary btn-sm" href="' . esc_url( Catalogue::public_url( $post->ID ) ) . '" target="_blank" rel="noopener">Ver en el catálogo</a> ';
 			}
 		}
 
@@ -7921,6 +8276,7 @@ final class Editor {
 		}
 		return $out;
 	}
+
 
 
 
@@ -7940,7 +8296,7 @@ final class Editor {
 		if ( PostTypes::ACTION === $type && ( ! $post || 'publish' !== $post->post_status ) && current_user_can( 'publish_fmc_actions' ) ) {
 			$owner = ! current_user_can( 'edit_others_fmc_actions' );
 			return $button( 'draft', 'Guardar borrador', 'btn-outline-primary' ) . $button( 'publish', 'Entregar', 'btn-primary' )
-				. ( $owner ? '<span class="form-text m-0">Una vez entregada ya no podrá cambiarla: los cambios se piden con una incidencia.</span>' : '' );
+				. ( $owner ? '<span class="form-text m-0">Una vez entregada no podrá cambiarla. Los cambios se comunican con una incidencia.</span>' : '' );
 		}
 		if ( PostTypes::DESIGN !== $type ) {
 			return $button( '', 'Guardar', 'btn-primary' );
@@ -7949,7 +8305,6 @@ final class Editor {
 		$out    = '';
 		if ( ! in_array( $status, array( 'publish', PostTypes::ARCHIVED ), true ) ) {
 			$out .= $button( 'draft', 'Guardar borrador', 'btn-outline-primary' );
-			$out .= $button( 'pending', 'Mandar a revisión', 'pending' === $status ? 'btn-outline-warning' : 'btn-warning' );
 		}
 		if ( ! current_user_can( 'publish_fmc_designs' ) ) {
 			return $out;
@@ -7958,8 +8313,8 @@ final class Editor {
 			return $out . $button( PostTypes::ARCHIVED, 'Guardar', 'btn-primary' ) . $button( 'publish', 'Recuperar del histórico', 'btn-outline-success' );
 		}
 		return $out . ( 'publish' === $status
-			? $button( 'publish', 'Guardar', 'btn-primary' ) . $button( 'draft', 'Devolver a borrador', 'btn-outline-secondary' ) . $button( PostTypes::ARCHIVED, 'Pasar a histórico', 'btn-outline-dark' )
-			: $button( 'publish', 'Dar por finalizado', 'btn-success' ) );
+			? $button( 'publish', 'Guardar', 'btn-primary' ) . $button( 'draft', 'Volver a borrador', 'btn-outline-secondary' ) . $button( PostTypes::ARCHIVED, 'Pasar a histórico', 'btn-outline-dark' )
+			: $button( 'publish', 'Marcar como finalizado', 'btn-success' ) );
 	}
 
 
@@ -7988,7 +8343,7 @@ final class Editor {
 
 
 		if ( $can && 'adviser' === $f['w'] && array() === Advisers::choices() ) {
-			$help .= '<div class="form-text">Aún no hay ninguna asesoría con cuenta en el aplicativo: la administración las da de alta en «Usuarios», con el rol «Asesoría de formación».</div>';
+			$help .= '<div class="form-text">Todavía no hay ninguna asesoría con cuenta. La administración las da de alta en «Usuarios», con el perfil «Asesoría de formación».</div>';
 		}
 		if ( 'centre' === $f['w'] ) {
 			$help .= self::centre_help( (int) ( $f['post'] ?? 0 ), is_string( $value ) ? $value : '', $can, (int) ( $f['scope'] ?? 0 ) );
@@ -8004,7 +8359,7 @@ final class Editor {
 						Screen::ARG_FRAME => '',
 					)
 				)
-			) . '" target="_blank" rel="noopener">¿No está en la lista? Añadirlo en otra pestaña</a> y volver a abrir esta ficha.</div>';
+			) . '" target="_blank" rel="noopener">¿No está en la lista? Añádalo en otra pestaña</a> y vuelva a abrir esta ficha.</div>';
 		}
 
 		switch ( $f['w'] ) {
@@ -8040,6 +8395,11 @@ final class Editor {
 			case 'centre':
 				$choices = self::choices( $f, $key );
 				$current = is_array( $value ) ? (string) ( $value[0] ?? '' ) : (string) $value;
+
+
+				if ( ! empty( $f['closed'] ) && '' !== $current && ! isset( $choices[ $current ] ) && (string) ( $f['stored'] ?? '' ) === $current ) {
+					$choices[ $current ] = $current . ' — ya no se usa';
+				}
 
 
 
@@ -8236,7 +8596,7 @@ final class Editor {
 		$total = $can ? self::post_max() : 0;
 		$out   = '<div class="col-12 fmc-docs"' . ( $total ? ' data-fmc-post-max="' . esc_attr( (string) $total ) . '"' : '' ) . '><p class="visually-hidden" aria-live="polite" data-fmc-doc-status></p>';
 		if ( $total ) {
-			$out .= '<p class="fmc-doc-total form-text mt-0">En cada guardado se pueden subir, entre todos los ficheros, hasta ' . esc_html( (string) size_format( $total ) ) . '.</p>';
+			$out .= '<p class="fmc-doc-total form-text mt-0">Cada vez que guarde puede subir, entre todos los ficheros, hasta ' . esc_html( (string) size_format( $total ) ) . '.</p>';
 		}
 		if ( $can ) {
 			$out .= '<p class="alert alert-danger fmc-doc-alert" role="alert" tabindex="-1" data-fmc-doc-alert hidden></p>';
@@ -8334,6 +8694,9 @@ final class Editor {
 			$out .= '<p class="fmc-doc-pending" data-fmc-picked="' . esc_attr( $rid ) . '" hidden><span>Se reemplazará al guardar por: <strong data-fmc-picked-name></strong></span> <button type="button" class="fmc-doc-link" data-fmc-file-clear="' . esc_attr( $rid ) . '">Cancelar</button></p>';
 		}
 		$out .= '</div>';
+
+
+		$out .= '<a class="btn btn-sm btn-outline-primary fmc-doc-get" href="' . esc_url( $url ) . '">' . self::icon( 'download' ) . 'Descargar<span class="visually-hidden">: ' . esc_html( $name ) . '</span></a>';
 		if ( $can ) {
 			$out .= '<label class="fmc-doc-x" for="' . esc_attr( $xid ) . '" title="Quitar">' . self::icon( 'x' ) . '<span class="visually-hidden">Quitar: ' . esc_html( $name ) . '</span></label>';
 		}
@@ -8400,9 +8763,10 @@ final class Editor {
 
 	private static function icon( string $name ): string {
 		$paths = array(
-			'x'       => '<path d="M6 6l12 12M18 6L6 18"/>',
-			'replace' => '<path d="M4 9h13l-3-3M20 15H7l3 3"/>',
-			'upload'  => '<path d="M12 16V4M7 9l5-5 5 5M5 20h14"/>',
+			'x'        => '<path d="M6 6l12 12M18 6L6 18"/>',
+			'replace'  => '<path d="M4 9h13l-3-3M20 15H7l3 3"/>',
+			'upload'   => '<path d="M12 16V4M7 9l5-5 5 5M5 20h14"/>',
+			'download' => '<path d="M12 4v12M7 11l5 5 5-5M5 20h14"/>',
 		);
 		return '<svg class="fmc-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">' . $paths[ $name ] . '</svg>';
 	}
@@ -8610,7 +8974,7 @@ final class Editor {
 
 			$where = CentreCatalogue::knows_cep() ? (string) $centre['name'] : (string) ( $centre['island'] ?? '' );
 			if ( '' !== $where ) {
-				$help .= '<div class="form-text">Solo los centros de ' . esc_html( $where ) . ', que es el ámbito elegido arriba. Cambie el ámbito para ver los de otro.</div>';
+				$help .= '<div class="form-text">Solo salen los centros de ' . esc_html( $where ) . ', el ámbito elegido arriba. Para ver los de otro, cambie el ámbito.</div>';
 			}
 		}
 		$legacy = '' === $code && $action ? (string) get_post_meta( $action, A::VENUE_CENTRE, true ) : '';
@@ -8618,7 +8982,7 @@ final class Editor {
 			$help .= '<div class="form-text">Escrito a mano en el sistema anterior: «' . esc_html( $legacy ) . '».' . ( $can ? ' Elija el centro de la lista para sustituirlo.' : '' ) . '</div>';
 		}
 		if ( $can && 0 === CentreCatalogue::active_count() ) {
-			$help .= '<div class="form-text">El catálogo de centros está vacío: la administración lo actualiza en «Ajustes → Centros educativos».</div>';
+			$help .= '<div class="form-text">El catálogo de centros está vacío. La administración lo actualiza en «Ajustes → Centros educativos».</div>';
 		}
 		return $help;
 	}
@@ -8649,7 +9013,7 @@ final class Editor {
 	private static function design_label( \WP_Post $p ): string {
 		$code  = (string) get_post_meta( $p->ID, D::CODE, true );
 		$kind  = D::TYPES[ (string) get_post_meta( $p->ID, D::TYPE, true ) ] ?? '';
-		$notes = array_filter( array( $kind, 'publish' !== $p->post_status ? Lists::DESIGN_STATUSES[ $p->post_status ][0] ?? '' : '' ) );
+		$notes = array_filter( array( $kind, 'publish' !== $p->post_status ? Lists::DESIGN_STATUSES[ PostTypes::design_status( $p->post_status ) ][0] ?? '' : '' ) );
 		return ( '' !== $code ? $code . ' · ' : '' ) . get_the_title( $p ) . ( $notes ? ' (' . implode( ', ', $notes ) . ')' : '' );
 	}
 
@@ -8697,7 +9061,7 @@ final class Editor {
 			if ( get_post_meta( $p->ID, S::UNAVAILABLE, true ) ) {
 				$off[ $p->ID ] = true;
 			}
-			$details       = array_filter( array( Lists::terms( $p->ID, Taxonomies::ZONE ), $given ? sprintf( '%d acción(es)', $given ) : '', isset( $off[ $p->ID ] ) ? 'No disponible' : '' ) );
+			$details       = array_filter( array( Lists::terms( $p->ID, Taxonomies::ZONE ), $given ? Screen::counted( $given, 'acción', 'acciones' ) : '', isset( $off[ $p->ID ] ) ? 'No disponible' : '' ) );
 			$out[ $p->ID ] = ( isset( $recommended[ $p->ID ] ) ? '★ ' : '' ) . get_the_title( $p ) . ( $details ? ' · ' . implode( ' · ', $details ) : '' );
 		}
 
@@ -8732,7 +9096,7 @@ final class Editor {
 			'name'  => get_the_title( $speaker ),
 			'zone'  => Lists::terms( $speaker, Taxonomies::ZONE ),
 			'role'  => S::PROFESSIONS[ (string) get_post_meta( $speaker, S::PROFESSION, true ) ] ?? '',
-			'given' => $given ? sprintf( '%d acción(es)', $given ) : '',
+			'given' => $given ? Screen::counted( $given, 'acción', 'acciones' ) : '',
 			'for'   => implode( ',', $map[ $speaker ] ?? array() ),
 			'off'   => get_post_meta( $speaker, S::UNAVAILABLE, true ) ? '1' : '',
 			'note'  => trim( (string) get_post_meta( $speaker, S::NOTES, true ) ),
@@ -8774,7 +9138,7 @@ final class Editor {
 	public static function digcomp( string $url ): string {
 		$summary = DigComp::summary( $url );
 		if ( array() === $summary ) {
-			return '<div class="form-text text-warning">La dirección no trae ninguna competencia que se pueda leer.</div>';
+			return '<div class="form-text text-warning">En esa dirección no se ha encontrado ninguna competencia.</div>';
 		}
 
 
@@ -8793,7 +9157,7 @@ final class Editor {
 		}
 		return '<div class="fmc-digcomp card card-body mt-2"><div class="d-flex align-items-center mb-2"><strong class="me-auto">Resumen del perfil</strong><a class="btn btn-sm btn-outline-primary" href="' . esc_url( $url ) . '" target="_blank" rel="noopener">Abrir en elidd</a></div>'
 			. '<div class="table-responsive"><table class="fmc-digcomp-table"><thead><tr>' . $areas . '</tr><tr>' . $codes . '</tr></thead><tbody><tr>' . $cells . '</tr></tbody></table></div>'
-			. '<div class="form-text">El nivel más alto marcado en cada competencia; al pasar el ratón, todos, con sus indicadores.</div></div>';
+			. '<div class="form-text">Se muestra el nivel más alto marcado en cada competencia. Pase el ratón por encima para ver todos, con sus indicadores.</div></div>';
 	}
 
 
@@ -8808,6 +9172,8 @@ final class Editor {
 		$replicas = max( 1, (int) $m( A::REPLICAS ) );
 
 		$items = array(
+
+			'Estado'        => A::DELIVERY[ A::delivery( $post ) ] ?? '',
 			'Curso escolar' => \Fmc\Domain\SchoolYear::of( (string) get_post_meta( $post->ID, A::START, true ) ),
 
 			'Modalidad'     => D::MODALITIES[ (string) get_post_meta( $post->ID, A::MODALITY, true ) ] ?? '',
@@ -8856,8 +9222,8 @@ final class Editor {
 		}
 		$out .= '<ul class="list-group list-group-flush">';
 		foreach ( $list as $incident ) {
-			$res  = (string) get_post_meta( $incident->ID, I::RESOLUTION, true );
-			$out .= '<li class="list-group-item d-flex gap-2"><a href="' . esc_url( Screen::url( array( Screen::ARG_EDIT => $incident->ID ) ) ) . '">' . esc_html( get_the_date( 'd/m/Y', $incident ) ) . '</a><span class="text-truncate">' . esc_html( wp_trim_words( (string) get_post_meta( $incident->ID, I::REASON, true ), 14 ) ) . '</span><span class="ms-auto badge text-bg-light">' . esc_html( I::RESOLUTIONS[ $res ] ?? 'Pendiente' ) . '</span></li>';
+			$kind = I::KINDS[ (string) get_post_meta( $incident->ID, I::REQUEST, true ) ] ?? '';
+			$out .= '<li class="list-group-item d-flex gap-2"><a href="' . esc_url( Screen::url( array( Screen::ARG_EDIT => $incident->ID ) ) ) . '">' . esc_html( get_the_date( 'd/m/Y', $incident ) ) . '</a><span class="text-truncate">' . esc_html( wp_trim_words( (string) get_post_meta( $incident->ID, I::REASON, true ), 14 ) ) . '</span>' . ( '' !== $kind ? '<span class="ms-auto badge text-bg-light">' . esc_html( $kind ) . '</span>' : '' ) . '</li>';
 		}
 		return $out . '</ul></div></section>';
 	}
@@ -8890,7 +9256,7 @@ final class Editor {
 		}
 		if ( 'invalid' === $result['outcome'] ) {
 			if ( $files ) {
-				$result['errors']['_files'] = 'Los documentos elegidos no se han subido: vuelva a elegirlos cuando corrija lo anterior.';
+				$result['errors']['_files'] = 'Los documentos elegidos no se han subido. Vuelva a elegirlos cuando corrija lo anterior.';
 			}
 
 			echo Screen::document( self::render( $type, $id ? get_post( $id ) : null, $result['values'], $result['errors'] ) );
@@ -8952,7 +9318,10 @@ final class Editor {
 		$was_venue     = $post ? (string) get_post_meta( $post->ID, A::VENUE_CODE, true ) : '';
 
 		$archiving = PostTypes::DESIGN === $type && PostTypes::ARCHIVED === self::next_status( $type, $post, $status );
-		$sessions  = array();
+
+
+		$drafting = PostTypes::DESIGN === $type && 'draft' === self::next_status( $type, $post, $status );
+		$sessions = array();
 		foreach ( $fields as $key => $f ) {
 			if ( in_array( $f['w'], array( 'docs', 'legacy' ), true ) || ! self::can_write( $type, $key, $id ) ) {
 				continue;
@@ -8993,6 +9362,13 @@ final class Editor {
 			$f = $fields[ $key ];
 			if ( ! self::shown( $f, $read ) ) {
 
+
+
+				if ( $post && 'tax:' . Taxonomies::PROGRAMME === $key && (string) self::value( $post, A::FUNDED_BY ) === (string) $read( A::FUNDED_BY ) ) {
+					unset( $values[ $key ] );
+					continue;
+				}
+
 				$values[ $key ] = is_array( $value ) ? array() : '';
 				continue;
 			}
@@ -9002,7 +9378,7 @@ final class Editor {
 			$empty = '' === $value || array() === $value;
 
 			$missing = $empty || ( 'number' === $f['w'] && ! isset( $f['min'] ) && (float) $value <= 0 );
-			if ( ! empty( $f['req'] ) && $missing && ! $archiving && ! ( 'post_title' === $key && PostTypes::ACTION === $type ) ) {
+			if ( ! empty( $f['req'] ) && $missing && ! $archiving && ! ( $drafting && 'post_title' !== $key ) && ! ( 'post_title' === $key && PostTypes::ACTION === $type ) ) {
 				$errors[ $key ] = 'Falta rellenar «' . $f['label'] . '».';
 				continue;
 			}
@@ -9023,6 +9399,15 @@ final class Editor {
 			$outside = Sessions::outside( $values[ A::SESSIONS ], (string) $read( A::START ), (string) $read( A::END ) );
 			if ( '' !== $outside ) {
 				$errors[ A::SESSIONS ] = $outside;
+			}
+		}
+
+
+		if ( PostTypes::INCIDENT === $type && '' !== (string) ( $values[ I::NEW_END ] ?? '' ) ) {
+			if ( '' === (string) ( $values[ I::NEW_START ] ?? '' ) ) {
+				$errors += array( I::NEW_START => 'Falta rellenar «' . $fields[ I::NEW_START ]['label'] . '».' );
+			} elseif ( (string) $values[ I::NEW_END ] < (string) $values[ I::NEW_START ] ) {
+				$errors += array( I::NEW_END => '«' . $fields[ I::NEW_END ]['label'] . '» no puede ser anterior a la de inicio.' );
 			}
 		}
 
@@ -9069,6 +9454,11 @@ final class Editor {
 			$postarr['post_title'] = get_the_title( (int) $values[ A::DESIGN_ID ] );
 		}
 
+
+		if ( PostTypes::ACTION === $type && ( ! $post || '' === (string) get_post_meta( $post->ID, A::INTERNAL_REF, true ) ) ) {
+			$values[ A::INTERNAL_REF ] = A::internal_ref( get_current_user_id() );
+		}
+
 		if ( PostTypes::DESIGN === $type && ( ! $post || '' === (string) get_post_meta( $post->ID, D::CODE, true ) ) ) {
 			$values[ D::CODE ] = self::next_code();
 			update_option( self::CODE_OPTION, $values[ D::CODE ], false );
@@ -9112,15 +9502,9 @@ final class Editor {
 			}
 			update_post_meta( $id, $key, $value );
 		}
-		if ( ! $post && PostTypes::INCIDENT === $type && ! isset( $values[ I::RESOLUTION ] ) ) {
-			update_post_meta( $id, I::RESOLUTION, 'pending' );
-		}
 
-
-		if ( ! $post && PostTypes::INCIDENT === $type && isset( I::SITUATION_OF[ (string) ( $values[ I::REQUEST ] ?? '' ) ] ) ) {
-			update_post_meta( $parent_id, A::SITUATION, I::SITUATION_OF[ (string) $values[ I::REQUEST ] ] );
-		}
 		if ( ! $post && PostTypes::INCIDENT === $type ) {
+			self::incident_effect( $id, $parent_id );
 			self::notify_incident( $id );
 		}
 		if ( PostTypes::ACTION === $type && 'postponed' === $was_situation && (string) get_post_meta( $id, A::START, true ) !== $was_start ) {
@@ -9148,6 +9532,66 @@ final class Editor {
 			'errors'   => array(),
 			'problems' => $problems,
 		);
+	}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+	private static function incident_effect( int $incident, int $action ): void {
+		$m       = static fn( int $id, string $key ): string => (string) get_post_meta( $id, $key, true );
+		$request = $m( $incident, I::REQUEST );
+		$start   = $m( $incident, I::NEW_START );
+
+		$left = array(
+			'cancel'   => 'cancelled',
+			'postpone' => '' === $start ? 'postponed' : '',
+		)[ $request ] ?? '';
+		if ( '' !== $left ) {
+			update_post_meta( $action, A::SITUATION, $left );
+		}
+		if ( 'postpone' !== $request || '' === $start ) {
+			return;
+		}
+		$was   = array(
+			I::OLD_START => $m( $action, A::START ),
+			I::OLD_END   => $m( $action, A::END ),
+		);
+		$moved = Sessions::moved( Sessions::clean( get_post_meta( $action, A::SESSIONS, true ) ), $was[ I::OLD_START ], $was[ I::OLD_END ], $start, $m( $incident, I::NEW_END ) );
+
+		foreach ( array_filter( $was, 'strlen' ) as $key => $value ) {
+			update_post_meta( $incident, $key, $value );
+		}
+
+		foreach ( array(
+			A::START    => $start,
+			A::END      => $moved['end'],
+			A::SESSIONS => $moved['sessions'],
+		) as $key => $value ) {
+			if ( '' === $value || array() === $value ) {
+				delete_post_meta( $action, $key );
+				continue;
+			}
+			update_post_meta( $action, $key, $value );
+		}
+		if ( 'postponed' === $m( $action, A::SITUATION ) ) {
+			delete_post_meta( $action, A::SITUATION );
+		}
 	}
 
 
@@ -9258,7 +9702,7 @@ final class Editor {
 		$covered = array_values( array_intersect( is_array( $terms ) ? array_map( 'intval', $terms ) : array(), Taxonomies::active_programmes() ) );
 		if ( array() === $covered ) {
 			$names = A::funders();
-			return array( A::FUNDED_BY => sprintf( 'El diseño no está en ningún programa activo, así que no la puede asumir «%1$s»: la asume «%2$s».', $names[ A::PROGRAMME_FUNDER ], $names[ A::FALLBACK_FUNDER ] ) );
+			return array( A::FUNDED_BY => sprintf( 'El diseño no está en ningún programa activo, así que no la puede asumir «%1$s». La asume «%2$s».', $names[ A::PROGRAMME_FUNDER ], $names[ A::FALLBACK_FUNDER ] ) );
 		}
 		$values[ 'tax:' . Taxonomies::PROGRAMME ] = array_map( 'strval', $covered );
 		return array();
@@ -9379,6 +9823,10 @@ final class Editor {
 		foreach ( $values as $key => $value ) {
 			$w     = $fields[ $key ]['w'];
 			$error = self::check_account( $w, $value, $post, (string) $key );
+
+			if ( '' === $error && ! empty( $fields[ $key ]['closed'] ) && '' !== $value && ! isset( $fields[ $key ]['choices'][ (string) $value ] ) && (string) self::value( $post, (string) $key ) !== (string) $value ) {
+				$error = 'En «' . $fields[ $key ]['label'] . '» hay que elegir un valor de la lista.';
+			}
 			if ( '' === $error && in_array( $w, array( 'design', 'designs', 'speakers' ), true ) ) {
 				$error = self::check_refs( $fields[ $key ], (string) $key, $values, $post );
 			}
@@ -9441,7 +9889,7 @@ final class Editor {
 			return $active ? 'publish' === $p->post_status : 'trash' !== $p->post_status && current_user_can( 'read_post', $id );
 		};
 		if ( 'design' === $w ) {
-			return $ok( absint( $value ) ) ? '' : 'El diseño elegido no está finalizado: solo se agenda una acción con un diseño finalizado.';
+			return $ok( absint( $value ) ) ? '' : 'El diseño elegido no está finalizado. Solo se pueden agendar acciones de diseños finalizados.';
 		}
 		$values[ $key ] = array_values( array_filter( (array) $value, static fn( $v ) => $ok( absint( $v ) ) ) );
 		return '';
@@ -9492,11 +9940,13 @@ final class Editor {
 		$current = $post ? $post->post_status : '';
 		if ( PostTypes::DESIGN === $type ) {
 
+			$current = PostTypes::design_status( $current );
+
 			$moves = in_array( $requested, array( 'publish', PostTypes::ARCHIVED ), true ) || ( PostTypes::ARCHIVED === $current && '' !== $requested );
 			if ( $moves && ! current_user_can( 'publish_fmc_designs' ) ) {
 				return '' !== $current ? $current : 'draft';
 			}
-			return in_array( $requested, array( 'draft', 'pending', 'publish', PostTypes::ARCHIVED ), true ) ? $requested : ( '' !== $current ? $current : 'draft' );
+			return in_array( $requested, array( 'draft', 'publish', PostTypes::ARCHIVED ), true ) ? $requested : ( '' !== $current ? $current : 'draft' );
 		}
 		if ( PostTypes::ACTION === $type ) {
 
@@ -9532,25 +9982,24 @@ final class Editor {
 			return false;
 		}
 		$m     = static fn( string $key ): string => (string) get_post_meta( $incident, $key, true );
+		$kind  = I::KINDS[ $m( I::REQUEST ) ] ?? '';
 		$lines = array(
 			'Acción: ' . get_the_title( $action ),
-			'Expediente: ' . (string) get_post_meta( $action, A::FILE_NUMBER, true ),
-			'Qué se pide: ' . ( I::REQUESTS[ $m( I::REQUEST ) ] ?? '' ),
-			'Nuevas fechas: ' . trim( Lists::dates( $m( I::NEW_START ), $m( I::NEW_END ) ) ),
+			'Expediente interno: ' . (string) get_post_meta( $action, A::INTERNAL_REF, true ),
+			'Expediente de perfeccionamiento: ' . (string) get_post_meta( $action, A::FILE_NUMBER, true ),
+			'Tipo: ' . $kind,
+			'Fechas que tenía: ' . trim( Lists::dates( $m( I::OLD_START ), $m( I::OLD_END ) ) ),
+			'Fechas nuevas: ' . trim( Lists::dates( $m( I::NEW_START ), $m( I::NEW_END ) ) ),
 			'Abierta por: ' . get_the_author_meta( 'display_name', (int) get_post_field( 'post_author', $incident ) ),
 			'',
-			'Motivos:',
+			'Justificación:',
 			$m( I::REASON ),
-			'',
-			'Cambios que se proponen:',
-			$m( I::PROPOSAL ),
-			'',
-			'Coste: ' . ( $m( I::HAS_COST ) ? 'con coste' : 'sin coste' ),
 			'',
 			Screen::url( array( Screen::ARG_EDIT => $incident ) ),
 		);
 		$lines = array_filter( $lines, static fn( $line ) => ! preg_match( '/: $/', (string) $line ) );
-		return (bool) wp_mail( $to, 'Incidencia: ' . wp_strip_all_tags( get_the_title( $action ) ), implode( "\n", $lines ) );
+
+		return (bool) wp_mail( $to, 'Incidencia' . ( '' !== $kind ? ' (' . mb_strtolower( $kind ) . ')' : '' ) . ': ' . wp_strip_all_tags( get_the_title( $action ) ), implode( "\n", $lines ) );
 	}
 
 
@@ -9584,7 +10033,6 @@ final class Editor {
 
 namespace Fmc\PublicFront;
 
-use Fmc\Meta\IncidentMetaKeys;
 use Fmc\Meta\SpeakerMetaKeys;
 use Fmc\PostType\PostTypes;
 
@@ -9617,6 +10065,16 @@ final class Screen {
 	public const ARG_SCOPE = 'fmc_ambito';
 
 	public const ARG_NOTICE = 'fmc_notice';
+
+
+
+
+	private const DONE = array(
+		PostTypes::DESIGN   => array( 'Diseño guardado.', 'Diseño creado.' ),
+		PostTypes::ACTION   => array( 'Acción guardada.', 'Acción creada.' ),
+		PostTypes::SPEAKER  => array( 'Ponente guardado.', 'Ponente creado.' ),
+		PostTypes::INCIDENT => array( 'Incidencia guardada.', 'Incidencia creada.' ),
+	);
 
 
 
@@ -9799,6 +10257,18 @@ final class Screen {
 			$args[ self::ARG_FRAME ] = '1';
 		}
 		return add_query_arg( array_filter( $args, static fn( $v ) => '' !== $v && null !== $v ), home_url( '/' ) );
+	}
+
+
+
+
+
+
+
+
+
+	public static function counted( int $n, string $one, string $many ): string {
+		return number_format_i18n( $n ) . ' ' . ( 1 === $n ? $one : $many );
 	}
 
 
@@ -10042,7 +10512,6 @@ final class Screen {
 		$name = (string) $user->display_name;
 		$out  = '<header class="fmc-top"><div class="container fmc-top-in">' . $brand;
 		$out .= '<a class="fmc-brand" href="' . esc_url( home_url( '/' ) ) . '">' . esc_html( self::APP_NAME ) . '</a>';
-		$out .= self::bell();
 		$out .= '<details class="fmc-yo"><summary><span class="fmc-avatar" aria-hidden="true">' . esc_html( strtoupper( mb_substr( $name, 0, 1 ) ) ) . '</span>';
 		$out .= '<span class="fmc-yo-txt"><strong>' . esc_html( $name ) . '</strong><small>' . esc_html( self::role_label( $user ) ) . '</small></span></summary><div class="fmc-yo-menu">';
 		if ( current_user_can( 'manage_options' ) ) {
@@ -10063,58 +10532,6 @@ final class Screen {
 		$out .= Help::tab( Help::TAB === $current );
 		$out .= '</ul></div></nav>';
 		return $out;
-	}
-
-
-
-
-
-
-
-
-
-
-
-	private static function bell(): string {
-		if ( ! current_user_can( PostTypes::CAP_RESOLVE ) ) {
-			return '';
-		}
-		$n    = self::pending_incidents();
-		$text = 0 === $n ? 'No hay incidencias pendientes' : $n . ( 1 === $n ? ' incidencia pendiente' : ' incidencias pendientes' );
-		$out  = '<a class="fmc-bell" href="' . esc_url(
-			self::url(
-				array(
-					self::ARG_TAB    => 'incidents',
-					'fmc_resolution' => 'pending',
-				)
-			)
-		) . '" title="' . esc_attr( $text ) . '" aria-label="' . esc_attr( $text ) . '">';
-		$out .= '<i class="bi bi-bell" aria-hidden="true"></i>';
-		if ( $n > 0 ) {
-			$out .= '<span class="fmc-bell-n" aria-hidden="true">' . esc_html( number_format_i18n( $n ) ) . '</span>';
-		}
-		return $out . '</a>';
-	}
-
-
-
-
-
-
-	private static function pending_incidents(): int {
-		$q = new \WP_Query(
-			array(
-				'post_type'              => PostTypes::INCIDENT,
-				'post_status'            => 'publish',
-				'posts_per_page'         => 1,
-				'fields'                 => 'ids',
-				'ignore_sticky_posts'    => true,
-				'update_post_term_cache' => false,
-				'update_post_meta_cache' => false,
-				'meta_query'             => array( IncidentMetaKeys::resolution_clause( 'pending' ) ), 
-			)
-		);
-		return (int) $q->found_posts;
 	}
 
 
@@ -10152,12 +10569,17 @@ final class Screen {
 
 
 	private static function notice(): string {
+
+
+
+		$type  = isset( $_GET[ self::ARG_EDIT ] ) ? (string) get_post_type( absint( wp_unslash( $_GET[ self::ARG_EDIT ] ) ) ) : '';
+		$done  = self::DONE[ $type ] ?? array( 'Guardado.', 'Creado.' );
 		$texts = array(
-			'saved'   => array( 'success', 'Guardado.' ),
-			'created' => array( 'success', 'Creado.' ),
+			'saved'   => array( 'success', $done[0] ),
+			'created' => array( 'success', $done[1] ),
 			'denied'  => array( 'danger', 'No tiene permiso para hacer eso.' ),
 			'trashed' => array( 'success', 'Enviado a la papelera. Se puede recuperar desde el escritorio.' ),
-			'reason'  => array( 'warning', 'Para dar de baja a un ponente hay que escribir el motivo.' ),
+			'reason'  => array( 'warning', 'Para dar de baja a un ponente hay que indicar el motivo.' ),
 		);
 
 		$key = isset( $_GET[ self::ARG_NOTICE ] ) ? sanitize_key( wp_unslash( $_GET[ self::ARG_NOTICE ] ) ) : '';
@@ -10205,7 +10627,7 @@ final class Screen {
 
 
 	public static function trash_form( \WP_Post $post ): string {
-		return '<form id="fmc-baja-' . esc_attr( (string) $post->ID ) . '" method="post" action="' . esc_url( home_url( '/' ) ) . '" data-fmc-reason data-fmc-confirm="' . esc_attr( '¿Dar de baja a «' . get_the_title( $post ) . '»?' ) . '" data-fmc-confirm-text="Su ficha pasa a la papelera y deja de verse en el aplicativo. Queda quién la dio de baja, cuándo y por qué." data-fmc-confirm-button="Dar de baja">'
+		return '<form id="fmc-baja-' . esc_attr( (string) $post->ID ) . '" method="post" action="' . esc_url( home_url( '/' ) ) . '" data-fmc-reason data-fmc-confirm="' . esc_attr( '¿Dar de baja a «' . get_the_title( $post ) . '»?' ) . '" data-fmc-confirm-text="Su ficha pasa a la papelera y deja de verse en el aplicativo. Se guarda quién la dio de baja, cuándo y por qué." data-fmc-confirm-button="Dar de baja">'
 			. wp_nonce_field( 'fmc_delete_' . $post->ID, '_fmc_nonce', true, false )
 			. '<input type="hidden" name="fmc_delete" value="' . esc_attr( (string) $post->ID ) . '">'
 			. '<input type="hidden" name="fmc_reason" value="">'
@@ -10382,6 +10804,95 @@ final class Catalogue {
 
 
 
+
+
+
+
+
+
+
+	public static function public_url( int $design = 0 ): string {
+		$own = self::url( $design );
+		$url = esc_url_raw( (string) apply_filters( 'fmc_catalogue_url', $own, $design ) );
+		return '' !== $url ? $url : $own;
+	}
+
+
+
+
+
+
+
+
+
+
+
+
+	public static function query( array $filters ): \WP_Query {
+		$recent = 'recent' === ( $filters['order'] ?? '' );
+		$args   = array(
+			'post_type'      => PostTypes::DESIGN,
+			'post_status'    => 'publish',
+			'posts_per_page' => min( 100, max( 1, (int) ( $filters['per_page'] ?? self::PER_PAGE ) ) ),
+			'paged'          => max( 1, (int) ( $filters['page'] ?? 1 ) ),
+			'orderby'        => $recent ? 'date' : 'title',
+			'order'          => $recent ? 'DESC' : 'ASC',
+
+			'fmc_text'       => (string) ( $filters['s'] ?? '' ),
+			'fmc_text_keys'  => array( D::CODE ),
+
+			'meta_query'     => array(
+				array(
+					'key'   => D::IN_CATALOGUE,
+					'value' => '1',
+				),
+			),
+		);
+		foreach ( array(
+			'type'     => array( D::TYPE, D::TYPES ),
+			'modality' => array( D::MODALITY, D::MODALITIES ),
+		) as $filter => list( $key, $choices ) ) {
+			$value = (string) ( $filters[ $filter ] ?? '' );
+			if ( isset( $choices[ $value ] ) ) {
+				$args['meta_query'][] = array(
+					'key'   => $key,
+					'value' => $value,
+				);
+			}
+		}
+		foreach ( array(
+			'topic'     => 'fmc_topic',
+			'programme' => 'fmc_programme',
+		) as $filter => $taxonomy ) {
+			$slugs = array_values( array_filter( array_map( 'sanitize_title', (array) ( $filters[ $filter ] ?? array() ) ), 'strlen' ) );
+			if ( $slugs ) {
+
+				$args['tax_query'][] = array(
+					'taxonomy' => $taxonomy,
+					'field'    => 'slug',
+					'terms'    => $slugs,
+				);
+			}
+		}
+		return new \WP_Query( $args );
+	}
+
+
+
+
+
+
+
+	public static function image( int $design ): string {
+		$images = Documents::of( $design )['image'];
+		return $images ? Documents::url( $images[0]->ID ) : '';
+	}
+
+
+
+
+
+
 	public static function asked(): bool {
 		return '' !== Lists::arg( self::ARG_LIST ) || '' !== Lists::arg( self::ARG_SHEET );
 	}
@@ -10416,48 +10927,17 @@ final class Catalogue {
 
 	private static function list_screen(): array {
 		$page = max( 1, (int) Lists::arg( 'fmc_page' ) );
-		$args = array(
-			'post_type'      => PostTypes::DESIGN,
-			'post_status'    => 'publish',
-			'posts_per_page' => self::PER_PAGE,
-			'paged'          => $page,
-			'orderby'        => 'title',
-			'order'          => 'ASC',
-
-			'fmc_text'       => Lists::arg( 'fmc_s' ),
-			'fmc_text_keys'  => array( D::CODE ),
-
-			'meta_query'     => array(
-				array(
-					'key'   => D::IN_CATALOGUE,
-					'value' => '1',
-				),
-			),
+		$q    = self::query(
+			array(
+				's'        => Lists::arg( 'fmc_s' ),
+				'type'     => Lists::arg( 'fmc_type' ),
+				'modality' => Lists::arg( 'fmc_modality' ),
+				'topic'    => Lists::arg( 'fmc_topic' ),
+				'page'     => $page,
+			)
 		);
-		foreach ( array(
-			'fmc_type'     => array( D::TYPE, D::TYPES ),
-			'fmc_modality' => array( D::MODALITY, D::MODALITIES ),
-		) as $arg => list( $key, $choices ) ) {
-			if ( isset( $choices[ Lists::arg( $arg ) ] ) ) {
-				$args['meta_query'][] = array(
-					'key'   => $key,
-					'value' => Lists::arg( $arg ),
-				);
-			}
-		}
-		if ( '' !== Lists::arg( 'fmc_topic' ) ) {
 
-			$args['tax_query'] = array(
-				array(
-					'taxonomy' => 'fmc_topic',
-					'field'    => 'slug',
-					'terms'    => Lists::arg( 'fmc_topic' ),
-				),
-			);
-		}
-		$q = new \WP_Query( $args );
-
-		$body = self::filters_html() . '<p class="fmc-found">' . esc_html( sprintf( '%s curso(s)', number_format_i18n( (int) $q->found_posts ) ) ) . '</p>';
+		$body = self::filters_html() . '<p class="fmc-found">' . esc_html( Screen::counted( (int) $q->found_posts, 'curso', 'cursos' ) ) . '</p>';
 		if ( ! $q->posts ) {
 			$body .= '<div class="card card-body text-secondary">No hay cursos con estos filtros.</div>';
 		}
@@ -10469,7 +10949,7 @@ final class Catalogue {
 
 		return array(
 			'title'    => 'Catálogo de formación',
-			'subtitle' => 'Los cursos que se ofrecen. Abra uno para ver de qué trata, a quién va dirigido y qué competencias trabaja.',
+			'subtitle' => 'Abra un curso para ver de qué trata, a quién va dirigido y qué competencias trabaja.',
 			'body'     => $body,
 		);
 	}
@@ -10481,11 +10961,11 @@ final class Catalogue {
 
 	private static function filters_html(): string {
 		$out  = '<form class="card card-body mb-3 fmc-filters" method="get" action="' . esc_url( home_url( '/' ) ) . '"><input type="hidden" name="' . esc_attr( self::ARG_LIST ) . '" value="1"><div class="row g-2 align-items-end">';
-		$out .= '<div class="col-12 col-md-4"><label class="form-label small fw-semibold" for="fmc_s">Buscar</label><input class="form-control" id="fmc_s" name="fmc_s" type="search" value="' . esc_attr( Lists::arg( 'fmc_s' ) ) . '" placeholder="Título o código…"></div>';
+		$out .= '<div class="col-12 col-md-4"><label class="form-label small fw-semibold" for="fmc_s">Buscar</label><div class="input-group"><input class="form-control" id="fmc_s" name="fmc_s" type="search" value="' . esc_attr( Lists::arg( 'fmc_s' ) ) . '" placeholder="Título o código…">' . Lists::SEARCH_BUTTON . '</div></div>';
 		$out .= Lists::select( 'fmc_type', 'Tipo', D::TYPES, 'Todos' );
 		$out .= Lists::select( 'fmc_modality', 'Modalidad', D::MODALITIES, 'Todas' );
 		$out .= Lists::select( 'fmc_topic', 'Temática', Lists::term_choices( 'fmc_topic' ), 'Todas' );
-		$out .= '<div class="col-auto"><button class="btn btn-outline-dark" type="submit">Filtrar</button> <a class="btn btn-link" href="' . esc_url( self::url() ) . '">Quitar filtros</a></div>';
+		$out .= '<div class="col-auto"><a class="btn btn-link" href="' . esc_url( self::url() ) . '">Quitar filtros</a></div>';
 		return $out . '</div></form>';
 	}
 
@@ -10519,9 +10999,12 @@ final class Catalogue {
 
 	private static function card( \WP_Post $post ): string {
 		$topics = wp_get_post_terms( $post->ID, 'fmc_topic', array( 'fields' => 'names' ) );
-		$out    = '<article class="card fmc-course"><div class="card-body"><h2 class="h6 mb-1"><a href="' . esc_url( self::url( $post->ID ) ) . '">' . esc_html( get_the_title( $post ) ) . '</a></h2>';
-		$out   .= '<p class="small text-secondary mb-2">' . esc_html( self::facts( $post ) ) . '</p>';
-		$out   .= '<p class="small mb-2">' . esc_html( wp_trim_words( wp_strip_all_tags( $post->post_content ), 30 ) ) . '</p>';
+		$image  = self::image( $post->ID );
+
+		$out  = '<article class="card fmc-course">' . ( '' !== $image ? '<a class="fmc-course-img" href="' . esc_url( self::url( $post->ID ) ) . '" tabindex="-1" aria-hidden="true"><img src="' . esc_url( $image ) . '" alt="" loading="lazy"></a>' : '' );
+		$out .= '<div class="card-body"><h2 class="h6 mb-1"><a href="' . esc_url( self::url( $post->ID ) ) . '">' . esc_html( get_the_title( $post ) ) . '</a></h2>';
+		$out .= '<p class="small text-secondary mb-2">' . esc_html( self::facts( $post ) ) . '</p>';
+		$out .= '<p class="small mb-2">' . esc_html( wp_trim_words( wp_strip_all_tags( $post->post_content ), 30 ) ) . '</p>';
 		foreach ( is_array( $topics ) ? $topics : array() as $name ) {
 			$out .= '<span class="fmc-chip">' . esc_html( (string) $name ) . '</span>';
 		}
@@ -10590,7 +11073,7 @@ final class Catalogue {
 			return array(
 				'back'  => $back,
 				'title' => 'Este curso no está en el catálogo',
-				'body'  => '<div class="card card-body">Puede que ya no se ofrezca, o que la dirección no sea correcta. <a href="' . esc_url( self::url() ) . '">Vea los cursos que hay</a>.</div>',
+				'body'  => '<div class="card card-body">Puede que ya no se ofrezca o que la dirección no sea correcta. <a href="' . esc_url( self::url() ) . '">Ver todos los cursos</a>.</div>',
 			);
 		}
 
@@ -10627,6 +11110,248 @@ final class Catalogue {
 			'subtitle' => self::facts( $post ),
 			'body'     => $body,
 		);
+	}
+}
+}
+
+
+
+
+
+
+
+
+namespace Fmc\PublicFront;
+
+use Fmc\Meta\DesignMetaKeys as D;
+use Fmc\PostType\PostTypes;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+if ( ! class_exists( 'Fmc\PublicFront\CatalogueFeed', false ) ) {
+final class CatalogueFeed {
+
+
+
+
+	public const REST_NAMESPACE = 'fmc/v1';
+
+
+
+
+	public const MAX_AGE = 300;
+
+
+
+
+	public const EXCERPT = 200;
+
+
+
+
+
+
+	public static function register(): void {
+		add_action( 'rest_api_init', array( self::class, 'routes' ) );
+	}
+
+
+
+
+
+
+	public static function routes(): void {
+		$text = array(
+			'type'              => 'string',
+			'default'           => '',
+			'sanitize_callback' => 'sanitize_text_field',
+		);
+		register_rest_route(
+			self::REST_NAMESPACE,
+			'/catalogue',
+			array(
+				'methods'             => \WP_REST_Server::READABLE,
+				'callback'            => array( self::class, 'index' ),
+
+				'permission_callback' => '__return_true',
+				'args'                => array(
+					's'         => $text,
+					'type'      => $text,
+					'modality'  => $text,
+
+					'topic'     => $text,
+					'programme' => $text,
+					'order'     => $text,
+					'page'      => array(
+						'type'              => 'integer',
+						'default'           => 1,
+						'sanitize_callback' => 'absint',
+					),
+					'per_page'  => array(
+						'type'              => 'integer',
+						'default'           => Catalogue::PER_PAGE,
+						'sanitize_callback' => 'absint',
+					),
+				),
+			)
+		);
+		register_rest_route(
+			self::REST_NAMESPACE,
+			'/catalogue/(?P<id>\d+)',
+			array(
+				'methods'             => \WP_REST_Server::READABLE,
+				'callback'            => array( self::class, 'show' ),
+				'permission_callback' => '__return_true',
+			)
+		);
+	}
+
+
+
+
+
+
+
+	public static function index( \WP_REST_Request $request ): \WP_REST_Response {
+		$slugs = static fn( string $value ): array => array_values( array_filter( array_map( 'trim', explode( ',', $value ) ), 'strlen' ) );
+		$query = Catalogue::query(
+			array(
+				's'         => (string) $request['s'],
+				'type'      => (string) $request['type'],
+				'modality'  => (string) $request['modality'],
+				'topic'     => $slugs( (string) $request['topic'] ),
+				'programme' => $slugs( (string) $request['programme'] ),
+				'order'     => (string) $request['order'],
+				'page'      => (int) $request['page'],
+				'per_page'  => (int) $request['per_page'],
+			)
+		);
+		return self::cached(
+			array(
+				'total'    => (int) $query->found_posts,
+				'pages'    => (int) $query->max_num_pages,
+				'page'     => max( 1, (int) $request['page'] ),
+				'courses'  => array_map( static fn( \WP_Post $post ): array => self::course( $post ), $query->posts ),
+				'filters'  => array(
+					'types'      => D::TYPES,
+					'modalities' => D::MODALITIES,
+					'topics'     => Lists::term_choices( 'fmc_topic' ),
+					'programmes' => Lists::term_choices( 'fmc_programme' ),
+				),
+				'homepage' => Catalogue::url(),
+			)
+		);
+	}
+
+
+
+
+
+
+
+	public static function show( \WP_REST_Request $request ) {
+		$post = get_post( absint( $request['id'] ) );
+		if ( ! $post instanceof \WP_Post || ! Catalogue::is_listed( $post ) ) {
+			return new \WP_Error( 'fmc_not_in_catalogue', 'Este curso no está en el catálogo.', array( 'status' => 404 ) );
+		}
+		return self::cached( self::course( $post, true ) );
+	}
+
+
+
+
+
+
+
+	private static function cached( array $data ): \WP_REST_Response {
+		$response = new \WP_REST_Response( $data );
+		$response->header( 'Cache-Control', 'public, max-age=' . self::MAX_AGE );
+		return $response;
+	}
+
+
+
+
+
+
+
+
+
+
+	public static function excerpt( string $html ): string {
+		$text = html_entity_decode( wp_strip_all_tags( $html ), ENT_QUOTES | ENT_HTML5, 'UTF-8' );
+		$text = trim( (string) preg_replace( '/[\s\x{00A0}]+/u', ' ', $text ) );
+		return mb_strlen( $text ) > self::EXCERPT ? rtrim( mb_substr( $text, 0, self::EXCERPT ) ) . '…' : $text;
+	}
+
+
+
+
+
+
+
+
+	public static function course( \WP_Post $post, bool $full = false ): array {
+		$m      = static fn( string $key ): string => (string) get_post_meta( $post->ID, $key, true );
+		$names  = static function ( string $taxonomy ) use ( $post ): array {
+			$terms = wp_get_post_terms( $post->ID, $taxonomy, array( 'fields' => 'names' ) );
+			return is_array( $terms ) ? array_values( array_map( 'strval', $terms ) ) : array();
+		};
+		$course = array(
+			'id'             => $post->ID,
+			'code'           => $m( D::CODE ),
+			'title'          => get_the_title( $post ),
+			'url'            => Catalogue::url( $post->ID ),
+			'image'          => Catalogue::image( $post->ID ),
+			'excerpt'        => self::excerpt( $post->post_content ),
+			'date'           => mysql2date( 'Y-m-d', $post->post_date ),
+			'type'           => $m( D::TYPE ),
+			'type_label'     => D::TYPES[ $m( D::TYPE ) ] ?? '',
+			'modality'       => $m( D::MODALITY ),
+			'modality_label' => D::MODALITIES[ $m( D::MODALITY ) ] ?? '',
+			'hours_onsite'   => (float) $m( D::HOURS_ONSITE ),
+			'hours_online'   => (float) $m( D::HOURS_ONLINE ),
+			'topics'         => $names( 'fmc_topic' ),
+			'programmes'     => $names( 'fmc_programme' ),
+		);
+		if ( ! $full ) {
+			return $course;
+		}
+
+		$keys = array(
+			'post_content' => 'description',
+			D::AUDIENCE    => 'audience',
+			D::OBJECTIVES  => 'objectives',
+			D::CONTENTS    => 'contents',
+		);
+		foreach ( Catalogue::PUBLIC_FIELDS as $key ) {
+			$value                   = 'post_content' === $key ? $post->post_content : $m( $key );
+			$course[ $keys[ $key ] ] = '' !== trim( $value ) ? wp_kses_post( wpautop( $value ) ) : '';
+		}
+		$course['digcomp_url'] = esc_url_raw( $m( D::DIGCOMP_URL ) );
+		$course['documents']   = array();
+		$documents             = Documents::of( $post->ID );
+		foreach ( Documents::PUBLIC_KINDS as $kind ) {
+			foreach ( $documents[ $kind ] as $doc ) {
+				$course['documents'][] = array(
+					'kind' => Documents::kinds()[ $kind ]['label'],
+					'name' => Documents::name( $doc->ID ),
+					'url'  => Documents::url( $doc->ID ),
+				);
+			}
+		}
+		return $course;
 	}
 }
 }
@@ -10737,6 +11462,7 @@ use Fmc\Centre\CentreSettings;
 use Fmc\Meta\MetaRegistration;
 use Fmc\PostType\PostTypes;
 use Fmc\PublicFront\Catalogue;
+use Fmc\PublicFront\CatalogueFeed;
 use Fmc\PublicFront\Documents;
 use Fmc\PublicFront\Lists;
 use Fmc\PublicFront\Screen;
@@ -10788,6 +11514,8 @@ final class App {
 		Screen::register();
 		Catalogue::register();
 
+		CatalogueFeed::register();
+
 		Documents::register();
 	}
 }
@@ -10836,10 +11564,6 @@ final class App {
 .fmc-top { background: #fff; border-bottom: 1px solid var(--fmc-line); }
 .fmc-top-in { display: flex; align-items: center; gap: 14px; min-height: 72px; flex-wrap: wrap; padding-top: 10px; padding-bottom: 10px; }
 .fmc-brand { color: var(--fmc-brand); font-weight: 700; font-size: 18px; letter-spacing: -.02em; text-decoration: none; }
-.fmc-bell { margin-left: auto; position: relative; display: grid; place-items: center; width: 40px; height: 40px; border-radius: 50%; color: var(--fmc-text-2); font-size: 19px; text-decoration: none; }
-.fmc-bell:hover { background: var(--fmc-sup-2); color: var(--fmc-brand); }
-.fmc-bell-n { position: absolute; top: 1px; right: 0; min-width: 18px; padding: 0 4px; border-radius: 9px; background: var(--bs-danger, #c7291f); color: #fff; font-size: 11px; font-weight: 700; line-height: 18px; }
-.fmc-bell + .fmc-yo { margin-left: 0; }
 .fmc-yo { margin-left: auto; position: relative; }
 .fmc-yo > summary { list-style: none; display: flex; align-items: center; gap: 10px; cursor: pointer; border-radius: 12px; padding: 4px 6px; }
 .fmc-yo > summary::-webkit-details-marker { display: none; }
@@ -10866,7 +11590,7 @@ final class App {
 .fmc-head.is-bare { padding: 14px 0 0; }
 .fmc-h1 { font-size: 27px; font-weight: 700; letter-spacing: -.02em; margin: 0 0 4px; }
 .fmc-h1 .badge { font-size: .75rem; vertical-align: middle; margin-left: .35rem; }
-.fmc-sub { margin: 0; color: var(--fmc-text-2); font-size: 14.5px; }
+.fmc-sub { margin: 0; color: var(--fmc-text-2); font-size: 14.5px; white-space: pre-line; }
 
 /* La casilla que acompaña a otro campo en su fila: a la altura del campo, no
    pegada a la etiqueta. La línea en blanco que lleva encima la baja hasta la
@@ -10911,6 +11635,10 @@ final class App {
 a.fmc-counter:hover, .fmc-counter.is-active { border-color: var(--fmc-brand); box-shadow: inset 0 0 0 1px var(--fmc-brand); }
 
 .fmc-filters { border-radius: var(--fmc-r); }
+/* Los filtros se aplican al cambiarlos: mientras llega la página, se atenúan. */
+.fmc-filters[aria-busy="true"] { opacity: .6; transition: opacity .15s; }
+/* Los accesos de la asesoría —las mías, las de mi centro—, a la altura de los campos. */
+.fmc-filters .fmc-mine { margin-bottom: .2rem; }
 .fmc-table { border-radius: var(--fmc-r); overflow: hidden; }
 .fmc-table th { font-size: .78rem; text-transform: uppercase; letter-spacing: .05em; color: var(--fmc-text-2); background: var(--fmc-sup-2); white-space: nowrap; }
 .fmc-table td { font-size: .9rem; }
@@ -10932,6 +11660,9 @@ a.fmc-counter:hover, .fmc-counter.is-active { border-color: var(--fmc-brand); bo
 .fmc-sit-cancelled { --sit: #dc3545; }
 .fmc-sit-none { --sit: #ced4da; }
 .fmc-chip[class*="fmc-sit-"] { border-color: var(--sit); }
+a.fmc-chip { color: inherit; text-decoration: none; }
+a.fmc-chip:hover, a.fmc-chip:focus-visible { background: var(--fmc-soft); }
+a.fmc-chip.is-active { font-weight: 700; box-shadow: 0 0 0 2px var(--fmc-text); }
 
 /* Calendario */
 .fmc-cal { border-radius: var(--fmc-r); overflow: hidden; }
@@ -10994,6 +11725,9 @@ dialog.fmc-tool::backdrop { background: rgba(16, 24, 40, .55); }
 /* Catálogo público: tarjetas de curso y los datos de la ficha */
 .fmc-courses { display: grid; grid-template-columns: repeat(auto-fill, minmax(18rem, 1fr)); gap: 1rem; }
 .fmc-course { border-radius: var(--fmc-r); box-shadow: var(--fmc-e1); }
+.fmc-course { overflow: hidden; }
+.fmc-course-img { display: block; aspect-ratio: 16 / 10; background: var(--fmc-soft); }
+.fmc-course-img img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .fmc-course h2 a { text-decoration: none; }
 .fmc-course h2 a:hover { text-decoration: underline; }
 .fmc-about { display: grid; grid-template-columns: max-content 1fr; gap: .25rem 1rem; }
@@ -11058,6 +11792,7 @@ body.has-panel { overflow: hidden; }
 .fmc-file:focus-visible + .fmc-doc-replace, .fmc-doc-link:focus-visible { outline: 2px solid var(--fmc-brand); outline-offset: 2px; border-radius: 4px; }
 .fmc-doc-pending { flex-basis: 100%; margin: .25rem 0 0; padding: .35rem .6rem; border-radius: 8px; background: var(--fmc-brand-cont); color: var(--fmc-brand); font-size: .8125rem; overflow-wrap: anywhere; }
 .fmc-doc-pending[hidden] { display: none; }
+.fmc-doc-get { flex: 0 0 auto; display: inline-flex; align-items: center; gap: .35rem; white-space: nowrap; }
 .fmc-doc-x { flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; width: 2.25rem; height: 2.25rem; margin: 0; border-radius: 50%; color: var(--fmc-text-2); background: transparent; border: 0; cursor: pointer; transition: background-color .15s, color .15s; }
 .fmc-docs .fmc-doc-x .fmc-icon { width: 1.25rem; height: 1.25rem; }
 .fmc-doc-x:hover { background: var(--fmc-bad-cont); color: var(--fmc-bad); }
@@ -11139,9 +11874,8 @@ body.has-panel { overflow: hidden; }
 }
 
 /* Incidencias de una acción: ámbar si alguna espera, verde si están resueltas */
-.fmc-inc { font-weight: 600; }
-.fmc-inc.is-pending { background: var(--fmc-wait-cont); color: var(--fmc-wait); }
-.fmc-inc.is-done { background: var(--fmc-ok-cont); color: var(--fmc-ok); }
+.fmc-inc { font-weight: 600; background: var(--fmc-wait-cont); color: var(--fmc-wait); }
+.fmc-col-title a.is-cancelled { text-decoration: line-through; }
 .fmc-ev .fmc-inc { display: inline-block; margin-top: .15rem; font-size: .65rem; }
 
 /* Resumen del perfil de competencia digital */
@@ -11741,7 +12475,7 @@ body.has-panel { overflow: hidden; }
 		}
 		const max = parseInt( docs.dataset.fmcPostMax, 10 );
 		if ( max && total > max ) {
-			return \'No se puede guardar: los ficheros elegidos suman \' + humanSize( total ) + \' y en cada guardado caben \' + humanSize( max ) + \'. Quite alguno y súbalo en otro guardado.\';
+			return \'No se puede guardar: los ficheros elegidos suman \' + humanSize( total ) + \' y el máximo por guardado es \' + humanSize( max ) + \'. Quite alguno y súbalo después.\';
 		}
 		return \'\';
 	}
@@ -11873,9 +12607,75 @@ body.has-panel { overflow: hidden; }
 		}
 	}
 
+	// Los filtros de un listado se aplican al cambiarlos, sin botón: un
+	// desplegable o una fecha, en el momento. Lo que se escribe espera a Intro
+	// o a la lupa: al salir de la casilla para elegir otro filtro se recargaría
+	// la página a medio camino, y ese otro filtro ya lo envía todo.
+	function filterForm( field ) {
+		return field && field.form && field.form.matches && field.form.matches( \'form.fmc-filters\' ) ? field.form : null;
+	}
+
+	// Una fecha a medio teclear ya es una fecha —el año «0002»—: se espera a
+	// que el año tenga sus cuatro cifras.
+	function filterReady( field ) {
+		if ( \'date\' === field.type ) {
+			return \'\' === field.value || Number( field.value.slice( 0, 4 ) ) > 999;
+		}
+		return \'SELECT\' === field.tagName || \'checkbox\' === field.type;
+	}
+
+	function applyFilters( form ) {
+		if ( form.dataset.fmcSent ) {
+			return;
+		}
+		if ( form.requestSubmit ) {
+			form.requestSubmit();
+		} else {
+			form.submit();
+		}
+	}
+
+	// El primer envío deja la tarjeta «cargando»; otro igual mientras tanto
+	// —Intro después de elegir— no hace falta, y se para.
+	function onFilterSubmit( event ) {
+		const form = event.target;
+		if ( ! form || ! form.matches || ! form.matches( \'form.fmc-filters\' ) ) {
+			return;
+		}
+		if ( form.dataset.fmcSent ) {
+			event.preventDefault();
+			return;
+		}
+		form.dataset.fmcSent = \'1\';
+		form.setAttribute( \'aria-busy\', \'true\' );
+	}
+
+	// El aspa de una caja de búsqueda la vacía sin pasar por Intro.
+	function onSearch( event ) {
+		const form = filterForm( event.target );
+		if ( form && \'\' === event.target.value ) {
+			applyFilters( form );
+		}
+	}
+
+	// Al volver atrás, el navegador devuelve la página como se dejó: enviada.
+	function onPageShow() {
+		document.querySelectorAll( \'form.fmc-filters\' ).forEach( function ( form ) {
+			delete form.dataset.fmcSent;
+			form.removeAttribute( \'aria-busy\' );
+		} );
+	}
+
 	function onChange( event ) {
 		const target = event.target;
 		if ( ! target || ! target.closest ) {
+			return;
+		}
+		const filters = filterForm( target );
+		if ( filters ) {
+			if ( filterReady( target ) ) {
+				applyFilters( filters );
+			}
 			return;
 		}
 		if ( target.classList && target.classList.contains( \'fmc-file\' ) ) {
@@ -11959,8 +12759,16 @@ body.has-panel { overflow: hidden; }
 		return n;
 	}
 
-	function send( form ) {
+	// Una ficha (`form.fmc-form`) se vuelve a enviar como lo haría su botón:
+	// `submit()` se saltaría el guardado dentro del panel y no mandaría el
+	// botón pulsado. Lo demás, como siempre.
+	function send( form, submitter ) {
 		form.dataset.fmcConfirmed = \'1\';
+		if ( form.matches( \'form.fmc-form\' ) && form.requestSubmit ) {
+			form.requestSubmit( submitter && submitter.form === form ? submitter : undefined );
+			delete form.dataset.fmcConfirmed;
+			return;
+		}
 		form.submit();
 	}
 
@@ -11978,7 +12786,7 @@ body.has-panel { overflow: hidden; }
 				inputPlaceholder: \'Por ejemplo: ha pedido que se borren sus datos.\',
 				inputAttributes: { maxlength: \'500\', \'aria-label\': \'Motivo de la baja\' },
 				inputValidator: function ( value ) {
-					return value && value.trim() ? null : \'Diga el motivo: sin motivo no hay baja.\';
+					return value && value.trim() ? null : \'Indique el motivo de la baja.\';
 				},
 				showCancelButton: true,
 				confirmButtonText: form.dataset.fmcConfirmButton || \'Dar de baja\',
@@ -12004,28 +12812,37 @@ body.has-panel { overflow: hidden; }
 			return;
 		}
 		event.preventDefault();
+		// Que el aviso no deje pasar a los demás oyentes: el del panel
+		// guardaría la ficha antes de que nadie conteste.
+		event.stopImmediatePropagation();
 		const question = form.dataset.fmcConfirm;
+		const submitter = event.submitter;
 		if ( \'fmcReason\' in form.dataset ) {
 			return askReason( form, question );
 		}
+		// Con su propio icono —un recordatorio, una advertencia— no es un
+		// borrado: sin rojo, y con el foco en seguir.
+		const icon = form.dataset.fmcConfirmIcon;
+		const calm = !! icon;
 		if ( window.Swal && window.Swal.fire ) {
 			return window.Swal.fire( {
 				title: question,
 				text: form.dataset.fmcConfirmText || \'\',
-				icon: \'warning\',
+				icon: icon || \'warning\',
 				showCancelButton: true,
-				focusCancel: true,
+				focusCancel: ! calm,
 				confirmButtonText: form.dataset.fmcConfirmButton || \'Sí\',
 				cancelButtonText: \'Cancelar\',
-				confirmButtonColor: \'#dc3545\',
+				confirmButtonColor: calm ? \'#0d6efd\' : \'#dc3545\',
 			} ).then( function ( result ) {
 				if ( result && result.isConfirmed ) {
-					send( form );
+					send( form, submitter );
 				}
 			} );
 		}
-		if ( window.confirm( question ) ) {
-			send( form );
+		const text = form.dataset.fmcConfirmText ? \'\\n\\n\' + form.dataset.fmcConfirmText : \'\';
+		if ( window.confirm( question + ( calm ? text : \'\' ) ) ) {
+			send( form, submitter );
 		}
 	}
 
@@ -12141,7 +12958,7 @@ body.has-panel { overflow: hidden; }
 		panel.querySelector( \'.offcanvas-title\' ).textContent = title;
 		const out = panel.querySelector( \'.fmc-panel-out\' );
 		out.href = url;
-		out.textContent = \'Abrir en la página entera\';
+		out.textContent = \'Abrir en página completa\';
 		load( panel, { url: target.toString(), fallback: url } );
 		return true;
 	}
@@ -12335,6 +13152,9 @@ body.has-panel { overflow: hidden; }
 	document.addEventListener( \'click\', onNoteClick );
 	document.addEventListener( \'keydown\', onKey );
 	document.addEventListener( \'change\', onChange );
+	document.addEventListener( \'submit\', onFilterSubmit );
+	document.addEventListener( \'search\', onSearch );
+	window.addEventListener( \'pageshow\', onPageShow );
 	document.addEventListener( \'click\', onSessionClick );
 	document.addEventListener( \'input\', onSessionInput );
 	document.addEventListener( \'click\', onDocClick );
@@ -12363,6 +13183,8 @@ body.has-panel { overflow: hidden; }
 		onPanelSubmit: onPanelSubmit,
 		onKey: onKey,
 		onChange: onChange,
+		onFilterSubmit: onFilterSubmit,
+		onSearch: onSearch,
 		setFromOption: setFromOption,
 		refreshField: refreshField,
 		applyShow: applyShow,

@@ -7,7 +7,6 @@
 
 namespace Fmc\PublicFront;
 
-use Fmc\Meta\IncidentMetaKeys;
 use Fmc\Meta\SpeakerMetaKeys;
 use Fmc\PostType\PostTypes;
 
@@ -39,6 +38,16 @@ final class Screen {
 	public const ARG_SCOPE = 'fmc_ambito';
 
 	public const ARG_NOTICE = 'fmc_notice';
+
+	/**
+	 * What the notice says after saving each type: saved, and created.
+	 */
+	private const DONE = array(
+		PostTypes::DESIGN   => array( 'Diseño guardado.', 'Diseño creado.' ),
+		PostTypes::ACTION   => array( 'Acción guardada.', 'Acción creada.' ),
+		PostTypes::SPEAKER  => array( 'Ponente guardado.', 'Ponente creado.' ),
+		PostTypes::INCIDENT => array( 'Incidencia guardada.', 'Incidencia creada.' ),
+	);
 
 	/**
 	 * `fmc_marco=1`: the side panel asks for the screen as a bare fragment.
@@ -221,6 +230,18 @@ final class Screen {
 			$args[ self::ARG_FRAME ] = '1';
 		}
 		return add_query_arg( array_filter( $args, static fn( $v ) => '' !== $v && null !== $v ), home_url( '/' ) );
+	}
+
+	/**
+	 * A count with its noun, in singular or in plural: «1 acción», «3 acciones».
+	 *
+	 * @param int    $n    How many.
+	 * @param string $one  The noun for one.
+	 * @param string $many The noun for any other number.
+	 * @return string
+	 */
+	public static function counted( int $n, string $one, string $many ): string {
+		return number_format_i18n( $n ) . ' ' . ( 1 === $n ? $one : $many );
 	}
 
 	/**
@@ -464,7 +485,6 @@ final class Screen {
 		$name = (string) $user->display_name;
 		$out  = '<header class="fmc-top"><div class="container fmc-top-in">' . $brand;
 		$out .= '<a class="fmc-brand" href="' . esc_url( home_url( '/' ) ) . '">' . esc_html( self::APP_NAME ) . '</a>';
-		$out .= self::bell();
 		$out .= '<details class="fmc-yo"><summary><span class="fmc-avatar" aria-hidden="true">' . esc_html( strtoupper( mb_substr( $name, 0, 1 ) ) ) . '</span>';
 		$out .= '<span class="fmc-yo-txt"><strong>' . esc_html( $name ) . '</strong><small>' . esc_html( self::role_label( $user ) ) . '</small></span></summary><div class="fmc-yo-menu">';
 		if ( current_user_can( 'manage_options' ) ) {
@@ -485,58 +505,6 @@ final class Screen {
 		$out .= Help::tab( Help::TAB === $current );
 		$out .= '</ul></div></nav>';
 		return $out;
-	}
-
-	/**
-	 * The bell: how many incidents are waiting to be resolved.
-	 *
-	 * Solo la ve quien las resuelve —el servicio, la coordinación y la
-	 * administración—, porque es su cola de trabajo y se vacía al resolverlas.
-	 * La asesoría no: las suyas pendientes no las puede resolver ella, así que
-	 * el número no bajaría nunca (ADR-0007, adenda).
-	 *
-	 * @return string
-	 */
-	private static function bell(): string {
-		if ( ! current_user_can( PostTypes::CAP_RESOLVE ) ) {
-			return '';
-		}
-		$n    = self::pending_incidents();
-		$text = 0 === $n ? 'No hay incidencias pendientes' : $n . ( 1 === $n ? ' incidencia pendiente' : ' incidencias pendientes' );
-		$out  = '<a class="fmc-bell" href="' . esc_url(
-			self::url(
-				array(
-					self::ARG_TAB    => 'incidents',
-					'fmc_resolution' => 'pending',
-				)
-			)
-		) . '" title="' . esc_attr( $text ) . '" aria-label="' . esc_attr( $text ) . '">';
-		$out .= '<i class="bi bi-bell" aria-hidden="true"></i>';
-		if ( $n > 0 ) {
-			$out .= '<span class="fmc-bell-n" aria-hidden="true">' . esc_html( number_format_i18n( $n ) ) . '</span>';
-		}
-		return $out . '</a>';
-	}
-
-	/**
-	 * Incidents waiting for a resolution.
-	 *
-	 * @return int
-	 */
-	private static function pending_incidents(): int {
-		$q = new \WP_Query(
-			array(
-				'post_type'              => PostTypes::INCIDENT,
-				'post_status'            => 'publish',
-				'posts_per_page'         => 1,
-				'fields'                 => 'ids',
-				'ignore_sticky_posts'    => true,
-				'update_post_term_cache' => false,
-				'update_post_meta_cache' => false,
-				'meta_query'             => array( IncidentMetaKeys::resolution_clause( 'pending' ) ), // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_query -- el contador de la campana.
-			)
-		);
-		return (int) $q->found_posts;
 	}
 
 	/**
@@ -574,12 +542,17 @@ final class Screen {
 	 * @return string
 	 */
 	private static function notice(): string {
+		// Qué se ha guardado lo dice la ficha a la que se vuelve: «Creado», a
+		// secas, no dice el qué.
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- solo elige un texto fijo.
+		$type  = isset( $_GET[ self::ARG_EDIT ] ) ? (string) get_post_type( absint( wp_unslash( $_GET[ self::ARG_EDIT ] ) ) ) : '';
+		$done  = self::DONE[ $type ] ?? array( 'Guardado.', 'Creado.' );
 		$texts = array(
-			'saved'   => array( 'success', 'Guardado.' ),
-			'created' => array( 'success', 'Creado.' ),
+			'saved'   => array( 'success', $done[0] ),
+			'created' => array( 'success', $done[1] ),
 			'denied'  => array( 'danger', 'No tiene permiso para hacer eso.' ),
 			'trashed' => array( 'success', 'Enviado a la papelera. Se puede recuperar desde el escritorio.' ),
-			'reason'  => array( 'warning', 'Para dar de baja a un ponente hay que escribir el motivo.' ),
+			'reason'  => array( 'warning', 'Para dar de baja a un ponente hay que indicar el motivo.' ),
 		);
 		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- solo elige un texto fijo.
 		$key = isset( $_GET[ self::ARG_NOTICE ] ) ? sanitize_key( wp_unslash( $_GET[ self::ARG_NOTICE ] ) ) : '';
@@ -627,7 +600,7 @@ final class Screen {
 	 * @return string
 	 */
 	public static function trash_form( \WP_Post $post ): string {
-		return '<form id="fmc-baja-' . esc_attr( (string) $post->ID ) . '" method="post" action="' . esc_url( home_url( '/' ) ) . '" data-fmc-reason data-fmc-confirm="' . esc_attr( '¿Dar de baja a «' . get_the_title( $post ) . '»?' ) . '" data-fmc-confirm-text="Su ficha pasa a la papelera y deja de verse en el aplicativo. Queda quién la dio de baja, cuándo y por qué." data-fmc-confirm-button="Dar de baja">'
+		return '<form id="fmc-baja-' . esc_attr( (string) $post->ID ) . '" method="post" action="' . esc_url( home_url( '/' ) ) . '" data-fmc-reason data-fmc-confirm="' . esc_attr( '¿Dar de baja a «' . get_the_title( $post ) . '»?' ) . '" data-fmc-confirm-text="Su ficha pasa a la papelera y deja de verse en el aplicativo. Se guarda quién la dio de baja, cuándo y por qué." data-fmc-confirm-button="Dar de baja">'
 			. wp_nonce_field( 'fmc_delete_' . $post->ID, '_fmc_nonce', true, false )
 			. '<input type="hidden" name="fmc_delete" value="' . esc_attr( (string) $post->ID ) . '">'
 			. '<input type="hidden" name="fmc_reason" value="">'

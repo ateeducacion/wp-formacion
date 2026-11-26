@@ -149,12 +149,121 @@ final class ActionMetaKeys {
 	);
 
 	/**
-	 * The two states of an action's record: a draft, or delivered (ADR-0020).
+	 * The states of an action's record: a draft, delivered, or completed.
+	 *
+	 * Borrador y entregada son el estado de la entrada (ADR-0020). Completada
+	 * no se guarda: es la entregada a la que el servicio de perfeccionamiento
+	 * ya le ha puesto su expediente ({@see delivery()}). Mientras no lo tiene,
+	 * «Entregada» es lo que el servicio tiene pendiente.
 	 */
 	public const DELIVERY = array(
-		'draft'   => 'Borrador',
-		'publish' => 'Entregada',
+		'draft'     => 'Borrador',
+		'publish'   => 'Entregada',
+		'completed' => 'Completada',
 	);
+
+	/**
+	 * Prefix of the internal file number, unless the deployment gives its own.
+	 */
+	public const INTERNAL_REF_PREFIX = 'AF';
+
+	/**
+	 * The state of an action's record: a key of `DELIVERY`.
+	 *
+	 * @param \WP_Post $action Action.
+	 * @return string
+	 */
+	public static function delivery( \WP_Post $action ): string {
+		if ( 'publish' !== $action->post_status ) {
+			return $action->post_status;
+		}
+		return '' !== trim( (string) get_post_meta( $action->ID, self::FILE_NUMBER, true ) ) ? 'completed' : 'publish';
+	}
+
+	/**
+	 * The file numbers of an action, one per line: the internal one and the
+	 * training service's, whichever it has.
+	 *
+	 * @param int  $action Action ID.
+	 * @param bool $short  Whether to name them briefly, as under a title.
+	 * @return string Plain text; the lines are split by a line feed.
+	 */
+	public static function file_numbers( int $action, bool $short = false ): string {
+		$lines = array();
+		foreach ( array(
+			self::INTERNAL_REF => $short ? self::internal_ref_label() : 'Expediente interno',
+			self::FILE_NUMBER  => $short ? 'Perfeccionamiento' : 'Expediente de perfeccionamiento',
+		) as $key => $label ) {
+			$value = trim( (string) get_post_meta( $action, $key, true ) );
+			if ( '' !== $value ) {
+				$lines[] = $label . ': ' . $value;
+			}
+		}
+		return implode( "\n", $lines );
+	}
+
+	/**
+	 * The prefix of the internal file numbers: the deployment's, or the default.
+	 *
+	 * @return string Letters and digits only.
+	 */
+	public static function internal_ref_prefix(): string {
+		return (string) preg_replace( '/[^A-Za-z0-9]/', '', (string) apply_filters( 'fmc_internal_ref_prefix', self::INTERNAL_REF_PREFIX ) );
+	}
+
+	/**
+	 * How the internal file number is named where there is little room.
+	 *
+	 * Con el prefijo de la casa —sus siglas—, si el despliegue lo ha puesto:
+	 * es como la conoce quien lo lee, junto al del servicio de
+	 * perfeccionamiento. Sin él, «Interno».
+	 *
+	 * @return string
+	 */
+	public static function internal_ref_label(): string {
+		$prefix = self::internal_ref_prefix();
+		return in_array( $prefix, array( '', self::INTERNAL_REF_PREFIX ), true ) ? 'Interno' : $prefix;
+	}
+
+	/**
+	 * A new internal file number: who creates the action, and when.
+	 *
+	 * Es el que la asesoría da al servicio de perfeccionamiento para que
+	 * localice la acción antes de que tenga su propio expediente. Lleva la
+	 * forma que ya se conocía —prefijo, cuenta, fecha y hora—, y el prefijo lo
+	 * pone cada despliegue con el filtro `fmc_internal_ref_prefix` (ADR-0002).
+	 *
+	 * @param int $user Who creates the action.
+	 * @return string
+	 */
+	public static function internal_ref( int $user ): string {
+		return self::internal_ref_prefix() . $user . '-' . current_time( 'd/m/Y' ) . '-' . current_time( 'H:i:s' );
+	}
+
+	/**
+	 * The strategic lines an action may be put under, as the deployment names them.
+	 *
+	 * Son las de la norma de cada administración, y cambian con ella: las da
+	 * el despliegue con el filtro `fmc_strategic_lines` (ADR-0002). Sin
+	 * ninguna, el campo no sale. Lo guardado es el nombre, como estaba.
+	 *
+	 * @return array<string, string> name => name.
+	 */
+	public static function strategic_lines(): array {
+		$out = array();
+		foreach ( (array) apply_filters( 'fmc_strategic_lines', array() ) as $line ) {
+			$line = is_string( $line ) ? sanitize_text_field( $line ) : '';
+			if ( '' !== $line ) {
+				$out[ $line ] = $line;
+			}
+		}
+		return $out;
+	}
+
+	/**
+	 * Funders an action may be charged to a programme with.
+	 */
+	public const PROGRAMME_FUNDERS = array( 'area', 'service' );
 
 	/**
 	 * The situation of an action today, from its dates and its incidents.
