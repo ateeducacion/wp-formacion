@@ -137,3 +137,27 @@ campo, como dirección.
 - Si algún día hace falta editar sin elidd en línea, la opción 2 cabe
   después: elidd ya publica `mrcdd.json` y la CI comprueba que coincide con su
   YAML.
+
+## Adenda — 2026-11-26: el enlace al perfil lleva a la herramienta
+
+El perfil se guarda como la dirección con que la herramienta lo comparte, y se
+enlazaba tal cual. Pero esa dirección puede ser la de otra copia de la
+herramienta, o la de una página que ha dejado de existir: el cuadro seguía
+saliendo —se calcula de la selección— y el enlace llevaba a ninguna parte.
+
+- **Lo que cuenta de un perfil es su selección, no dónde se guardó.**
+  `DigComp::tool_link()` monta el enlace con la herramienta del despliegue
+  (`fmc_digcomp_tool`, la misma en la que se elige) y los indicadores que trae
+  la dirección guardada. Lo usan «Abrir en elidd» y el `digcomp_url` de los
+  datos del catálogo
+  ([ADR-0028](ADR-0028-el-catalogo-se-ofrece-como-datos-a-las-webs-que-lo-ensenan.md)).
+- Lo guardado no se toca: se corrige al enlazar, no en los datos.
+- Una dirección sin selección se enlaza como está.
+
+Consecuencia: un despliegue que cambie de copia de la herramienta no tiene que
+reescribir sus diseños.
+
+Lo prueban `tests/unit/test-digcomp.php`, `test-catalogue-feed.php` y
+`test-editor-render.php`.
+
+Asistencia de IA: Claude Code (claude-fable-5-2).

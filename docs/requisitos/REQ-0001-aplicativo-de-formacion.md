@@ -222,7 +222,9 @@ en parte, lo dicen.
     #26):* el fichero maestro es el documento «Diseño del curso», que ya se
     guarda en el aplicativo (ADR-0025, con su adenda): uno por diseño, la
     versión vigente, y público si el curso está en el catálogo, porque es su
-    ficha técnica; el histórico de versiones sigue en la nube. Para el espacio
+    ficha técnica; el histórico de versiones sigue en la nube. *Revisada el
+    2026-11-26:* la ficha puede estar en editable y en PDF, uno por formato,
+    siempre la versión vigente (ADR-0025, adenda de ese día). Para el espacio
     de subida, la coordinación propone de 500 MB a 1 GB; es una estimación,
     no una medida, y lo dimensiona quien administra el sitio.
 11. ¿Cuál es la lista nueva de temáticas, y qué términos de programa repetidos

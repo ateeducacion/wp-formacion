@@ -257,3 +257,35 @@ La imagen representativa se sube para el catálogo. Mientras su diseño está en
 de él vuelve a ser de quien lee el diseño. No aparece entre las descargas de la
 ficha del curso: es la imagen de su tarjeta. El navegador puede guardarla una
 hora ([ADR-0028](ADR-0028-el-catalogo-se-ofrece-como-datos-a-las-webs-que-lo-ensenan.md)).
+
+## Adenda — 2026-11-26: la ficha técnica, en varios formatos y uno por formato
+
+La adenda del 2026-11-06 dejó «Diseño del curso» en un solo documento. Al
+poner en uso el aplicativo se vio que la ficha técnica se publica de costumbre
+en dos formatos a la vez —el editable y su PDF, y a veces el de otra suite
+ofimática—, y que quien la descarga del catálogo elige el que le sirve. Con un
+solo documento había que quedarse con uno y el catálogo perdía el otro.
+
+- **La clase `design` admite el editable (DOC, DOCX u ODT) y el PDF, uno por
+  formato** (`per_format` en `Documents::kinds()`). Subir otro del mismo
+  formato, con «Añadir» o con «Reemplazar», sustituye al que había y deja los
+  de los demás formatos. DOC y DOCX cuentan como el mismo: el de Word.
+- **Sigue valiendo lo que quería la adenda anterior**: no se acumulan
+  versiones. Lo que hay es la versión vigente, una vez por formato; el
+  histórico sigue fuera.
+- **Todos son públicos** si el curso está en el catálogo, como lo era el
+  único: es la misma ficha. La ficha del catálogo y sus datos
+  ([ADR-0028](ADR-0028-el-catalogo-se-ofrece-como-datos-a-las-webs-que-lo-ensenan.md))
+  los listan todos.
+- El anterior se borra después de guardar el nuevo: si el nuevo no se puede
+  guardar, el que había sigue ahí.
+- Las demás clases no cambian: la imagen es una, y la escaleta, las
+  presentaciones, los recursos y los otros documentos son listas que no miran
+  el formato.
+
+Contra: nada obliga a que el PDF y el editable sean la misma versión. Lo
+comprueba quien los sube, como antes comprobaba que el único fuera el vigente.
+
+Lo prueba `tests/unit/test-documents.php`.
+
+Asistencia de IA: Claude Code (claude-fable-5-2).

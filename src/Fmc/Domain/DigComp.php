@@ -73,13 +73,11 @@ final class DigComp {
 	 * @return array<string, array<string, int>> competence => level => indicators.
 	 */
 	public static function summary( string $url ): array {
-		$query = (string) parse_url( $url, PHP_URL_QUERY ); // phpcs:ignore WordPress.WP.AlternativeFunctions.parse_url_parse_url -- pura, sin WordPress.
-		parse_str( $query, $args );
 		$out = array();
-		foreach ( explode( '|', is_string( $args['c'] ?? null ) ? $args['c'] : '' ) as $item ) {
-			if ( preg_match( '/^(\d\.\d)\.([ABC][12])\.\d+$/', trim( $item ), $m ) ) {
-				$out[ $m[1] ][ $m[2] ] = ( $out[ $m[1] ][ $m[2] ] ?? 0 ) + 1;
-			}
+		foreach ( self::indicators( $url ) as $item ) {
+			list( $area, $competence, $level ) = explode( '.', $item );
+			$code                              = $area . '.' . $competence;
+			$out[ $code ][ $level ]            = ( $out[ $code ][ $level ] ?? 0 ) + 1;
 		}
 		ksort( $out );
 		foreach ( $out as &$levels ) {
@@ -125,5 +123,34 @@ final class DigComp {
 			);
 		}
 		return $out;
+	}
+
+	/**
+	 * The profile of a URL as a link to the tool, with the same selection.
+	 *
+	 * Lo que cuenta de un perfil es su selección, no dónde se guardó: un
+	 * diseño puede traer la dirección de otra copia de la herramienta, o la de
+	 * una página que ya no existe. Sin selección, se deja como está.
+	 *
+	 * @param string $url  Profile URL, as stored.
+	 * @param string $tool Where profiles are opened.
+	 * @return string
+	 */
+	public static function tool_link( string $url, string $tool ): string {
+		$selection = self::indicators( $url );
+		return array() === $selection ? $url : rtrim( $tool, '/' ) . '/?c=' . implode( '|', $selection );
+	}
+
+	/**
+	 * The indicators a profile URL selects, as it lists them.
+	 *
+	 * @param string $url Profile URL.
+	 * @return string[]
+	 */
+	private static function indicators( string $url ): array {
+		$query = (string) parse_url( $url, PHP_URL_QUERY ); // phpcs:ignore WordPress.WP.AlternativeFunctions.parse_url_parse_url -- pura, sin WordPress.
+		parse_str( $query, $args );
+		$items = array_map( 'trim', explode( '|', is_string( $args['c'] ?? null ) ? $args['c'] : '' ) );
+		return array_values( array_filter( $items, static fn( $item ) => 1 === preg_match( '/^\d\.\d\.[ABC][12]\.\d+$/', $item ) ) );
 	}
 }
