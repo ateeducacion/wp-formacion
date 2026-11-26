@@ -8,6 +8,15 @@ lee de la cabecera superior y la escribe en el `@version` del bundle.
 `make release` crea el tag y la release en GitHub; el despliegue de los snippets
 en el sitio de destino se hace después.
 
+## [1.0.0] — 2026-11-26
+
+La primera versión que está en uso: el aplicativo ya es el planificador de
+formación del área, con los datos del sistema anterior dentro.
+
+### Añadido
+
+- **Catálogo como datos: el perfil de competencia digital, ya resumido**. La ficha de un curso (`fmc/v1/catalogue/<id>`) trae `digcomp`: por áreas, cada competencia con el nivel más alto que trabaja el curso. Las webs que enseñan el catálogo pueden pintar el mismo cuadro que el aplicativo sin conocer el marco; `digcomp_url` sigue siendo el enlace al perfil entero (ADR-0028)
+
 ## [0.2.1] — 2026-11-26
 
 ### Cambiado

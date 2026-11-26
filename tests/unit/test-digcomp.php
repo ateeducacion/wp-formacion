@@ -40,4 +40,39 @@ class Test_DigComp extends WP_UnitTestCase {
 		$this->assertSame( array(), DigComp::summary( 'https://herramienta.example/?c[]=1.1.A1.1' ) );
 		$this->assertSame( array(), DigComp::summary( 'no es una dirección' ) );
 	}
+
+	/**
+	 * El perfil ya resumido, para quien lo pinta sin conocer el marco: las
+	 * seis áreas con todas sus competencias y, de cada una, el nivel más alto.
+	 */
+	public function test_the_profile_gives_every_area_with_the_top_level_of_each_competence() {
+		$profile = DigComp::profile( 'https://herramienta.example/?c=1.3.A1.1|1.3.A2.1|1.3.A2.2|2.1.B1.1|6.5.C2.3' );
+
+		$this->assertCount( 6, $profile );
+		$this->assertSame( array( 1, 2, 3, 4, 5, 6 ), array_column( $profile, 'area' ) );
+		$this->assertSame( 'Compromiso profesional', $profile[0]['name'] );
+		$this->assertSame( 23, array_sum( array_map( static fn( $a ) => count( $a['competences'] ), $profile ) ) );
+
+		$first = array_column( $profile[0]['competences'], null, 'code' );
+		$this->assertSame( 'Práctica reflexiva', $first['1.3']['name'] );
+		$this->assertSame( 'A2', $first['1.3']['level'], 'el más alto de los marcados' );
+		$this->assertSame(
+			array(
+				'A1' => 1,
+				'A2' => 2,
+			),
+			$first['1.3']['levels']
+		);
+		$this->assertSame( '', $first['1.1']['level'], 'la que no se trabaja va vacía, pero va' );
+		$this->assertSame( array(), $first['1.1']['levels'] );
+		$this->assertSame( 'C2', array_column( $profile[5]['competences'], 'level', 'code' )['6.5'] );
+	}
+
+	/**
+	 * Sin indicadores no hay perfil que dar.
+	 */
+	public function test_an_url_without_indicators_has_no_profile() {
+		$this->assertSame( array(), DigComp::profile( 'https://herramienta.example/' ) );
+		$this->assertSame( array(), DigComp::profile( '' ) );
+	}
 }

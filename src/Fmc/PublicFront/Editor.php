@@ -1286,8 +1286,8 @@ final class Editor {
 	 * @return string
 	 */
 	public static function digcomp( string $url ): string {
-		$summary = DigComp::summary( $url );
-		if ( array() === $summary ) {
+		$profile = DigComp::profile( $url );
+		if ( array() === $profile ) {
 			return '<div class="form-text text-warning">En esa dirección no se ha encontrado ninguna competencia.</div>';
 		}
 		// La tabla que da elidd al generar: por áreas, el nivel más alto marcado
@@ -1295,14 +1295,14 @@ final class Editor {
 		$areas = '';
 		$codes = '';
 		$cells = '';
-		foreach ( DigComp::AREAS as $area => $name ) {
-			$competences = array_filter( DigComp::COMPETENCES, static fn( $code ) => (int) $code === $area, ARRAY_FILTER_USE_KEY );
-			$areas      .= '<th scope="colgroup" colspan="' . count( $competences ) . '" class="fmc-area-' . $area . '">' . esc_html( $area . '. ' . $name ) . '</th>';
-			foreach ( $competences as $code => $title ) {
-				$levels = $summary[ $code ] ?? array();
+		foreach ( $profile as $area ) {
+			$css    = 'fmc-area-' . $area['area'];
+			$areas .= '<th scope="colgroup" colspan="' . count( $area['competences'] ) . '" class="' . $css . '">' . esc_html( $area['area'] . '. ' . $area['name'] ) . '</th>';
+			foreach ( $area['competences'] as $competence ) {
+				$levels = $competence['levels'];
 				$detail = implode( ', ', array_map( static fn( $level, $n ) => $level . ' (' . $n . ')', array_keys( $levels ), $levels ) );
-				$codes .= '<th scope="col" class="fmc-area-' . $area . '" title="' . esc_attr( $title ) . '">' . esc_html( $code ) . '</th>';
-				$cells .= '<td class="fmc-area-' . $area . '"' . ( '' !== $detail ? ' title="' . esc_attr( $title . ': ' . $detail . ' indicador(es)' ) . '"' : '' ) . '>' . esc_html( (string) array_key_last( $levels ) ) . '</td>';
+				$codes .= '<th scope="col" class="' . $css . '" title="' . esc_attr( $competence['name'] ) . '">' . esc_html( $competence['code'] ) . '</th>';
+				$cells .= '<td class="' . $css . '"' . ( '' !== $detail ? ' title="' . esc_attr( $competence['name'] . ': ' . $detail . ' indicador(es)' ) . '"' : '' ) . '>' . esc_html( $competence['level'] ) . '</td>';
 			}
 		}
 		return '<div class="fmc-digcomp card card-body mt-2"><div class="d-flex align-items-center mb-2"><strong class="me-auto">Resumen del perfil</strong><a class="btn btn-sm btn-outline-primary" href="' . esc_url( $url ) . '" target="_blank" rel="noopener">Abrir en elidd</a></div>'

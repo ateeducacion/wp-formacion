@@ -7,6 +7,7 @@
 
 namespace Fmc\PublicFront;
 
+use Fmc\Domain\DigComp;
 use Fmc\Meta\DesignMetaKeys as D;
 use Fmc\PostType\PostTypes;
 
@@ -223,8 +224,11 @@ final class CatalogueFeed {
 			$course[ $keys[ $key ] ] = '' !== trim( $value ) ? wp_kses_post( wpautop( $value ) ) : '';
 		}
 		$course['digcomp_url'] = esc_url_raw( $m( D::DIGCOMP_URL ) );
-		$course['documents']   = array();
-		$documents             = Documents::of( $post->ID );
+		// El perfil, ya resumido por áreas: quien pinta la ficha en otra web
+		// hace el cuadro sin conocer el marco de competencia.
+		$course['digcomp']   = DigComp::profile( $m( D::DIGCOMP_URL ) );
+		$course['documents'] = array();
+		$documents           = Documents::of( $post->ID );
 		foreach ( Documents::PUBLIC_KINDS as $kind ) {
 			foreach ( $documents[ $kind ] as $doc ) {
 				$course['documents'][] = array(
