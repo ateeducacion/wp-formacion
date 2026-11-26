@@ -358,7 +358,13 @@ class Test_Lists extends WP_UnitTestCase {
 		$body = Lists::screen( 'designs', PostTypes::DESIGN )['body'];
 		$this->assertStringContainsString( 'A</a> <span class="badge rounded-pill text-bg-secondary">Borrador</span>', $body );
 		$this->assertStringContainsString( 'B</a> <span class="badge rounded-pill text-bg-secondary">Borrador</span>', $body );
-		$this->assertStringContainsString( 'C</a> <span class="badge rounded-pill text-bg-success">Finalizado</span>', $body );
+		// «Finalizado» es lo normal en el listado: decirlo en cada fila es ruido.
+		$this->assertStringContainsString( '>C</a></td>', $body );
+		$this->assertStringNotContainsString( 'text-bg-success">Finalizado</span>', $body, 'el contador de arriba lo sigue diciendo; la fila, no' );
+		// El histórico, que hay que pedirlo, sí lo dice.
+		$_GET['fmc_status'] = PostTypes::ARCHIVED;
+		$this->assertStringContainsString( 'D</a> <span class="badge rounded-pill text-bg-dark">Histórico</span>', Lists::screen( 'designs', PostTypes::DESIGN )['body'] );
+		unset( $_GET['fmc_status'] );
 		$this->assertStringNotContainsString( 'En revisión', $body );
 		$this->assertSame(
 			array(

@@ -1287,7 +1287,7 @@ final class Lists {
 			// ninguno.
 			$file = str_repeat( nl2br( esc_html( A::file_numbers( $post->ID, true ) ) ), (int) ! $leading );
 			// Solo si hay algo que poner: una línea vacía se queda en nada.
-			$link = $thumb . $name . self::badge( $post ) . preg_replace( '/^(.+)$/s', '<div class="small text-secondary">$1</div>', $file );
+			$link = $thumb . $name . self::badge( $post, true ) . preg_replace( '/^(.+)$/s', '<div class="small text-secondary">$1</div>', $file );
 			$out .= '<tr>' . $cells( $leading ) . '<td class="fmc-col-title">' . $link . '</td>' . $cells( $columns ) . '<td class="text-end text-nowrap">' . self::row_buttons( $post ) . '</td></tr>';
 		}
 		return $out . '</tbody></table></div></div>';
@@ -1601,14 +1601,22 @@ final class Lists {
 	/**
 	 * State badge of a post.
 	 *
-	 * @param \WP_Post $post Post.
+	 * En un listado, el diseño finalizado no lleva chapa: es lo normal, y
+	 * decirlo en cada fila es ruido. Se dice lo que se sale de ahí —borrador,
+	 * histórico—. En la cabecera de su ficha sí, que ahí es su estado.
+	 *
+	 * @param \WP_Post $post    Post.
+	 * @param bool     $in_list Whether it goes in a row of a list.
 	 * @return string
 	 */
-	public static function badge( \WP_Post $post ): string {
+	public static function badge( \WP_Post $post, bool $in_list = false ): string {
 		if ( PostTypes::ACTION === $post->post_type ) {
 			$s = A::situation( $post->ID );
 			return ( 'draft' === $post->post_status ? ' <span class="badge rounded-pill text-bg-light border">Borrador</span>' : '' )
 				. ( isset( A::SITUATIONS[ $s ] ) ? ' <span class="badge rounded-pill text-bg-' . esc_attr( self::SITUATION_COLOURS[ $s ] ) . '">' . esc_html( A::SITUATIONS[ $s ] ) . '</span>' : '' ) . self::incident_badge( $post->ID );
+		}
+		if ( PostTypes::DESIGN === $post->post_type && $in_list && 'publish' === $post->post_status ) {
+			return '';
 		}
 		if ( PostTypes::DESIGN === $post->post_type && isset( self::DESIGN_STATUSES[ PostTypes::design_status( $post->post_status ) ] ) ) {
 			list( $label, $colour ) = self::DESIGN_STATUSES[ PostTypes::design_status( $post->post_status ) ];
