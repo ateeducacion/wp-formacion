@@ -150,8 +150,11 @@ for ( const file of tracked() ) {
 	}
 	const lines = text.split( '\n' );
 	for ( let i = 0; i < lines.length; i++ ) {
+		// Una imagen incrustada es una ristra de letras al azar, y en una ristra
+		// larga acaba saliendo cualquier palabra corta: se mira la línea sin ella.
+		const line = lines[ i ].replace( /data:[a-z0-9.+\/-]+;base64,[A-Za-z0-9+\/=]+/g, 'data:…' );
 		for ( const rule of RULES ) {
-			if ( rule.pattern.test( lines[ i ] ) ) {
+			if ( rule.pattern.test( line ) ) {
 				if ( ! found.has( rule.name ) ) {
 					found.set( rule.name, [] );
 				}

@@ -351,7 +351,7 @@ final class Fields {
 			array(
 				'title'  => 'Financiación',
 				// Quién paga se elige; el programa, si paga quien cobra a programas, sale del diseño (ADR-0018).
-				'help'   => sprintf( 'Indique quién la paga. El programa solo se pide si la asume «%3$s». Con «%1$s» se asigna solo al guardar: el programa activo del diseño. Si el diseño no está en ningún programa activo, la asume «%2$s».', $funders[ A::PROGRAMME_FUNDER ], $funders[ A::FALLBACK_FUNDER ], $paying ),
+				'help'   => sprintf( 'Indique quién asume el coste. El programa solo se pide si la asume «%s».', $paying ),
 				'fields' => array(
 					A::FUNDED_BY        => array(
 						'label'   => 'Asumida por',
@@ -363,7 +363,7 @@ final class Fields {
 						'label' => 'Con cargo al programa',
 						'w'     => 'terms',
 						'col'   => 6,
-						'help'  => sprintf( 'Solo se pueden elegir programas vigentes. Con «%s» se asigna solo.', $funders[ A::PROGRAMME_FUNDER ] ),
+						'help'  => sprintf( 'Solo salen los programas vigentes. Si la asume «%1$s», no hace falta elegirlo: al guardar se pone el programa vigente de su diseño y, si el diseño no está en ninguno, la acción pasa a «%2$s».', $funders[ A::PROGRAMME_FUNDER ], $funders[ A::FALLBACK_FUNDER ] ),
 					),
 					// De una lista, y no escrita a mano: cada cual la escribía a su
 					// manera. La lista la da el despliegue; lo guardado que ya no
