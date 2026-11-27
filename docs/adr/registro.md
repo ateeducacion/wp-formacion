@@ -81,3 +81,4 @@ adenda del 2026-10-28).
 | [ADR-0029](ADR-0029-la-incidencia-deja-constancia-y-nadie-la-resuelve.md) | La incidencia deja constancia de un cambio, y nadie la resuelve | Propuesta |
 | [ADR-0030](ADR-0030-el-expediente-interno-lo-pone-el-aplicativo-y-la-accion-se-completa.md) | El expediente interno lo pone el aplicativo, y la acción queda completada con el del servicio | Propuesta |
 | [ADR-0031](ADR-0031-la-linea-estrategica-se-elige-de-una-lista-del-despliegue.md) | La línea estratégica se elige de una lista que da el despliegue | Propuesta |
+| [ADR-0032](ADR-0032-todo-diseno-finalizado-esta-en-el-catalogo.md) | Todo diseño finalizado está en el catálogo público | Propuesta |

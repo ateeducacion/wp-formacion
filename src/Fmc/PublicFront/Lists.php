@@ -474,9 +474,6 @@ final class Lists {
 				$term( 'fmc_topic', self::arg( 'fmc_topic' ) );
 				$meta( D::TYPE, self::arg( 'fmc_type' ) );
 				$meta( D::MODALITY, self::arg( 'fmc_modality' ) );
-				if ( '1' === self::arg( 'fmc_catalogue' ) ) {
-					$meta( D::IN_CATALOGUE, '1' );
-				}
 				// Quien no escribe diseños ve los finalizados y nada más: ni
 				// borradores ni históricos, ni siquiera los suyos (ADR-0017).
 				if ( ! self::writes_designs() ) {
@@ -983,7 +980,7 @@ final class Lists {
 	 */
 	public static function current_filters(): array {
 		$out = array();
-		foreach ( array( 'fmc_s', 'fmc_scope', 'fmc_programme', 'fmc_topic', 'fmc_modality', 'fmc_process', 'fmc_situation', 'fmc_year', 'fmc_type', 'fmc_status', 'fmc_zone', 'fmc_available', 'fmc_request', 'fmc_month', 'fmc_speaker', 'fmc_from', 'fmc_to', 'fmc_catalogue', 'fmc_recommended', 'fmc_file', 'fmc_incident', 'fmc_given', 'fmc_sort', 'fmc_dir', 'fmc_view', 'fmc_adviser', 'fmc_adviser_kind' ) as $key ) {
+		foreach ( array( 'fmc_s', 'fmc_scope', 'fmc_programme', 'fmc_topic', 'fmc_modality', 'fmc_process', 'fmc_situation', 'fmc_year', 'fmc_type', 'fmc_status', 'fmc_zone', 'fmc_available', 'fmc_request', 'fmc_month', 'fmc_speaker', 'fmc_from', 'fmc_to', 'fmc_recommended', 'fmc_file', 'fmc_incident', 'fmc_given', 'fmc_sort', 'fmc_dir', 'fmc_view', 'fmc_adviser', 'fmc_adviser_kind' ) as $key ) {
 			// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- filtros de lectura.
 			if ( 'fmc_year' === $key && ! isset( $_GET[ $key ] ) ) {
 				// Lo que vale de serie —el curso en marcha— no se arrastra a los
@@ -1040,7 +1037,6 @@ final class Lists {
 				if ( self::writes_designs() ) {
 					$fields[] = self::select( 'fmc_status', 'Estado', array_map( static fn( $s ) => $s[0], self::DESIGN_STATUSES ), 'Vigentes' );
 				}
-				$fields[] = self::select( 'fmc_catalogue', 'Catálogo', array( '1' => 'En el catálogo público' ), 'Todos' );
 				break;
 			case PostTypes::SPEAKER:
 				$quick[]  = self::select( 'fmc_zone', 'Isla o zona', self::term_choices( Taxonomies::ZONE ), 'Todas' );
@@ -1620,9 +1616,8 @@ final class Lists {
 	 * State badge of a post.
 	 *
 	 * En un listado, el diseño finalizado no lleva chapa: es lo normal, y
-	 * decirlo en cada fila es ruido. Se dice lo que se sale de ahí —borrador,
-	 * histórico— y, del finalizado, si está en el catálogo público. En la
-	 * cabecera de su ficha sí, que ahí es su estado.
+	 * decirlo en cada fila es ruido. Se dice lo que se sale de ahí: borrador o
+	 * histórico. En la cabecera de su ficha sí, que ahí es su estado.
 	 *
 	 * @param \WP_Post $post    Post.
 	 * @param bool     $in_list Whether it goes in a row of a list.
@@ -1635,10 +1630,7 @@ final class Lists {
 				. ( isset( A::SITUATIONS[ $s ] ) ? ' <span class="badge rounded-pill text-bg-' . esc_attr( self::SITUATION_COLOURS[ $s ] ) . '">' . esc_html( A::SITUATIONS[ $s ] ) . '</span>' : '' ) . self::incident_badge( $post->ID );
 		}
 		if ( PostTypes::DESIGN === $post->post_type && $in_list && 'publish' === $post->post_status ) {
-			// Si está en el catálogo público lo dice un ojo; tachado, que está
-			// finalizado pero fuera. Ocupa menos que una columna.
-			list( $icon, $text ) = Catalogue::is_listed( $post ) ? array( 'bi-eye', 'Visible en el catálogo público' ) : array( 'bi-eye-slash', 'No está en el catálogo público' );
-			return ' <i class="bi ' . $icon . ' fmc-listed" role="img" title="' . esc_attr( $text ) . '" aria-label="' . esc_attr( $text ) . '"></i>';
+			return '';
 		}
 		if ( PostTypes::DESIGN === $post->post_type && isset( self::DESIGN_STATUSES[ PostTypes::design_status( $post->post_status ) ] ) ) {
 			list( $label, $colour ) = self::DESIGN_STATUSES[ PostTypes::design_status( $post->post_status ) ];

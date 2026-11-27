@@ -81,7 +81,6 @@ class Test_Catalogue_Feed extends WP_UnitTestCase {
 		$robot = $this->design(
 			'Robots en el aula',
 			array(
-				D::IN_CATALOGUE => '1',
 				D::CODE         => 'A007',
 				D::TYPE         => 'course',
 				D::MODALITY     => 'blended',
@@ -98,13 +97,11 @@ class Test_Catalogue_Feed extends WP_UnitTestCase {
 		$this->design(
 			'Aulas virtuales',
 			array(
-				D::IN_CATALOGUE => '1',
-				D::TYPE         => 'one_off',
+				D::TYPE => 'one_off',
 			)
 		);
-		$this->design( 'Finalizado fuera' );
-		$this->design( 'Borrador marcado', array( D::IN_CATALOGUE => '1' ), 'draft' );
-		$this->design( 'Histórico marcado', array( D::IN_CATALOGUE => '1' ), PostTypes::ARCHIVED );
+		$this->design( 'Borrador', array(), 'draft' );
+		$this->design( 'Histórico', array(), PostTypes::ARCHIVED );
 
 		$response = $this->get( '/catalogue' );
 		$data     = $response->get_data();
@@ -181,13 +178,12 @@ class Test_Catalogue_Feed extends WP_UnitTestCase {
 		$id = $this->design(
 			'Impresión 3D',
 			array(
-				D::IN_CATALOGUE => '1',
-				D::AUDIENCE     => 'Profesorado de secundaria',
-				D::OBJECTIVES   => "Uno\n\nDos<script>alert(1)</script>",
-				D::METHODOLOGY  => 'Solo de trabajo',
-				D::NOTES        => 'Observación interna',
-				D::AUTHORSHIP   => 'Quien lo escribió',
-				D::DIGCOMP_URL  => 'https://ejemplo.example/perfil?c=1.3.A2.1|2.2.A1.3#x',
+				D::AUDIENCE    => 'Profesorado de secundaria',
+				D::OBJECTIVES  => "Uno\n\nDos<script>alert(1)</script>",
+				D::METHODOLOGY => 'Solo de trabajo',
+				D::NOTES       => 'Observación interna',
+				D::AUTHORSHIP  => 'Quien lo escribió',
+				D::DIGCOMP_URL => 'https://ejemplo.example/perfil?c=1.3.A2.1|2.2.A1.3#x',
 			)
 		);
 		foreach ( array(
@@ -234,14 +230,13 @@ class Test_Catalogue_Feed extends WP_UnitTestCase {
 
 	/**
 	 * Lo que no está en el catálogo no existe para quien lo pide: ni un
-	 * finalizado fuera de él, ni un borrador, ni un histórico, ni otra cosa.
+	 * borrador, ni un histórico, ni otra cosa.
 	 * Tampoco con sesión de administración.
 	 */
 	public function test_a_course_outside_the_catalogue_is_not_found() {
 		$ids = array(
-			$this->design( 'Fuera' ),
-			$this->design( 'Borrador', array( D::IN_CATALOGUE => '1' ), 'draft' ),
-			$this->design( 'Histórico', array( D::IN_CATALOGUE => '1' ), PostTypes::ARCHIVED ),
+			$this->design( 'Borrador', array(), 'draft' ),
+			$this->design( 'Histórico', array(), PostTypes::ARCHIVED ),
 			self::factory()->post->create( array( 'post_title' => 'Una entrada' ) ),
 			999999,
 		);

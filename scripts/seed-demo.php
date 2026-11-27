@@ -96,7 +96,6 @@ $fmc_design = fmc_seed_post(
 		DesignMetaKeys::MODALITY     => 'blended',
 		DesignMetaKeys::HOURS_ONSITE => 8,
 		DesignMetaKeys::HOURS_ONLINE => 12,
-		DesignMetaKeys::IN_CATALOGUE => true,
 	),
 	array(
 		Taxonomies::TOPIC     => 'inteligencia-artificial',

@@ -15,9 +15,9 @@ use Fmc\PostType\PostTypes;
  * El catálogo público de formación (REQ-0001, RF-4 y RF-6).
  *
  * Sin sesión y en la portada, como el resto del aplicativo: `?fmc_catalogo=1`
- * es la lista y `?fmc_curso=ID`, la ficha de un curso. Solo salen los diseños
- * finalizados que la coordinación ha puesto en el catálogo, y de cada uno solo lo
- * que se publica; lo de trabajo —metodología, observaciones, autoría y los
+ * es la lista y `?fmc_curso=ID`, la ficha de un curso. Salen todos los diseños
+ * finalizados —lo que no deba verse se deja en borrador o se pasa al histórico
+ * (ADR-0032)—, y de cada uno solo lo que se publica; lo de trabajo —metodología, observaciones, autoría y los
  * documentos que no son la ficha técnica— se queda dentro (ADR-0025).
  */
 final class Catalogue {
@@ -118,13 +118,6 @@ final class Catalogue {
 			// Por el título o por el código: `Lists::where()`.
 			'fmc_text'       => (string) ( $filters['s'] ?? '' ),
 			'fmc_text_keys'  => array( D::CODE ),
-			// phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_query -- solo lo que está en el catálogo.
-			'meta_query'     => array(
-				array(
-					'key'   => D::IN_CATALOGUE,
-					'value' => '1',
-				),
-			),
 		);
 		foreach ( array(
 			'type'     => array( D::TYPE, D::TYPES ),
@@ -176,13 +169,13 @@ final class Catalogue {
 	}
 
 	/**
-	 * Whether a post is a finished design in the catalogue.
+	 * Whether a post is in the catalogue: every finished design is (ADR-0032).
 	 *
 	 * @param \WP_Post $post Post.
 	 * @return bool
 	 */
 	public static function is_listed( \WP_Post $post ): bool {
-		return PostTypes::DESIGN === $post->post_type && 'publish' === $post->post_status && (bool) get_post_meta( $post->ID, D::IN_CATALOGUE, true );
+		return PostTypes::DESIGN === $post->post_type && 'publish' === $post->post_status;
 	}
 
 	/**

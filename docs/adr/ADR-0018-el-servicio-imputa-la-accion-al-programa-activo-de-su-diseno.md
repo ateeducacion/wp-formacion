@@ -172,3 +172,20 @@ que valga, y verlo confundía.
 
 Queda abierto lo que se habló antes con el servicio: que hay casos que se
 tramitan en un sitio y se pagan desde otro. Si aparecen, esta regla se revisa.
+
+## Adenda — 2026-11-27: con el área tampoco hay programa
+
+En la revisión del día siguiente, la coordinación aclaró lo que la adenda
+anterior había recogido a medias: hoy el área no carga acciones a ningún
+programa, así que el campo tampoco debe salir cuando la asume ella. El único
+caso que queda es el de siempre: la asume el servicio y el programa lo pone el
+aplicativo.
+
+- El campo solo se ve, y solo se guarda, si la asume el servicio
+  (`ActionMetaKeys::PROGRAMME_FUNDER`). Sale `PROGRAMME_FUNDERS`, que ya no
+  decía nada distinto.
+- Lo ya guardado sigue sin borrarse por editar otra cosa: las acciones que
+  llegaron asumidas por el área y con programa lo conservan mientras no se les
+  cambie quién las asume.
+
+Si el área vuelve a tener un programa propio, esta regla se revisa.

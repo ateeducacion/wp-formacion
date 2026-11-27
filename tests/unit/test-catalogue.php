@@ -59,25 +59,22 @@ class Test_Catalogue extends WP_UnitTestCase {
 	}
 
 	/**
-	 * Solo los diseños finalizados que están en el catálogo, para cualquiera.
+	 * Todos los diseños finalizados, y solo ellos, para cualquiera (ADR-0032).
 	 */
-	public function test_the_list_shows_only_finished_designs_in_the_catalogue() {
+	public function test_the_list_shows_every_finished_design_and_nothing_else() {
 		$this->design(
 			'En el catálogo',
 			array(
-				D::IN_CATALOGUE => '1',
-				D::CODE         => 'A7',
-				D::TYPE         => 'course',
+				D::CODE => 'A7',
+				D::TYPE => 'course',
 			)
 		);
-		$this->design( 'Finalizado fuera' );
-		$this->design( 'Borrador marcado', array( D::IN_CATALOGUE => '1' ), 'draft' );
-		$this->design( 'Histórico marcado', array( D::IN_CATALOGUE => '1' ), PostTypes::ARCHIVED );
+		$this->design( 'Borrador', array(), 'draft' );
+		$this->design( 'Histórico', array(), PostTypes::ARCHIVED );
 		$this->design(
 			'Taller',
 			array(
-				D::IN_CATALOGUE => '1',
-				D::TYPE         => 'one_off',
+				D::TYPE => 'one_off',
 			)
 		);
 		$_GET[ Catalogue::ARG_LIST ] = '1';
@@ -107,13 +104,12 @@ class Test_Catalogue extends WP_UnitTestCase {
 		$id                           = $this->design(
 			'Robótica',
 			array(
-				D::IN_CATALOGUE => '1',
-				D::CODE         => 'A9',
-				D::OBJECTIVES   => 'Programar un robot',
-				D::METHODOLOGY  => 'Por proyectos',
-				D::NOTES        => 'Nota interna',
-				D::AUTHORSHIP   => 'Persona autora',
-				D::DIGCOMP_URL  => 'https://herramienta.example/?c=1.1.A1.1|3.1.B1.1',
+				D::CODE        => 'A9',
+				D::OBJECTIVES  => 'Programar un robot',
+				D::METHODOLOGY => 'Por proyectos',
+				D::NOTES       => 'Nota interna',
+				D::AUTHORSHIP  => 'Persona autora',
+				D::DIGCOMP_URL => 'https://herramienta.example/?c=1.1.A1.1|3.1.B1.1',
 			)
 		);
 		$_GET[ Catalogue::ARG_SHEET ] = (string) $id;
@@ -134,7 +130,7 @@ class Test_Catalogue extends WP_UnitTestCase {
 	 * el resto de los documentos se queda dentro (ADR-0025).
 	 */
 	public function test_a_sheet_links_its_technical_sheet_and_nothing_else() {
-		$id = $this->design( 'Impresión 3D', array( D::IN_CATALOGUE => '1' ) );
+		$id = $this->design( 'Impresión 3D', array() );
 		foreach ( array(
 			'design'   => 'Ficha técnica.odt',
 			'sessions' => 'Escaleta.odt',
@@ -158,10 +154,10 @@ class Test_Catalogue extends WP_UnitTestCase {
 	 * eso; sin imagen, la tarjeta sale igual.
 	 */
 	public function test_a_card_shows_the_image_of_the_course() {
-		$with  = $this->design( 'Con imagen', array( D::IN_CATALOGUE => '1' ) );
+		$with  = $this->design( 'Con imagen', array() );
 		$image = self::factory()->attachment->create( array( 'post_parent' => $with ) );
 		update_post_meta( $image, Documents::KIND_META, 'image' );
-		$this->design( 'Sin imagen', array( D::IN_CATALOGUE => '1' ) );
+		$this->design( 'Sin imagen', array() );
 		$_GET[ Catalogue::ARG_LIST ] = '1';
 
 		$body = Catalogue::screen()['body'];
@@ -179,7 +175,7 @@ class Test_Catalogue extends WP_UnitTestCase {
 	 * catálogo propio no cambian.
 	 */
 	public function test_the_deployment_says_where_the_catalogue_is_seen() {
-		$id = $this->design( 'Robótica', array( D::IN_CATALOGUE => '1' ) );
+		$id = $this->design( 'Robótica', array() );
 		$this->assertSame( Catalogue::url(), Catalogue::public_url() );
 		$this->assertSame( Catalogue::url( $id ), Catalogue::public_url( $id ) );
 
@@ -197,14 +193,13 @@ class Test_Catalogue extends WP_UnitTestCase {
 	}
 
 	/**
-	 * Lo que no está en el catálogo no tiene ficha: ni un finalizado fuera de
-	 * él, ni un borrador, ni un histórico, ni algo que no es un diseño.
+	 * Lo que no está en el catálogo no tiene ficha: ni un borrador, ni un
+	 * histórico, ni algo que no es un diseño.
 	 */
 	public function test_a_course_outside_the_catalogue_is_not_found() {
 		$ids = array(
-			$this->design( 'Fuera' ),
-			$this->design( 'Borrador', array( D::IN_CATALOGUE => '1' ), 'draft' ),
-			$this->design( 'Histórico', array( D::IN_CATALOGUE => '1' ), PostTypes::ARCHIVED ),
+			$this->design( 'Borrador', array(), 'draft' ),
+			$this->design( 'Histórico', array(), PostTypes::ARCHIVED ),
 			self::factory()->post->create( array( 'post_title' => 'Una entrada' ) ),
 		);
 		foreach ( $ids as $id ) {
@@ -219,7 +214,7 @@ class Test_Catalogue extends WP_UnitTestCase {
 	 * La página que el tema da a un diseño lleva a su ficha del catálogo.
 	 */
 	public function test_the_theme_page_of_a_design_goes_to_its_sheet() {
-		$id = $this->design( 'Robótica', array( D::IN_CATALOGUE => '1' ) );
+		$id = $this->design( 'Robótica', array() );
 		$this->go_to( get_permalink( $id ) );
 		$redirect = static function ( $location ) {
 			// phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- lo lee el test, no se pinta.

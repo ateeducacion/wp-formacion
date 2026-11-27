@@ -261,11 +261,6 @@ final class ActionMetaKeys {
 	}
 
 	/**
-	 * Funders an action may be charged to a programme with.
-	 */
-	public const PROGRAMME_FUNDERS = array( 'area', 'service' );
-
-	/**
 	 * The situation of an action today, from its dates and its incidents.
 	 *
 	 * En la meta solo se guarda lo que deja una incidencia —aplazada o

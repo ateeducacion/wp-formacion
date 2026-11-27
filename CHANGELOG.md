@@ -8,6 +8,13 @@ lee de la cabecera superior y la escribe en el `@version` del bundle.
 `make release` crea el tag y la release en GitHub; el despliegue de los snippets
 en el sitio de destino se hace después.
 
+## [1.1.0] — 2026-11-27
+
+### Cambiado
+
+- **Todo diseño finalizado sale en el catálogo público**. Desaparecen la casilla «Visible en el catálogo público», el ojo del listado de diseños y el filtro «Catálogo»: lo que no deba verse se deja en borrador o se pasa al histórico. **Antes de desplegar**, hay que repasar los diseños finalizados que no tenían la casilla marcada, porque pasan a verse, con su ficha técnica (ADR-0032)
+- **«Con cargo al programa» solo sale si la asume el servicio**, que es quien carga a programas; con el área ya no. Lo ya guardado no se borra por editar otra cosa (ADR-0018, adenda)
+
 ## [1.0.2] — 2026-11-26
 
 ### Cambiado

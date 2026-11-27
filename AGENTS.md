@@ -55,7 +55,7 @@ sus números de formulario, de campo y de vista— está en `.local/`.
 |---|---|
 | Un formulario de diseño de curso cuyas entradas son el catálogo | CPT `fmc_design`, público; la descripción en `post_content` |
 | El histórico marcado en el tipo («Histórico-curso») | Un estado del diseño, «Histórico» (`fmc_archived`): sale de toda elección y de lo que ve la asesoría (ADR-0016) |
-| Una casilla «Opciones» que mezcla *está en el catálogo*, *diseño finalizado* y *pertenece a tal programa* | El estado es el `post_status` (ADR-0004); el catálogo, una meta; el programa, un término de `fmc_programme` (ADR-0003) |
+| Una casilla «Opciones» que mezcla *está en el catálogo*, *diseño finalizado* y *pertenece a tal programa* | El estado es el `post_status` (ADR-0004); el catálogo, todo lo finalizado (ADR-0032); el programa, un término de `fmc_programme` (ADR-0003) |
 | «Diseño finalizado» lo marca quien sea que vea la casilla | Solo la coordinación escribe y publica diseños: la asesoría los consulta finalizados, de solo lectura (ADR-0017) |
 | Un formulario de acción formativa enorme, con campos «obsoletos» dentro | CPT `fmc_action` que apunta a su diseño (`fmc_design_id`) y guarda solo lo suyo; los totales se suman, no se teclean |
 | Tres listas de «asumida por» que repiten los mismos programas | Quién paga es `fmc_funded_by` (lista cerrada, con los nombres del despliegue por `fmc_funders`); de qué programa, un término, que si paga el servicio es el activo del diseño (ADR-0018) |
@@ -140,7 +140,7 @@ src/Fmc/
 
 **La portada del sitio es el aplicativo**: sin sesión manda al acceso, salvo
 el catálogo público (`?fmc_catalogo=1`, `?fmc_curso=ID`, ADR-0013), que es la
-única pantalla que se ve sin entrar y solo enseña lo que está en él, y la
+única pantalla que se ve sin entrar y enseña los diseños finalizados (ADR-0032), y la
 ficha técnica y la imagen de sus cursos (`?fmc_documento=ID`, ADR-0025). Ese
 mismo catálogo se da como datos a las webs que lo enseñan en sus páginas
 (`fmc/v1/catalogue`, ADR-0028). Con

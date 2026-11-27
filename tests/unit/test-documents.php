@@ -512,12 +512,10 @@ class Test_Documents extends WP_UnitTestCase {
 		$this->assertSame( array( 'login', 'login' ), $verdicts( 0 ) );
 
 		// Finalizado: la asesoría lo consulta, con sus documentos (ADR-0017).
+		// Y finalizado es estar en el catálogo (ADR-0032): la ficha técnica es
+		// pública; la escaleta, no.
 		wp_publish_post( $id );
-		$this->assertSame( array( 'allowed', 'allowed' ), $verdicts( $adviser ) );
-		$this->assertSame( array( 'login', 'login' ), $verdicts( 0 ), 'finalizado, pero fuera del catálogo' );
-
-		// En el catálogo, la ficha técnica es pública; la escaleta, no.
-		update_post_meta( $id, \Fmc\Meta\DesignMetaKeys::IN_CATALOGUE, '1' );
+		$this->assertSame( array( 'public', 'allowed' ), $verdicts( $adviser ) );
 		$this->assertSame( array( 'public', 'login' ), $verdicts( 0 ) );
 
 		// Al histórico: deja de ser pública y la asesoría deja de verla (ADR-0016).
@@ -671,14 +669,18 @@ class Test_Documents extends WP_UnitTestCase {
 		// La imagen de un curso del catálogo sale en su tarjeta, para cualquiera:
 		// es pública y el navegador la guarda un rato.
 		wp_publish_post( $id );
-		update_post_meta( $id, \Fmc\Meta\DesignMetaKeys::IN_CATALOGUE, '1' );
 		wp_set_current_user( 0 );
 		$public = Documents::answer( $image );
 		$this->assertSame( 200, $public['status'] );
 		$this->assertContains( 'Cache-Control: public, max-age=3600', $public['headers'] );
 		$this->assertContains( 'ETag: ' . $etag, $public['headers'] );
 		// Fuera del catálogo vuelve a ser de quien lee el diseño.
-		delete_post_meta( $id, \Fmc\Meta\DesignMetaKeys::IN_CATALOGUE );
+		wp_update_post(
+			array(
+				'ID'          => $id,
+				'post_status' => 'draft',
+			)
+		);
 		$this->assertArrayHasKey( 'redirect', Documents::answer( $image ) );
 
 		// El resto de documentos no se guarda en el navegador.
