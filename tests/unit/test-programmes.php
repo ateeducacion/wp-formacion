@@ -165,9 +165,9 @@ class Test_Programmes extends WP_UnitTestCase {
 	}
 
 	/**
-	 * Con el área, el programa es el que se elija; y una acción guardada
-	 * que no cambia ni de quién paga ni de diseño se guarda aunque su programa
-	 * se haya cerrado.
+	 * Con el área no hay programa: hoy solo los carga el servicio. Y una acción
+	 * guardada que no cambia ni de quién paga ni de diseño se guarda aunque su
+	 * programa se haya cerrado.
 	 */
 	public function test_other_funders_and_old_actions_keep_their_programme() {
 		$programme = $this->programme( 'Programa', true );
@@ -176,7 +176,7 @@ class Test_Programmes extends WP_UnitTestCase {
 		wp_set_current_user( self::factory()->user->create( array( 'role' => 'fmc_adviser' ) ) );
 
 		$area = Editor::apply( PostTypes::ACTION, 0, $this->fields( $design, 'area', array( $other ) ), '', 0 );
-		$this->assertSame( array( $other ), $this->programmes_of( $area['id'] ) );
+		$this->assertSame( array(), $this->programmes_of( $area['id'] ) );
 
 		$service = Editor::apply( PostTypes::ACTION, 0, $this->fields( $design, A::PROGRAMME_FUNDER ), '', 0 );
 		delete_term_meta( $programme, Taxonomies::ACTIVE );
@@ -185,8 +185,8 @@ class Test_Programmes extends WP_UnitTestCase {
 	}
 
 	/**
-	 * El programa solo cuenta si la asume quien puede cargarla a uno: con el
-	 * centro de formación o sin coste, no lo hay. Lo que ya estaba guardado así
+	 * El programa solo cuenta si la asume quien la carga a uno: con el área,
+	 * con el centro de formación o sin coste, no lo hay. Lo que ya estaba guardado así
 	 * —lo migrado— no se borra por editar otra cosa.
 	 */
 	public function test_a_programme_needs_a_funder_that_charges_to_programmes() {
@@ -194,12 +194,12 @@ class Test_Programmes extends WP_UnitTestCase {
 		$design    = $this->design( array( $programme ) );
 		wp_set_current_user( self::factory()->user->create( array( 'role' => 'fmc_curator' ) ) );
 
-		foreach ( array( 'centre', 'none', '' ) as $funder ) {
+		foreach ( array( 'area', 'centre', 'none', '' ) as $funder ) {
 			$new = Editor::apply( PostTypes::ACTION, 0, $this->fields( $design, $funder, array( $programme ) ), '', 0 );
 			$this->assertSame( 'created', $new['outcome'] );
 			$this->assertSame( array(), $this->programmes_of( $new['id'] ), 'asumida por «' . $funder . '»' );
 		}
-		$this->assertSame( array( 'show' => array( A::FUNDED_BY => array( 'area', 'service' ) ) ), array_intersect_key( \Fmc\PublicFront\Fields::all( PostTypes::ACTION )['tax:fmc_programme'], array( 'show' => 1 ) ) );
+		$this->assertSame( array( 'show' => array( A::FUNDED_BY => array( 'service' ) ) ), array_intersect_key( \Fmc\PublicFront\Fields::all( PostTypes::ACTION )['tax:fmc_programme'], array( 'show' => 1 ) ) );
 
 		// Una migrada: la pagaba el centro y trae su programa.
 		$old = Editor::apply( PostTypes::ACTION, 0, $this->fields( $design, 'centre' ), '', 0 )['id'];
@@ -211,9 +211,10 @@ class Test_Programmes extends WP_UnitTestCase {
 		Editor::apply( PostTypes::ACTION, $old, $this->fields( $design, 'none', array( $programme ) ), '', 0 );
 		$this->assertSame( array(), $this->programmes_of( $old ) );
 
-		// Y al pasar al área, el que se elija.
+		// Y al pasar al área, tampoco: hoy no carga a ningún programa.
+		wp_set_object_terms( $old, array( $programme ), Taxonomies::PROGRAMME );
 		Editor::apply( PostTypes::ACTION, $old, $this->fields( $design, 'area', array( $programme ) ), '', 0 );
-		$this->assertSame( array( $programme ), $this->programmes_of( $old ) );
+		$this->assertSame( array(), $this->programmes_of( $old ) );
 	}
 
 	/**

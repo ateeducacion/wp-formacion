@@ -78,3 +78,9 @@ Obliga a desplegar para añadir un programa nuevo.
 ### Neutras
 
 - Añadir un tipo de formación pide un cambio de código y una versión.
+
+## Adenda — 2026-11-27: el catálogo deja de tener su sitio
+
+La meta `fmc_in_catalogue` ya no se lee: todo diseño finalizado está en el
+catálogo público ([ADR-0032](ADR-0032-todo-diseno-finalizado-esta-en-el-catalogo.md)).
+El resto de esta ADR sigue como está.

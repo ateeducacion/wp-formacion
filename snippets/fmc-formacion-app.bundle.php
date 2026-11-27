@@ -6,7 +6,7 @@
  * Priority: 15
  *
  * @package Fmc
- * @version 1.0.2
+ * @version 1.0.3
  */
 
 // phpcs:disable
@@ -179,7 +179,6 @@ final class DesignMetaKeys {
 	public const DESIGN_FILE   = 'fmc_design_file';
 	public const SESSIONS_FILE = 'fmc_sessions_file';
 	public const SUPPORT_FILE  = 'fmc_support_file';
-	public const IN_CATALOGUE  = 'fmc_in_catalogue';
 	public const REPLACES      = 'fmc_replaces';
 
 
@@ -233,7 +232,6 @@ final class DesignMetaKeys {
 			self::DESIGN_FILE   => MetaTypes::URL,
 			self::SESSIONS_FILE => MetaTypes::URL,
 			self::SUPPORT_FILE  => MetaTypes::URL,
-			self::IN_CATALOGUE  => MetaTypes::BOOL,
 			self::REPLACES      => MetaTypes::IDS,
 		);
 	}
@@ -502,11 +500,6 @@ final class ActionMetaKeys {
 		}
 		return $out;
 	}
-
-
-
-
-	public const PROGRAMME_FUNDERS = array( 'area', 'service' );
 
 
 
@@ -3832,7 +3825,7 @@ final class Fields {
 				A::TRAINING_FILE    => array( 'show' => array( A::TRAINING_PLANS => array( 'plan', 'seminar' ) ) ),
 
 
-				'tax:fmc_programme' => array( 'show' => array( A::FUNDED_BY => A::PROGRAMME_FUNDERS ) ),
+				'tax:fmc_programme' => array( 'show' => array( A::FUNDED_BY => array( A::PROGRAMME_FUNDER ) ) ),
 				A::NOTES            => $rich,
 				A::SPEAKERS         => array( 'add' => PostTypes::SPEAKER ),
 			),
@@ -3910,11 +3903,6 @@ final class Fields {
 					D::HOURS_ONLINE => array(
 						'label' => 'Horas en línea',
 						'w'     => 'number',
-						'col'   => 4,
-					),
-					D::IN_CATALOGUE => array(
-						'label' => 'Visible en el catálogo público',
-						'w'     => 'checkbox',
 						'col'   => 4,
 					),
 				),
@@ -4012,7 +4000,6 @@ final class Fields {
 	private static function action(): array {
 		$funders = A::funders();
 		$lines   = A::strategic_lines();
-		$paying  = implode( '» o «', array_intersect_key( $funders, array_flip( A::PROGRAMME_FUNDERS ) ) );
 		$out     = array(
 			array(
 				'title'  => 'La acción',
@@ -4081,7 +4068,7 @@ final class Fields {
 			array(
 				'title'  => 'Financiación',
 
-				'help'   => sprintf( 'Indique quién asume el coste. El programa solo se pide si la asume «%s».', $paying ),
+				'help'   => sprintf( 'Indique quién asume el coste. El programa solo se pide si la asume «%s».', $funders[ A::PROGRAMME_FUNDER ] ),
 				'fields' => array(
 					A::FUNDED_BY        => array(
 						'label'   => 'Asumida por',
@@ -6022,9 +6009,6 @@ final class Lists {
 				$term( 'fmc_topic', self::arg( 'fmc_topic' ) );
 				$meta( D::TYPE, self::arg( 'fmc_type' ) );
 				$meta( D::MODALITY, self::arg( 'fmc_modality' ) );
-				if ( '1' === self::arg( 'fmc_catalogue' ) ) {
-					$meta( D::IN_CATALOGUE, '1' );
-				}
 
 
 				if ( ! self::writes_designs() ) {
@@ -6531,7 +6515,7 @@ final class Lists {
 
 	public static function current_filters(): array {
 		$out = array();
-		foreach ( array( 'fmc_s', 'fmc_scope', 'fmc_programme', 'fmc_topic', 'fmc_modality', 'fmc_process', 'fmc_situation', 'fmc_year', 'fmc_type', 'fmc_status', 'fmc_zone', 'fmc_available', 'fmc_request', 'fmc_month', 'fmc_speaker', 'fmc_from', 'fmc_to', 'fmc_catalogue', 'fmc_recommended', 'fmc_file', 'fmc_incident', 'fmc_given', 'fmc_sort', 'fmc_dir', 'fmc_view', 'fmc_adviser', 'fmc_adviser_kind' ) as $key ) {
+		foreach ( array( 'fmc_s', 'fmc_scope', 'fmc_programme', 'fmc_topic', 'fmc_modality', 'fmc_process', 'fmc_situation', 'fmc_year', 'fmc_type', 'fmc_status', 'fmc_zone', 'fmc_available', 'fmc_request', 'fmc_month', 'fmc_speaker', 'fmc_from', 'fmc_to', 'fmc_recommended', 'fmc_file', 'fmc_incident', 'fmc_given', 'fmc_sort', 'fmc_dir', 'fmc_view', 'fmc_adviser', 'fmc_adviser_kind' ) as $key ) {
 
 			if ( 'fmc_year' === $key && ! isset( $_GET[ $key ] ) ) {
 
@@ -6588,7 +6572,6 @@ final class Lists {
 				if ( self::writes_designs() ) {
 					$fields[] = self::select( 'fmc_status', 'Estado', array_map( static fn( $s ) => $s[0], self::DESIGN_STATUSES ), 'Vigentes' );
 				}
-				$fields[] = self::select( 'fmc_catalogue', 'Catálogo', array( '1' => 'En el catálogo público' ), 'Todos' );
 				break;
 			case PostTypes::SPEAKER:
 				$quick[]  = self::select( 'fmc_zone', 'Isla o zona', self::term_choices( Taxonomies::ZONE ), 'Todas' );
@@ -7175,7 +7158,6 @@ final class Lists {
 
 
 
-
 	public static function badge( \WP_Post $post, bool $in_list = false ): string {
 		if ( PostTypes::ACTION === $post->post_type ) {
 			$s = A::situation( $post->ID );
@@ -7183,10 +7165,7 @@ final class Lists {
 				. ( isset( A::SITUATIONS[ $s ] ) ? ' <span class="badge rounded-pill text-bg-' . esc_attr( self::SITUATION_COLOURS[ $s ] ) . '">' . esc_html( A::SITUATIONS[ $s ] ) . '</span>' : '' ) . self::incident_badge( $post->ID );
 		}
 		if ( PostTypes::DESIGN === $post->post_type && $in_list && 'publish' === $post->post_status ) {
-
-
-			list( $icon, $text ) = Catalogue::is_listed( $post ) ? array( 'bi-eye', 'Visible en el catálogo público' ) : array( 'bi-eye-slash', 'No está en el catálogo público' );
-			return ' <i class="bi ' . $icon . ' fmc-listed" role="img" title="' . esc_attr( $text ) . '" aria-label="' . esc_attr( $text ) . '"></i>';
+			return '';
 		}
 		if ( PostTypes::DESIGN === $post->post_type && isset( self::DESIGN_STATUSES[ PostTypes::design_status( $post->post_status ) ] ) ) {
 			list( $label, $colour ) = self::DESIGN_STATUSES[ PostTypes::design_status( $post->post_status ) ];
@@ -11003,13 +10982,6 @@ final class Catalogue {
 
 			'fmc_text'       => (string) ( $filters['s'] ?? '' ),
 			'fmc_text_keys'  => array( D::CODE ),
-
-			'meta_query'     => array(
-				array(
-					'key'   => D::IN_CATALOGUE,
-					'value' => '1',
-				),
-			),
 		);
 		foreach ( array(
 			'type'     => array( D::TYPE, D::TYPES ),
@@ -11067,7 +11039,7 @@ final class Catalogue {
 
 
 	public static function is_listed( \WP_Post $post ): bool {
-		return PostTypes::DESIGN === $post->post_type && 'publish' === $post->post_status && (bool) get_post_meta( $post->ID, D::IN_CATALOGUE, true );
+		return PostTypes::DESIGN === $post->post_type && 'publish' === $post->post_status;
 	}
 
 
@@ -11823,8 +11795,6 @@ a.fmc-counter:hover, .fmc-counter.is-active { border-color: var(--fmc-brand); bo
 .fmc-col-title a.fw-semibold { color: var(--fmc-text); text-decoration: none; }
 .fmc-col-title a.fw-semibold:hover, .fmc-col-title a.fw-semibold:focus-visible { color: var(--fmc-brand); text-decoration: underline; }
 /* El ojo del catálogo, junto al título del diseño finalizado. */
-.fmc-listed { margin-left: .35rem; font-size: .95rem; vertical-align: -.08em; color: var(--fmc-brand); }
-.fmc-listed.bi-eye-slash { color: #8b96a3; }
 .fmc-table .fmc-icon { width: 2.25rem; height: 2.25rem; border-radius: .5rem; --bs-btn-color: var(--fmc-text-2); --bs-btn-border-color: transparent; --bs-btn-hover-color: var(--fmc-brand); --bs-btn-hover-bg: var(--fmc-sup-2); --bs-btn-hover-border-color: transparent; --bs-btn-active-color: var(--fmc-brand); --bs-btn-active-bg: var(--fmc-brand-cont); --bs-btn-active-border-color: transparent; }
 .fmc-table .btn-outline-danger.fmc-icon { --bs-btn-hover-color: var(--fmc-bad); --bs-btn-hover-bg: var(--fmc-bad-cont); --bs-btn-active-color: var(--fmc-bad); --bs-btn-active-bg: var(--fmc-bad-cont); }
 

@@ -359,8 +359,7 @@ class Test_Lists extends WP_UnitTestCase {
 		$this->assertStringContainsString( 'A</a> <span class="badge rounded-pill text-bg-light border">Borrador</span>', $body );
 		$this->assertStringContainsString( 'B</a> <span class="badge rounded-pill text-bg-light border">Borrador</span>', $body );
 		// «Finalizado» es lo normal en el listado: decirlo en cada fila es ruido.
-		// De él se dice si está en el catálogo público: aquí no, y el ojo sale tachado.
-		$this->assertStringContainsString( '>C</a> <i class="bi bi-eye-slash fmc-listed" role="img" title="No está en el catálogo público" aria-label="No está en el catálogo público"></i></td>', $body );
+		$this->assertStringContainsString( '>C</a></td>', $body );
 		$this->assertStringNotContainsString( 'text-bg-success">Finalizado</span>', $body, 'el contador de arriba lo sigue diciendo; la fila, no' );
 		// El histórico, que hay que pedirlo, sí lo dice.
 		$_GET['fmc_status'] = PostTypes::ARCHIVED;
@@ -399,9 +398,8 @@ class Test_Lists extends WP_UnitTestCase {
 			PostTypes::DESIGN,
 			'Curso presencial',
 			array(
-				D::TYPE         => 'course',
-				D::MODALITY     => 'onsite',
-				D::IN_CATALOGUE => true,
+				D::TYPE     => 'course',
+				D::MODALITY => 'onsite',
 			)
 		);
 		$b         = $this->post(
@@ -418,7 +416,6 @@ class Test_Lists extends WP_UnitTestCase {
 		$cases = array(
 			array( 'fmc_type', 'course', array( 'Curso presencial' ) ),
 			array( 'fmc_modality', 'online', array( 'Puntual en línea' ) ),
-			array( 'fmc_catalogue', '1', array( 'Curso presencial' ) ),
 			array( 'fmc_programme', $programme->slug, array( 'Curso presencial' ) ),
 			array( 'fmc_topic', $topic->slug, array( 'Puntual en línea' ) ),
 			array( 'fmc_s', 'Puntual', array( 'Puntual en línea' ) ),
@@ -427,14 +424,10 @@ class Test_Lists extends WP_UnitTestCase {
 			$_GET = array( $arg => $value );
 			$this->assertSame( $expected, $this->rows( PostTypes::DESIGN ), $arg );
 		}
-
-		// Cualquier otro valor de «catálogo» no filtra.
-		$_GET = array( 'fmc_catalogue' => '0' );
-		$this->assertCount( 2, $this->rows( PostTypes::DESIGN ) );
 	}
 
 	/**
-	 * Las columnas del diseño: código, catálogo, tipo, horas, competencias y programas.
+	 * Las columnas del diseño: código, tipo, horas, competencias y programas.
 	 */
 	public function test_design_columns_read_the_design() {
 		$this->as_role( 'fmc_curator' );
@@ -443,7 +436,6 @@ class Test_Lists extends WP_UnitTestCase {
 			'Curso',
 			array(
 				D::CODE         => 'CD-7',
-				D::IN_CATALOGUE => true,
 				D::TYPE         => 'course',
 				D::MODALITY     => 'blended',
 				D::HOURS_ONSITE => 8,
@@ -455,9 +447,8 @@ class Test_Lists extends WP_UnitTestCase {
 
 		$body = Lists::screen( 'designs', PostTypes::DESIGN )['body'];
 
-		// El código, solo; que está en el catálogo lo dice el ojo, junto al título.
 		$this->assertStringContainsString( '<td>CD-7</td>', $body );
-		$this->assertStringContainsString( '>Curso</a> <i class="bi bi-eye fmc-listed" role="img" title="Visible en el catálogo público" aria-label="Visible en el catálogo público"></i></td>', $body );
+		$this->assertStringContainsString( '>Curso</a></td>', $body );
 		// Se ordena también por tipo y por horas.
 		$this->assertMatchesRegularExpression( '#<th scope="col"><a class="fmc-sort" href="[^"]*fmc_sort=type[^"]*"[^>]*>Tipo#', $body );
 		$this->assertMatchesRegularExpression( '#<th scope="col"><a class="fmc-sort" href="[^"]*fmc_sort=hours[^"]*"[^>]*>Horas#', $body );
@@ -1018,18 +1009,17 @@ class Test_Lists extends WP_UnitTestCase {
 	 */
 	public function test_design_choices_are_the_finalised_with_their_code() {
 		$this->as_role( 'fmc_curator' );
-		$this->post( PostTypes::DESIGN, 'C borrador', array( D::IN_CATALOGUE => '1' ), array( 'post_status' => 'draft' ) );
-		$this->post( PostTypes::DESIGN, 'B histórico', array( D::IN_CATALOGUE => '1' ), array( 'post_status' => PostTypes::ARCHIVED ) );
+		$this->post( PostTypes::DESIGN, 'C borrador', array(), array( 'post_status' => 'draft' ) );
+		$this->post( PostTypes::DESIGN, 'B histórico', array(), array( 'post_status' => PostTypes::ARCHIVED ) );
 		$outside = $this->post( PostTypes::DESIGN, 'E fuera del catálogo' );
 		$listed  = $this->post(
 			PostTypes::DESIGN,
 			'A en el catálogo',
 			array(
-				D::IN_CATALOGUE => '1',
-				D::CODE         => 'A7',
+				D::CODE => 'A7',
 			)
 		);
-		$plain   = $this->post( PostTypes::DESIGN, 'D sin código', array( D::IN_CATALOGUE => '1' ) );
+		$plain   = $this->post( PostTypes::DESIGN, 'D sin código', array() );
 
 		$this->assertSame(
 			array(
@@ -1514,13 +1504,12 @@ class Test_Lists extends WP_UnitTestCase {
 	 */
 	public function test_design_titles_carry_their_status() {
 		$this->as_role( 'fmc_curator' );
-		$final = $this->post( PostTypes::DESIGN, 'Vigente', array( D::IN_CATALOGUE => '1' ) );
+		$final = $this->post( PostTypes::DESIGN, 'Vigente', array() );
 		$old   = $this->post(
 			PostTypes::DESIGN,
 			'Viejo',
 			array(
-				D::IN_CATALOGUE => '1',
-				D::CODE         => 'A9',
+				D::CODE => 'A9',
 			),
 			array( 'post_status' => PostTypes::ARCHIVED )
 		);

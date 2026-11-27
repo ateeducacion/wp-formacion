@@ -100,9 +100,9 @@ final class Fields {
 			PostTypes::ACTION   => array(
 				A::FILE_NUMBER      => array( 'unique' => true ),
 				A::TRAINING_FILE    => array( 'show' => array( A::TRAINING_PLANS => array( 'plan', 'seminar' ) ) ),
-				// El programa solo cuenta si la asume quien puede cargarla a uno:
-				// si la paga el centro de formación o no tiene coste, no lo hay.
-				'tax:fmc_programme' => array( 'show' => array( A::FUNDED_BY => A::PROGRAMME_FUNDERS ) ),
+				// El programa solo cuenta si la asume quien la carga a uno: si la
+				// paga el área o el centro de formación, o no tiene coste, no lo hay.
+				'tax:fmc_programme' => array( 'show' => array( A::FUNDED_BY => array( A::PROGRAMME_FUNDER ) ) ),
 				A::NOTES            => $rich,
 				A::SPEAKERS         => array( 'add' => PostTypes::SPEAKER ),
 			),
@@ -180,11 +180,6 @@ final class Fields {
 					D::HOURS_ONLINE => array(
 						'label' => 'Horas en línea',
 						'w'     => 'number',
-						'col'   => 4,
-					),
-					D::IN_CATALOGUE => array(
-						'label' => 'Visible en el catálogo público',
-						'w'     => 'checkbox',
 						'col'   => 4,
 					),
 				),
@@ -282,7 +277,6 @@ final class Fields {
 	private static function action(): array {
 		$funders = A::funders();
 		$lines   = A::strategic_lines();
-		$paying  = implode( '» o «', array_intersect_key( $funders, array_flip( A::PROGRAMME_FUNDERS ) ) );
 		$out     = array(
 			array(
 				'title'  => 'La acción',
@@ -351,7 +345,7 @@ final class Fields {
 			array(
 				'title'  => 'Financiación',
 				// Quién paga se elige; el programa, si paga quien cobra a programas, sale del diseño (ADR-0018).
-				'help'   => sprintf( 'Indique quién asume el coste. El programa solo se pide si la asume «%s».', $paying ),
+				'help'   => sprintf( 'Indique quién asume el coste. El programa solo se pide si la asume «%s».', $funders[ A::PROGRAMME_FUNDER ] ),
 				'fields' => array(
 					A::FUNDED_BY        => array(
 						'label'   => 'Asumida por',

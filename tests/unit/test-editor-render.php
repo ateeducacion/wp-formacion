@@ -251,10 +251,8 @@ class Test_Editor_Render extends WP_UnitTestCase {
 		$this->assertStringContainsString( 'Finalizado', $screen['badges'] );
 		$this->assertStringContainsString( 'Agendar una acción con este diseño', $screen['actions'] );
 		$this->assertStringContainsString( Screen::ARG_DESIGN . '=' . $done, $screen['actions'] );
-		// Finalizado pero fuera del catálogo: no tiene ficha pública que ver.
-		$this->assertStringNotContainsString( 'Ver en el catálogo', $screen['actions'] );
-		update_post_meta( $done, D::IN_CATALOGUE, '1' );
-		$this->assertStringContainsString( 'fmc_curso=' . $done . '" target="_blank" rel="noopener">Ver en el catálogo</a>', $this->screen_of( $done )['actions'] );
+		// Finalizado es estar en el catálogo: tiene ficha pública que ver.
+		$this->assertStringContainsString( 'fmc_curso=' . $done . '" target="_blank" rel="noopener">Ver en el catálogo</a>', $screen['actions'] );
 		$this->assertStringNotContainsString( 'fmc_delete', $screen['actions'], 'la coordinación no borra' );
 
 		$this->as_role( 'administrator' );
@@ -273,7 +271,6 @@ class Test_Editor_Render extends WP_UnitTestCase {
 
 		$this->assertTrue( $this->disabled( $screen['body'], 'post_title' ) );
 		$this->assertTrue( $this->disabled( $screen['body'], D::TYPE ) );
-		$this->assertTrue( $this->disabled( $screen['body'], D::IN_CATALOGUE ) );
 		$this->assertSame( array(), $this->buttons( $screen['body'] ) );
 		$this->assertStringContainsString( 'Esta ficha es de solo lectura.', $screen['body'] );
 		$this->assertSame( 0, $this->find( $screen['body'], '//input[@type="file"]' )->length );
@@ -924,7 +921,6 @@ class Test_Editor_Render extends WP_UnitTestCase {
 		$old = $this->post( PostTypes::DESIGN, $curator, PostTypes::ARCHIVED, 'Histórico' );
 		$this->post( PostTypes::DESIGN, $curator, PostTypes::ARCHIVED, 'Otro histórico' );
 		$this->post( PostTypes::DESIGN, $curator, 'draft', 'Borrador' );
-		update_post_meta( $offered, D::IN_CATALOGUE, '1' );
 		$speaker = $this->post( PostTypes::SPEAKER, $curator );
 		update_post_meta( $speaker, SpeakerMetaKeys::RECOMMENDED, array( $old ) );
 

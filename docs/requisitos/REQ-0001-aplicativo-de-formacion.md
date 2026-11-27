@@ -86,8 +86,9 @@ confirmado. Queda como pregunta abierta (§8).
   histórico**. **Solo la coordinación** escribe diseños, los da por finalizados
   y los pasa a histórico; la asesoría los consulta finalizados, de solo
   lectura (ADR-0004, ADR-0016, ADR-0017; ver §10).
-- **RF-4.** Estar en el catálogo público es una decisión aparte de estar
-  finalizado, y pertenecer a un programa es otra (ADR-0003).
+- **RF-4.** Todo diseño finalizado está en el catálogo público; lo que no deba
+  verse se deja en borrador o se pasa al histórico (ADR-0032). Pertenecer a un
+  programa es una decisión aparte (ADR-0003).
 - **RF-5.** El diseño puede enlazar su perfil de competencia digital, generado
   con una herramienta externa, y mostrarlo integrado en su ficha (ver §9).
 - **RF-6.** Catálogo público de diseños finalizados, con búsqueda y filtros por

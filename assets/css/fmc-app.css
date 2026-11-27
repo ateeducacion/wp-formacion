@@ -130,8 +130,6 @@ a.fmc-counter:hover, .fmc-counter.is-active { border-color: var(--fmc-brand); bo
 .fmc-col-title a.fw-semibold { color: var(--fmc-text); text-decoration: none; }
 .fmc-col-title a.fw-semibold:hover, .fmc-col-title a.fw-semibold:focus-visible { color: var(--fmc-brand); text-decoration: underline; }
 /* El ojo del catálogo, junto al título del diseño finalizado. */
-.fmc-listed { margin-left: .35rem; font-size: .95rem; vertical-align: -.08em; color: var(--fmc-brand); }
-.fmc-listed.bi-eye-slash { color: #8b96a3; }
 .fmc-table .fmc-icon { width: 2.25rem; height: 2.25rem; border-radius: .5rem; --bs-btn-color: var(--fmc-text-2); --bs-btn-border-color: transparent; --bs-btn-hover-color: var(--fmc-brand); --bs-btn-hover-bg: var(--fmc-sup-2); --bs-btn-hover-border-color: transparent; --bs-btn-active-color: var(--fmc-brand); --bs-btn-active-bg: var(--fmc-brand-cont); --bs-btn-active-border-color: transparent; }
 .fmc-table .btn-outline-danger.fmc-icon { --bs-btn-hover-color: var(--fmc-bad); --bs-btn-hover-bg: var(--fmc-bad-cont); --bs-btn-active-color: var(--fmc-bad); --bs-btn-active-bg: var(--fmc-bad-cont); }
 
